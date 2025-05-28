@@ -1,6 +1,50 @@
+# Composer
 composer.phar
 /vendor/
-
-# Commit your application's lock file https://getcomposer.org/doc/01-basic-usage.md#commit-your-composer-lock-file-to-version-control
-# You may choose to ignore a library lock file http://getcomposer.org/doc/02-libraries.md#lock-file
 # composer.lock
+
+# Slim
+.DS_Store
+.idea
+.phpunit.result.cache
+composer.lock
+phpunit.xml
+clover.xml
+vendor
+coverage
+
+# Sveltekit
+.DS_Store
+node_modules
+dist
+test-results/
+package-lock.json
+yarn.lock
+vite.config.js.timestamp-*
+/packages/create-svelte/template/CHANGELOG.md
+/packages/package/test/**/package
+/documentation/types.js
+.env
+.vercel_build_output
+.svelte-kit
+.cloudflare
+.pnpm-debug.log
+.netlify
+.turbo
+.vercel
+.test-tmp
+symlink-from
+.idea/
+
+# Svelte
+node_modules/
+.idea
+coveage
+*.lcov
+.eslintcache
+.env
+.env.test
+.vercel
+.DS_Store
+tmp
+benchmarking/compare/.results
