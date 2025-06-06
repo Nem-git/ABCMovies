@@ -178,7 +178,7 @@ class Toutv extends StreamingService {
         ];
 
         $downloadInfo["mpdUrl"] = $ssResponse["url"];
-
+        
         foreach ($ssResponse["params"] as $param) {
 
             if ($param["name"] === "widevineLicenseUrl") {
@@ -189,7 +189,7 @@ class Toutv extends StreamingService {
             }
         }
 
-        
+        return $downloadInfo;
 
     }
 
@@ -220,11 +220,13 @@ class Toutv extends StreamingService {
         self::parseEpisodeFileInfo($episode, $ssResponse);
 
         $headers = HTTP_DEFAULT_HEADERS;
-
         $headers["x-claims-token"] = ""; // TODO: Retrieve the token from the database
         $headers["Authorization"] = ""; // TODO: Retrieve the Auth token from the database
         
-        $ssResponse = get_request(TOUTV_URL_EPISODE_DOWNLOAD_INFO, $headers, TOUTV_PARAMETERS_EPISODE_DOWNLOAD_INFO);
+        $parameters = TOUTV_PARAMETERS_EPISODE_DOWNLOAD_INFO;
+        $parameters["idMedia"] = $episode->id;
+        
+        $ssResponse = get_request(TOUTV_URL_EPISODE_DOWNLOAD_INFO, $headers, $parameters);
 
         // TODO: Add verficiation to make sure the request has a valid output
 
