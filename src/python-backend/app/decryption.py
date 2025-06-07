@@ -5,12 +5,12 @@ import base64
 import os
 import requests
 
-from models import DecryptRequest
-from models import DecryptResponse
+from app.models import DecryptRequest
+from app.models import DecryptResponse
 
 
 class Widevine:
-    WVD_PATH: str = os.path.join(os.path.dirname(__file__), "device.wvd")
+    WVD_PATH: str = os.path.join(os.path.dirname(__file__), "wvds/device.wvd")
 
     def __init__(self):
         self.device = Device.load(self.WVD_PATH)

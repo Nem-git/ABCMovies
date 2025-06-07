@@ -1,12 +1,12 @@
 from fastapi import FastAPI
 
-from models import PsshRequest
-from models import PsshResponse
-from models import DecryptRequest
-from models import DecryptResponse
+from app.models import PsshRequest
+from app.models import PsshResponse
+from app.models import DecryptRequest
+from app.models import DecryptResponse
 
-from pssh import Pssh
-from decryption import Widevine
+from app.pssh import Pssh
+from app.decryption import Widevine
 
 app = FastAPI()
 

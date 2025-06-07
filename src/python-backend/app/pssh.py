@@ -6,8 +6,8 @@ import xml.etree.ElementTree as ET
 import os
 import yt_dlp
 
-from models import PsshRequest
-from models import PsshResponse
+from app.models import PsshRequest
+from app.models import PsshResponse
 
 
 class Pssh:
@@ -68,13 +68,14 @@ class Pssh:
             if scheme_id_uri == 'URN:MPEG:DASH:MP4PROTECTION:2011':
                 default_kid = elem.attrib.get('cenc:default_KID')
                 if default_kid:
-                    print(f"Found default_KID using XML parsing: {default_kid}")
+                    #print(f"Found default_KID using XML parsing: {default_kid}")
                     break
 
         if not default_kid:
             default_kid = self._find_default_kid_with_regex(mpd_content)
             if default_kid:
-                print(f"Found default_KID using regex: {default_kid}")
+                #print(f"Found default_KID using regex: {default_kid}")
+                pass
 
         pssh: str | None = None
         for elem in root.findall('.//ContentProtection', namespaces):
@@ -83,7 +84,7 @@ class Pssh:
                 pssh_elem = elem.find('cenc:pssh', namespaces)
                 if pssh_elem is not None and pssh_elem.text:
                     pssh = pssh_elem.text.strip()
-                    print(f"Found pssh element: {pssh}")
+                    #print(f"Found pssh element: {pssh}")
                     break
 
         if pssh is not None:
@@ -149,7 +150,7 @@ class Pssh:
                     break
 
         if not init_url:
-            print("Init segment URL not found.")
+            #print("Init segment URL not found.")
             return ""
 
         init_content = self._fetch_content(init_url, segments_headers)
@@ -162,6 +163,6 @@ class Pssh:
             if 20 < len(target_pssh) < 220:
                 pssh = target_pssh
 
-        print(f"PSSH:\n{pssh}\n")
+        #print(f"PSSH:\n{pssh}\n")
 
         return pssh
