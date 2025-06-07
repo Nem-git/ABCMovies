@@ -1,5 +1,6 @@
 <?php
 
+define("PYTHON_URL_BACKEND", "localhost:8000/");
 
 define("HTTP_DEFAULT_HEADERS", [
     "User-Agent" => "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/109.0",
@@ -44,11 +45,17 @@ define("TOUTV_PARAMETERS_EPISODE_FILE_INFO", [
 ]);
 
 define("TOUTV_URL_EPISODE_DOWNLOAD_INFO", "https://services.radio-canada.ca/media/validation/v2/");
-define ("TOUTV_PARAMETERS_EPISODE_DOWNLOAD_INFO", [
+define("TOUTV_PARAMETERS_EPISODE_DOWNLOAD_INFO", [
     "appCode" => "toutv",
     "output" => "json",
     "tech" => "dash",
     "manifestVersion" => 2,
     "idMedia" => null
 ]);
-
+define("TOUTV_HEADERS_EPISODE_DOWNLOAD_INFO", [
+    "Authorization" => null,
+    "x-claims-token" => null
+]);
+define("TOUTV_HEADERS_EPISODE_DOWNLOAD_LICENSE_INFO", [
+    "x-dt-auth-token" => null
+]);
