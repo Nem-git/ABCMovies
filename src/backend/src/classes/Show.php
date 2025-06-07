@@ -2,12 +2,8 @@
 
 declare(strict_types=1);
 
-class Show {
-
-    function __construct(string $id) {
-        $this->id = $id;
-    }
-
+class Show
+{
     /** Show unique identifier (In the streaming service) */
     public string $id;
     /** Show title (Ex: La petite vie) */
@@ -22,7 +18,7 @@ class Show {
     public string $imageCard;
     /** Background image URL */
     public string $imageBackground;
-    
+
     /** Streaming service */
     public StreamingService $streamingService;
 
