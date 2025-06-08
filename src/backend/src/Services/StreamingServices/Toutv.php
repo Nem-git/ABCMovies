@@ -1,17 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\StreamingServices;
 
-use App\Helpers\RequestHelper;
-use Psr\Http\Message\ResponseInterface as Response;
-use Psr\Http\Message\ServerRequestInterface as Request;
+use App\Models\DownloadInfo;
 use App\Services\StreamingService;
 use App\Models\Show;
 use App\Models\Season;
 use App\Models\Episode;
 
 /**
- * Tou.TV, le site de streaming payant de Radio-Canada
+ * Tou.TV, Radio-Canada's streaming service
  */
 class Toutv extends StreamingService
 {
@@ -55,7 +55,9 @@ class Toutv extends StreamingService
 
         foreach ($ssResponse["content"][0]["lineups"] as $ssResponseSeason) {
             $season = new Season();
-            $season->id = $ssResponseSeason["seasonNumber"];
+            $season->id = (string)$ssResponseSeason["seasonNumber"];
+            $season->title = $ssResponseSeason["title"];
+            $season->number = $ssResponseSeason["seasonNumber"];
 
             $show->seasons[] = $season;
         }
@@ -69,7 +71,7 @@ class Toutv extends StreamingService
             if ($ssResponseSeason["seasonNumber"] === (int)$season->id) {
 
                 $season->title = $ssResponseSeason["title"];
-                $season->number = $season->id;
+                $season->number = (int)$season->id;
                 $season->fullDescription = $season->shortDescription = $ssResponse["structuredMetadata"]["abstract"];
 
                 // Still not sure if episode should be in Season, but I think it's best to keep it that way for now
@@ -98,6 +100,11 @@ class Toutv extends StreamingService
         $episode->number = (int)$ssResponse["episode"];
     }
 
+    protected function parseEpisodeDownloadInfo(Episode $episode, array $ssResponse): DownloadInfo
+    {
+        return new DownloadInfo(); // Can't get info with the current request, so waiting for Optional
+    }
+
     private function parseEpisodeFileInfo(Episode $episode, array $ssResponse): void
     {
         $episode->id = $ssResponse["Metas"]["idMedia"];
@@ -108,28 +115,23 @@ class Toutv extends StreamingService
         $episode->shortDescription = !empty($ssResponse["Metas"]["ShortDescription"]) ? $ssResponse["Metas"]["ShortDescription"] : $episode->fullDescription;
     }
 
-    private function parseEpisodeDownloadInfo(Episode $episode, array $ssResponse): array
+    public function parseEpisodeDownloadStreamInfo(Episode $episode, array $ssResponse, $downloadInfo): void
     {
+        $downloadInfo->licenseHeaders = array_merge(HTTP_DEFAULT_HEADERS, TOUTV_HEADERS_EPISODE_DOWNLOAD_LICENSE_INFO);
 
-        $dlInfo = [
-            "mpdUrl" => null,
-            "licenseUrl" => null,
-            "token" => null
-        ];
+        //echo json_encode($ssResponse, JSON_PRETTY_PRINT);
 
-        $dlInfo["mpdUrl"] = $ssResponse["url"];
+        $downloadInfo->mpdUrl = $ssResponse["url"];
 
         foreach ($ssResponse["params"] as $param) {
 
             if ($param["name"] === "widevineLicenseUrl") {
-                $dlInfo["licenseUrl"] = $param["value"];
+                $downloadInfo->licenseUrl = $param["value"];
             }
             if ($param["name"] === "widevineAuthToken") {
-                $dlInfo["token"] = $param["value"];
+                $downloadInfo->licenseHeaders["x-dt-auth-token"] = $param["value"];
             }
         }
-
-        return $dlInfo;
     }
 
     //endregion
@@ -179,6 +181,8 @@ class Toutv extends StreamingService
         return TOUTV_PARAMETERS_EPISODE_INFO;
     }
 
+    //region New functions
+
     private function getEpisodeFileUrl(string $episodeId): string
     {
         return TOUTV_URL_EPISODE_FILE_INFO;
@@ -206,20 +210,15 @@ class Toutv extends StreamingService
     private function getEpisodeDownloadHeaders(): array
     {
         $headers = TOUTV_HEADERS_EPISODE_DOWNLOAD_INFO;
-        $headers["Authorization"] = "";
-        $headers["x-claims-token"] = "";
+        $headers["Authorization"] = ""; // TODO: Implement a way to ask the DB for the tokens
+        $headers["x-claims-token"] = ""; // TODO: ^^
         $headers = array_merge(HTTP_DEFAULT_HEADERS, $headers);
         return $headers;
     }
 
-    //endregion
 
-    //region Overrides
-
-    public function getEpisodeInfo(Request $request, Response $response, array $args): Episode
+    public function getEpisodeDownloadInfoOptional(Episode $episode, DownloadInfo $downloadInfo): void
     {
-        $episode = parent::getEpisodeInfo($request, $response, $args);
-
         $fileParams = $this->getEpisodeFileParameters($episode->id);
         $ssResponse = $this->request->get($this->getEpisodeFileUrl($episode->id), HTTP_DEFAULT_HEADERS, $fileParams);
         $this->parseEpisodeFileInfo($episode, json_decode($ssResponse, true));
@@ -227,20 +226,10 @@ class Toutv extends StreamingService
         $headers = $this->getEpisodeDownloadHeaders();
         $dlParams = $this->getEpisodeDownloadParameters($episode->id);
         $ssResponse = $this->request->get($this->getEpisodeDownloadUrl(), $headers, $dlParams);
-        $dlInfo = $this->parseEpisodeDownloadInfo($episode, json_decode($ssResponse, true));
-
-        $pssh = $this->widevine->get_pssh($dlInfo["mpdUrl"]);
-
-        $headers = array_merge(HTTP_DEFAULT_HEADERS, TOUTV_HEADERS_EPISODE_DOWNLOAD_LICENSE_INFO);
-        $headers["x-dt-auth-token"] = $dlInfo["token"];
-
-        $decryptionKeys = $this->widevine->get_decryption_keys($pssh, $dlInfo["licenseUrl"], $headers);
-
-        // Create the MPD link and add it to the output
-        $episode->url = $request->getUri() . "/"; // TODO: Improve the link creation, it doesn't look right
-
-        return $episode;
+        $this->parseEpisodeDownloadStreamInfo($episode, json_decode($ssResponse, true), $downloadInfo);
     }
+
+    //endregion
 
     //endregion
 

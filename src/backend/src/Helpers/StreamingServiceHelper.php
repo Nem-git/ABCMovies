@@ -5,20 +5,20 @@ declare(strict_types=1);
 namespace App\Helpers;
 
 use App\Services\StreamingService;
-use App\Services\StreamingServices as StreamingServices;
-use App\Helpers\RequestHelper as RequestHelper;
+use App\Services\StreamingServices;
+use App\Helpers\RequestHelper;
 use App\Services\DrmServices;
 
 class StreamingServiceHelper
 {
     private array $services = [
         "toutv" => StreamingServices\Toutv::class,
-        "noovo" => StreamingServices\Toutv::class,
+        "noovo" => StreamingServices\Toutv::class, // TODO: Add these other services
         "crave" => StreamingServices\Toutv::class,
     ];
 
     private array $drmServices = [
-        "widevine" => DrmServices\Python::class,
+        "python" => DrmServices\Python::class,
     ];
 
     public function pick(string $name): ?StreamingService
@@ -28,7 +28,7 @@ class StreamingServiceHelper
         $requestHelper = RequestHelper::class;
         $requestHelper = new $requestHelper();
 
-        $widevineDrmService = $this->drmServices["widevine"] ?? null;
+        $widevineDrmService = $this->drmServices["python"] ?? null;
         $widevineDrmService = new $widevineDrmService($requestHelper);
 
         return new $service($requestHelper, $widevineDrmService);

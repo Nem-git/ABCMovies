@@ -36,7 +36,7 @@ class RequestHelper
             CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HEADER => false,
-            CURLOPT_HTTPHEADER => self::format_headers($headers)
+            CURLOPT_HTTPHEADER => $this->format_headers($headers)
             ]
         );
 
@@ -59,13 +59,13 @@ class RequestHelper
 
         // If there are parameters
         if (count($parameters) > 0) {
-            $url .= self::format_parameters($parameters);
+            $url .= $this->format_parameters($parameters);
         }
 
-        return self::http($url, $headers, $options);
+        return $this->http($url, $headers, $options);
     }
 
-    public function post(string $url, array $headers = [], array $options = [], array $data = []): string | null
+    public function post(string $url, array $headers = [], array $options = [], $data = []): string | null
     {
 
         // Add data to the request body
@@ -82,6 +82,6 @@ class RequestHelper
             $headers
         );
 
-        return self::http($url, $headers, $options);
+        return $this->http($url, $headers, $options);
     }
 }

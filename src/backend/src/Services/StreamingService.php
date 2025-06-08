@@ -11,6 +11,7 @@ use App\Models\Season;
 use App\Models\Show;
 use App\Helpers\RequestHelper;
 use App\Models\WidevineDrmService;
+use App\Models\DownloadInfo;
 
 require_once __DIR__ . "/../../config/constants.php"; // TODO: Verify if that's actually a good way to do it
 
@@ -34,10 +35,21 @@ abstract class StreamingService
         $this->widevine = $widevineDrmService;
     }
 
+    public function getDecryptionKeys(DownloadInfo $downloadInfo): void
+    {
+        $this->widevine->get_pssh($downloadInfo);
+        $this->widevine->get_decryption_keys($downloadInfo);
+    }
+
     abstract protected function parseSearchResults(array $ssResponse): array;
     abstract protected function parseShowInfo(Show $show, array $ssResponse): void;
     abstract protected function parseSeasonInfo(Season $season, array $ssResponse): void;
     abstract protected function parseEpisodeInfo(Episode $episode, array $ssResponse): void;
+    abstract protected function parseEpisodeDownloadInfo(Episode $episode, array $ssResponse): DownloadInfo;
+    // I don't give it a definition because it depends on the streamingservice
+    // (Mostly to give the ability for streaming services to respect the class)
+    // because they would all create different functions for everything, while this is same for everyone
+    abstract public function getEpisodeDownloadInfoOptional(Episode $episode, DownloadInfo $downloadInfo): void;
 
     public function getSearchResults(Request $request, Response $response, array $args): array
     {
@@ -75,19 +87,38 @@ abstract class StreamingService
         return $season;
     }
 
-    public function getEpisodeInfo(Request $request, Response $response, array $args): Episode
+    public function getEpisodeInfo(Request $request, Response $response, array $args, bool $returnLastRequest = false): Episode | array
     {
         $showId = $args["show"] ?? "";
         $seasonId = $args["season"] ?? "";
         $episodeId = $args["episode"] ?? "";
         $episode = new Episode();
         $episode->id = $episodeId;
+        $episode->url = $request->getUri() . "/manifest.mpd"; // TODO: Improve the link creation, this is wrong
 
         // TODO: Add verifications to make sure the request has a valid output
         $ssResponse = $this->request->get($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters());
         $this->parseEpisodeInfo($episode, json_decode($ssResponse, true));
 
-        return $episode;
+        return $returnLastRequest ? [$episode, json_decode($ssResponse, true)] : $episode;
+    }
+
+    public function getEpisodeDownloadInfo(Request $request, Response $response, array $args): DownloadInfo
+    {
+        list($episode, $ssResponse) = $this->getEpisodeInfo($request, $response, $args, true);
+        $downloadInfo = $this->parseEpisodeDownloadInfo($episode, $ssResponse);
+
+        $this->getEpisodeDownloadInfoOptional($episode, $downloadInfo);
+        $this->getDecryptionKeys($downloadInfo);
+
+        return $downloadInfo;
+    }
+
+    public function getEpisodeManifest(Request $request, Response $response, array $args): string
+    {
+        $downloadInfo = $this->getEpisodeDownloadInfo($request, $response, $args);
+
+        return "";
     }
 
     // === Abstract methods for URLs and parameters (to be implemented per service) ===

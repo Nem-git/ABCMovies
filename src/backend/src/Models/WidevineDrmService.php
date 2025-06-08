@@ -6,6 +6,6 @@ namespace App\Models;
 
 abstract class WidevineDrmService
 {
-    abstract public function get_pssh(string $mpdUrl, array $mpdHeaders = [], array $segmentsHeaders = []): string;
-    abstract public function get_decryption_keys(string $pssh, string $licenseUrl, array $licenseHeaders = []): array;
+    abstract public function get_pssh(DownloadInfo $downloadInfo): void;
+    abstract public function get_decryption_keys(DownloadInfo $downloadInfo): void;
 }
