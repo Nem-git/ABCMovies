@@ -4,17 +4,29 @@ declare(strict_types=1);
 
 class Season
 {
-    /** Season unique identifier (In the streaming service) */
+    /**
+     * Season unique identifier (In the streaming service)
+     */
     public string $id;
-    /** Season title (Ex: Le voyage à Plattsburg) */
+    /**
+     * Season title (Ex: Le voyage à Plattsburg)
+     */
     public string $title;
-    /** Season number */
+    /**
+     * Season number
+     */
     public int $number;
-    /** Season long form description */
+    /**
+     * Season long form description
+     */
     public string $fullDescription;
-    /** Season short form description */
+    /**
+     * Season short form description
+     */
     public string $shortDescription;
 
-    /** Entirety of episodes in the season */
+    /**
+     * Entirety of episodes in the season
+     */
     public array $episodes;
 }

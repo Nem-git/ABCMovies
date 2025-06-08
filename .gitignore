@@ -1,5 +1,6 @@
 # CUSTOM
 *.wvd
+*.cache
 
 # Composer
 composer.phar

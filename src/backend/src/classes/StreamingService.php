@@ -13,13 +13,15 @@ require_once __DIR__ . "/../Utilities.php";
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\ResponseInterface as Response;
 
-
 abstract class StreamingService
 {
-
-    /** Streaming service's name */
+    /**
+     * Streaming service's name
+     */
     protected string $name;
-    /** Streaming service's abreviation (EX: DSNP) */
+    /**
+     * Streaming service's abreviation (EX: DSNP)
+     */
     protected string $tag;
 
     abstract protected function parseSearchResults(array $ssResponse): array;
@@ -93,4 +95,3 @@ abstract class StreamingService
     abstract protected function getEpisodeInfoParameters(): array;
 
 }
-

@@ -5,10 +5,11 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 require_once __DIR__ . "/../StreamingService.php";
 
-/** Tou.TV, le site de streaming payant de Radio-Canada */
+/**
+ * Tou.TV, le site de streaming payant de Radio-Canada
+ */
 class Toutv extends StreamingService
 {
-
     protected string $name = "Tou.TV";
     protected string $tag = "TOUTV";
 
@@ -130,62 +131,75 @@ class Toutv extends StreamingService
 
     //region Get TOU.TV values
 
-    protected function getSearchUrl(): string {
+    protected function getSearchUrl(): string
+    {
         return TOUTV_URL_SEARCH;
     }
 
-    protected function getSearchParameters(string $query, int $amount): array {
+    protected function getSearchParameters(string $query, int $amount): array
+    {
         $params = TOUTV_PARAMETERS_SEARCH;
         $params["pageSize"] = $amount;
         $params["term"] = $query;
         return $params;
     }
 
-    protected function getShowInfoUrl(string $showId): string {
+    protected function getShowInfoUrl(string $showId): string
+    {
         return TOUTV_URL_SHOW_INFO . $showId;
     }
 
-    protected function getShowInfoParameters(): array {
+    protected function getShowInfoParameters(): array
+    {
         return TOUTV_PARAMETERS_SHOW_INFO;
     }
 
-    protected function getSeasonInfoUrl(string $showId, string $seasonId): string {
+    protected function getSeasonInfoUrl(string $showId, string $seasonId): string
+    {
         return TOUTV_URL_SEASON_INFO . $showId . "/s" . $seasonId;
     }
 
-    protected function getSeasonInfoParameters(): array {
+    protected function getSeasonInfoParameters(): array
+    {
         return TOUTV_PARAMETERS_SEASON_INFO;
     }
 
-    protected function getEpisodeInfoUrl(string $showId, string $seasonId, string $episodeId): string {
+    protected function getEpisodeInfoUrl(string $showId, string $seasonId, string $episodeId): string
+    {
         return TOUTV_URL_EPISODE_INFO . $showId . "/s" . sprintf("%02d", $seasonId) . "e" . sprintf("%02d", $episodeId);
     }
 
-    protected function getEpisodeInfoParameters(): array {
+    protected function getEpisodeInfoParameters(): array
+    {
         return TOUTV_PARAMETERS_EPISODE_INFO;
     }
 
-    private function getEpisodeFileUrl(string $episodeId): string {
+    private function getEpisodeFileUrl(string $episodeId): string
+    {
         return TOUTV_URL_EPISODE_FILE_INFO;
     }
 
-    private function getEpisodeFileParameters(string $episodeId): array {
+    private function getEpisodeFileParameters(string $episodeId): array
+    {
         $params = TOUTV_PARAMETERS_EPISODE_FILE_INFO;
         $params["idMedia"] = $episodeId;
         return $params;
     }
 
-    private function getEpisodeDownloadUrl(): string {
+    private function getEpisodeDownloadUrl(): string
+    {
         return TOUTV_URL_EPISODE_DOWNLOAD_INFO;
     }
 
-    private function getEpisodeDownloadParameters(string $episodeId): array {
+    private function getEpisodeDownloadParameters(string $episodeId): array
+    {
         $params = TOUTV_PARAMETERS_EPISODE_DOWNLOAD_INFO;
         $params["idMedia"] = $episodeId;
         return $params;
     }
 
-    private function getEpisodeDownloadHeaders(): array {
+    private function getEpisodeDownloadHeaders(): array
+    {
         $headers = TOUTV_HEADERS_EPISODE_DOWNLOAD_INFO;
         $headers["Authorization"] = "";
         $headers["x-claims-token"] = "";
@@ -209,14 +223,14 @@ class Toutv extends StreamingService
         $dlParams = $this->getEpisodeDownloadParameters($episode->id);
         $ssResponse = get_request($this->getEpisodeDownloadUrl(), $headers, $dlParams);
         $dlInfo = $this->parseEpisodeDownloadInfo($episode, json_decode($ssResponse, true));
-        
+
         $pssh = get_pssh($dlInfo["mpdUrl"]);
 
         $headers = array_merge(HTTP_DEFAULT_HEADERS, TOUTV_HEADERS_EPISODE_DOWNLOAD_LICENSE_INFO);
         $headers["x-dt-auth-token"] = $dlInfo["token"];
 
         $decryptionKeys = get_decryption_keys($pssh, $dlInfo["licenseUrl"], $headers);
-        
+
         // Create the MPD link and add it to the output
         $episode->url = $request->getUri() . "/"; // TODO: Improve the link creation, it doesn't look right
 

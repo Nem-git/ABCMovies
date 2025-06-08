@@ -14,33 +14,51 @@ require_once __DIR__ . "/../src/classes/services/Toutv.php";
 
 $app = AppFactory::create();
 
-$app->get("/api/", function (Request $request, Response $response) {
-	$response->getBody()->write("Hello world!");
-	return $response;
-});
+$app->get(
+    "/api/",
+    function (Request $request, Response $response) {
+        $response->getBody()->write("Hello world!");
+        return $response;
+    }
+);
 
-$app->get("/api/{streamingService}/search/{query}", function (Request $request, Response $response, array $args) {
-	return response_json(new Toutv()->getSearchResults($request, $response, $args), $response);
-});
+$app->get(
+    "/api/{streamingService}/search/{query}",
+    function (Request $request, Response $response, array $args) {
+        return response_json(new Toutv()->getSearchResults($request, $response, $args), $response);
+    }
+);
 
-$app->get("/api/{streamingService}/{show}/recommendations", function (Request $request, Response $response, array $args) {
-	// return response_json(new Toutv()->getShowRecommendations($request, $response, $args), $response);
-});
+$app->get(
+    "/api/{streamingService}/{show}/recommendations",
+    function (Request $request, Response $response, array $args) {
+        // return response_json(new Toutv()->getShowRecommendations($request, $response, $args), $response);
+    }
+);
 
-$app->get("/api/{streamingService}/{show}", function (Request $request, Response $response, array $args) {
-	return response_json(new Toutv()->getShowInfo($request, $response, $args), $response);
-});
+$app->get(
+    "/api/{streamingService}/{show}",
+    function (Request $request, Response $response, array $args) {
+        return response_json(new Toutv()->getShowInfo($request, $response, $args), $response);
+    }
+);
 
-$app->get("/api/{streamingService}/{show}/{season}", function (Request $request, Response $response, array $args) {
-	return response_json(new Toutv()->getSeasonInfo($request, $response, $args), $response);
-});
+$app->get(
+    "/api/{streamingService}/{show}/{season}",
+    function (Request $request, Response $response, array $args) {
+        return response_json(new Toutv()->getSeasonInfo($request, $response, $args), $response);
+    }
+);
 
-$app->get("/api/{streamingService}/{show}/{season}/{episode}", function (Request $request, Response $response, array $args) {
-	return response_json(new Toutv()->getEpisodeInfo($request, $response, $args), $response);
-});
+$app->get(
+    "/api/{streamingService}/{show}/{season}/{episode}",
+    function (Request $request, Response $response, array $args) {
+        return response_json(new Toutv()->getEpisodeInfo($request, $response, $args), $response);
+    }
+);
 
 try {
-	$app->run();
+    $app->run();
 } catch (Exception $e) {
-	die(json_encode(array("status" => "failed", "message" => "Error: $e"))); # For DEBUG purpoises ;)
+    die(json_encode(array("status" => "failed", "message" => "Error: $e"))); // For DEBUG purpoises ;)
 }

@@ -4,24 +4,42 @@ declare(strict_types=1);
 
 class Show
 {
-    /** Show unique identifier (In the streaming service) */
+    /**
+     * Show unique identifier (In the streaming service)
+     */
     public string $id;
-    /** Show title (Ex: La petite vie) */
+    /**
+     * Show title (Ex: La petite vie)
+     */
     public string $title;
-    /** Release year */
+    /**
+     * Release year
+     */
     public int $year;
-    /** Show long form description */
+    /**
+     * Show long form description
+     */
     public string $fullDescription;
-    /** Show short form description */
+    /**
+     * Show short form description
+     */
     public string $shortDescription;
-    /** Card image URL */
+    /**
+     * Card image URL
+     */
     public string $imageCard;
-    /** Background image URL */
+    /**
+     * Background image URL
+     */
     public string $imageBackground;
 
-    /** Streaming service */
+    /**
+     * Streaming service
+     */
     public StreamingService $streamingService;
 
-    /** Seasons in the show */
+    /**
+     * Seasons in the show
+     */
     public array $seasons;
 }
