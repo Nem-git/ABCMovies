@@ -5,18 +5,18 @@ declare(strict_types=1);
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Factory\AppFactory;
+use App\Helpers\StreamingServiceHelper as Ssh; // LMAO
+use App\Helpers\SlimResponseHelper as Srh;
 
 require __DIR__ . '/../vendor/autoload.php';
 
-require_once __DIR__ . "/../src/Utilities.php";
-// TEMPORARY
-require_once __DIR__ . "/../src/classes/services/Toutv.php";
-
 $app = AppFactory::create();
+$ssh = new Ssh();
+$srh = new Srh();
 
 $app->get(
     "/api/",
-    function (Request $request, Response $response) {
+    function (Request $request, Response $response) use ($ssh, $srh) {
         $response->getBody()->write("Hello world!");
         return $response;
     }
@@ -24,36 +24,36 @@ $app->get(
 
 $app->get(
     "/api/{streamingService}/search/{query}",
-    function (Request $request, Response $response, array $args) {
-        return response_json(new Toutv()->getSearchResults($request, $response, $args), $response);
+    function (Request $request, Response $response, array $args) use ($ssh, $srh) {
+        return $srh->response_json($ssh->pick($args["streamingService"])->getSearchResults($request, $response, $args), $response);
     }
 );
 
 $app->get(
     "/api/{streamingService}/{show}/recommendations",
-    function (Request $request, Response $response, array $args) {
-        // return response_json(new Toutv()->getShowRecommendations($request, $response, $args), $response);
+    function (Request $request, Response $response, array $args) use ($ssh, $srh) {
+        // return $srh->response_json($ssh->pick($args["streamingService"])->getShowRecommendations($request, $response, $args), $response);
     }
 );
 
 $app->get(
     "/api/{streamingService}/{show}",
-    function (Request $request, Response $response, array $args) {
-        return response_json(new Toutv()->getShowInfo($request, $response, $args), $response);
+    function (Request $request, Response $response, array $args) use ($ssh, $srh) {
+        return $srh->response_json($ssh->pick($args["streamingService"])->getShowInfo($request, $response, $args), $response);
     }
 );
 
 $app->get(
     "/api/{streamingService}/{show}/{season}",
-    function (Request $request, Response $response, array $args) {
-        return response_json(new Toutv()->getSeasonInfo($request, $response, $args), $response);
+    function (Request $request, Response $response, array $args) use ($ssh, $srh) {
+        return $srh->response_json($ssh->pick($args["streamingService"])->getSeasonInfo($request, $response, $args), $response);
     }
 );
 
 $app->get(
     "/api/{streamingService}/{show}/{season}/{episode}",
-    function (Request $request, Response $response, array $args) {
-        return response_json(new Toutv()->getEpisodeInfo($request, $response, $args), $response);
+    function (Request $request, Response $response, array $args) use ($ssh, $srh) {
+        return $srh->response_json($ssh->pick($args["streamingService"])->getEpisodeInfo($request, $response, $args), $response);
     }
 );
 

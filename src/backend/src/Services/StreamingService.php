@@ -2,16 +2,17 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . "/Episode.php";
-require_once __DIR__ . "/Season.php";
-require_once __DIR__ . "/Show.php";
-
-require_once __DIR__ . "/../Constants.php";
-require_once __DIR__ . "/../Utilities.php";
-
+namespace App\Services;
 
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\ResponseInterface as Response;
+use App\Models\Episode;
+use App\Models\Season;
+use App\Models\Show;
+use App\Helpers\RequestHelper;
+use App\Models\WidevineDrmService;
+
+require_once __DIR__ . "/../../config/constants.php"; // TODO: Verify if that's actually a good way to do it
 
 abstract class StreamingService
 {
@@ -23,6 +24,15 @@ abstract class StreamingService
      * Streaming service's abreviation (EX: DSNP)
      */
     protected string $tag;
+
+    protected RequestHelper $request;
+    protected WidevineDrmService $widevine;
+
+    public function __construct(RequestHelper $requestHelper, WidevineDrmService $widevineDrmService)
+    {
+        $this->request = $requestHelper;
+        $this->widevine = $widevineDrmService;
+    }
 
     abstract protected function parseSearchResults(array $ssResponse): array;
     abstract protected function parseShowInfo(Show $show, array $ssResponse): void;
@@ -36,7 +46,7 @@ abstract class StreamingService
 
         $parameters = $this->getSearchParameters($query, $amount);
 
-        $ssResponse = get_request($this->getSearchUrl(), HTTP_DEFAULT_HEADERS, $parameters);
+        $ssResponse = $this->request->get($this->getSearchUrl(), HTTP_DEFAULT_HEADERS, $parameters);
         return $this->parseSearchResults(json_decode($ssResponse, true));
     }
 
@@ -46,7 +56,7 @@ abstract class StreamingService
         $show = new Show();
         $show->id = $showId;
 
-        $ssResponse = get_request($this->getShowInfoUrl($showId), HTTP_DEFAULT_HEADERS, $this->getShowInfoParameters());
+        $ssResponse = $this->request->get($this->getShowInfoUrl($showId), HTTP_DEFAULT_HEADERS, $this->getShowInfoParameters());
         $this->parseShowInfo($show, json_decode($ssResponse, true));
 
         return $show;
@@ -59,7 +69,7 @@ abstract class StreamingService
         $season = new Season();
         $season->id = $seasonId;
 
-        $ssResponse = get_request($this->getSeasonInfoUrl($showId, $seasonId), HTTP_DEFAULT_HEADERS, $this->getSeasonInfoParameters());
+        $ssResponse = $this->request->get($this->getSeasonInfoUrl($showId, $seasonId), HTTP_DEFAULT_HEADERS, $this->getSeasonInfoParameters());
         $this->parseSeasonInfo($season, json_decode($ssResponse, true));
 
         return $season;
@@ -74,7 +84,7 @@ abstract class StreamingService
         $episode->id = $episodeId;
 
         // TODO: Add verifications to make sure the request has a valid output
-        $ssResponse = get_request($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters());
+        $ssResponse = $this->request->get($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters());
         $this->parseEpisodeInfo($episode, json_decode($ssResponse, true));
 
         return $episode;

@@ -1,9 +1,14 @@
 <?php
 
+namespace App\Services\StreamingServices;
+
+use App\Helpers\RequestHelper;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
-
-require_once __DIR__ . "/../StreamingService.php";
+use App\Services\StreamingService;
+use App\Models\Show;
+use App\Models\Season;
+use App\Models\Episode;
 
 /**
  * Tou.TV, le site de streaming payant de Radio-Canada
@@ -216,20 +221,20 @@ class Toutv extends StreamingService
         $episode = parent::getEpisodeInfo($request, $response, $args);
 
         $fileParams = $this->getEpisodeFileParameters($episode->id);
-        $ssResponse = get_request($this->getEpisodeFileUrl($episode->id), HTTP_DEFAULT_HEADERS, $fileParams);
+        $ssResponse = $this->request->get($this->getEpisodeFileUrl($episode->id), HTTP_DEFAULT_HEADERS, $fileParams);
         $this->parseEpisodeFileInfo($episode, json_decode($ssResponse, true));
 
         $headers = $this->getEpisodeDownloadHeaders();
         $dlParams = $this->getEpisodeDownloadParameters($episode->id);
-        $ssResponse = get_request($this->getEpisodeDownloadUrl(), $headers, $dlParams);
+        $ssResponse = $this->request->get($this->getEpisodeDownloadUrl(), $headers, $dlParams);
         $dlInfo = $this->parseEpisodeDownloadInfo($episode, json_decode($ssResponse, true));
 
-        $pssh = get_pssh($dlInfo["mpdUrl"]);
+        $pssh = $this->widevine->get_pssh($dlInfo["mpdUrl"]);
 
         $headers = array_merge(HTTP_DEFAULT_HEADERS, TOUTV_HEADERS_EPISODE_DOWNLOAD_LICENSE_INFO);
         $headers["x-dt-auth-token"] = $dlInfo["token"];
 
-        $decryptionKeys = get_decryption_keys($pssh, $dlInfo["licenseUrl"], $headers);
+        $decryptionKeys = $this->widevine->get_decryption_keys($pssh, $dlInfo["licenseUrl"], $headers);
 
         // Create the MPD link and add it to the output
         $episode->url = $request->getUri() . "/"; // TODO: Improve the link creation, it doesn't look right

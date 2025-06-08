@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+namespace App\Models;
+
 class Show
 {
     /**
@@ -32,11 +34,6 @@ class Show
      * Background image URL
      */
     public string $imageBackground;
-
-    /**
-     * Streaming service
-     */
-    public StreamingService $streamingService;
 
     /**
      * Seasons in the show
