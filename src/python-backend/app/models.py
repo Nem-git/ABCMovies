@@ -2,9 +2,9 @@ from pydantic import BaseModel
 
 
 class PsshRequest(BaseModel):
-    mpd_url: str = ""
-    mpd_headers: dict = {}
-    segments_headers: dict = {}
+    mpdUrl: str = ""
+    mpdHeaders: dict = {}
+    segmentsHeaders: dict = {}
 
 
 class PsshResponse(BaseModel):
@@ -14,10 +14,10 @@ class PsshResponse(BaseModel):
 
 class DecryptRequest(BaseModel):
     pssh: str = ""
-    license_url: str = ""
-    license_headers: dict[str, str] = {}
+    licenseUrl: str = ""
+    licenseHeaders: dict[str, str] = {}
 
 
 class DecryptResponse(BaseModel):
     error: str = "0"
-    decryption_keys: list = ""
+    decryptionKeys: list = ""

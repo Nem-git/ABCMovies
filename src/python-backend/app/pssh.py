@@ -21,20 +21,18 @@ class Pssh:
         response = PsshResponse()
 
         try:
-            mpd_content: bytes = self._fetch_content(
-                request.mpd_url, request.mpd_headers
-            )
+            mpd_content: bytes = self._fetch_content(request.mpdUrl, request.mpdHeaders)
             response.pssh: str = self._extract_or_generate_pssh(
-                request.mpd_url,
+                request.mpdUrl,
                 mpd_content,
-                request.mpd_headers,
-                request.segments_headers,
+                request.mpdHeaders,
+                request.segmentsHeaders,
             )
 
             if not response.pssh:
                 response.error = "Was not able to find the PSSH"
 
-        except Error as e:
+        except Exception as e:
             response.error = e
 
         return response
@@ -63,10 +61,7 @@ class Pssh:
         tree = ET.ElementTree(ET.fromstring(mpd_content))
         root = tree.getroot()
 
-        namespaces = {
-            "cenc": "urn:mpeg:cenc:2013",
-            "": "urn:mpeg:dash:schema:mpd:2011"
-        }
+        namespaces = {"cenc": "urn:mpeg:cenc:2013", "": "urn:mpeg:dash:schema:mpd:2011"}
 
         default_kid: str | None = None
         for elem in root.findall(".//ContentProtection", namespaces):

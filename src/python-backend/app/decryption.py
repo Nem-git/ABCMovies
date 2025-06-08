@@ -29,7 +29,7 @@ class Widevine:
             payload = self.cdm.get_license_challenge(session_id, PSSH(request.pssh))
 
             license_response = requests.post(
-                url=request.license_url, data=payload, headers=request.license_headers
+                url=request.licenseUrl, data=payload, headers=request.licenseHeaders
             )
             license_response.raise_for_status()
 
@@ -50,7 +50,7 @@ class Widevine:
             if len(keys) == 0:
                 response.error = "No keys found"
 
-            response.decryption_keys = keys
+            response.decryptionKeys = keys
         except Error as e:
             response.error = e
 
