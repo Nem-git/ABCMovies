@@ -18,6 +18,7 @@ def create_pssh(request: PsshRequest):
     response = extractor.get_pssh(request)
     return response
 
+
 @app.post("/decrypt")
 def create_decryption_keys(request: DecryptRequest):
     retriever = Widevine()
