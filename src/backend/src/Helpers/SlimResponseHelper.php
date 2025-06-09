@@ -14,4 +14,11 @@ class SlimResponseHelper
         $response->getBody()->write(json_encode($data, JSON_PRETTY_PRINT)); // TODO: Remove the pretty print, just for debug
         return $response;
     }
+
+    public function response_dash(string $data, Response $response): Response
+    {
+        $response = $response->withHeader("Content-Type", "application/dash+xml");
+        $response->getBody()->write($data);
+        return $response;
+    }
 }

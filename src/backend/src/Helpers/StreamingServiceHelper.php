@@ -7,7 +7,8 @@ namespace App\Helpers;
 use App\Services\StreamingService;
 use App\Services\StreamingServices;
 use App\Helpers\RequestHelper;
-use App\Services\DrmServices;
+use App\Services\PsshRetrieval;
+use App\Services\DecryptionKeysRetrieval;
 
 class StreamingServiceHelper
 {
@@ -17,8 +18,12 @@ class StreamingServiceHelper
         "crave" => StreamingServices\Toutv::class,
     ];
 
-    private array $drmServices = [
-        "python" => DrmServices\Python::class,
+    private array $psshRetriever = [
+        "python" => PsshRetrieval\PythonBackend::class,
+    ];
+
+    private array $decryptionKeysRetriever = [
+        "python" => DecryptionKeysRetrieval\PythonBackend::class,
     ];
 
     public function pick(string $name): ?StreamingService
@@ -28,9 +33,13 @@ class StreamingServiceHelper
         $requestHelper = RequestHelper::class;
         $requestHelper = new $requestHelper();
 
-        $widevineDrmService = $this->drmServices["python"] ?? null;
-        $widevineDrmService = new $widevineDrmService($requestHelper);
+        $psshRetriever = $this->psshRetriever["python"] ?? null;
+        $psshRetriever = new $psshRetriever($requestHelper);
 
-        return new $service($requestHelper, $widevineDrmService);
+        $decryptionKeysRetriever = $this->decryptionKeysRetriever["python"] ?? null;
+        $decryptionKeysRetriever = new $decryptionKeysRetriever($requestHelper);
+
+
+        return new $service($requestHelper, $psshRetriever, $decryptionKeysRetriever);
     }
 }

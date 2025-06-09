@@ -123,13 +123,13 @@ class Toutv extends StreamingService
 
         $downloadInfo->mpdUrl = $ssResponse["url"];
 
-        foreach ($ssResponse["params"] as $param) {
+        foreach ($ssResponse["params"] as $parameter) {
 
-            if ($param["name"] === "widevineLicenseUrl") {
-                $downloadInfo->licenseUrl = $param["value"];
+            if ($parameter["name"] === "widevineLicenseUrl") {
+                $downloadInfo->licenseUrl = $parameter["value"];
             }
-            if ($param["name"] === "widevineAuthToken") {
-                $downloadInfo->licenseHeaders["x-dt-auth-token"] = $param["value"];
+            if ($parameter["name"] === "widevineAuthToken") {
+                $downloadInfo->licenseHeaders["x-dt-auth-token"] = $parameter["value"];
             }
         }
     }
@@ -145,10 +145,10 @@ class Toutv extends StreamingService
 
     protected function getSearchParameters(string $query, int $amount): array
     {
-        $params = TOUTV_PARAMETERS_SEARCH;
-        $params["pageSize"] = $amount;
-        $params["term"] = $query;
-        return $params;
+        $parameters = TOUTV_PARAMETERS_SEARCH;
+        $parameters["pageSize"] = $amount;
+        $parameters["term"] = $query;
+        return $parameters;
     }
 
     protected function getShowInfoUrl(string $showId): string
@@ -190,9 +190,9 @@ class Toutv extends StreamingService
 
     private function getEpisodeFileParameters(string $episodeId): array
     {
-        $params = TOUTV_PARAMETERS_EPISODE_FILE_INFO;
-        $params["idMedia"] = $episodeId;
-        return $params;
+        $parameters = TOUTV_PARAMETERS_EPISODE_FILE_INFO;
+        $parameters["idMedia"] = $episodeId;
+        return $parameters;
     }
 
     private function getEpisodeDownloadUrl(): string
@@ -202,9 +202,9 @@ class Toutv extends StreamingService
 
     private function getEpisodeDownloadParameters(string $episodeId): array
     {
-        $params = TOUTV_PARAMETERS_EPISODE_DOWNLOAD_INFO;
-        $params["idMedia"] = $episodeId;
-        return $params;
+        $parameters = TOUTV_PARAMETERS_EPISODE_DOWNLOAD_INFO;
+        $parameters["idMedia"] = $episodeId;
+        return $parameters;
     }
 
     private function getEpisodeDownloadHeaders(): array
@@ -219,13 +219,13 @@ class Toutv extends StreamingService
 
     public function getEpisodeDownloadInfoOptional(Episode $episode, DownloadInfo $downloadInfo): void
     {
-        $fileParams = $this->getEpisodeFileParameters($episode->id);
-        $ssResponse = $this->request->get($this->getEpisodeFileUrl($episode->id), HTTP_DEFAULT_HEADERS, $fileParams);
+        $fileParameters = $this->getEpisodeFileParameters($episode->id);
+        $ssResponse = $this->request->get($this->getEpisodeFileUrl($episode->id), HTTP_DEFAULT_HEADERS, $fileParameters);
         $this->parseEpisodeFileInfo($episode, json_decode($ssResponse, true));
 
         $headers = $this->getEpisodeDownloadHeaders();
-        $dlParams = $this->getEpisodeDownloadParameters($episode->id);
-        $ssResponse = $this->request->get($this->getEpisodeDownloadUrl(), $headers, $dlParams);
+        $downloadParameters = $this->getEpisodeDownloadParameters($episode->id);
+        $ssResponse = $this->request->get($this->getEpisodeDownloadUrl(), $headers, $downloadParameters);
         $this->parseEpisodeDownloadStreamInfo($episode, json_decode($ssResponse, true), $downloadInfo);
     }
 

@@ -57,6 +57,13 @@ $app->get(
     }
 );
 
+$app->get(
+    "/api/{streamingService}/{show}/{season}/{episode}/manifest.mpd",
+    function (Request $request, Response $response, array $args) use ($ssh, $srh) {
+        return $srh->response_dash($ssh->pick($args["streamingService"])->getEpisodeManifest($request, $response, $args), $response);
+    }
+);
+
 try {
     $app->run();
 } catch (Exception $e) {

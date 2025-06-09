@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Helpers;
 
+use App\Models\DownloadInfo;
+
 class RequestHelper
 {
     private function format_headers(array $headers): array
@@ -84,4 +86,16 @@ class RequestHelper
 
         return $this->http($url, $headers, $options);
     }
+
+    public function pythonBackend(string $endpoint, DownloadInfo $downloadInfo)
+    {
+        $response = json_decode($this->post(PYTHON_URL_BACKEND . $endpoint, data: $downloadInfo), true);
+
+        if ($response["error"] !== "0") {
+            echo $response; // TODO: Remove, just for debug
+        }
+
+        return $response["value"];
+    }
+
 }

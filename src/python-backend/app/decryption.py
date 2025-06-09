@@ -6,7 +6,7 @@ import os
 import requests
 
 from app.models import DecryptRequest
-from app.models import DecryptResponse
+from app.models import Response
 
 
 class Widevine:
@@ -16,9 +16,7 @@ class Widevine:
         self.device = Device.load(self.WVD_PATH)
         self.cdm = Cdm.from_device(self.device)
 
-    def get_keys(self, request: DecryptRequest) -> list[str]:
-
-        response = DecryptResponse()
+    def get_keys(self, request: DecryptRequest, response: Response) -> list[str]:
 
         try:
             """
@@ -50,8 +48,6 @@ class Widevine:
             if len(keys) == 0:
                 response.error = "No keys found"
 
-            response.decryptionKeys = keys
-        except Error as e:
+            response.value = keys
+        except Exception as e:
             response.error = e
-
-        return response

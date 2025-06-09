@@ -1,15 +1,13 @@
 from pydantic import BaseModel
 
+class Response(BaseModel):
+    error: str = "0"
+    value: str | list | dict = ""
 
 class PsshRequest(BaseModel):
     mpdUrl: str = ""
     mpdHeaders: dict = {}
     segmentsHeaders: dict = {}
-
-
-class PsshResponse(BaseModel):
-    error: str = "0"
-    pssh: str = ""
 
 
 class DecryptRequest(BaseModel):
@@ -18,6 +16,6 @@ class DecryptRequest(BaseModel):
     licenseHeaders: dict[str, str] = {}
 
 
-class DecryptResponse(BaseModel):
-    error: str = "0"
-    decryptionKeys: list = ""
+class MpdRequest(BaseModel):
+    mpdUrl: str = ""
+    mpdHeaders: dict = {}

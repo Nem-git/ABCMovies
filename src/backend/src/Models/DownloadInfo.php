@@ -14,7 +14,7 @@ class DownloadInfo
     /**
      * Headers for the MPD request
      */
-    public array $mpdHeaders;
+    public array $mpdHeaders = [];
 
     /**
      * PSSH in Base64
@@ -29,12 +29,12 @@ class DownloadInfo
     /**
      * Headers for the license request
      */
-    public array $licenseHeaders;
+    public array $licenseHeaders = [];
 
     /**
      * Headers for the segments requests
      */
-    public array $segmentsHeaders;
+    public array $segmentsHeaders = [];
 
     /**
      * Decryption keys for the content of the MPD

@@ -7,35 +7,31 @@ import os
 import yt_dlp
 
 from app.models import PsshRequest
-from app.models import PsshResponse
+from app.models import Response
 
 
 class Pssh:
     WIDEVINE_SYSTEM_ID: str = "EDEF8BA9-79D6-4ACE-A3C8-27DCD51D21ED"
 
-    def get_pssh(self, request: PsshRequest) -> str | None:
+    def get_pssh(self, request: PsshRequest, response: Response) -> str | None:
         """
         Extract or generate the PSSH from the MPD manifest or init segment.
         """
 
-        response = PsshResponse()
-
         try:
             mpd_content: bytes = self._fetch_content(request.mpdUrl, request.mpdHeaders)
-            response.pssh: str = self._extract_or_generate_pssh(
+            response.value: str = self._extract_or_generate_pssh(
                 request.mpdUrl,
                 mpd_content,
                 request.mpdHeaders,
                 request.segmentsHeaders,
             )
 
-            if not response.pssh:
+            if not response.value:
                 response.error = "Was not able to find the PSSH"
 
         except Exception as e:
             response.error = e
-
-        return response
 
     def _fetch_content(self, url: str, headers: dict[str, str]) -> bytes:
         response = requests.get(url, headers=headers)
