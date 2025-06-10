@@ -10,9 +10,9 @@ use App\Models\DownloadInfo;
 /**
  * Using the Python API to retrieve the keys
  */
-class PythonBackend extends DecryptionKeysRetrieval {
-
-    function getDecryptionKeys(DownloadInfo $downloadInfo): DownloadInfo
+class PythonBackend extends DecryptionKeysRetrieval
+{
+    public function getDecryptionKeys(DownloadInfo $downloadInfo): DownloadInfo
     {
         $downloadInfo->decryptionKeys = $this->request->pythonBackend("decrypt", $downloadInfo);
         return $downloadInfo;

@@ -12,6 +12,7 @@ use App\Models\Show;
 use App\Helpers\RequestHelper;
 use App\Models\DecryptionKeysRetrieval;
 use App\Models\DownloadInfo;
+use App\Models\ManifestModifier;
 use App\Models\PsshRetrieval;
 
 require_once __DIR__ . "/../../config/constants.php"; // TODO: Verify if that's actually a good way to do it
@@ -30,12 +31,14 @@ abstract class StreamingService
     protected RequestHelper $request;
     protected PsshRetrieval $pssh;
     protected DecryptionKeysRetrieval $decryptionKeys;
+    protected ManifestModifier $mpd;
 
-    public function __construct(RequestHelper $requestHelper, PsshRetrieval $psshRetrieval, DecryptionKeysRetrieval $decryptionKeysRetrieval)
+    public function __construct(RequestHelper $requestHelper, PsshRetrieval $psshRetrieval, DecryptionKeysRetrieval $decryptionKeysRetrieval, ManifestModifier $manifestModifier)
     {
         $this->request = $requestHelper;
         $this->pssh = $psshRetrieval;
         $this->decryptionKeys = $decryptionKeysRetrieval;
+        $this->mpd = $manifestModifier;
     }
 
     //region Parsing
@@ -125,7 +128,7 @@ abstract class StreamingService
     {
         $downloadInfo = $this->getEpisodeDownloadInfo($request, $response, $args); // Because we need the MPD url and headers
 
-        return $this->request->get($downloadInfo->mpdUrl, $downloadInfo->mpdHeaders);
+        return $this->mpd->getModifiedMpd($downloadInfo);
     }
 
     //endregion

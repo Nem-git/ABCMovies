@@ -3,9 +3,11 @@ from fastapi import FastAPI
 from app.models import Response
 from app.models import PsshRequest
 from app.models import DecryptRequest
+from app.models import MpdRequest
 
 from app.pssh import Pssh
 from app.decryption import Widevine
+from app.mpd import ManifestModifier
 
 app = FastAPI()
 
@@ -23,4 +25,12 @@ def create_decryption_keys(request: DecryptRequest):
     retriever = Widevine()
     response = Response()
     retriever.get_keys(request, response)
+    return response
+
+
+@app.post("/mpd")
+def create_modified_manifest(request: MpdRequest):
+    modifier = ManifestModifier()
+    response = Response()
+    modifier.get_mpd(request, response)
     return response

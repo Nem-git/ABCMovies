@@ -1,8 +1,10 @@
 from pydantic import BaseModel
 
+
 class Response(BaseModel):
     error: str = "0"
     value: str | list | dict = ""
+
 
 class PsshRequest(BaseModel):
     mpdUrl: str = ""

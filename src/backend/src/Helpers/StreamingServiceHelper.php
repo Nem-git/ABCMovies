@@ -7,8 +7,9 @@ namespace App\Helpers;
 use App\Services\StreamingService;
 use App\Services\StreamingServices;
 use App\Helpers\RequestHelper;
-use App\Services\PsshRetrieval;
 use App\Services\DecryptionKeysRetrieval;
+use App\Services\PsshRetrieval;
+use App\Services\ManifestModifier;
 
 class StreamingServiceHelper
 {
@@ -26,6 +27,10 @@ class StreamingServiceHelper
         "python" => DecryptionKeysRetrieval\PythonBackend::class,
     ];
 
+    private array $manifestModifier = [
+        "python" => ManifestModifier\PythonBackend::class,
+    ];
+
     public function pick(string $name): ?StreamingService
     {
         $service = $this->services[$name] ?? null;
@@ -39,7 +44,10 @@ class StreamingServiceHelper
         $decryptionKeysRetriever = $this->decryptionKeysRetriever["python"] ?? null;
         $decryptionKeysRetriever = new $decryptionKeysRetriever($requestHelper);
 
+        $manifestModifier = $this->manifestModifier["python"] ?? null;
+        $manifestModifier = new $manifestModifier($requestHelper);
 
-        return new $service($requestHelper, $psshRetriever, $decryptionKeysRetriever);
+
+        return new $service($requestHelper, $psshRetriever, $decryptionKeysRetriever, $manifestModifier);
     }
 }

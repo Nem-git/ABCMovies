@@ -6,7 +6,7 @@ namespace App\Models;
 
 use App\Helpers\RequestHelper;
 
-abstract class PsshRetrieval
+abstract class ManifestModifier
 {
     protected RequestHelper $request;
 
@@ -15,5 +15,5 @@ abstract class PsshRetrieval
         $this->request = $requestHelper;
     }
 
-    abstract public function getPssh(DownloadInfo $downloadInfo): DownloadInfo;
+    abstract public function getModifiedMpd(DownloadInfo $downloadInfo): string;
 }

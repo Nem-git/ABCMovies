@@ -10,9 +10,9 @@ use App\Models\DownloadInfo;
 /**
  * Using the Python API to retrieve the keys
  */
-class PythonBackend extends PsshRetrieval {
-
-    function getPssh(DownloadInfo $downloadInfo): DownloadInfo
+class PythonBackend extends PsshRetrieval
+{
+    public function getPssh(DownloadInfo $downloadInfo): DownloadInfo
     {
         $downloadInfo->pssh = $this->request->pythonBackend("pssh", $downloadInfo);
         return $downloadInfo;
