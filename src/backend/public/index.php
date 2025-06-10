@@ -64,6 +64,13 @@ $app->get(
     }
 );
 
+$app->get(
+    "/api/{streamingService}/{show}/{season}/{episode}/{segmentType}/{encodedBaseUrl}/{segmentPath:.*}",
+    function (Request $request, Response $response, array $args) use ($ssh, $srh) {
+        return $srh->response_segment($ssh->pick($args["streamingService"])->getEpisodeSegment($request, $response, $args), $response);
+    }
+);
+
 try {
     $app->run();
 } catch (Exception $e) {

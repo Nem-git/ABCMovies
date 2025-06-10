@@ -1,7 +1,7 @@
 import urllib
+import base64
 import requests
 import re
-import xml.etree.ElementTree as ET
 from mpd_parser.parser import Parser
 from mpd_parser.models.composite_tags import MPD
 import os
@@ -57,21 +57,24 @@ class ManifestModifier:
     def _parse_segment_templates(self, parent):
         for segment_template in parent.segment_templates:
 
-            init_base_url = self._urlencoded(
+            init_base_url = self._base_64_encode(
                 self._find_base_url(parent, segment_template.initialization)
             )
-            media_base_url = self._urlencoded(
+            media_base_url = self._base_64_encode(
                 self._find_base_url(parent, segment_template.media)
             )
 
             init_path = self._clean_segment_url(segment_template.initialization)
             media_path = self._clean_segment_url(segment_template.media)
 
-            init_url = os.path.join(init_base_url, init_path)
-            media_url = os.path.join(media_base_url, media_path)
+            init_url = os.path.join("init", init_base_url, init_path)
+            media_url = os.path.join("media", media_base_url, media_path)
 
             self._replace_init_url(segment_template, init_url)
             self._replace_media_url(segment_template, media_url)
+
+    def _base_64_encode(self, url: str) -> str:
+        return base64.b64encode(url.encode("utf-8")).decode("utf-8")
 
     def _urlencoded(self, url: str) -> str:
         return urllib.parse.quote_plus(url)

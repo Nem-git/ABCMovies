@@ -49,6 +49,17 @@ abstract class StreamingService
     abstract protected function parseEpisodeInfo(Episode $episode, array $ssResponse): void;
     abstract protected function parseEpisodeDownloadInfo(Episode $episode, array $ssResponse): DownloadInfo;
 
+    private function parseSegmentRequestUrl(string $encodedBaseUrl, string $segmentPath): string
+    {
+        $originalSegmentUrl = "";
+
+        $originalSegmentUrl .= base64_decode($encodedBaseUrl);
+
+        $originalSegmentUrl .= $segmentPath;
+
+        return $originalSegmentUrl;
+    }
+
     //endregion
 
 
@@ -129,6 +140,26 @@ abstract class StreamingService
         $downloadInfo = $this->getEpisodeDownloadInfo($request, $response, $args); // Because we need the MPD url and headers
 
         return $this->mpd->getModifiedMpd($downloadInfo);
+    }
+
+    public function getEpisodeSegment(Request $request, Response $response, array $args): string
+    {
+        $segmentType = $args["segmentType"];
+        $encodedBaseUrl = $args["encodedBaseUrl"];
+        $segmentPath = $args["segmentPath"];
+
+        // Because the parameters in the MPD path will be interpreted as query, not part of the URL
+        $queryParameters = $request->getQueryParams();
+
+        $url = $this->parseSegmentRequestUrl($encodedBaseUrl, $segmentPath);
+
+        if ($segmentType === "init") {
+            // TODO: Save the init segment in the Redis
+        } else {
+            // TODO: Verify if the init is in the db. If yes, binary merge, else return error
+        }
+
+        return $this->request->get($url, parameters: $queryParameters); // TODO: Add the segments Headers
     }
 
     //endregion
