@@ -49,17 +49,6 @@ abstract class StreamingService
     abstract protected function parseEpisodeInfo(Episode $episode, array $ssResponse): void;
     abstract protected function parseEpisodeDownloadInfo(Episode $episode, array $ssResponse): DownloadInfo;
 
-    private function parseSegmentRequestUrl(string $encodedBaseUrl, string $segmentPath): string
-    {
-        $originalSegmentUrl = "";
-
-        $originalSegmentUrl .= base64_decode($encodedBaseUrl);
-
-        $originalSegmentUrl .= $segmentPath;
-
-        return $originalSegmentUrl;
-    }
-
     //endregion
 
 
@@ -132,6 +121,9 @@ abstract class StreamingService
         $this->pssh->getPssh($downloadInfo);
         $this->decryptionKeys->getDecryptionKeys($downloadInfo);
 
+        // Pseudo-code
+        // storeDecryptionKeysInDatabase(md5(join("/", [$array["streamingService"], $array["show"], $args["season"], $args["episode"]])), $downloadInfo->decryptionKeys)
+
         return $downloadInfo;
     }
 
@@ -142,24 +134,61 @@ abstract class StreamingService
         return $this->mpd->getModifiedMpd($downloadInfo);
     }
 
-    public function getEpisodeSegment(Request $request, Response $response, array $args): string
+
+    public function getEpisodeInitSegment(Request $request, Response $response, array $args): string
     {
-        $segmentType = $args["segmentType"];
+        $encodedBaseUrl = $args["encodedBaseUrl"];
+        $segmentPath = $args["segmentPath"];
+        $queryParameters = $request->getQueryParams();
+
+        $originalUrl = base64_decode($encodedBaseUrl, true);
+        $originalUrl .= $segmentPath;
+
+        // Pseudo-code
+        // if (isInitUrlInDatabase(md5($originalInitUrl)))
+        // {
+        //     return getInitContentFromDatabase(md5($originalUrl))
+        // }
+        // else {
+
+        $initContent = $this->request->get($originalUrl, parameters: $queryParameters); // TODO: Add segments headers
+
+        // Pseudo-code
+        // addInitContentToDatabase(md5($originalUrl), $initContent)
+
+        return $initContent;
+    }
+
+
+    public function getEpisodeMediaSegment(Request $request, Response $response, array $args): string
+    {
+        $encodedInitUrl = $args["encodedInitUrl"];
         $encodedBaseUrl = $args["encodedBaseUrl"];
         $segmentPath = $args["segmentPath"];
 
         // Because the parameters in the MPD path will be interpreted as query, not part of the URL
         $queryParameters = $request->getQueryParams();
 
-        $url = $this->parseSegmentRequestUrl($encodedBaseUrl, $segmentPath);
+        $originalUrl = base64_decode($encodedBaseUrl, true);
+        $originalUrl .= $segmentPath;
 
-        if ($segmentType === "init") {
-            // TODO: Save the init segment in the Redis
-        } else {
-            // TODO: Verify if the init is in the db. If yes, binary merge, else return error
-        }
+        $originalInitUrl = base64_decode($encodedInitUrl, true);
 
-        return $this->request->get($url, parameters: $queryParameters); // TODO: Add the segments Headers
+        // Pseudo-code
+        // if (getInitContentFromDatabase(md5($originalInitUrl) === null) {
+        //     return error no init requested
+        // }
+        // else {
+        // $initContent = fetchInitContentFromDatabase(md5($originalInitUrl))
+
+        $segmentContent = $this->request->get($originalUrl, parameters: $queryParameters); // TODO: Add segments headers
+
+        // Pseudo-code
+        // $decryptionKeys = getDecryptionKeysFromDatabase(md5(join("/", [$array["streamingService"], $array["show"], $args["season"], $args["episode"]])))
+        // $decryptedContent = decryptMediaSegment($initContent, $segmentContent, $decryptionKeys)
+        // return $decryptedContent;
+
+        return $segmentContent;
     }
 
     //endregion

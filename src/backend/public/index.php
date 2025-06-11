@@ -65,9 +65,16 @@ $app->get(
 );
 
 $app->get(
-    "/api/{streamingService}/{show}/{season}/{episode}/{segmentType}/{encodedBaseUrl}/{segmentPath:.*}",
+    "/api/{streamingService}/{show}/{season}/{episode}/init/{encodedBaseUrl}/{segmentPath:.*}",
     function (Request $request, Response $response, array $args) use ($ssh, $srh) {
-        return $srh->response_segment($ssh->pick($args["streamingService"])->getEpisodeSegment($request, $response, $args), $response);
+        return $srh->response_segment($ssh->pick($args["streamingService"])->getEpisodeInitSegment($request, $response, $args), $response);
+    }
+);
+
+$app->get(
+    "/api/{streamingService}/{show}/{season}/{episode}/media/{encodedInitUrl}/{encodedBaseUrl}/{segmentPath:.*}",
+    function (Request $request, Response $response, array $args) use ($ssh, $srh) {
+        return $srh->response_segment($ssh->pick($args["streamingService"])->getEpisodeMediaSegment($request, $response, $args), $response);
     }
 );
 

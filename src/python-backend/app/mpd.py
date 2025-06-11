@@ -57,18 +57,23 @@ class ManifestModifier:
     def _parse_segment_templates(self, parent):
         for segment_template in parent.segment_templates:
 
-            init_base_url = self._base_64_encode(
-                self._find_base_url(parent, segment_template.initialization)
-            )
-            media_base_url = self._base_64_encode(
-                self._find_base_url(parent, segment_template.media)
-            )
+            init_base_url = self._find_base_url(parent, segment_template.initialization)
+            media_base_url = self._find_base_url(parent, segment_template.media)
 
             init_path = self._clean_segment_url(segment_template.initialization)
             media_path = self._clean_segment_url(segment_template.media)
 
-            init_url = os.path.join("init", init_base_url, init_path)
-            media_url = os.path.join("media", media_base_url, media_path)
+            init_url = os.path.join(
+                "init", self._base_64_encode(init_base_url), init_path
+            )
+            # Added the init URL, to be able to identify and select the right init content in the DB for merging
+            b64_init_url = self._base_64_encode(
+                urllib.parse.urljoin(init_base_url, init_path)
+            )
+
+            media_url = os.path.join(
+                "media", b64_init_url, self._base_64_encode(media_base_url), media_path
+            )
 
             self._replace_init_url(segment_template, init_url)
             self._replace_media_url(segment_template, media_url)
