@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Controllers\ManifestController;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\ResponseInterface as Response;
 use App\Models\Episode;
@@ -14,6 +15,7 @@ use App\Models\DecryptionKeysRetrieval;
 use App\Models\DownloadInfo;
 use App\Models\ManifestModifier;
 use App\Models\PsshRetrieval;
+use App\Models\SegmentDecryptor;
 
 require_once __DIR__ . "/../../config/constants.php"; // TODO: Verify if that's actually a good way to do it
 
@@ -32,6 +34,8 @@ abstract class StreamingService
     protected PsshRetrieval $pssh;
     protected DecryptionKeysRetrieval $decryptionKeys;
     protected ManifestModifier $mpd;
+    protected SegmentDecryptor $decrypt;
+    protected ManifestController $controller;
 
     public function __construct(RequestHelper $requestHelper, PsshRetrieval $psshRetrieval, DecryptionKeysRetrieval $decryptionKeysRetrieval, ManifestModifier $manifestModifier)
     {
@@ -39,6 +43,8 @@ abstract class StreamingService
         $this->pssh = $psshRetrieval;
         $this->decryptionKeys = $decryptionKeysRetrieval;
         $this->mpd = $manifestModifier;
+        $this->decrypt = $segmentDecryptor;
+        $this->controller = $manifestController;
     }
 
     //region Parsing
@@ -121,8 +127,9 @@ abstract class StreamingService
         $this->pssh->getPssh($downloadInfo);
         $this->decryptionKeys->getDecryptionKeys($downloadInfo);
 
-        // Pseudo-code
-        // storeDecryptionKeysInDatabase(md5(join("/", [$array["streamingService"], $array["show"], $args["season"], $args["episode"]])), $downloadInfo->decryptionKeys)
+        $id = join("/", [$args["streamingService"], $args["show"], $args["season"], $args["episode"]]);
+
+        $this->controller->addDecryptionKeys($id, $downloadInfo->decryptionKeys);
 
         return $downloadInfo;
     }
@@ -144,17 +151,15 @@ abstract class StreamingService
         $originalUrl = base64_decode($encodedBaseUrl, true);
         $originalUrl .= $segmentPath;
 
-        // Pseudo-code
-        // if (isInitUrlInDatabase(md5($originalInitUrl)))
-        // {
-        //     return getInitContentFromDatabase(md5($originalUrl))
-        // }
-        // else {
+        $initContent = $this->controller->getInitContent($originalUrl . $this->request->format_parameters($queryParameters));
+
+        if ($initContent) {
+            return $initContent;
+        }
 
         $initContent = $this->request->get($originalUrl, parameters: $queryParameters); // TODO: Add segments headers
 
-        // Pseudo-code
-        // addInitContentToDatabase(md5($originalUrl), $initContent)
+        $this->controller->addInitContent($originalUrl . $this->request->format_parameters($queryParameters), $initContent);
 
         return $initContent;
     }
@@ -174,21 +179,26 @@ abstract class StreamingService
 
         $originalInitUrl = base64_decode($encodedInitUrl, true);
 
-        // Pseudo-code
-        // if (getInitContentFromDatabase(md5($originalInitUrl) === null) {
-        //     return error no init requested
-        // }
-        // else {
-        // $initContent = fetchInitContentFromDatabase(md5($originalInitUrl))
+        $id = join("/", [$args["streamingService"], $args["show"], $args["season"], $args["episode"]]);
+
+        $decryptionKeys = $this->controller->getDecryptionKeys($id);
+
+        if (!$decryptionKeys) {
+            return "Error decryption keys"; // HAHAHA
+        }
+
+        $initContent = $this->controller->getInitContent($originalInitUrl);
+
+        if (!$initContent) {
+            return "Error init content $originalInitUrl"; // TODO: Wow, this sucks, I need to improve error reporting ;-)
+        }
 
         $segmentContent = $this->request->get($originalUrl, parameters: $queryParameters); // TODO: Add segments headers
 
-        // Pseudo-code
-        // $decryptionKeys = getDecryptionKeysFromDatabase(md5(join("/", [$array["streamingService"], $array["show"], $args["season"], $args["episode"]])))
-        // $decryptedContent = decryptMediaSegment($initContent, $segmentContent, $decryptionKeys)
-        // return $decryptedContent;
+        $decryptedContent = $this->decrypt->getDecryptedSegment($initContent, $segmentContent, $decryptionKeys);
 
-        return $segmentContent;
+
+        return $decryptedContent;
     }
 
     //endregion

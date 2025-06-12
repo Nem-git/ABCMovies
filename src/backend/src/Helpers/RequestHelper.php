@@ -17,13 +17,17 @@ class RequestHelper
         return $formatted;
     }
 
-    private function format_parameters(array $parameters): string
+    public function format_parameters(array $parameters): string
     {
-        $formatted = "?";
+        $formatted = "";
+        $lastKey = array_key_last($parameters);
         foreach ($parameters as $key => $value) {
-            $formatted .= "$key=$value&";
+            $formatted .= "$key=$value";
+            if ($key !== $lastKey) {
+                $formatted .= "&";
+            }
         }
-        return $formatted;
+        return $formatted ? "?" . $formatted : "";
     }
 
     private function http(string $url, array $headers = [], array $options = []): string | null

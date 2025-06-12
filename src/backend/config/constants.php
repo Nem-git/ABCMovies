@@ -1,6 +1,19 @@
 <?php
 
 define("PYTHON_URL_BACKEND", "localhost:8000/");
+define("TEMP_DIR", "/tmp/");
+
+define(
+    "REDIS_CONFIG",
+    [
+    "scheme" => "tcp",
+    "host" => "localhost",
+    "port" => 6379,
+    "protocol" => 3,
+    "password" => "",
+    "database" => 0
+    ]
+);
 
 define(
     "HTTP_DEFAULT_HEADERS",

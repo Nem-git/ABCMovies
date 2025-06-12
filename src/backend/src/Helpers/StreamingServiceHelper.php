@@ -10,6 +10,10 @@ use App\Helpers\RequestHelper;
 use App\Services\DecryptionKeysRetrieval;
 use App\Services\PsshRetrieval;
 use App\Services\ManifestModifier;
+use App\Services\SegmentDecryptor;
+use App\Repositories\RedisRepository;
+use App\Controllers\ManifestController;
+use App\Models\ManifestModifier as ModelsManifestModifier;
 
 class StreamingServiceHelper
 {
@@ -31,6 +35,12 @@ class StreamingServiceHelper
         "python" => ManifestModifier\PythonBackend::class,
     ];
 
+    private array $segmentDecryptor = [
+        "python" => SegmentDecryptor\PythonBackend::class,
+        "php" => SegmentDecryptor\Php::class,
+        "shell" => SegmentDecryptor\Shell::class,
+    ];
+
     public function pick(string $name): ?StreamingService
     {
         $service = $this->services[$name] ?? null;
@@ -47,7 +57,16 @@ class StreamingServiceHelper
         $manifestModifier = $this->manifestModifier["python"] ?? null;
         $manifestModifier = new $manifestModifier($requestHelper);
 
+        $segmentDecryptor = $this->segmentDecryptor["shell"] ?? null;
+        $segmentDecryptor = new $segmentDecryptor();
 
-        return new $service($requestHelper, $psshRetriever, $decryptionKeysRetriever, $manifestModifier);
+        // TODO: Add other repositories and make a parent class
+        $redisRepository = RedisRepository::class;
+        $redisRepository = new $redisRepository();
+
+        $manifestController = ModelsManifestModifier::class;
+        $manifestController = new ManifestController($redisRepository);
+
+        return new $service($requestHelper, $psshRetriever, $decryptionKeysRetriever, $manifestModifier, $segmentDecryptor, $manifestController);
     }
 }
