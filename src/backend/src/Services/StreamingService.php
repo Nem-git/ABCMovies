@@ -37,7 +37,7 @@ abstract class StreamingService
     protected SegmentDecryptor $decrypt;
     protected ManifestController $controller;
 
-    public function __construct(RequestHelper $requestHelper, PsshRetrieval $psshRetrieval, DecryptionKeysRetrieval $decryptionKeysRetrieval, ManifestModifier $manifestModifier)
+    public function __construct(RequestHelper $requestHelper, PsshRetrieval $psshRetrieval, DecryptionKeysRetrieval $decryptionKeysRetrieval, ManifestModifier $manifestModifier, SegmentDecryptor $segmentDecryptor, ManifestController $manifestController)
     {
         $this->request = $requestHelper;
         $this->pssh = $psshRetrieval;
