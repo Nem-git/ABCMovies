@@ -26,12 +26,16 @@ class Toutv extends StreamingService
 
         foreach ($ssResponse["results"] as $result) {
 
-            $show = new Show($result["url"]);
+            $show = new Show();
 
+            $show->id = $result["url"];
             $show->title = $result["title"];
+            $show->shortDescription = $show->fullDescription = $result["infoTitle"];
 
             // Replace the placeholder with teh newly formatted show title and add the parameters
             $show->imageCard = $result["images"]["card"]["url"];
+
+            $show->provider = $this->tag;
 
             if ($result["type"] == "Show") {
                 $results[] = $show;

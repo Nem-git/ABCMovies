@@ -28,6 +28,11 @@ class Season
     public string $shortDescription;
 
     /**
+     * The streaming service's name
+     */
+    public string $provider;
+
+    /**
      * Entirety of episodes in the season
      */
     public array $episodes;

@@ -19,10 +19,6 @@ class Episode
      */
     public int $number;
     /**
-     * Card image URL
-     */
-    public string $imageCard;
-    /**
      * Episode's long form description
      */
     public string $fullDescription;
@@ -30,6 +26,15 @@ class Episode
      * Episode's short form description
      */
     public string $shortDescription;
+    /**
+     * Card image URL
+     */
+    public string $imageCard;
+
+    /**
+     * The streaming service's name
+     */
+    public string $provider;
 
     /**
      * MPD link

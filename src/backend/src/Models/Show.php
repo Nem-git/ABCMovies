@@ -36,6 +36,11 @@ class Show
     public string $imageBackground;
 
     /**
+     * The streaming service's name
+     */
+    public string $provider;
+
+    /**
      * Seasons in the show
      */
     public array $seasons;
