@@ -81,7 +81,6 @@ abstract class StreamingService
         $showId = $args["show"] ?? "";
         $show = new Show();
         $show->id = $showId;
-        $show->provider = $this->tag;
 
         $ssResponse = $this->request->get($this->getShowInfoUrl($showId), HTTP_DEFAULT_HEADERS, $this->getShowInfoParameters());
         $this->parseShowInfo($show, json_decode($ssResponse, true));
@@ -95,7 +94,6 @@ abstract class StreamingService
         $seasonId = $args["season"] ?? "";
         $season = new Season();
         $season->id = $seasonId;
-        $season->provider = $this->tag;
 
         $ssResponse = $this->request->get($this->getSeasonInfoUrl($showId, $seasonId), HTTP_DEFAULT_HEADERS, $this->getSeasonInfoParameters());
         $this->parseSeasonInfo($season, json_decode($ssResponse, true));
@@ -111,7 +109,6 @@ abstract class StreamingService
         $episode = new Episode();
         $episode->id = $episodeId;
         $episode->url = $request->getUri() . "/manifest.mpd"; // TODO: Improve the link creation, this is wrong
-        $episode->provider = $this->tag;
 
         // TODO: Add verifications to make sure the request has a valid output
         $ssResponse = $this->request->get($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters());

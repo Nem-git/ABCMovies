@@ -56,12 +56,14 @@ class Toutv extends StreamingService
         $show->year = (int)explode("-", $releaseDate ? $releaseDate : "")[0]; // The first number being the year
 
         $show->imageBackground = $ssResponse["images"]["background"]["url"];
+        $show->provider = $this->tag;
 
         foreach ($ssResponse["content"][0]["lineups"] as $ssResponseSeason) {
             $season = new Season();
             $season->id = (string)$ssResponseSeason["seasonNumber"];
             $season->title = $ssResponseSeason["title"];
             $season->number = $ssResponseSeason["seasonNumber"];
+            $season->provider = $this->tag;
 
             $show->seasons[] = $season;
         }
@@ -77,24 +79,28 @@ class Toutv extends StreamingService
                 $season->title = $ssResponseSeason["title"];
                 $season->number = (int)$season->id;
                 $season->fullDescription = $season->shortDescription = $ssResponse["structuredMetadata"]["abstract"];
+                $season->provider = $this->tag;
 
                 // Still not sure if episode should be in Season, but I think it's best to keep it that way for now
                 foreach ($ssResponseSeason["items"] as $ssResponseEpisode) {
-                    $episode = new Episode((string)$ssResponseEpisode["idMedia"]);
+                    $episode = new Episode();
 
+                    $episode->id = (string)$ssResponseEpisode["idMedia"];
                     $episode->title = $ssResponseEpisode["title"];
                     $episode->number = $ssResponseEpisode["episodeNumber"];
                     $episode->shortDescription = $episode->fullDescription = $ssResponseEpisode["description"] ?? "";
                     $episode->imageCard = $ssResponseEpisode["images"]["card"]["url"];
+                    $episode->provider = $this->tag;
 
                     // Don't add Trailers
                     if ($ssResponseEpisode["type"] !== "Trailer") {
                         $season->episodes[] = $episode;
                     }
                 }
-                break;
+                return; // If it enters the if, that's the only time it will
             }
         }
+        $season->id = ""; // To clean the season, as the season requested does not exist
     }
 
     protected function parseEpisodeInfo(Episode $episode, array $ssResponse): void
@@ -102,6 +108,7 @@ class Toutv extends StreamingService
         $episode->id = $ssResponse["idFichierToutv"];
         $episode->title = $ssResponse["emission"];
         $episode->number = (int)$ssResponse["episode"];
+        $episode->provider = $this->tag;
     }
 
     protected function parseEpisodeDownloadInfo(Episode $episode, array $ssResponse): DownloadInfo
