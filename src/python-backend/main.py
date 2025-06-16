@@ -32,5 +32,5 @@ def create_decryption_keys(request: DecryptRequest):
 def create_modified_manifest(request: MpdRequest):
     modifier = ManifestModifier()
     response = Response()
-    modifier.get_mpd(request, response)
+    modifier.get_modified_mpd(request, response)
     return response

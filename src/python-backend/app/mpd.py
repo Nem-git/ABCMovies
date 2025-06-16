@@ -5,9 +5,14 @@ import re
 from mpd_parser.parser import Parser
 from mpd_parser.models.composite_tags import MPD
 import os
+from lxml import etree
 
+# Removed just for debugging
 from app.models import MpdRequest
 from app.models import Response
+
+# from models import MpdRequest
+# from models import Response
 
 
 # TODO: Look for baseurls, and use them for the urlencoding
@@ -20,7 +25,7 @@ class ManifestModifier:
     manifest_url: str
     mpd: MPD
 
-    def get_mpd(self, request: MpdRequest, response: Response) -> str:
+    def get_modified_mpd(self, request: MpdRequest, response: Response) -> str:
 
         try:
             self.manifest_url = request.mpdUrl
@@ -34,7 +39,52 @@ class ManifestModifier:
         except Exception as e:
             response.error = e
 
-        response.value = Parser.to_string(self.mpd)
+        str_mpd: str = Parser.to_string(self.mpd)
+        str_mpd: str = self._remove_content_protection_lxml(str_mpd)
+        str_mpd: str = self._remove_drm_namespace(str_mpd)
+        mpd: MPD = Parser.from_string(str_mpd)
+        response.value = Parser.to_string(mpd)
+    
+    def _remove_drm_namespace(self, mpd_xml_str: str):
+
+        drm_ns_prefixes = {'mspr', 'cenc', 'widevine'}
+    
+        parser = etree.XMLParser(remove_blank_text=True)
+        root = etree.fromstring(mpd_xml_str.encode('utf-8'), parser)
+    
+        # Build a new nsmap without DRM namespaces
+        new_nsmap = {k: v for k, v in root.nsmap.items() if k not in drm_ns_prefixes}
+    
+        # Create a new root element with the same tag, text, tail, attributes, but filtered nsmap
+        new_root = etree.Element(root.tag, nsmap=new_nsmap)
+    
+        # Copy attributes (excluding xmlns declarations, which are handled by nsmap)
+        for attr_key, attr_val in root.attrib.items():
+            new_root.set(attr_key, attr_val)
+    
+        # Copy children
+        for child in root:
+            new_root.append(child)
+    
+        # Copy text and tail
+        new_root.text = root.text
+        new_root.tail = root.tail
+    
+        # Serialize back to string with pretty print
+        return etree.tostring(new_root, pretty_print=True, encoding='unicode')
+    
+    def _remove_content_protection_lxml(self, mpd_xml_str: str) -> str:
+        parser = etree.XMLParser(ns_clean=True, recover=True)
+        root = etree.fromstring(mpd_xml_str.encode('utf-8'), parser=parser)
+    
+        cps = root.xpath('.//mpd:ContentProtection', namespaces={'mpd': 'urn:mpeg:dash:schema:mpd:2011'})
+
+        for cp in cps:
+            parent = cp.getparent()
+            if parent is not None:
+                parent.remove(cp)
+        
+        return etree.tostring(root, encoding='unicode', pretty_print=True)
 
     def _get_mpd_content(self, url: str, headers: dict) -> str:
         response = requests.get(url, headers=headers)
@@ -44,6 +94,7 @@ class ManifestModifier:
     def _parse_periods(self, parent):
         for period in parent.periods:
             self._parse_adaptation_sets(period)
+            
 
     def _parse_adaptation_sets(self, parent):
         for adaptation_set in parent.adaptation_sets:
@@ -135,3 +186,17 @@ class ManifestModifier:
         # or from: https://video.com/file.mp4 to file.mp4
         # (don't worry, the video.com part is saved as urlencoded base_url)
         return clean_url
+
+
+# if __name__ == "__main__":
+#     mpd_request = MpdRequest()
+#     mpd_request.mpdUrl = "https://cbcrcott-aws-toutv.akamaized.net/out/v1/e71b9f2ee8684145982294c54e2311ed/97c7a58d11d84ea78801a32f293d0a21/27f2eb30c8fb43f99ba46fee14ce2d37/index-multi-drm.mpd?pckgrp=bd19b98e3f6f49156464835f3aa1e8bb&ewid=83314&filter=3000&EIA608ClosedCaptions=true&lang=fr"
+#     response = Response()
+
+#     manifest_modifier = ManifestModifier()
+#     manifest_modifier.get_mpd(mpd_request, response)
+
+#     print(response.value.count("Protection"))
+
+#     with open("file.xml", "wt") as f:
+#         f.write(response.value)
