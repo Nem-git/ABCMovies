@@ -15,9 +15,9 @@ from app.models import Response
 # from models import Response
 
 
-# TODO: Look for baseurls, and use them for the urlencoding
 # TODO: Look at base_urls, segment_bases, segment_lists and segment_templates for URLS to take into account
 # TODO: Remove/replace base_urls
+# TODO: Verify what kind of decryption the web player and mpv support (with/without init merging, etc..)
 
 
 class ManifestModifier:
@@ -40,51 +40,110 @@ class ManifestModifier:
             response.error = e
 
         str_mpd: str = Parser.to_string(self.mpd)
-        str_mpd: str = self._remove_content_protection_lxml(str_mpd)
-        str_mpd: str = self._remove_drm_namespace(str_mpd)
+        str_mpd: str = self._lxml_modifications(str_mpd)
         mpd: MPD = Parser.from_string(str_mpd)
         response.value = Parser.to_string(mpd)
-    
-    def _remove_drm_namespace(self, mpd_xml_str: str):
 
-        drm_ns_prefixes = {'mspr', 'cenc', 'widevine'}
-    
-        parser = etree.XMLParser(remove_blank_text=True)
-        root = etree.fromstring(mpd_xml_str.encode('utf-8'), parser)
-    
+    def _lxml_modifications(self, mpd_xml_str: str):
+        parser = etree.XMLParser(remove_blank_text=True, ns_clean=True, recover=True)
+        root = etree.fromstring(mpd_xml_str.encode("utf-8"), parser)
+
+        # root = self._remove_drm_remains(root)
+        root = self._remove_content_protection(root)
+        # root = self._remove_non_compliant(root)
+        root = self._remove_drm_namespaces(root)
+
+        return etree.tostring(root, encoding="unicode", pretty_print=True)
+
+    def _remove_drm_remains(self, root):
+
+        drm_ns_prefixes = {"mspr", "cenc", "widevine"}
+
         # Build a new nsmap without DRM namespaces
         new_nsmap = {k: v for k, v in root.nsmap.items() if k not in drm_ns_prefixes}
-    
+
         # Create a new root element with the same tag, text, tail, attributes, but filtered nsmap
         new_root = etree.Element(root.tag, nsmap=new_nsmap)
-    
+
         # Copy attributes (excluding xmlns declarations, which are handled by nsmap)
         for attr_key, attr_val in root.attrib.items():
             new_root.set(attr_key, attr_val)
-    
+
         # Copy children
         for child in root:
             new_root.append(child)
-    
+
         # Copy text and tail
         new_root.text = root.text
         new_root.tail = root.tail
-    
+
         # Serialize back to string with pretty print
-        return etree.tostring(new_root, pretty_print=True, encoding='unicode')
-    
-    def _remove_content_protection_lxml(self, mpd_xml_str: str) -> str:
-        parser = etree.XMLParser(ns_clean=True, recover=True)
-        root = etree.fromstring(mpd_xml_str.encode('utf-8'), parser=parser)
-    
-        cps = root.xpath('.//mpd:ContentProtection', namespaces={'mpd': 'urn:mpeg:dash:schema:mpd:2011'})
+        return new_root
+
+    def _remove_drm_namespaces(self, root):
+
+        mpd_content = etree.tostring(root, encoding="unicode")
+
+        # Remove PlayReady namespace declarations
+        mpd_content = re.sub(r'\sxmlns:mspr="urn:microsoft:playready"', "", mpd_content)
+
+        # Remove any attributes that use the PlayReady namespace
+        mpd_content = re.sub(r'\smspr:[^\s=]+="[^"]*"', "", mpd_content)
+
+        # Remove any elements that use the PlayReady namespace
+        mpd_content = re.sub(
+            r"<mspr:[^>]+>[^<]*</mspr:[^>]+>", "", mpd_content, flags=re.DOTALL
+        )
+
+        parser = etree.XMLParser(remove_blank_text=True, ns_clean=True, recover=True)
+        root = etree.fromstring(mpd_content.encode("utf-8"), parser)
+        return root
+
+    def _remove_non_compliant(self, root) -> str:
+
+        cps = root.xpath(
+            ".//mpd:SupplementalProperty",
+            namespaces={"mpd": "urn:mpeg:dash:schema:mpd:2011"},
+        )
 
         for cp in cps:
             parent = cp.getparent()
             if parent is not None:
                 parent.remove(cp)
-        
-        return etree.tostring(root, encoding='unicode', pretty_print=True)
+
+        cps = root.xpath(
+            ".//mpd:Accessibility", namespaces={"mpd": "urn:mpeg:dash:schema:mpd:2011"}
+        )
+
+        for cp in cps:
+            parent = cp.getparent()
+            if parent is not None:
+                parent.remove(cp)
+
+        cps = root.xpath(
+            ".//mpd:Role", namespaces={"mpd": "urn:mpeg:dash:schema:mpd:2011"}
+        )
+
+        for cp in cps:
+            parent = cp.getparent()
+            if parent is not None:
+                parent.remove(cp)
+
+        return root
+
+    def _remove_content_protection(self, root):
+
+        cps = root.xpath(
+            ".//mpd:ContentProtection",
+            namespaces={"mpd": "urn:mpeg:dash:schema:mpd:2011"},
+        )
+
+        for cp in cps:
+            parent = cp.getparent()
+            if parent is not None:
+                parent.remove(cp)
+
+        return root
 
     def _get_mpd_content(self, url: str, headers: dict) -> str:
         response = requests.get(url, headers=headers)
@@ -94,7 +153,6 @@ class ManifestModifier:
     def _parse_periods(self, parent):
         for period in parent.periods:
             self._parse_adaptation_sets(period)
-            
 
     def _parse_adaptation_sets(self, parent):
         for adaptation_set in parent.adaptation_sets:
@@ -126,6 +184,7 @@ class ManifestModifier:
                 "media", b64_init_url, self._base_64_encode(media_base_url), media_path
             )
 
+            # Removed init now, because it interferes with the non-encrypted segments
             self._replace_init_url(segment_template, init_url)
             self._replace_media_url(segment_template, media_url)
 
@@ -188,15 +247,13 @@ class ManifestModifier:
         return clean_url
 
 
-# if __name__ == "__main__":
-#     mpd_request = MpdRequest()
-#     mpd_request.mpdUrl = "https://cbcrcott-aws-toutv.akamaized.net/out/v1/e71b9f2ee8684145982294c54e2311ed/97c7a58d11d84ea78801a32f293d0a21/27f2eb30c8fb43f99ba46fee14ce2d37/index-multi-drm.mpd?pckgrp=bd19b98e3f6f49156464835f3aa1e8bb&ewid=83314&filter=3000&EIA608ClosedCaptions=true&lang=fr"
-#     response = Response()
+if __name__ == "__main__":
+    mpd_request = MpdRequest()
+    mpd_request.mpdUrl = "https://cbcrcott-aws-toutv.akamaized.net/out/v1/e71b9f2ee8684145982294c54e2311ed/97c7a58d11d84ea78801a32f293d0a21/27f2eb30c8fb43f99ba46fee14ce2d37/index-multi-drm.mpd?pckgrp=bd19b98e3f6f49156464835f3aa1e8bb&ewid=83314&filter=3000&EIA608ClosedCaptions=true&lang=fr"
+    response = Response()
 
-#     manifest_modifier = ManifestModifier()
-#     manifest_modifier.get_mpd(mpd_request, response)
+    manifest_modifier = ManifestModifier()
+    manifest_modifier.get_modified_mpd(mpd_request, response)
 
-#     print(response.value.count("Protection"))
-
-#     with open("file.xml", "wt") as f:
-#         f.write(response.value)
+    with open("file.xml", "wt") as f:
+        f.write(response.value)
