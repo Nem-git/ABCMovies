@@ -29,6 +29,20 @@ class Shell extends SegmentDecryptor
         return $cmd;
     }
 
+    private function getMp4DecryptFullSegmentCommand(string $encryptedFilePath, string $decryptedFilePath, array $decryptionKeys): string
+    {
+        $cmd = "/run/current-system/sw/bin/mp4decrypt";
+
+        foreach ($decryptionKeys as $decryptionKey) {
+            $cmd .= " --key " . escapeshellarg($decryptionKey);
+        }
+
+        $cmd .= " " . escapeshellarg($encryptedFilePath);
+        $cmd .= " " . escapeshellarg($decryptedFilePath);
+
+        return $cmd;
+    }
+
 
     public function getDecryptedSegment($initContent, $segmentContent, $decryptionKeys): string
     {
@@ -36,13 +50,22 @@ class Shell extends SegmentDecryptor
         $segmentFilePath = tempnam(TEMP_DIR, "ABC_S_");
         $decryptedFilePath = tempnam(TEMP_DIR, "ABC_D_");
 
-        file_put_contents($initFilePath, $initContent);
-        file_put_contents($segmentFilePath, $segmentContent);
+        // Separate init and media
+        // file_put_contents($initFilePath, $initContent);
+        // file_put_contents($segmentFilePath, $segmentContent);
 
-        $cmd = $this->getMp4decryptCommand($segmentFilePath, $initFilePath, $decryptedFilePath, $decryptionKeys);
+        // $cmd = $this->getMp4decryptCommand($segmentFilePath, $initFilePath, $decryptedFilePath, $decryptionKeys);
+
+
+        // Merged init and media
+        file_put_contents($segmentFilePath, $initContent . $segmentContent);
+
+        $cmd = $this->getMp4DecryptFullSegmentCommand($segmentFilePath, $decryptedFilePath, $decryptionKeys);
 
         exec($cmd . " 2>&1", $output, $err);
         unlink($segmentFilePath);
+        //
+        // unlink($initFilePath);
 
         if ($err !== 0) {
             throw new \RuntimeException("mp4decrypt failed: " . implode("\n", $output));
