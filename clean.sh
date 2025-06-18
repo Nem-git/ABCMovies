@@ -16,4 +16,6 @@ export PHP_CS_FIXER_IGNORE_ENV=true
 ./src/python-backend/.venv/bin/black ./src/python-backend/app
 
 # Svelte
-npx prettier --write ./src/frontend/src/
+cd ./src/frontend/src/
+npx prettier --write .
+cd ../../../
