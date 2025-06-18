@@ -1,10 +1,10 @@
 <script lang="ts">
   let { baseUrl }: { baseUrl: string } = $props();
 
-  import type { Show } from "../api/config";
+  import type { Show } from "../../api/config";
   import { onMount } from "svelte";
-  import { getShow } from "../api/show";
-  import { seasonId } from "./shared.svelte";
+  import { getShow } from "../../api/show";
+  import { seasonId } from "../shared.svelte";
   import SeasonPage from "./SeasonPage.svelte";
 
   let s: Promise<Show> | undefined = $state();

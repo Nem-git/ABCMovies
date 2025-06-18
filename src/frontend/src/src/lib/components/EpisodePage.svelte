@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { init } from "./dashjsPlayer.svelte";
-  import { manifestUrl } from "./dashjsPlayer.svelte";
+  import { init } from "../dashjsPlayer.svelte";
+  import { manifestUrl } from "../dashjsPlayer.svelte";
   // import { manifestUrl } from "./videojsPlayer.svelte";
   // import { init } from "./videojsPlayer.svelte";
   // import { manifestUrl } from "./shakaPlayer.svelte";
   // import { init } from "./shakaPlayer.svelte";
-  import type { Episode } from "../api/config";
-  import { getEpisode } from "../api/episode";
+  import type { Episode } from "../../api/config";
+  import { getEpisode } from "../../api/episode";
   import { onMount } from "svelte";
 
   let { baseUrl }: { baseUrl: string } = $props();

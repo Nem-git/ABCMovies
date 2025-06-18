@@ -2,7 +2,7 @@
   import { goto } from "@roxi/routify";
   import { onMount } from "svelte";
 
-  import SearchPage from "../../lib/SearchPage.svelte";
+  import SearchPage from "../../lib/components/SearchPage.svelte";
 
   onMount(() => {
     document.getElementById("search-input")?.focus();

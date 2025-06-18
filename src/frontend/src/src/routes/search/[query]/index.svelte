@@ -3,7 +3,7 @@
   import { onMount } from "svelte";
   import { params } from "@roxi/routify";
 
-  import SearchPage from "../../../lib/SearchPage.svelte";
+  import SearchPage from "../../../lib/components/SearchPage.svelte";
 
   onMount(() => {
     document.getElementById("search-input")?.focus();

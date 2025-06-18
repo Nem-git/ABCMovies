@@ -1,7 +1,7 @@
 <script lang="ts">
   import { url } from "@roxi/routify";
 
-  import type { Show } from "../api/config";
+  import type { Show } from "../../api/config";
   let { show }: { show: Show } = $props();
 </script>
 
@@ -16,7 +16,7 @@
     <div id="card">
       <img src={show.imageCard.replace("_Size_", "400")} alt={show.title} />
       <div id="card-info">
-        <p id="description">{show.shortDescription}</p>
+        <span id="description">{show.shortDescription}</span>
       </div>
     </div>
     <h3>{show.title}</h3>
@@ -31,6 +31,13 @@
   a {
     display: flex;
     flex-flow: column nowrap;
+
+    margin: 1em;
+  }
+
+  span {
+    position: inherit;
+    bottom: 0;
   }
 
   img {
@@ -42,8 +49,6 @@
   }
 
   #card {
-    width: 100%;
-    height: 100%;
     position: relative;
   }
 
@@ -55,6 +60,12 @@
     background: var(--hover-overlay);
     width: 100%;
     height: 100%;
+
+    display: flex;
+    flex-flow: row nowrap;
+
+    align-items: center;
+    justify-content: center;
   }
 
   #description {

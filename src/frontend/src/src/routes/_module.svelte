@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Navbar from "../lib/Navbar.svelte";
+  import Navbar from "../lib/components/Navbar.svelte";
 </script>
 
 <Navbar />
@@ -7,6 +7,7 @@
 <main>
   <slot />
 </main>
+<div id="background"></div>
 
 <style>
   :root {
@@ -17,11 +18,21 @@
     left: 0;
     top: 0;
     position: absolute;
-    background-color: var(--background-color);
-    padding-top: 25vh;
 
     display: flex;
     justify-content: center;
     flex-flow: column nowrap;
+
+    z-index: 1;
+  }
+
+  #background {
+    position: fixed;
+    width: 100vw;
+    height: 100vh;
+    top: 0;
+    left: 0;
+
+    background-color: var(--background-color);
   }
 </style>

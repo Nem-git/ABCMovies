@@ -1,7 +1,7 @@
 <script lang="ts">
   let { episode, baseUrl }: { episode: Episode; baseUrl: string } = $props();
 
-  import type { Episode } from "../api/config";
+  import type { Episode } from "../../api/config";
 </script>
 
 <div id="layout">

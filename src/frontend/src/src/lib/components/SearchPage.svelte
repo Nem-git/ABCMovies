@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  import type { Show } from "../api/config";
-  import { getSearchResults } from "../api/search";
+  import type { Show } from "../../api/config";
+  import { getSearchResults } from "../../api/search";
 
   import ShowCard from "./ShowCard.svelte";
 
@@ -24,10 +24,19 @@
   });
 </script>
 
-{#if searchResults}
-  {#await searchResults then sr}
-    {#each sr as show}
-      <ShowCard {show} />
-    {/each}
-  {/await}
-{/if}
+<ol>
+  {#if searchResults}
+    {#await searchResults then sr}
+      {#each sr as show}
+        <ShowCard {show} />
+      {/each}
+    {/await}
+  {/if}
+</ol>
+
+<style>
+  ol {
+    display: flex;
+    flex-flow: row wrap;
+  }
+</style>

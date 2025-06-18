@@ -1,7 +1,7 @@
 <script lang="ts">
   import { url } from "@roxi/routify";
   import { params } from "@roxi/routify";
-  import ShowPage from "../../../../lib/ShowPage.svelte";
+  import ShowPage from "../../../../lib/components/ShowPage.svelte";
   import { seasonId } from "../../../../lib/shared.svelte";
 
   let { season } = $params;
