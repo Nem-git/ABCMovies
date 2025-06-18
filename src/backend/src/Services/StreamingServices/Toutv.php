@@ -158,7 +158,7 @@ class Toutv extends StreamingService
     {
         $parameters = TOUTV_PARAMETERS_SEARCH;
         $parameters["pageSize"] = $amount;
-        $parameters["term"] = $query;
+        $parameters["term"] = urlencode($query);
         return $parameters;
     }
 
