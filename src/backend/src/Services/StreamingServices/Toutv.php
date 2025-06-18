@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\StreamingServices;
 
+use App\Helpers\RequestHelper;
 use App\Models\DownloadInfo;
 use App\Services\StreamingService;
 use App\Models\Show;
@@ -231,12 +232,12 @@ class Toutv extends StreamingService
     public function getEpisodeDownloadInfoOptional(Episode $episode, DownloadInfo $downloadInfo): void
     {
         $fileParameters = $this->getEpisodeFileParameters($episode->id);
-        $ssResponse = $this->request->get($this->getEpisodeFileUrl($episode->id), HTTP_DEFAULT_HEADERS, $fileParameters);
+        $ssResponse = RequestHelper::get($this->getEpisodeFileUrl($episode->id), HTTP_DEFAULT_HEADERS, $fileParameters);
         $this->parseEpisodeFileInfo($episode, json_decode($ssResponse, true));
 
         $headers = $this->getEpisodeDownloadHeaders();
         $downloadParameters = $this->getEpisodeDownloadParameters($episode->id);
-        $ssResponse = $this->request->get($this->getEpisodeDownloadUrl(), $headers, $downloadParameters);
+        $ssResponse = RequestHelper::get($this->getEpisodeDownloadUrl(), $headers, $downloadParameters);
         $this->parseEpisodeDownloadStreamInfo($episode, json_decode($ssResponse, true), $downloadInfo);
     }
 

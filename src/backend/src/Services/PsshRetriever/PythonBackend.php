@@ -2,19 +2,20 @@
 
 declare(strict_types=1);
 
-namespace App\Services\PsshRetrieval;
+namespace App\Services\PsshRetriever;
 
-use App\Models\PsshRetrieval;
+use App\Helpers\RequestHelper;
 use App\Models\DownloadInfo;
+use App\Models\PsshRetriever;
 
 /**
  * Using the Python API to retrieve the keys
  */
-class PythonBackend extends PsshRetrieval
+class PythonBackend extends PsshRetriever
 {
     public function getPssh(DownloadInfo $downloadInfo): DownloadInfo
     {
-        $downloadInfo->pssh = $this->request->pythonBackend("pssh", $downloadInfo);
+        $downloadInfo->pssh = RequestHelper::pythonBackend("pssh", $downloadInfo);
         return $downloadInfo;
     }
 

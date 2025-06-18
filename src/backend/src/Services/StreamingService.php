@@ -11,11 +11,14 @@ use App\Models\Episode;
 use App\Models\Season;
 use App\Models\Show;
 use App\Helpers\RequestHelper;
-use App\Models\DecryptionKeysRetrieval;
+use App\Helpers\SlimResponseHelper;
+use App\Models\DecryptionKeysRetriever;
 use App\Models\DownloadInfo;
 use App\Models\ManifestModifier;
-use App\Models\PsshRetrieval;
 use App\Models\SegmentDecryptor;
+use App\Models\ObjectFactory;
+use App\Models\PsshRetriever;
+use App\Repositories\RedisRepository;
 
 require_once __DIR__ . "/../../config/constants.php"; // TODO: Verify if that's actually a good way to do it
 
@@ -30,21 +33,21 @@ abstract class StreamingService
      */
     protected string $tag;
 
-    protected RequestHelper $request;
-    protected PsshRetrieval $pssh;
-    protected DecryptionKeysRetrieval $decryptionKeys;
-    protected ManifestModifier $mpd;
-    protected SegmentDecryptor $decrypt;
-    protected ManifestController $controller;
+    protected PsshRetriever $psshRetriever;
+    protected DecryptionKeysRetriever $decryptionKeysRetriever;
+    protected ManifestModifier $manifestModifier;
+    protected SegmentDecryptor $segmentDecryptor;
+    protected RedisRepository $repository;
+    protected ManifestController $manifestController;
 
-    public function __construct(RequestHelper $requestHelper, PsshRetrieval $psshRetrieval, DecryptionKeysRetrieval $decryptionKeysRetrieval, ManifestModifier $manifestModifier, SegmentDecryptor $segmentDecryptor, ManifestController $manifestController)
+    public function __construct()
     {
-        $this->request = $requestHelper;
-        $this->pssh = $psshRetrieval;
-        $this->decryptionKeys = $decryptionKeysRetrieval;
-        $this->mpd = $manifestModifier;
-        $this->decrypt = $segmentDecryptor;
-        $this->controller = $manifestController;
+        $this->psshRetriever = ObjectFactory::createPsshRetriever("python");
+        $this->decryptionKeysRetriever = ObjectFactory::createDecryptionKeysRetriever("python");
+        $this->manifestModifier = ObjectFactory::createManifestModifier("python");
+        $this->segmentDecryptor = ObjectFactory::createSegmentDecryptor("shell");
+        $this->repository = ObjectFactory::createRepository();
+        $this->manifestController = ObjectFactory::createManifestController($this->repository);
     }
 
     //region Parsing
@@ -65,43 +68,47 @@ abstract class StreamingService
     // because they would all create different functions for everything, while this is same for everyone
     abstract public function getEpisodeDownloadInfoOptional(Episode $episode, DownloadInfo $downloadInfo): void;
 
-    public function getSearchResults(Request $request, Response $response, array $args): array
+    //region Functions that return to public
+
+    public function getSearchResults(Request $request, Response $response, array $args): Response
     {
         $query = $args["query"] ?? "*";
         $amount = (int)($request->getQueryParams()["amount"] ?? 20);
 
         $parameters = $this->getSearchParameters($query, $amount);
 
-        $ssResponse = $this->request->get($this->getSearchUrl(), HTTP_DEFAULT_HEADERS, $parameters);
-        return $this->parseSearchResults(json_decode($ssResponse, true));
+        $ssResponse = RequestHelper::get($this->getSearchUrl(), HTTP_DEFAULT_HEADERS, $parameters);
+
+        $searchResults = $this->parseSearchResults(json_decode($ssResponse, true));
+        return SlimResponseHelper::response_json($searchResults, $response);
     }
 
-    public function getShowInfo(Request $request, Response $response, array $args): Show
+    public function getShowInfo(Request $request, Response $response, array $args): Response
     {
         $showId = $args["show"] ?? "";
         $show = new Show();
         $show->id = $showId;
 
-        $ssResponse = $this->request->get($this->getShowInfoUrl($showId), HTTP_DEFAULT_HEADERS, $this->getShowInfoParameters());
+        $ssResponse = RequestHelper::get($this->getShowInfoUrl($showId), HTTP_DEFAULT_HEADERS, $this->getShowInfoParameters());
         $this->parseShowInfo($show, json_decode($ssResponse, true));
 
-        return $show;
+        return SlimResponseHelper::response_json($show, $response);
     }
 
-    public function getSeasonInfo(Request $request, Response $response, array $args): Season
+    public function getSeasonInfo(?Request $request, Response $response, array $args): Response
     {
         $showId = $args["show"] ?? "";
         $seasonId = $args["season"] ?? "";
         $season = new Season();
         $season->id = $seasonId;
 
-        $ssResponse = $this->request->get($this->getSeasonInfoUrl($showId, $seasonId), HTTP_DEFAULT_HEADERS, $this->getSeasonInfoParameters());
+        $ssResponse = RequestHelper::get($this->getSeasonInfoUrl($showId, $seasonId), HTTP_DEFAULT_HEADERS, $this->getSeasonInfoParameters());
         $this->parseSeasonInfo($season, json_decode($ssResponse, true));
 
-        return $season;
+        return SlimResponseHelper::response_json($season, $response);
     }
 
-    public function getEpisodeInfo(Request $request, Response $response, array $args, bool $returnLastRequest = false): Episode | array
+    public function getEpisodeInfo(?Request $request, ?Response $response, array $args, bool $returnLastRequest = false): Response | array
     {
         $showId = $args["show"] ?? "";
         $seasonId = $args["season"] ?? "";
@@ -111,38 +118,25 @@ abstract class StreamingService
         $episode->url = $request->getUri() . "/manifest.mpd"; // TODO: Improve the link creation, this is wrong
 
         // TODO: Add verifications to make sure the request has a valid output
-        $ssResponse = $this->request->get($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters());
+        $ssResponse = RequestHelper::get($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters());
         $this->parseEpisodeInfo($episode, json_decode($ssResponse, true));
 
-        return $returnLastRequest ? [$episode, json_decode($ssResponse, true)] : $episode;
+        $returnLastRequest ?: $episode;
+
+        return $returnLastRequest ? [$episode, json_decode($ssResponse, true)] : SlimResponseHelper::response_json($episode, $response);
     }
 
-    public function getEpisodeDownloadInfo(Request $request, Response $response, array $args): DownloadInfo
+    public function getEpisodeManifest(Request $request, Response $response, array $args): Response
     {
-        list($episode, $ssResponse) = $this->getEpisodeInfo($request, $response, $args, true);
-        $downloadInfo = $this->parseEpisodeDownloadInfo($episode, $ssResponse);
+        $downloadInfo = $this->getEpisodeDownloadInfo($request, $args); // Because we need the MPD url and headers
 
-        $this->getEpisodeDownloadInfoOptional($episode, $downloadInfo);
+        $modifiedManifestContent = $this->manifestModifier->getModifiedMpd($downloadInfo);
 
-        $this->pssh->getPssh($downloadInfo);
-        $this->decryptionKeys->getDecryptionKeys($downloadInfo);
-
-        $id = join("/", [$args["streamingService"], $args["show"], $args["season"], $args["episode"]]);
-
-        $this->controller->addDecryptionKeys($id, $downloadInfo->decryptionKeys);
-
-        return $downloadInfo;
-    }
-
-    public function getEpisodeManifest(Request $request, Response $response, array $args): string
-    {
-        $downloadInfo = $this->getEpisodeDownloadInfo($request, $response, $args); // Because we need the MPD url and headers
-
-        return $this->mpd->getModifiedMpd($downloadInfo);
+        return SlimResponseHelper::response_dash($modifiedManifestContent, $response);
     }
 
 
-    public function getEpisodeInitSegment(Request $request, Response $response, array $args): string
+    public function getEpisodeInitSegment(Request $request, Response $response, array $args): Response
     {
         $encodedBaseUrl = $args["encodedBaseUrl"];
         $segmentPath = $args["segmentPath"];
@@ -151,21 +145,21 @@ abstract class StreamingService
         $originalUrl = base64_decode($encodedBaseUrl, true);
         $originalUrl .= $segmentPath;
 
-        $initContent = $this->controller->getInitContent($originalUrl . $this->request->format_parameters($queryParameters));
+        $initContent = $this->manifestController->getInitContent($originalUrl . RequestHelper::format_parameters($queryParameters));
 
         if ($initContent) {
-            return $initContent;
+            return SlimResponseHelper::response_segment($initContent, $response);
         }
 
-        $initContent = $this->request->get($originalUrl, parameters: $queryParameters); // TODO: Add segments headers
+        $initContent = RequestHelper::get($originalUrl, parameters: $queryParameters); // TODO: Add segments headers
 
-        $this->controller->addInitContent($originalUrl . $this->request->format_parameters($queryParameters), $initContent);
+        $this->manifestController->addInitContent($originalUrl . RequestHelper::format_parameters($queryParameters), $initContent);
 
-        return $initContent;
+        return SlimResponseHelper::response_segment($initContent, $response);
     }
 
 
-    public function getEpisodeMediaSegment(Request $request, Response $response, array $args): string
+    public function getEpisodeMediaSegment(Request $request, Response $response, array $args): Response
     {
         $encodedInitUrl = $args["encodedInitUrl"];
         $encodedBaseUrl = $args["encodedBaseUrl"];
@@ -181,24 +175,42 @@ abstract class StreamingService
 
         $id = join("/", [$args["streamingService"], $args["show"], $args["season"], $args["episode"]]);
 
-        $decryptionKeys = $this->controller->getDecryptionKeys($id);
+        $decryptionKeys = $this->manifestController->getDecryptionKeys($id);
 
         if (!$decryptionKeys) {
             return "Error decryption keys"; // HAHAHA
         }
 
-        $initContent = $this->controller->getInitContent($originalInitUrl);
+        $initContent = $this->manifestController->getInitContent($originalInitUrl);
 
         if (!$initContent) {
             return "Error init content $originalInitUrl"; // TODO: Wow, this sucks, I need to improve error reporting ;-)
         }
 
-        $segmentContent = $this->request->get($originalUrl, parameters: $queryParameters); // TODO: Add segments headers
+        $segmentContent = RequestHelper::get($originalUrl, parameters: $queryParameters); // TODO: Add segments headers
 
-        $decryptedContent = $this->decrypt->getDecryptedSegment($initContent, $segmentContent, $decryptionKeys);
+        $decryptedSegmentContent = $this->segmentDecryptor->getDecryptedSegment($initContent, $segmentContent, $decryptionKeys);
 
+        return SlimResponseHelper::response_segment($decryptedSegmentContent, $response);
+    }
 
-        return $decryptedContent;
+    //endregion
+
+    public function getEpisodeDownloadInfo(Request $request, array $args): DownloadInfo
+    {
+        list($episode, $ssResponse) = $this->getEpisodeInfo($request, null, $args, true);
+        $downloadInfo = $this->parseEpisodeDownloadInfo($episode, $ssResponse);
+
+        $this->getEpisodeDownloadInfoOptional($episode, $downloadInfo);
+
+        $this->psshRetriever->getPssh($downloadInfo);
+        $this->decryptionKeysRetriever->getDecryptionKeys($downloadInfo);
+
+        $id = join("/", [$args["streamingService"], $args["show"], $args["season"], $args["episode"]]);
+
+        $this->manifestController->addDecryptionKeys($id, $downloadInfo->decryptionKeys);
+
+        return $downloadInfo;
     }
 
     //endregion

@@ -8,7 +8,7 @@ use App\Models\DownloadInfo;
 
 class RequestHelper
 {
-    private function format_headers(array $headers): array
+    public static function format_headers(array $headers): array
     {
         $formatted = [];
         foreach ($headers as $key => $value) {
@@ -17,7 +17,7 @@ class RequestHelper
         return $formatted;
     }
 
-    public function format_parameters(array $parameters): string
+    public static function format_parameters(array $parameters): string
     {
         $formatted = "";
         $lastKey = array_key_last($parameters);
@@ -30,7 +30,7 @@ class RequestHelper
         return $formatted ? "?" . $formatted : "";
     }
 
-    private function http(string $url, array $headers = [], array $options = []): string | null
+    public static function http(string $url, array $headers = [], array $options = []): string | null
     {
         // TODO: Make the requests asynchronously
 
@@ -42,7 +42,7 @@ class RequestHelper
             CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HEADER => false,
-            CURLOPT_HTTPHEADER => $this->format_headers($headers)
+            CURLOPT_HTTPHEADER => self::format_headers($headers)
             ]
         );
 
@@ -55,7 +55,7 @@ class RequestHelper
         return $response;
     }
 
-    public function get(string $url, array $headers = [], array $parameters = [], array $options = []): string | null
+    public static function get(string $url, array $headers = [], array $parameters = [], array $options = []): string | null
     {
 
         // If no URL was given
@@ -65,13 +65,13 @@ class RequestHelper
 
         // If there are parameters
         if (count($parameters) > 0) {
-            $url .= $this->format_parameters($parameters);
+            $url .= self::format_parameters($parameters);
         }
 
-        return $this->http($url, $headers, $options);
+        return self::http($url, $headers, $options);
     }
 
-    public function post(string $url, array $headers = [], array $options = [], $data = []): string | null
+    public static function post(string $url, array $headers = [], array $options = [], $data = []): string | null
     {
 
         // Add data to the request body
@@ -88,12 +88,12 @@ class RequestHelper
             $headers
         );
 
-        return $this->http($url, $headers, $options);
+        return self::http($url, $headers, $options);
     }
 
-    public function pythonBackend(string $endpoint, DownloadInfo $downloadInfo)
+    public static function pythonBackend(string $endpoint, DownloadInfo $downloadInfo)
     {
-        $response = json_decode($this->post(PYTHON_URL_BACKEND . $endpoint, data: $downloadInfo), true);
+        $response = json_decode(self::post(PYTHON_URL_BACKEND . $endpoint, data: $downloadInfo), true);
 
         if ($response["error"] !== "0") {
             echo $response; // TODO: Remove, just for debug
