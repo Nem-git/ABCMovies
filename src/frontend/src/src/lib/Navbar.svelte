@@ -1,11 +1,13 @@
 <script lang="ts">
-  let logged = $state(false);
+  let searchOnClick = () => {
+    document.getElementById("search-input")?.focus();
+  };
 </script>
 
 <header>
   <nav>
     <a href="/">Home</a>
-    <a href="/search/">Search</a>
+    <a href="/search" onclick={searchOnClick}>Search</a>
     <a href="/account">Account</a>
   </nav>
 </header>
@@ -29,7 +31,7 @@
     left: 0;
     width: 100vw;
     padding-top: 5vh;
-    z-index: 1;
+    z-index: 5;
   }
 
   nav {
@@ -49,5 +51,7 @@
     border-radius: var(--button-border-radius);
     padding-left: 1em;
     padding-right: 1em;
+    padding-top: 0.3em;
+    padding-bottom: 0.3em;
   }
 </style>

@@ -1,7 +1,12 @@
 <script lang="ts">
   import { goto } from "@roxi/routify";
+  import { onMount } from "svelte";
 
   import SearchPage from "../../lib/SearchPage.svelte";
+
+  onMount(() => {
+    document.getElementById("search-input")?.focus();
+  });
 
   let invalidCharacters = ["."];
 
@@ -12,18 +17,16 @@
   });
 
   const updateQuery = async (event) => {
-    let query: string = await event.target.value;
-    if (query.length === 0) {
-      return;
-    }
+    let input: string = await event.target.value;
 
     // TODO: Make this verification actually work, because it allows weird movement through the site
     invalidCharacters.forEach(async (char) => {
-      console.log(query);
-      query = query.replaceAll(await char, "");
-      console.log(query);
+      console.log(input);
+      input = input.replaceAll(await char, "");
+      console.log(input);
     });
-    q = decodeURI(query);
+
+    q = input;
     verifyQueryChange;
   };
 </script>
@@ -31,9 +34,9 @@
 <div id="search-container">
   <input
     type="text"
+    id="search-input"
     value={$state.snapshot(q)}
     oninput={updateQuery}
-    autofocus
   />
 </div>
 
