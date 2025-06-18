@@ -1,47 +1,53 @@
 <script lang="ts">
-    
-    let query = $state("");
-    let logged = $state(false);
-
-    let queryChange = (event) => {
-        query = event.target.value;
-    }
-
+  let logged = $state(false);
 </script>
 
-<nav>
-    <a href="/">ABCMovies</a>
-    <div class="search-container">
-        <form action="/search/{query}" method="get">
-            <input type="text" placeholder="Search..." oninput={queryChange}>
-            <input type="submit" value="Search">
-        </form>
-    </div>
-    {#if (!logged)}
-        <div class="auth-buttons">
-            <a href="/login" class="auth-button" id="login-button">Login</a>
-            <a href="/register" class="auth-button" id="register-button">Register</a>
-        </div>
-    {/if}
-   
-</nav>
+<header>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/search/">Search</a>
+    <a href="/account">Account</a>
+  </nav>
+</header>
 
 <style>
-    nav {
-        background-color: purple;
-        display: flex;
-        flex-flow: row nowrap;
-        padding: 1em;
-        margin-top: 0;
-        margin-left: 0;
-    }
+  :root {
+    /** Nav */
+    --nav-background-blur: blur(1.5rem);
+    --nav-border-radius: 1.5em;
 
-    .auth-buttons {
-        padding: 1em;
-        background-color: blueviolet;
-    }
+    /** Buttons */
+    --button-background-color: white;
+    --button-border-radius: 3em;
+  }
 
+  header {
+    display: flex;
+    justify-content: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    padding-top: 5vh;
+    z-index: 1;
+  }
 
+  nav {
+    display: flex;
+    flex-flow: row nowrap;
+    padding: 1em;
+    justify-content: space-evenly;
+    width: 15vw;
 
+    backdrop-filter: var(--nav-background-blur);
+    border-radius: var(--nav-border-radius);
+  }
 
+  a {
+    margin: 0.3em;
+    background-color: var(--button-background-color);
+    border-radius: var(--button-border-radius);
+    padding-left: 1em;
+    padding-right: 1em;
+  }
 </style>

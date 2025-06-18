@@ -1,34 +1,34 @@
 export const API_URL = "http://localhost/api";
 
 export type Show = {
-    id: string,
-    title: string,
-    year: number,
-    fullDescription: string,
-    shortDescription: string,
-    imageCard: string,
-    imageBackground: string,
-    provider: string,
-    seasons: Season[]
+  id: string;
+  title: string;
+  year: number;
+  fullDescription: string;
+  shortDescription: string;
+  imageCard: string;
+  imageBackground: string;
+  provider: string;
+  seasons: Season[];
 };
 
 export type Season = {
-    id: string,
-    title: string,
-    number: number,
-    fullDescription: string,
-    shortDescription: string,
-    provider: string,
-    episodes: Episode[]
-}
+  id: string;
+  title: string;
+  number: number;
+  fullDescription: string;
+  shortDescription: string;
+  provider: string;
+  episodes: Episode[];
+};
 
 export type Episode = {
-    id: string,
-    title: string,
-    number: string,
-    fullDescription: string,
-    shortDescription: string,
-    imageCard: string,
-    provider: string,
-    url: string
-}
+  id: string;
+  title: string;
+  number: string;
+  fullDescription: string;
+  shortDescription: string;
+  imageCard: string;
+  provider: string;
+  url: string;
+};

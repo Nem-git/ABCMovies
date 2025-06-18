@@ -1,17 +1,16 @@
 <script lang="ts">
-    import { url } from "@roxi/routify";
-    import { params } from "@roxi/routify";
-    import ShowPage from "../../../../lib/ShowPage.svelte";
-    import { seasonId } from "../../../../lib/shared.svelte";
+  import { url } from "@roxi/routify";
+  import { params } from "@roxi/routify";
+  import ShowPage from "../../../../lib/ShowPage.svelte";
+  import { seasonId } from "../../../../lib/shared.svelte";
 
-    let { season } = $params;
+  let { season } = $params;
 
-    let splitUrl = $url("$leaf").split("/");
-    splitUrl.pop();
-    let showUrl = splitUrl.join("/");
+  let splitUrl = $url("$leaf").split("/");
+  splitUrl.pop();
+  let showUrl = splitUrl.join("/");
 
-    seasonId.id = season;
-
+  seasonId.id = season;
 </script>
 
 <ShowPage baseUrl={showUrl} />

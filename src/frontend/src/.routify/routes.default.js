@@ -187,16 +187,49 @@ export const routes = {
             "dynamic": true,
             "order": false
           },
-          "id": "_default_search__query__svelte",
+          "id": "_default_search__query_",
           "name": "[query]",
+          "module": false,
           "file": {
-            "path": "src/routes/search/[query].svelte",
+            "path": "src/routes/search/[query]",
             "dir": "src/routes/search",
-            "base": "[query].svelte",
-            "ext": ".svelte",
+            "base": "[query]",
+            "ext": "",
             "name": "[query]"
           },
-          "asyncModule": () => import('../src/routes/search/[query].svelte'),
+          "children": [
+            {
+              "meta": {
+                "isDefault": true
+              },
+              "id": "_default_search__query__index_svelte",
+              "name": "index",
+              "file": {
+                "path": "src/routes/search/[query]/index.svelte",
+                "dir": "src/routes/search/[query]",
+                "base": "index.svelte",
+                "ext": ".svelte",
+                "name": "index"
+              },
+              "asyncModule": () => import('../src/routes/search/[query]/index.svelte'),
+              "children": []
+            }
+          ]
+        },
+        {
+          "meta": {
+            "isDefault": true
+          },
+          "id": "_default_search_index_svelte",
+          "name": "index",
+          "file": {
+            "path": "src/routes/search/index.svelte",
+            "dir": "src/routes/search",
+            "base": "index.svelte",
+            "ext": ".svelte",
+            "name": "index"
+          },
+          "asyncModule": () => import('../src/routes/search/index.svelte'),
           "children": []
         }
       ]
