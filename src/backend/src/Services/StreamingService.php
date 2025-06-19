@@ -17,6 +17,7 @@ use App\Models\SegmentDecryptor;
 use App\Models\ObjectFactory;
 use App\Models\PsshRetriever;
 use App\Repositories\RedisRepository;
+use App\Helpers\StreamingServiceHelper;
 
 require_once __DIR__ . "/../../config/constants.php";
 
@@ -60,29 +61,16 @@ abstract class StreamingService
 
     //region Get Informations
 
-    // I don't give it a definition because it depends on the streamingservice
-    // (Mostly to give the ability for streaming services to respect the class)
-    // because they would all create different functions for everything, while this is same for everyone
-    abstract public function getEpisodeDownloadInfoOptional(Episode $episode, DownloadInfo $downloadInfo): void;
-
     //region Search
 
     public function getSearchResults(Request $request, array $args): array
     {
-        $searchCriteria = $this->parseSearchCriteria($request, $args);
+        $searchCriteria = StreamingServiceHelper::parseSearchCriteria($request, $args);
 
         return $this->executeSearch(
             $searchCriteria["query"],
             $searchCriteria["amount"],
         );
-    }
-
-    protected function parseSearchCriteria(Request $request, array $args): array
-    {
-        return [
-            "query" => $args["query"] ?? "",
-            "amount" => (int)($request->getQueryParams()["amount"] ?? DEFAULT_SEARCH_RESULTS_AMOUNT),
-        ];
     }
 
     public function executeSearch(string $query, int $amount): array
@@ -99,18 +87,11 @@ abstract class StreamingService
 
     public function getShowInfo(Request $request, array $args): Show
     {
-        $showInfoCriteria = $this->parseShowInfoCriteria($request, $args);
+        $showInfoCriteria = StreamingServiceHelper::parseShowInfoCriteria($request, $args);
 
         return $this->executeShowInfo(
             $showInfoCriteria["showId"],
         );
-    }
-
-    protected function parseShowInfoCriteria(Request $request, array $args): array
-    {
-        return [
-            "showId" => $args["show"] ?? "",
-        ];
     }
 
     public function executeShowInfo(string $showId): Show
@@ -129,20 +110,12 @@ abstract class StreamingService
 
     public function getSeasonInfo(Request $request, array $args): Season
     {
-        $seasonInfoCriteria = $this->parseSeasonInfoCriteria($request, $args);
+        $seasonInfoCriteria = StreamingServiceHelper::parseSeasonInfoCriteria($request, $args);
 
         return $this->executeSeasonInfo(
             $seasonInfoCriteria["showId"],
             $seasonInfoCriteria["seasonId"],
         );
-    }
-
-    protected function parseSeasonInfoCriteria(Request $request, array $args): array
-    {
-        return [
-            "showId" => $args["show"] ?? "",
-            "seasonId" => $args["season"] ?? "",
-        ];
     }
 
     public function executeSeasonInfo(string $showId, string $seasonId): Season
@@ -161,7 +134,7 @@ abstract class StreamingService
 
     public function getEpisodeInfo(Request $request, array $args): Episode
     {
-        $episodeInfoCriteria = $this->parseEpisodeInfoCriteria($request, $args);
+        $episodeInfoCriteria = StreamingServiceHelper::parseEpisodeInfoCriteria($request, $args);
 
         return $this->executeEpisodeInfo(
             $episodeInfoCriteria["showId"],
@@ -170,20 +143,11 @@ abstract class StreamingService
         );
     }
 
-    protected function parseEpisodeInfoCriteria(Request $request, array $args): array
-    {
-        return [
-            "showId" => $args["show"] ?? "",
-            "seasonId" => $args["season"] ?? "",
-            "episodeId" => $args["episode"] ?? "",
-        ];
-    }
-
     public function executeEpisodeInfo(string $showId, string $seasonId, string $episodeId): Episode
     {
         $episode = new Episode();
         $episode->id = $episodeId;
-        $episode->url = PHP_URL_BACKEND . join("/", [strtolower($this->tag), $showId, $seasonId, $episodeId]) . "/manifest.mpd";
+        $episode->url = StreamingServiceHelper::getStreamUrl($this->tag, $showId, $seasonId, $episodeId, "dash");
 
         $response = RequestHelper::get($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters());
         $this->parseEpisodeInfo($episode, json_decode($response, true));
@@ -197,7 +161,7 @@ abstract class StreamingService
 
     public function getEpisodeStream(Request $request, array $args): string
     {
-        $episodeStreamCriteria = $this->parseEpisodeStreamCriteria($request, $args);
+        $episodeStreamCriteria = StreamingServiceHelper::parseEpisodeStreamCriteria($request, $args);
 
         return $this->executeEpisodeStream(
             $episodeStreamCriteria["showId"],
@@ -206,32 +170,21 @@ abstract class StreamingService
         );
     }
 
-    protected function parseEpisodeStreamCriteria(Request $request, array $args): array
-    {
-        return [
-            "showId" => $args["show"] ?? "",
-            "seasonId" => $args["season"] ?? "",
-            "episodeId" => $args["episode"] ?? "",
-        ];
-    }
-
     public function executeEpisodeStream(string $showId, string $seasonId, string $episodeId): string
     {
         $episode = $this->executeEpisodeInfo($showId, $seasonId, $episodeId);
 
         $response = json_decode(RequestHelper::get($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters()), true);
-
         $downloadInfo = $this->parseEpisodeDownloadInfo($episode, $response);
-        $this->getEpisodeDownloadInfoOptional($episode, $downloadInfo);
 
         $this->psshRetriever->getPssh($downloadInfo);
         $this->decryptionKeysRetriever->getDecryptionKeys($downloadInfo);
 
-        $id = join("/", [strtolower($this->tag), $showId, $seasonId, $episodeId]);
-
-        $this->manifestController->addDecryptionKeys($id, $downloadInfo->decryptionKeys);
+        $episodeDatabaseIdentifier = StreamingServiceHelper::getEpisodeDatabaseIdentifier($this->tag, $showId, $seasonId, $episodeId);
+        $this->manifestController->addDecryptionKeys($episodeDatabaseIdentifier, $downloadInfo->decryptionKeys);
 
         $modifiedManifestContent = $this->manifestModifier->getModifiedMpd($downloadInfo);
+
         return $modifiedManifestContent;
     }
 
@@ -241,21 +194,11 @@ abstract class StreamingService
 
     public function getEpisodeInitSegment(Request $request, array $args): string
     {
-        $episodeInitSegmentCriteria = $this->parseEpisodeInitSegmentCriteria($request, $args);
+        $episodeInitSegmentCriteria = StreamingServiceHelper::parseEpisodeInitSegmentCriteria($request, $args);
 
         return $this->executeEpisodeInitSegment(
             $episodeInitSegmentCriteria["originalInitUrl"],
         );
-    }
-
-    protected function parseEpisodeInitSegmentCriteria(Request $request, array $args): array
-    {
-        $originalInitBaseUrl = base64_decode($args["encodedBaseUrl"], true) ?? "";
-        $originalInitUrlWithoutParameters = $originalInitBaseUrl . $args["segmentPath"];
-        $originalInitUrl = $originalInitUrlWithoutParameters . RequestHelper::format_parameters($request->getQueryParams() ?? []);
-        return [
-            "originalInitUrl" => $originalInitUrl ?? "",
-        ];
     }
 
     public function executeEpisodeInitSegment(string $originalInitUrl): string
@@ -276,7 +219,7 @@ abstract class StreamingService
 
     public function getEpisodeMediaSegment(Request $request, array $args): string
     {
-        $episodeMediaSegmentCriteria = $this->parseEpisodeMediaSegmentCriteria($request, $args);
+        $episodeMediaSegmentCriteria = StreamingServiceHelper::parseEpisodeMediaSegmentCriteria($request, $args);
 
         return $this->executeEpisodeMediaSegment(
             $episodeMediaSegmentCriteria["originalInitUrl"],
@@ -287,25 +230,10 @@ abstract class StreamingService
         );
     }
 
-    protected function parseEpisodeMediaSegmentCriteria(Request $request, array $args): array
-    {
-        $originalMediaBaseUrl = base64_decode($args["encodedBaseUrl"], true) ?? "";
-        $originalMediaUrlWithoutParameters = $originalMediaBaseUrl . $args["segmentPath"];
-        $originalMediaUrl = $originalMediaUrlWithoutParameters . RequestHelper::format_parameters($request->getQueryParams() ?? []);
-        return [
-            "originalInitUrl" => base64_decode($args["encodedInitUrl"]) ?? "",
-            "originalMediaUrl" => $originalMediaUrl ?? "",
-
-            "showId" => $args["show"] ?? "",
-            "seasonId" => $args["season"] ?? "",
-            "episodeId" => $args["episode"] ?? "",
-        ];
-    }
-
     public function executeEpisodeMediaSegment(string $originalInitUrl, string $originalMediaUrl, string $showId, string $seasonId, string $episodeId): string
     {
-        $datebaseIdentifier = join("/", [strtolower($this->tag), $showId, $seasonId, $episodeId]);
-        $decryptionKeys = $this->manifestController->getDecryptionKeys($datebaseIdentifier);
+        $episodeDatabaseIdentifier = StreamingServiceHelper::getEpisodeDatabaseIdentifier($this->tag, $showId, $seasonId, $episodeId);
+        $decryptionKeys = $this->manifestController->getDecryptionKeys($episodeDatabaseIdentifier);
 
         $initContent = $this->manifestController->getInitContent($originalInitUrl);
 

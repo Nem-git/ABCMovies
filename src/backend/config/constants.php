@@ -7,6 +7,14 @@ define("TEMP_DIR", "/tmp/");
 define("DEFAULT_SEARCH_RESULTS_AMOUNT", 20);
 
 define(
+    "STREAMING_TECH",
+    [
+        "dash" => "manifest.mpd",
+        "hls" => "master.m3u8",
+    ]
+);
+
+define(
     "REDIS_CONFIG",
     [
     "scheme" => "tcp",

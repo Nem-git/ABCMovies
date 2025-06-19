@@ -113,7 +113,18 @@ class Toutv extends StreamingService
 
     protected function parseEpisodeDownloadInfo(Episode $episode, array $ssResponse): DownloadInfo
     {
-        return new DownloadInfo(); // Can't get info with the current request, so waiting for Optional
+        $downloadInfo = new DownloadInfo();
+
+        $fileParameters = $this->getEpisodeFileParameters($episode->id);
+        $ssResponse = RequestHelper::get($this->getEpisodeFileUrl($episode->id), HTTP_DEFAULT_HEADERS, $fileParameters);
+        $this->parseEpisodeFileInfo($episode, json_decode($ssResponse, true));
+
+        $headers = $this->getEpisodeDownloadHeaders();
+        $downloadParameters = $this->getEpisodeDownloadParameters($episode->id);
+        $ssResponse = RequestHelper::get($this->getEpisodeDownloadUrl(), $headers, $downloadParameters);
+        $this->parseEpisodeDownloadStreamInfo($episode, json_decode($ssResponse, true), $downloadInfo);
+
+        return $downloadInfo;
     }
 
     private function parseEpisodeFileInfo(Episode $episode, array $ssResponse): void
@@ -223,19 +234,6 @@ class Toutv extends StreamingService
         $headers["x-claims-token"] = "";
         $headers = array_merge(HTTP_DEFAULT_HEADERS, $headers);
         return $headers;
-    }
-
-
-    public function getEpisodeDownloadInfoOptional(Episode $episode, DownloadInfo $downloadInfo): void
-    {
-        $fileParameters = $this->getEpisodeFileParameters($episode->id);
-        $ssResponse = RequestHelper::get($this->getEpisodeFileUrl($episode->id), HTTP_DEFAULT_HEADERS, $fileParameters);
-        $this->parseEpisodeFileInfo($episode, json_decode($ssResponse, true));
-
-        $headers = $this->getEpisodeDownloadHeaders();
-        $downloadParameters = $this->getEpisodeDownloadParameters($episode->id);
-        $ssResponse = RequestHelper::get($this->getEpisodeDownloadUrl(), $headers, $downloadParameters);
-        $this->parseEpisodeDownloadStreamInfo($episode, json_decode($ssResponse, true), $downloadInfo);
     }
 
     //endregion

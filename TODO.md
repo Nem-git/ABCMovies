@@ -32,10 +32,10 @@ Fuzzy search taking into account all the streaming services
 ### StreamingService.php
 
 - [ ] Add multiple methods for recommendations, like series, movies, documentaries etc..
-- [ ] Split those big methods into small methods that only do one thing and one thing only
-- [ ] Add a helper class for most of those small methods that don't need overriding or direct access from outside the class
+- [X] Split those big methods into small methods that only do one thing and one thing only
+- [X] Add a helper class for most of those small methods that don't need overriding or direct access from outside the class
 - [ ] Add other abstract methods that give the different headers for the requests, as now I am just using HTTP_DEFAULT_HEADERS
-- [ ] Improve the link Manifest link creation to support other than Dash Manifest and make it more robust
+- [X] Improve the link Manifest link creation to support other than Dash Manifest and make it more robust
 - [ ] Remove/Rename all the functions about Manifest, init, segment and stuff, so this can support in the future HLS and MP4s that are either encrypted or decrypted
 
 ### Toutv.php
