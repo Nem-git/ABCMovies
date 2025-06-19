@@ -10,7 +10,7 @@ class SlimResponseHelper
 {
     public static function response_json($data, Response $response): Response
     {
-        $response->getBody()->write(json_encode($data, JSON_PRETTY_PRINT)); // TODO: Remove the pretty print, just for debug
+        $response->getBody()->write(json_encode($data, JSON_PRETTY_PRINT));
         $response = self::basic_response($response);
         $response = $response->withHeader("Content-Type", "application/json");
         return $response;
@@ -28,7 +28,7 @@ class SlimResponseHelper
     {
         $response->getBody()->write($data);
         $response = self::basic_response($response);
-        $response = $response->withHeader("Content-Type", "video/mp4"); // TODO: WTF am I doing here, it depends on the content type ;)
+        $response = $response->withHeader("Content-Type", "video/mp4");
         $response = $response->withHeader("Access-Control-Allow-Headers", "Range");
         return $response;
     }

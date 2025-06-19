@@ -6,7 +6,7 @@ namespace App\Services\SegmentDecryptor;
 
 use App\Models\SegmentDecryptor;
 
-require_once __DIR__ . "/../../../config/constants.php"; // TODO: Verify if that's actually a good way to do it (prob not)
+require_once __DIR__ . "/../../../config/constants.php";
 
 
 /**

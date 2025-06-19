@@ -18,9 +18,7 @@ use App\Models\ObjectFactory;
 use App\Models\PsshRetriever;
 use App\Repositories\RedisRepository;
 
-require_once __DIR__ . "/../../config/constants.php"; // TODO: Verify if that's actually a good way to do it
-
-// TODO: Add other abstract functions that give the different headers for the requests, as now I am just using HTTP_DEFAULT_HEADERS
+require_once __DIR__ . "/../../config/constants.php";
 
 abstract class StreamingService
 {
@@ -185,9 +183,8 @@ abstract class StreamingService
     {
         $episode = new Episode();
         $episode->id = $episodeId;
-        $episode->url = PHP_URL_BACKEND . join("/", [strtolower($this->tag), $showId, $seasonId, $episodeId]) . "/manifest.mpd"; // TODO: Improve the link creation, this is wrong
+        $episode->url = PHP_URL_BACKEND . join("/", [strtolower($this->tag), $showId, $seasonId, $episodeId]) . "/manifest.mpd";
 
-        // TODO: Add verifications to make sure the request has a valid output
         $response = RequestHelper::get($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters());
         $this->parseEpisodeInfo($episode, json_decode($response, true));
 
@@ -218,11 +215,10 @@ abstract class StreamingService
         ];
     }
 
-    // TODO: Add support for HLS streams, so remove all about Manifest, Dash, MPD etc
     public function executeEpisodeStream(string $showId, string $seasonId, string $episodeId): string
     {
         $episode = $this->executeEpisodeInfo($showId, $seasonId, $episodeId);
-        // TODO: Add verifications to make sure the request has a valid output
+
         $response = json_decode(RequestHelper::get($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters()), true);
 
         $downloadInfo = $this->parseEpisodeDownloadInfo($episode, $response);
@@ -262,14 +258,12 @@ abstract class StreamingService
         ];
     }
 
-    // TODO: Add support for HLS streams, so remove all about Manifest, Dash, MPD etc
     public function executeEpisodeInitSegment(string $originalInitUrl): string
     {
         $initContent = $this->manifestController->getInitContent($originalInitUrl);
 
-        // If the content is not stored in the database, so the first time requesting that segment
         if (!$initContent) {
-            $initContent = RequestHelper::get($originalInitUrl); // TODO: Add segments headers
+            $initContent = RequestHelper::get($originalInitUrl);
             $this->manifestController->addInitContent($originalInitUrl, $initContent);
         }
 
@@ -308,7 +302,6 @@ abstract class StreamingService
         ];
     }
 
-    // TODO: Add support for HLS streams, so remove all about Manifest, Dash, MPD etc
     public function executeEpisodeMediaSegment(string $originalInitUrl, string $originalMediaUrl, string $showId, string $seasonId, string $episodeId): string
     {
         $datebaseIdentifier = join("/", [strtolower($this->tag), $showId, $seasonId, $episodeId]);
@@ -316,7 +309,7 @@ abstract class StreamingService
 
         $initContent = $this->manifestController->getInitContent($originalInitUrl);
 
-        $segmentContent = RequestHelper::get($originalMediaUrl); // TODO: Add segments headers
+        $segmentContent = RequestHelper::get($originalMediaUrl);
         $decryptedSegmentContent = $this->segmentDecryptor->getDecryptedSegment($initContent, $segmentContent, $decryptionKeys);
 
         return $decryptedSegmentContent;

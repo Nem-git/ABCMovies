@@ -33,7 +33,6 @@ class Toutv extends StreamingService
             $show->title = $result["title"];
             $show->shortDescription = $show->fullDescription = $result["infoTitle"];
 
-            // Replace the placeholder with teh newly formatted show title and add the parameters
             $show->imageCard = $result["images"]["card"]["url"];
 
             $show->provider = $this->tag;
@@ -220,8 +219,8 @@ class Toutv extends StreamingService
     private function getEpisodeDownloadHeaders(): array
     {
         $headers = TOUTV_HEADERS_EPISODE_DOWNLOAD_INFO;
-        $headers["Authorization"] = ""; // TODO: Implement a way to ask the DB for the tokens
-        $headers["x-claims-token"] = ""; // TODO: ^^
+        $headers["Authorization"] = "";
+        $headers["x-claims-token"] = "";
         $headers = array_merge(HTTP_DEFAULT_HEADERS, $headers);
         return $headers;
     }

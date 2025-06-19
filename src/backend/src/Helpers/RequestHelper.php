@@ -32,8 +32,6 @@ class RequestHelper
 
     public static function http(string $url, array $headers = [], array $options = []): string | null
     {
-        // TODO: Make the requests asynchronously
-
         $ch = curl_init();
 
         curl_setopt_array(
@@ -94,10 +92,6 @@ class RequestHelper
     public static function pythonBackend(string $endpoint, DownloadInfo $downloadInfo)
     {
         $response = json_decode(self::post(PYTHON_URL_BACKEND . $endpoint, data: $downloadInfo), true);
-
-        if ($response["error"] !== "0") {
-            echo $response; // TODO: Remove, just for debug
-        }
 
         return $response["value"];
     }
