@@ -127,11 +127,9 @@ class Toutv extends StreamingService
         $episode->shortDescription = !empty($ssResponse["Metas"]["ShortDescription"]) ? $ssResponse["Metas"]["ShortDescription"] : $episode->fullDescription;
     }
 
-    public function parseEpisodeDownloadStreamInfo(Episode $episode, array $ssResponse, $downloadInfo): void
+    public function parseEpisodeDownloadStreamInfo(Episode $episode, array $ssResponse, DownloadInfo $downloadInfo): void
     {
         $downloadInfo->licenseHeaders = array_merge(HTTP_DEFAULT_HEADERS, TOUTV_HEADERS_EPISODE_DOWNLOAD_LICENSE_INFO);
-
-        //echo json_encode($ssResponse, JSON_PRETTY_PRINT);
 
         $downloadInfo->mpdUrl = $ssResponse["url"];
 

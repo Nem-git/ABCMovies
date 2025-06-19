@@ -1,7 +1,10 @@
 <?php
 
 define("PYTHON_URL_BACKEND", "localhost:8000/");
+define('PHP_URL_BACKEND', "http://localhost/api/");
 define("TEMP_DIR", "/tmp/");
+
+define("DEFAULT_SEARCH_RESULTS_AMOUNT", 20);
 
 define(
     "REDIS_CONFIG",

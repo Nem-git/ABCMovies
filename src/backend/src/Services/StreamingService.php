@@ -6,12 +6,10 @@ namespace App\Services;
 
 use App\Controllers\ManifestController;
 use Psr\Http\Message\ServerRequestInterface as Request;
-use Psr\Http\Message\ResponseInterface as Response;
 use App\Models\Episode;
 use App\Models\Season;
 use App\Models\Show;
 use App\Helpers\RequestHelper;
-use App\Helpers\SlimResponseHelper;
 use App\Models\DecryptionKeysRetriever;
 use App\Models\DownloadInfo;
 use App\Models\ManifestModifier;
@@ -21,6 +19,8 @@ use App\Models\PsshRetriever;
 use App\Repositories\RedisRepository;
 
 require_once __DIR__ . "/../../config/constants.php"; // TODO: Verify if that's actually a good way to do it
+
+// TODO: Add other abstract functions that give the different headers for the requests, as now I am just using HTTP_DEFAULT_HEADERS
 
 abstract class StreamingService
 {
@@ -52,14 +52,13 @@ abstract class StreamingService
 
     //region Parsing
 
-    abstract protected function parseSearchResults(array $ssResponse): array;
-    abstract protected function parseShowInfo(Show $show, array $ssResponse): void;
-    abstract protected function parseSeasonInfo(Season $season, array $ssResponse): void;
-    abstract protected function parseEpisodeInfo(Episode $episode, array $ssResponse): void;
-    abstract protected function parseEpisodeDownloadInfo(Episode $episode, array $ssResponse): DownloadInfo;
+    abstract protected function parseSearchResults(array $response): array;
+    abstract protected function parseShowInfo(Show $show, array $response): void;
+    abstract protected function parseSeasonInfo(Season $season, array $response): void;
+    abstract protected function parseEpisodeInfo(Episode $episode, array $response): void;
+    abstract protected function parseEpisodeDownloadInfo(Episode $episode, array $response): DownloadInfo;
 
     //endregion
-
 
     //region Get Informations
 
@@ -68,153 +67,264 @@ abstract class StreamingService
     // because they would all create different functions for everything, while this is same for everyone
     abstract public function getEpisodeDownloadInfoOptional(Episode $episode, DownloadInfo $downloadInfo): void;
 
-    //region Functions that return to public
+    //region Search
 
-    public function getSearchResults(Request $request, Response $response, array $args): Response
+    public function getSearchResults(Request $request, array $args): array
     {
-        $query = $args["query"] ?? "*";
-        $amount = (int)($request->getQueryParams()["amount"] ?? 20);
+        $searchCriteria = $this->parseSearchCriteria($request, $args);
 
+        return $this->executeSearch(
+            $searchCriteria["query"],
+            $searchCriteria["amount"],
+        );
+    }
+
+    protected function parseSearchCriteria(Request $request, array $args): array
+    {
+        return [
+            "query" => $args["query"] ?? "",
+            "amount" => (int)($request->getQueryParams()["amount"] ?? DEFAULT_SEARCH_RESULTS_AMOUNT),
+        ];
+    }
+
+    public function executeSearch(string $query, int $amount): array
+    {
         $parameters = $this->getSearchParameters($query, $amount);
-
-        $ssResponse = RequestHelper::get($this->getSearchUrl(), HTTP_DEFAULT_HEADERS, $parameters);
-
-        $searchResults = $this->parseSearchResults(json_decode($ssResponse, true));
-        return SlimResponseHelper::response_json($searchResults, $response);
-    }
-
-    public function getShowInfo(Request $request, Response $response, array $args): Response
-    {
-        $showId = $args["show"] ?? "";
-        $show = new Show();
-        $show->id = $showId;
-
-        $ssResponse = RequestHelper::get($this->getShowInfoUrl($showId), HTTP_DEFAULT_HEADERS, $this->getShowInfoParameters());
-        $this->parseShowInfo($show, json_decode($ssResponse, true));
-
-        return SlimResponseHelper::response_json($show, $response);
-    }
-
-    public function getSeasonInfo(?Request $request, Response $response, array $args): Response
-    {
-        $showId = $args["show"] ?? "";
-        $seasonId = $args["season"] ?? "";
-        $season = new Season();
-        $season->id = $seasonId;
-
-        $ssResponse = RequestHelper::get($this->getSeasonInfoUrl($showId, $seasonId), HTTP_DEFAULT_HEADERS, $this->getSeasonInfoParameters());
-        $this->parseSeasonInfo($season, json_decode($ssResponse, true));
-
-        return SlimResponseHelper::response_json($season, $response);
-    }
-
-    public function getEpisodeInfo(?Request $request, ?Response $response, array $args, bool $returnLastRequest = false): Response | array
-    {
-        $showId = $args["show"] ?? "";
-        $seasonId = $args["season"] ?? "";
-        $episodeId = $args["episode"] ?? "";
-        $episode = new Episode();
-        $episode->id = $episodeId;
-        $episode->url = $request->getUri() . "/manifest.mpd"; // TODO: Improve the link creation, this is wrong
-
-        // TODO: Add verifications to make sure the request has a valid output
-        $ssResponse = RequestHelper::get($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters());
-        $this->parseEpisodeInfo($episode, json_decode($ssResponse, true));
-
-        $returnLastRequest ?: $episode;
-
-        return $returnLastRequest ? [$episode, json_decode($ssResponse, true)] : SlimResponseHelper::response_json($episode, $response);
-    }
-
-    public function getEpisodeManifest(Request $request, Response $response, array $args): Response
-    {
-        $downloadInfo = $this->getEpisodeDownloadInfo($request, $args); // Because we need the MPD url and headers
-
-        $modifiedManifestContent = $this->manifestModifier->getModifiedMpd($downloadInfo);
-
-        return SlimResponseHelper::response_dash($modifiedManifestContent, $response);
-    }
-
-
-    public function getEpisodeInitSegment(Request $request, Response $response, array $args): Response
-    {
-        $encodedBaseUrl = $args["encodedBaseUrl"];
-        $segmentPath = $args["segmentPath"];
-        $queryParameters = $request->getQueryParams();
-
-        $originalUrl = base64_decode($encodedBaseUrl, true);
-        $originalUrl .= $segmentPath;
-
-        $initContent = $this->manifestController->getInitContent($originalUrl . RequestHelper::format_parameters($queryParameters));
-
-        if ($initContent) {
-            return SlimResponseHelper::response_segment($initContent, $response);
-        }
-
-        $initContent = RequestHelper::get($originalUrl, parameters: $queryParameters); // TODO: Add segments headers
-
-        $this->manifestController->addInitContent($originalUrl . RequestHelper::format_parameters($queryParameters), $initContent);
-
-        return SlimResponseHelper::response_segment($initContent, $response);
-    }
-
-
-    public function getEpisodeMediaSegment(Request $request, Response $response, array $args): Response
-    {
-        $encodedInitUrl = $args["encodedInitUrl"];
-        $encodedBaseUrl = $args["encodedBaseUrl"];
-        $segmentPath = $args["segmentPath"];
-
-        // Because the parameters in the MPD path will be interpreted as query, not part of the URL
-        $queryParameters = $request->getQueryParams();
-
-        $originalUrl = base64_decode($encodedBaseUrl, true);
-        $originalUrl .= $segmentPath;
-
-        $originalInitUrl = base64_decode($encodedInitUrl, true);
-
-        $id = join("/", [$args["streamingService"], $args["show"], $args["season"], $args["episode"]]);
-
-        $decryptionKeys = $this->manifestController->getDecryptionKeys($id);
-
-        if (!$decryptionKeys) {
-            return "Error decryption keys"; // HAHAHA
-        }
-
-        $initContent = $this->manifestController->getInitContent($originalInitUrl);
-
-        if (!$initContent) {
-            return "Error init content $originalInitUrl"; // TODO: Wow, this sucks, I need to improve error reporting ;-)
-        }
-
-        $segmentContent = RequestHelper::get($originalUrl, parameters: $queryParameters); // TODO: Add segments headers
-
-        $decryptedSegmentContent = $this->segmentDecryptor->getDecryptedSegment($initContent, $segmentContent, $decryptionKeys);
-
-        return SlimResponseHelper::response_segment($decryptedSegmentContent, $response);
+        $response = RequestHelper::get($this->getSearchUrl(), HTTP_DEFAULT_HEADERS, $parameters);
+        $searchResults = $this->parseSearchResults(json_decode($response, true));
+        return $searchResults;
     }
 
     //endregion
 
-    public function getEpisodeDownloadInfo(Request $request, array $args): DownloadInfo
-    {
-        list($episode, $ssResponse) = $this->getEpisodeInfo($request, null, $args, true);
-        $downloadInfo = $this->parseEpisodeDownloadInfo($episode, $ssResponse);
+    //region Show
 
+    public function getShowInfo(Request $request, array $args): Show
+    {
+        $showInfoCriteria = $this->parseShowInfoCriteria($request, $args);
+
+        return $this->executeShowInfo(
+            $showInfoCriteria["showId"],
+        );
+    }
+
+    protected function parseShowInfoCriteria(Request $request, array $args): array
+    {
+        return [
+            "showId" => $args["show"] ?? "",
+        ];
+    }
+
+    public function executeShowInfo(string $showId): Show
+    {
+        $show = new Show();
+        $show->id = $showId;
+
+        $response = RequestHelper::get($this->getShowInfoUrl($showId), HTTP_DEFAULT_HEADERS, $this->getShowInfoParameters());
+        $this->parseShowInfo($show, json_decode($response, true));
+        return $show;
+    }
+
+    //endregion
+
+    //region Season
+
+    public function getSeasonInfo(Request $request, array $args): Season
+    {
+        $seasonInfoCriteria = $this->parseSeasonInfoCriteria($request, $args);
+
+        return $this->executeSeasonInfo(
+            $seasonInfoCriteria["showId"],
+            $seasonInfoCriteria["seasonId"],
+        );
+    }
+
+    protected function parseSeasonInfoCriteria(Request $request, array $args): array
+    {
+        return [
+            "showId" => $args["show"] ?? "",
+            "seasonId" => $args["season"] ?? "",
+        ];
+    }
+
+    public function executeSeasonInfo(string $showId, string $seasonId): Season
+    {
+        $season = new Season();
+        $season->id = $seasonId;
+
+        $response = RequestHelper::get($this->getSeasonInfoUrl($showId, $seasonId), HTTP_DEFAULT_HEADERS, $this->getSeasonInfoParameters());
+        $this->parseSeasonInfo($season, json_decode($response, true));
+        return $season;
+    }
+
+    //endregion
+
+    //region Episode
+
+    public function getEpisodeInfo(Request $request, array $args): Episode
+    {
+        $episodeInfoCriteria = $this->parseEpisodeInfoCriteria($request, $args);
+
+        return $this->executeEpisodeInfo(
+            $episodeInfoCriteria["showId"],
+            $episodeInfoCriteria["seasonId"],
+            $episodeInfoCriteria["episodeId"],
+        );
+    }
+
+    protected function parseEpisodeInfoCriteria(Request $request, array $args): array
+    {
+        return [
+            "showId" => $args["show"] ?? "",
+            "seasonId" => $args["season"] ?? "",
+            "episodeId" => $args["episode"] ?? "",
+        ];
+    }
+
+    public function executeEpisodeInfo(string $showId, string $seasonId, string $episodeId): Episode
+    {
+        $episode = new Episode();
+        $episode->id = $episodeId;
+        $episode->url = PHP_URL_BACKEND . join("/", [strtolower($this->tag), $showId, $seasonId, $episodeId]) . "/manifest.mpd"; // TODO: Improve the link creation, this is wrong
+
+        // TODO: Add verifications to make sure the request has a valid output
+        $response = RequestHelper::get($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters());
+        $this->parseEpisodeInfo($episode, json_decode($response, true));
+
+        return $episode;
+    }
+
+    //endregion
+
+    //region Episode's Stream
+
+    public function getEpisodeStream(Request $request, array $args): string
+    {
+        $episodeStreamCriteria = $this->parseEpisodeStreamCriteria($request, $args);
+
+        return $this->executeEpisodeStream(
+            $episodeStreamCriteria["showId"],
+            $episodeStreamCriteria["seasonId"],
+            $episodeStreamCriteria["episodeId"],
+        );
+    }
+
+    protected function parseEpisodeStreamCriteria(Request $request, array $args): array
+    {
+        return [
+            "showId" => $args["show"] ?? "",
+            "seasonId" => $args["season"] ?? "",
+            "episodeId" => $args["episode"] ?? "",
+        ];
+    }
+
+    // TODO: Add support for HLS streams, so remove all about Manifest, Dash, MPD etc
+    public function executeEpisodeStream(string $showId, string $seasonId, string $episodeId): string
+    {
+        $episode = $this->executeEpisodeInfo($showId, $seasonId, $episodeId);
+        // TODO: Add verifications to make sure the request has a valid output
+        $response = json_decode(RequestHelper::get($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters()), true);
+
+        $downloadInfo = $this->parseEpisodeDownloadInfo($episode, $response);
         $this->getEpisodeDownloadInfoOptional($episode, $downloadInfo);
 
         $this->psshRetriever->getPssh($downloadInfo);
         $this->decryptionKeysRetriever->getDecryptionKeys($downloadInfo);
 
-        $id = join("/", [$args["streamingService"], $args["show"], $args["season"], $args["episode"]]);
+        $id = join("/", [strtolower($this->tag), $showId, $seasonId, $episodeId]);
 
         $this->manifestController->addDecryptionKeys($id, $downloadInfo->decryptionKeys);
 
-        return $downloadInfo;
+        $modifiedManifestContent = $this->manifestModifier->getModifiedMpd($downloadInfo);
+        return $modifiedManifestContent;
     }
 
     //endregion
 
+    //region Episode's Init Segments
+
+    public function getEpisodeInitSegment(Request $request, array $args): string
+    {
+        $episodeInitSegmentCriteria = $this->parseEpisodeInitSegmentCriteria($request, $args);
+
+        return $this->executeEpisodeInitSegment(
+            $episodeInitSegmentCriteria["originalInitUrl"],
+        );
+    }
+
+    protected function parseEpisodeInitSegmentCriteria(Request $request, array $args): array
+    {
+        $originalInitBaseUrl = base64_decode($args["encodedBaseUrl"], true) ?? "";
+        $originalInitUrlWithoutParameters = $originalInitBaseUrl . $args["segmentPath"];
+        $originalInitUrl = $originalInitUrlWithoutParameters . RequestHelper::format_parameters($request->getQueryParams() ?? []);
+        return [
+            "originalInitUrl" => $originalInitUrl ?? "",
+        ];
+    }
+
+    // TODO: Add support for HLS streams, so remove all about Manifest, Dash, MPD etc
+    public function executeEpisodeInitSegment(string $originalInitUrl): string
+    {
+        $initContent = $this->manifestController->getInitContent($originalInitUrl);
+
+        // If the content is not stored in the database, so the first time requesting that segment
+        if (!$initContent) {
+            $initContent = RequestHelper::get($originalInitUrl); // TODO: Add segments headers
+            $this->manifestController->addInitContent($originalInitUrl, $initContent);
+        }
+
+        return $initContent;
+    }
+
+    //endregion
+
+    //region Episode's Media Segments
+
+    public function getEpisodeMediaSegment(Request $request, array $args): string
+    {
+        $episodeMediaSegmentCriteria = $this->parseEpisodeMediaSegmentCriteria($request, $args);
+
+        return $this->executeEpisodeMediaSegment(
+            $episodeMediaSegmentCriteria["originalInitUrl"],
+            $episodeMediaSegmentCriteria["originalMediaUrl"],
+            $episodeMediaSegmentCriteria["showId"],
+            $episodeMediaSegmentCriteria["seasonId"],
+            $episodeMediaSegmentCriteria["episodeId"],
+        );
+    }
+
+    protected function parseEpisodeMediaSegmentCriteria(Request $request, array $args): array
+    {
+        $originalMediaBaseUrl = base64_decode($args["encodedBaseUrl"], true) ?? "";
+        $originalMediaUrlWithoutParameters = $originalMediaBaseUrl . $args["segmentPath"];
+        $originalMediaUrl = $originalMediaUrlWithoutParameters . RequestHelper::format_parameters($request->getQueryParams() ?? []);
+        return [
+            "originalInitUrl" => base64_decode($args["encodedInitUrl"]) ?? "",
+            "originalMediaUrl" => $originalMediaUrl ?? "",
+
+            "showId" => $args["show"] ?? "",
+            "seasonId" => $args["season"] ?? "",
+            "episodeId" => $args["episode"] ?? "",
+        ];
+    }
+
+    // TODO: Add support for HLS streams, so remove all about Manifest, Dash, MPD etc
+    public function executeEpisodeMediaSegment(string $originalInitUrl, string $originalMediaUrl, string $showId, string $seasonId, string $episodeId): string
+    {
+        $datebaseIdentifier = join("/", [strtolower($this->tag), $showId, $seasonId, $episodeId]);
+        $decryptionKeys = $this->manifestController->getDecryptionKeys($datebaseIdentifier);
+
+        $initContent = $this->manifestController->getInitContent($originalInitUrl);
+
+        $segmentContent = RequestHelper::get($originalMediaUrl); // TODO: Add segments headers
+        $decryptedSegmentContent = $this->segmentDecryptor->getDecryptedSegment($initContent, $segmentContent, $decryptionKeys);
+
+        return $decryptedSegmentContent;
+    }
+
+    //endregion
+
+    //endregion
 
     //region Abstract methods for URLs and parameters (to be implemented per service)
 
