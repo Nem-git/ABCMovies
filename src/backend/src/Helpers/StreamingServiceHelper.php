@@ -6,6 +6,8 @@ namespace App\Helpers;
 
 use Psr\Http\Message\ServerRequestInterface as Request;
 
+require_once __DIR__ . "/../../config/constants.php";
+
 class StreamingServiceHelper
 {
     public static function parseSearchCriteria(Request $request, array $args): array

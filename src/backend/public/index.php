@@ -21,9 +21,21 @@ $app->get(
 );
 
 $app->get(
+    "/api/search/{query}",
+    function (Request $request, Response $response, array $args) {
+        $streamingServiceManager = ObjectFactory::createStreamingServiceManager();
+        $searchResults = $streamingServiceManager->getSearchResults($request, $args);
+        $response = SlimResponseHelper::response_json($searchResults, $response);
+        return $response;
+    }
+);
+
+//region Streaming service specific
+
+$app->get(
     "/api/{streamingService}/search/{query}",
     function (Request $request, Response $response, array $args) {
-        $streamingService = ObjectFactory::createStreamingService($args["streamingService"]);
+        $streamingService = ObjectFactory::createStreamingService(strtoupper($args["streamingService"]));
         $searchResults = $streamingService->getSearchResults($request, $args);
         $response = SlimResponseHelper::response_json($searchResults, $response);
         return $response;
@@ -40,7 +52,7 @@ $app->get(
 $app->get(
     "/api/{streamingService}/{show}",
     function (Request $request, Response $response, array $args) {
-        $streamingService = ObjectFactory::createStreamingService($args["streamingService"]);
+        $streamingService = ObjectFactory::createStreamingService(strtoupper($args["streamingService"]));
         $show = $streamingService->getShowInfo($request, $args);
         $response = SlimResponseHelper::response_json($show, $response);
         return $response;
@@ -50,7 +62,7 @@ $app->get(
 $app->get(
     "/api/{streamingService}/{show}/{season}",
     function (Request $request, Response $response, array $args) {
-        $streamingService = ObjectFactory::createStreamingService($args["streamingService"]);
+        $streamingService = ObjectFactory::createStreamingService(strtoupper($args["streamingService"]));
         $season = $streamingService->getSeasonInfo($request, $args);
         $response = SlimResponseHelper::response_json($season, $response);
         return $response;
@@ -60,7 +72,7 @@ $app->get(
 $app->get(
     "/api/{streamingService}/{show}/{season}/{episode}",
     function (Request $request, Response $response, array $args) {
-        $streamingService = ObjectFactory::createStreamingService($args["streamingService"]);
+        $streamingService = ObjectFactory::createStreamingService(strtoupper($args["streamingService"]));
         $episode = $streamingService->getEpisodeInfo($request, $args);
         $response = SlimResponseHelper::response_json($episode, $response);
         return $response;
@@ -70,7 +82,7 @@ $app->get(
 $app->get(
     "/api/{streamingService}/{show}/{season}/{episode}/manifest.mpd",
     function (Request $request, Response $response, array $args) {
-        $streamingService = ObjectFactory::createStreamingService($args["streamingService"]);
+        $streamingService = ObjectFactory::createStreamingService(strtoupper($args["streamingService"]));
         $modifiedManifestContent = $streamingService->getEpisodeStream($request, $args);
         $response = SlimResponseHelper::response_dash($modifiedManifestContent, $response);
         return $response;
@@ -80,7 +92,7 @@ $app->get(
 $app->get(
     "/api/{streamingService}/{show}/{season}/{episode}/init/{encodedBaseUrl}/{segmentPath:.*}",
     function (Request $request, Response $response, array $args) {
-        $streamingService = ObjectFactory::createStreamingService($args["streamingService"]);
+        $streamingService = ObjectFactory::createStreamingService(strtoupper($args["streamingService"]));
         $initContent = $streamingService->getEpisodeInitSegment($request, $args);
         $response = SlimResponseHelper::response_segment($initContent, $response);
         return $response;
@@ -90,7 +102,7 @@ $app->get(
 $app->get(
     "/api/{streamingService}/{show}/{season}/{episode}/media/{encodedInitUrl}/{encodedBaseUrl}/{segmentPath:.*}",
     function (Request $request, Response $response, array $args) {
-        $streamingService = ObjectFactory::createStreamingService($args["streamingService"]);
+        $streamingService = ObjectFactory::createStreamingService(strtoupper($args["streamingService"]));
         $initContent = $streamingService->getEpisodeMediaSegment($request, $args);
         $response = SlimResponseHelper::response_segment($initContent, $response);
         return $response;

@@ -67,13 +67,13 @@ abstract class StreamingService
     {
         $searchCriteria = StreamingServiceHelper::parseSearchCriteria($request, $args);
 
-        return $this->executeSearch(
+        return $this->executeSearchResults(
             $searchCriteria["query"],
             $searchCriteria["amount"],
         );
     }
 
-    public function executeSearch(string $query, int $amount): array
+    public function executeSearchResults(string $query, int $amount): array
     {
         $parameters = $this->getSearchParameters($query, $amount);
         $response = RequestHelper::get($this->getSearchUrl(), HTTP_DEFAULT_HEADERS, $parameters);

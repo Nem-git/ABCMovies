@@ -26,6 +26,7 @@ Fuzzy search taking into account all the streaming services
 - [ ] More try/catch
 - [ ] Figure out if require_once is a good way to import constants
 - [ ] Add logical groups in the API endpoints using Slim
+- [ ] Add logging for database access
 
 ## PHP
 
@@ -57,3 +58,6 @@ Fuzzy search taking into account all the streaming services
 
 - [ ] Make the http requests asynchronously
 
+### ManifestController.php
+- [ ] Look online for how I should actually name this
+- [ ] Create a parent class that will make all interactions with a repository the same, no matter the database

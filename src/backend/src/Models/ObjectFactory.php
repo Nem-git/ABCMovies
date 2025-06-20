@@ -16,12 +16,15 @@ use App\Services\SegmentDecryptor\Shell as SegmentDecryptorShell;
 use App\Services\SegmentDecryptor\Php as SegmentDecryptorPhp;
 use App\Services\SegmentDecryptor\PythonBackend as SegmentDecryptorPythonBackend;
 use App\Services\StreamingService;
-use App\Services\StreamingServices\Toutv as StreamingServieToutv;
+use App\Services\StreamingServices\Toutv as StreamingServiceToutv;
+use App\Models\SearchRecommender;
+use App\Services\SearchRecommender\Fuzzy as SearchRecommenderFuzzy;
+use App\Services\StreamingServiceManager;
 
 class ObjectFactory
 {
     private static array $streamingService = [
-        "toutv" => StreamingServieToutv::class,
+        "TOUTV" => StreamingServiceToutv::class,
     ];
 
     private static array $psshRetriever = [
@@ -40,6 +43,10 @@ class ObjectFactory
         "python" => SegmentDecryptorPythonBackend::class,
         "php" => SegmentDecryptorPhp::class,
         "shell" => SegmentDecryptorShell::class,
+    ];
+
+    private static array $searchRecommender = [
+        "fuzzy" => SearchRecommenderFuzzy::class,
     ];
 
     public static function createStreamingService(string $tag): StreamingService
@@ -82,6 +89,18 @@ class ObjectFactory
     {
         $class = ManifestController::class;
         return new $class($repository);
+    }
+
+    public static function createSearchRecommender(string $type): SearchRecommender
+    {
+        $class = self::$searchRecommender[$type] ?? null;
+        return new $class();
+    }
+
+    public static function createStreamingServiceManager(): StreamingServiceManager
+    {
+        $class = StreamingServiceManager::class;
+        return new $class();
     }
 
 }
