@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repositories;
 
 use Predis\Client as PredisClient;
+use Predis\Response\Status;
 
 class RedisRepository
 {
@@ -15,27 +16,27 @@ class RedisRepository
         $this->conn = new PredisClient();
     }
 
-    public function select($key)
+    public function select(string $key): string | null
     {
         return $this->conn->get($key);
     }
 
-    public function add(string $key, string $value, ?int $ttl)
+    public function add($key, $value, ?int $ttl): Status | null
     {
         return $this->conn->set($key, $value, expireTTL: $ttl);
     }
 
-    public function addToList(string $key, array $value) // TODO: Add a TTL
+    public function addToList(string $key, array $value): int
     {
         return $this->conn->lpush($key, $value);
     }
 
-    public function selectFromList($key, int $indexStart = 0, int $indexEnd = -1)
+    public function selectFromList(string $key, int $indexStart = 0, int $indexEnd = -1): array
     {
         return $this->conn->lrange($key, $indexStart, $indexEnd);
     }
 
-    public function deleteKey($key)
+    public function deleteKey($key): int
     {
         return $this->conn->del($key);
     }

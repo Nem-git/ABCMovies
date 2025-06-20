@@ -14,15 +14,13 @@ class Fuzzy extends SearchRecommender
 {
     private static array $options = [
         "keys" => [],
-        "threshold" => 1,
+        "threshold" => 1, // Be as lax as possible, as I would like as many results as possible, just order them
     ];
 
     public static function orderResults(string $query, array $results, array $keys = ["title"]): array
     {
         self::$options["keys"] = $keys;
-
         $fuse = new Fuse($results, self::$options);
-
         $orderedResults = $fuse->search($query);
 
         return $orderedResults;

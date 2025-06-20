@@ -37,7 +37,8 @@ Fuzzy search taking into account all the streaming services
 - [X] Add a helper class for most of those small methods that don't need overriding or direct access from outside the class
 - [ ] Add other abstract methods that give the different headers for the requests, as now I am just using HTTP_DEFAULT_HEADERS
 - [X] Improve the link Manifest link creation to support other than Dash Manifest and make it more robust
-- [ ] Remove/Rename all the functions about Manifest, init, segment and stuff, so this can support in the future HLS and MP4s that are either encrypted or decrypted
+- [ ] Remove/Rename all the functions about Manifest, init, segment and stuff, so this can support in the future HLS and MP4s that are either encrypted or decrypted. Now that I'm thinking about it, I should instead create classes that manage dash, hls, straight MP4, encrypted and decrypted data
+
 
 ### Toutv.php
 
@@ -61,3 +62,6 @@ Fuzzy search taking into account all the streaming services
 ### ManifestController.php
 - [ ] Look online for how I should actually name this
 - [ ] Create a parent class that will make all interactions with a repository the same, no matter the database
+
+### RedisRepository.php
+- [ ] Add a nullable TTL parameter to every data entry

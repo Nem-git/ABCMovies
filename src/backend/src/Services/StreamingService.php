@@ -235,7 +235,17 @@ abstract class StreamingService
         $episodeDatabaseIdentifier = StreamingServiceHelper::getEpisodeDatabaseIdentifier($this->tag, $showId, $seasonId, $episodeId);
         $decryptionKeys = $this->manifestController->getDecryptionKeys($episodeDatabaseIdentifier);
 
+        if (!$decryptionKeys) {
+            $this->executeEpisodeStream($showId, $seasonId, $episodeId);
+            $decryptionKeys = $this->manifestController->getDecryptionKeys($episodeDatabaseIdentifier);
+        }
+
         $initContent = $this->manifestController->getInitContent($originalInitUrl);
+
+        if (!$initContent) {
+            $this->executeEpisodeInitSegment($originalInitUrl);
+            $initContent = $this->manifestController->getInitContent($originalInitUrl);
+        }
 
         $segmentContent = RequestHelper::get($originalMediaUrl);
         $decryptedSegmentContent = $this->segmentDecryptor->getDecryptedSegment($initContent, $segmentContent, $decryptionKeys);

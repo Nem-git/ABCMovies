@@ -13,23 +13,23 @@ class ManifestController
         $this->repository = $repository;
     }
 
-    public function addDecryptionKeys($id, array $decryptionKeys)
+    public function addDecryptionKeys(string $id, array $decryptionKeys): int
     {
         $this->repository->deleteKey($id);
         return $this->repository->addToList($id, $decryptionKeys);
     }
 
-    public function getDecryptionKeys($id): array
+    public function getDecryptionKeys(string $id): array
     {
         return $this->repository->selectFromList($id);
     }
 
-    public function addInitContent($id, string $content)
+    public function addInitContent(string $id, string $content)
     {
         return $this->repository->add($id, $content, null);
     }
 
-    public function getInitContent($id)
+    public function getInitContent(string $id): string | null
     {
         return $this->repository->select($id);
     }
