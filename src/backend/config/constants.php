@@ -1,18 +1,10 @@
 <?php
 
+//region To be modified in order to run the webapp on your platform
+
 define("PYTHON_URL_BACKEND", "localhost:8000/");
 define('PHP_URL_BACKEND', "http://localhost/api/");
 define("TEMP_DIR", "/tmp/");
-
-define("DEFAULT_SEARCH_RESULTS_AMOUNT", 20);
-
-define(
-    "STREAMING_TECH",
-    [
-        "dash" => "manifest.mpd",
-        "hls" => "master.m3u8",
-    ]
-);
 
 define(
     "REDIS_CONFIG",
@@ -23,6 +15,18 @@ define(
     "protocol" => 3,
     "password" => "",
     "database" => 0
+    ]
+);
+
+//endregion
+
+define("DEFAULT_SEARCH_RESULTS_AMOUNT", 20);
+
+define(
+    "STREAMING_TECH",
+    [
+        "dash" => "manifest.mpd",
+        "hls" => "master.m3u8",
     ]
 );
 

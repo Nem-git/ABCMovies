@@ -7,6 +7,9 @@ construct==2.8.8
 fastapi==0.115.12
 h11==0.16.0
 idna==3.10
+isodate==0.7.2
+lxml==5.4.0
+mpd-parser==0.1.5
 protobuf==4.25.8
 pycryptodome==3.23.0
 pydantic==2.11.5

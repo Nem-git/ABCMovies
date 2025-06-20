@@ -2,12 +2,23 @@
 My first Svelte and Slim app ( If it ever even gets to that point )
 
 
+## Programs required
+
+- Python ^3.12
+- Node Package Manager
+- A Redis database
+
 ## 🛠️ Setting Up
 
 ```
 git clone https://github.com/Nem-git/ABCMovies.git
 cd ABCMovies/
 ```
+
+### Modify constants
+
+In src/backend/config/constants.php, you might need
+to change some settings to match your setup and environment
 
 ### PHP Backend Setup 🖥️
 
@@ -16,14 +27,9 @@ cd ABCMovies/
 cd src/backend
 ```
 
-2. Install Slim Framework (we're going with version 4.x here!):
+2. You’ll now need to install the project's required dependencies:
 ```
-composer require slim/slim:"4.*"
-```
-
-3. You’ll also need the Slim PSR-7 implementation:
-```
-composer require slim/psr7
+composer update
 ```
 
 Once you're done, your PHP backend will be ready, now move on to the **Python** backend
@@ -42,8 +48,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-3. Place the wvd file in the app/wvds folder:
+3. Create the folder app/wvds and place the wvd file in the folder:
 ```
+mkdir app/wvds
 cp device.wvd app/wvds/device.wvd
 ```
 More informations on acquiring your own wvd: [[1]](https://forum.videohelp.com/threads/408031-Dumping-Your-own-L3-CDM-with-Android-Studio) [[2]](https://github.com/FoxRefire/wvg/wiki/How-to-dump-CDM-key-pair)
@@ -59,27 +66,22 @@ Once you’re done here, your backend will be ready to serve up some awesome res
 
 ### Frontend Setup 🌐
 
-1. Now, let's move on to the **frontend** folder:
+1. Now, let's move on to the **frontend** project:
 ```
-cd src/frontend/
+cd src/frontend/src
 ```
 
 2. Install the necessary npm dependencies:
 ```
-npm create vite@latest src -- --template svelte-ts
+npm install
 ```
 
-3. Install npm dependencies:
-```
-cd src
-```
-
-4. Run the web server dynamically ( Optional )
+3. Run the web server dynamically ( Optional )
 ```
 npm run dev
 ```
 
-5. Build the project ( Optional )
+4. Build the project ( Optional )
 ```
 npm run build
 ```
