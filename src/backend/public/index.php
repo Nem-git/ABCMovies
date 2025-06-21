@@ -30,6 +30,36 @@ $app->get(
     }
 );
 
+$app->get(
+    "/api/recommendations/movies",
+    function (Request $request, Response $response, array $args) {
+        $streamingServiceManager = ObjectFactory::createStreamingServiceManager();
+        $searchResults = $streamingServiceManager->getSearchResults($request, $args);
+        $response = SlimResponseHelper::response_json($searchResults, $response);
+        return $response;
+    }
+);
+
+$app->get(
+    "/api/recommendations/series",
+    function (Request $request, Response $response, array $args) {
+        $streamingServiceManager = ObjectFactory::createStreamingServiceManager();
+        $searchResults = $streamingServiceManager->getSearchResults($request, $args);
+        $response = SlimResponseHelper::response_json($searchResults, $response);
+        return $response;
+    }
+);
+
+$app->get(
+    "/api/recommendations/documentaries",
+    function (Request $request, Response $response, array $args) {
+        $streamingServiceManager = ObjectFactory::createStreamingServiceManager();
+        $searchResults = $streamingServiceManager->getSearchResults($request, $args);
+        $response = SlimResponseHelper::response_json($searchResults, $response);
+        return $response;
+    }
+);
+
 //region Streaming service specific
 
 $app->get(
@@ -45,7 +75,40 @@ $app->get(
 $app->get(
     "/api/{streamingService}/{show}/recommendations",
     function (Request $request, Response $response, array $args) {
-        // return $srh->response_json($ssh->pick($args["streamingService"])->getShowRecommendations($request, $response, $args), $response);
+        $streamingService = ObjectFactory::createStreamingService(strtoupper($args["streamingService"]));
+        $recommendations = $streamingService->getShowRecommendations($request, $args);
+        $response = SlimResponseHelper::response_json($recommendations, $response);
+        return $response;
+    }
+);
+
+$app->get(
+    "/api/{streamingService}/recommendations/movies",
+    function (Request $request, Response $response, array $args) {
+        $streamingService = ObjectFactory::createStreamingService(strtoupper($args["streamingService"]));
+        $recommendations = $streamingService->getMoviesRecommendations($request, $args);
+        $response = SlimResponseHelper::response_json($recommendations, $response);
+        return $response;
+    }
+);
+
+$app->get(
+    "/api/{streamingService}/recommendations/series",
+    function (Request $request, Response $response, array $args) {
+        $streamingService = ObjectFactory::createStreamingService(strtoupper($args["streamingService"]));
+        $recommendations = $streamingService->getSeriesRecommendations($request, $args);
+        $response = SlimResponseHelper::response_json($recommendations, $response);
+        return $response;
+    }
+);
+
+$app->get(
+    "/api/{streamingService}/recommendations/documentaries",
+    function (Request $request, Response $response, array $args) {
+        $streamingService = ObjectFactory::createStreamingService(strtoupper($args["streamingService"]));
+        $recommendations = $streamingService->getDocumentariesRecommendations($request, $args);
+        $response = SlimResponseHelper::response_json($recommendations, $response);
+        return $response;
     }
 );
 
@@ -75,6 +138,16 @@ $app->get(
         $streamingService = ObjectFactory::createStreamingService(strtoupper($args["streamingService"]));
         $episode = $streamingService->getEpisodeInfo($request, $args);
         $response = SlimResponseHelper::response_json($episode, $response);
+        return $response;
+    }
+);
+
+$app->get(
+    "/api/{streamingService}/{show}/{season}/{episode}/next",
+    function (Request $request, Response $response, array $args) {
+        $streamingService = ObjectFactory::createStreamingService(strtoupper($args["streamingService"]));
+        $show = $streamingService->getNextRecommendation($request, $args);
+        $response = SlimResponseHelper::response_json($show, $response);
         return $response;
     }
 );

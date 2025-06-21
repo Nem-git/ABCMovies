@@ -18,6 +18,8 @@ Fuzzy search taking into account all the streaming services
 
 # TODOs
 
+## PHP
+
 ## Common
 
 - [ ] Validation of HTTP requests
@@ -28,8 +30,6 @@ Fuzzy search taking into account all the streaming services
 - [ ] Add logical groups in the API endpoints using Slim
 - [ ] Add logging for database access
 
-## PHP
-
 ### StreamingService.php
 
 - [ ] Add multiple methods for recommendations, like series, movies, documentaries etc..
@@ -38,7 +38,13 @@ Fuzzy search taking into account all the streaming services
 - [ ] Add other abstract methods that give the different headers for the requests, as now I am just using HTTP_DEFAULT_HEADERS
 - [X] Improve the link Manifest link creation to support other than Dash Manifest and make it more robust
 - [ ] Remove/Rename all the functions about Manifest, init, segment and stuff, so this can support in the future HLS and MP4s that are either encrypted or decrypted. Now that I'm thinking about it, I should instead create classes that manage dash, hls, straight MP4, encrypted and decrypted data
+- [X] Add a logic that recommends you an episode/show after watching an episode
+- [ ] For the next recommendation, maybe only recommend episodes, or when recommending shows say it clearly in the JSON, so not to get confused
 
+### ObjectFactory.php
+
+- [ ] Verify if I should actually put it in Models or somewhere else
+- [ ] Look up how other people manage this kind of object creation, if that's even a good way to do it
 
 ### Toutv.php
 

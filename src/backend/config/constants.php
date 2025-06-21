@@ -22,6 +22,7 @@ define(
 //endregion
 
 define("DEFAULT_SEARCH_RESULTS_AMOUNT", 20);
+define("DEFAULT_RECOMMENDATIONS_AMOUNT", 50);
 
 define(
     "STREAMING_TECH",
@@ -54,6 +55,42 @@ define(
     "device" => "web",
     "pageSize" => 0,
     "term" => ""
+    ]
+);
+
+define("TOUTV_URL_SHOW_RECOMMENDATIONS", "https://services.radio-canada.ca/ott/catalog/v2/toutv/show/");
+define(
+    "TOUTV_PARAMETERS_SHOW_RECOMMENDATIONS",
+    [
+    "device" => "web",
+    "pageSize" => 0,
+    ]
+);
+
+define("TOUTV_URL_MOVIES_RECOMMENDATIONS", "https://services.radio-canada.ca/ott/catalog/v2/toutv/category/film");
+define(
+    "TOUTV_PARAMETERS_MOVIES_RECOMMENDATIONS",
+    [
+    "device" => "web",
+    "pageSize" => 0,
+    ]
+);
+
+define("TOUTV_URL_SERIES_RECOMMENDATIONS", "https://services.radio-canada.ca/ott/catalog/v2/toutv/category/serie");
+define(
+    "TOUTV_PARAMETERS_SERIES_RECOMMENDATIONS",
+    [
+    "device" => "web",
+    "pageSize" => 0,
+    ]
+);
+
+define("TOUTV_URL_DOCUMENTARIES_RECOMMENDATIONS", "https://services.radio-canada.ca/ott/catalog/v2/toutv/category/documentaire");
+define(
+    "TOUTV_PARAMETERS_DOCUMENTARIES_RECOMMENDATIONS",
+    [
+    "device" => "web",
+    "pageSize" => 0,
     ]
 );
 

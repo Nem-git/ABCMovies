@@ -52,6 +52,11 @@ abstract class StreamingService
     //region Parsing
 
     abstract protected function parseSearchResults(array $response): array;
+    abstract protected function parseShowRecommendationsResults(array $response): array;
+    abstract protected function parseMoviesRecommendationsResults(array $response): array;
+    abstract protected function parseSeriesRecommendationsResults(array $response): array;
+    abstract protected function parseDocumentariesRecommendationsResults(array $response): array;
+    abstract protected function parseNextRecommendationResult(array $response, string $showId, string $seasonId, string $episodeId): array;
     abstract protected function parseShowInfo(Show $show, array $response): void;
     abstract protected function parseSeasonInfo(Season $season, array $response): void;
     abstract protected function parseEpisodeInfo(Episode $episode, array $response): void;
@@ -65,20 +70,128 @@ abstract class StreamingService
 
     public function getSearchResults(Request $request, array $args): array
     {
-        $searchCriteria = StreamingServiceHelper::parseSearchCriteria($request, $args);
+        $searchResultsCriteria = StreamingServiceHelper::parseSearchCriteria($request, $args);
 
         return $this->executeSearchResults(
-            $searchCriteria["query"],
-            $searchCriteria["amount"],
+            $searchResultsCriteria["query"],
+            $searchResultsCriteria["amount"],
         );
     }
 
     public function executeSearchResults(string $query, int $amount): array
     {
         $parameters = $this->getSearchParameters($query, $amount);
-        $response = RequestHelper::get($this->getSearchUrl(), HTTP_DEFAULT_HEADERS, $parameters);
+        $response = RequestHelper::get($this->getSearchUrl($query, $amount), HTTP_DEFAULT_HEADERS, $parameters);
         $searchResults = $this->parseSearchResults(json_decode($response, true));
-        return $searchResults;
+        return array_slice($searchResults, 0, $amount);
+    }
+
+    //endregion
+
+    //region Recommendations
+
+    //region Show
+
+    public function getShowRecommendations(Request $request, array $args): array
+    {
+        $showRecommendationsCriteria = StreamingServiceHelper::parseShowRecommendationsCriteria($request, $args);
+
+        return $this->executeShowRecommendations(
+            $showRecommendationsCriteria["showId"],
+            $showRecommendationsCriteria["amount"],
+        );
+    }
+
+    public function executeShowRecommendations(string $showId, int $amount): array
+    {
+        $parameters = $this->getShowRecommendationsParameters($showId, $amount);
+        $response = RequestHelper::get($this->getShowRecommendationsUrl($showId, $amount), HTTP_DEFAULT_HEADERS, $parameters);
+        $showRecommendations = $this->parseShowRecommendationsResults(json_decode($response, true));
+        return array_slice($showRecommendations, 0, $amount);
+    }
+
+    //endregion
+
+    //region Movies
+
+    public function getMoviesRecommendations(Request $request, array $args): array
+    {
+        $moviesRecommendationsCriteria = StreamingServiceHelper::parseRecommendationsCriteria($request, $args);
+
+        return $this->executeMoviesRecommendations(
+            $moviesRecommendationsCriteria["amount"],
+        );
+    }
+
+    public function executeMoviesRecommendations(int $amount): array
+    {
+        $parameters = $this->getMoviesRecommendationsParameters($amount);
+        $response = RequestHelper::get($this->getMoviesRecommendationsUrl($amount), HTTP_DEFAULT_HEADERS, $parameters);
+        $moviesRecommendations = $this->parseMoviesRecommendationsResults(json_decode($response, true));
+        return array_slice($moviesRecommendations, 0, $amount);
+    }
+
+    //endregion
+
+    //region Series
+
+    public function getSeriesRecommendations(Request $request, array $args): array
+    {
+        $seriesRecommendationsCriteria = StreamingServiceHelper::parseRecommendationsCriteria($request, $args);
+
+        return $this->executeSeriesRecommendations(
+            $seriesRecommendationsCriteria["amount"],
+        );
+    }
+
+    public function executeSeriesRecommendations(int $amount): array
+    {
+        $parameters = $this->getSeriesRecommendationsParameters($amount);
+        $response = RequestHelper::get($this->getSeriesRecommendationsUrl($amount), HTTP_DEFAULT_HEADERS, $parameters);
+        $seriesRecommendations = $this->parseSeriesRecommendationsResults(json_decode($response, true));
+        return array_slice($seriesRecommendations, 0, $amount);
+    }
+
+    //endregion
+
+    //region Documentaries
+
+    public function getDocumentariesRecommendations(Request $request, array $args): array
+    {
+        $documentariesRecommendationsCriteria = StreamingServiceHelper::parseRecommendationsCriteria($request, $args);
+
+        return $this->executeDocumentariesRecommendations(
+            $documentariesRecommendationsCriteria["amount"],
+        );
+    }
+
+    public function executeDocumentariesRecommendations(int $amount): array
+    {
+        $parameters = $this->getDocumentariesRecommendationsParameters($amount);
+        $response = RequestHelper::get($this->getDocumentariesRecommendationsUrl($amount), HTTP_DEFAULT_HEADERS, $parameters);
+        $documentariesRecommendations = $this->parseDocumentariesRecommendationsResults(json_decode($response, true));
+        return array_slice($documentariesRecommendations, 0, $amount);
+    }
+
+    //endregion
+
+    public function getNextRecommendation(Request $request, array $args): array
+    {
+        $nextRecommendationCriteria = StreamingServiceHelper::parseNextRecommendationCriteria($request, $args);
+
+        return $this->executeGetNextRecommendation(
+            $nextRecommendationCriteria["showId"],
+            $nextRecommendationCriteria["seasonId"],
+            $nextRecommendationCriteria["episodeId"],
+        );
+    }
+
+    public function executeGetNextRecommendation(string $showId, string $seasonId, string $episodeId): array
+    {
+        $parameters = $this->getNextRecommendationParameters($showId, $seasonId, $episodeId);
+        $response = RequestHelper::get($this->getNextRecommendationUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $parameters);
+        $nextRecommendation = $this->parseNextRecommendationResult(json_decode($response, true), $showId, $seasonId, $episodeId);
+        return $nextRecommendation;
     }
 
     //endregion
@@ -96,10 +209,10 @@ abstract class StreamingService
 
     public function executeShowInfo(string $showId): Show
     {
-        $show = new Show();
+        $show = ObjectFactory::createShow();
         $show->id = $showId;
 
-        $response = RequestHelper::get($this->getShowInfoUrl($showId), HTTP_DEFAULT_HEADERS, $this->getShowInfoParameters());
+        $response = RequestHelper::get($this->getShowInfoUrl($showId), HTTP_DEFAULT_HEADERS, $this->getShowInfoParameters($showId));
         $this->parseShowInfo($show, json_decode($response, true));
         return $show;
     }
@@ -120,10 +233,10 @@ abstract class StreamingService
 
     public function executeSeasonInfo(string $showId, string $seasonId): Season
     {
-        $season = new Season();
+        $season = ObjectFactory::createSeason();
         $season->id = $seasonId;
 
-        $response = RequestHelper::get($this->getSeasonInfoUrl($showId, $seasonId), HTTP_DEFAULT_HEADERS, $this->getSeasonInfoParameters());
+        $response = RequestHelper::get($this->getSeasonInfoUrl($showId, $seasonId), HTTP_DEFAULT_HEADERS, $this->getSeasonInfoParameters($showId, $seasonId));
         $this->parseSeasonInfo($season, json_decode($response, true));
         return $season;
     }
@@ -145,11 +258,11 @@ abstract class StreamingService
 
     public function executeEpisodeInfo(string $showId, string $seasonId, string $episodeId): Episode
     {
-        $episode = new Episode();
+        $episode = ObjectFactory::createEpisode();
         $episode->id = $episodeId;
         $episode->url = StreamingServiceHelper::getStreamUrl($this->tag, $showId, $seasonId, $episodeId, "dash");
 
-        $response = RequestHelper::get($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters());
+        $response = RequestHelper::get($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters($showId, $seasonId, $episodeId));
         $this->parseEpisodeInfo($episode, json_decode($response, true));
 
         return $episode;
@@ -174,7 +287,7 @@ abstract class StreamingService
     {
         $episode = $this->executeEpisodeInfo($showId, $seasonId, $episodeId);
 
-        $response = json_decode(RequestHelper::get($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters()), true);
+        $response = json_decode(RequestHelper::get($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters($showId, $seasonId, $episodeId)), true);
         $downloadInfo = $this->parseEpisodeDownloadInfo($episode, $response);
 
         $this->psshRetriever->getPssh($downloadInfo);
@@ -259,17 +372,32 @@ abstract class StreamingService
 
     //region Abstract methods for URLs and parameters (to be implemented per service)
 
-    abstract protected function getSearchUrl(): string;
+    abstract protected function getSearchUrl(string $query, int $amount): string;
     abstract protected function getSearchParameters(string $query, int $amount): array;
 
+    abstract protected function getShowRecommendationsUrl(string $showId, int $amount): string;
+    abstract protected function getShowRecommendationsParameters(string $showId, int $amount): array;
+
+    abstract protected function getMoviesRecommendationsUrl(int $amount): string;
+    abstract protected function getMoviesRecommendationsParameters(int $amount): array;
+
+    abstract protected function getSeriesRecommendationsUrl(int $amount): string;
+    abstract protected function getSeriesRecommendationsParameters(int $amount): array;
+
+    abstract protected function getDocumentariesRecommendationsUrl(int $amount): string;
+    abstract protected function getDocumentariesRecommendationsParameters(int $amount): array;
+
+    abstract protected function getNextRecommendationUrl(string $showId, string $seasonId, string $episodeId): string;
+    abstract protected function getNextRecommendationParameters(string $showId, string $seasonId, string $episodeId): array;
+
     abstract protected function getShowInfoUrl(string $showId): string;
-    abstract protected function getShowInfoParameters(): array;
+    abstract protected function getShowInfoParameters(string $showId): array;
 
     abstract protected function getSeasonInfoUrl(string $showId, string $seasonId): string;
-    abstract protected function getSeasonInfoParameters(): array;
+    abstract protected function getSeasonInfoParameters(string $showId, string $seasonId): array;
 
     abstract protected function getEpisodeInfoUrl(string $showId, string $seasonId, string $episodeId): string;
-    abstract protected function getEpisodeInfoParameters(): array;
+    abstract protected function getEpisodeInfoParameters(string $showId, string $seasonId, string $episodeId): array;
 
     //endregion
 

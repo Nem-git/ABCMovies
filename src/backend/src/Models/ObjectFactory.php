@@ -20,6 +20,10 @@ use App\Services\StreamingServices\Toutv as StreamingServiceToutv;
 use App\Models\SearchRecommender;
 use App\Services\SearchRecommender\Fuzzy as SearchRecommenderFuzzy;
 use App\Services\StreamingServiceManager;
+use App\Models\Show;
+use App\Models\Season;
+use App\Models\Episode;
+use App\Models\DownloadInfo;
 
 class ObjectFactory
 {
@@ -52,6 +56,30 @@ class ObjectFactory
     public static function createStreamingService(string $tag): StreamingService
     {
         $class = self::$streamingService[$tag];
+        return new $class();
+    }
+
+    public static function createShow(): Show
+    {
+        $class = Show::class;
+        return new $class();
+    }
+
+    public static function createSeason(): Season
+    {
+        $class = Season::class;
+        return new $class();
+    }
+
+    public static function createEpisode(): Episode
+    {
+        $class = Episode::class;
+        return new $class();
+    }
+
+    public static function createDownloadInfo(): DownloadInfo
+    {
+        $class = DownloadInfo::class;
         return new $class();
     }
 

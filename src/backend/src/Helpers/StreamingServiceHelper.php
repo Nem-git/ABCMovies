@@ -18,6 +18,30 @@ class StreamingServiceHelper
         ];
     }
 
+    public static function parseShowRecommendationsCriteria(Request $request, array $args): array
+    {
+        return [
+            "showId" => $args["show"] ?? "",
+            "amount" => (int)($request->getQueryParams()["amount"] ?? DEFAULT_RECOMMENDATIONS_AMOUNT),
+        ];
+    }
+
+    public static function parseRecommendationsCriteria(Request $request, array $args): array
+    {
+        return [
+            "amount" => (int)($request->getQueryParams()["amount"] ?? DEFAULT_RECOMMENDATIONS_AMOUNT),
+        ];
+    }
+
+    public static function parseNextRecommendationCriteria(Request $request, array $args): array
+    {
+        return [
+            "showId" => $args["show"] ?? "",
+            "seasonId" => $args["season"] ?? "",
+            "episodeId" => $args["episode"] ?? "",
+        ];
+    }
+
     public static function parseShowInfoCriteria(Request $request, array $args): array
     {
         return [
