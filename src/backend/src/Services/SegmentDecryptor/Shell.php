@@ -16,7 +16,7 @@ class Shell extends SegmentDecryptor
 {
     private function getMp4decryptCommand(string $encryptedFilePath, string $initFilePath, string $decryptedFilePath, array $decryptionKeys): string
     {
-        $cmd = "/run/current-system/sw/bin/mp4decrypt";
+        $cmd = MP4DECRYPT_PATH;
 
         foreach ($decryptionKeys as $decryptionKey) {
             $cmd .= " --key " . escapeshellarg($decryptionKey);
@@ -31,7 +31,7 @@ class Shell extends SegmentDecryptor
 
     private function getMp4DecryptFullSegmentCommand(string $encryptedFilePath, string $decryptedFilePath, array $decryptionKeys): string
     {
-        $cmd = "/run/current-system/sw/bin/mp4decrypt";
+        $cmd = MP4DECRYPT_PATH;
 
         foreach ($decryptionKeys as $decryptionKey) {
             $cmd .= " --key " . escapeshellarg($decryptionKey);

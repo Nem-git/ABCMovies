@@ -5,6 +5,7 @@
 define("PYTHON_URL_BACKEND", "localhost:8000/");
 define('PHP_URL_BACKEND', "http://localhost/api/");
 define("TEMP_DIR", "/tmp/");
+define("MP4DECRYPT_PATH", "/run/current-system/sw/bin/mp4decrypt");
 
 define(
     "REDIS_CONFIG",
