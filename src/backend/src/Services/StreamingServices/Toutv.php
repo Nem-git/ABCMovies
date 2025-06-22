@@ -132,7 +132,6 @@ class Toutv extends StreamingService
                         }
                     }
                 }
-
             }
         }
 
@@ -151,7 +150,7 @@ class Toutv extends StreamingService
                         $e->imageCard = $episode["images"]["card"]["url"];
                         $e->provider = $this->tag;
 
-                        // Don't add Trailers
+                        // Don't recommend Trailers
                         if ($episode["type"] !== "Trailer") {
                             return (array)$e;
                         }
@@ -160,8 +159,22 @@ class Toutv extends StreamingService
             }
         }
 
-        // This is for retrieving the first show's recommendation
-        return $this->executeShowRecommendations($showId, 1);
+        // Returns the first episode of the show
+        foreach ($response["content"][0]["lineups"][0]["items"] as $episode) {
+            $e = ObjectFactory::createEpisode();
+
+            $e->id = (string)$episode["idMedia"];
+            $e->title = $episode["title"];
+            $e->number = $episode["episodeNumber"];
+            $e->shortDescription = $e->fullDescription = $episode["description"] ?? "";
+            $e->imageCard = $episode["images"]["card"]["url"];
+            $e->provider = $this->tag;
+
+            // Don't recommend Trailers
+            if ($episode["type"] !== "Trailer") {
+                return (array)$e;
+            }
+        }
     }
 
     protected function parseShowInfo(Show $show, array $ssResponse): void
