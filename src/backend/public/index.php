@@ -182,6 +182,8 @@ $app->get(
     }
 );
 
+//endregion
+
 try {
     $app->run();
 } catch (Exception $e) {

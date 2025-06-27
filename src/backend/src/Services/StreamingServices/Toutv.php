@@ -175,6 +175,8 @@ class Toutv extends StreamingService
                 return (array)$e;
             }
         }
+
+        return [];
     }
 
     protected function parseShowInfo(Show $show, array $ssResponse): void

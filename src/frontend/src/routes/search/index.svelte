@@ -41,3 +41,9 @@
 </div>
 
 <SearchPage query={q} />
+
+<style>
+  input {
+    
+  }
+</style>

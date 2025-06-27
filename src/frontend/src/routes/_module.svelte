@@ -5,7 +5,9 @@
 <Navbar />
 
 <main>
-  <slot />
+  <div id="slot">
+    <slot />
+  </div>
 </main>
 <div id="background"></div>
 
@@ -14,16 +16,16 @@
     --background-color: #313131;
   }
   main {
-    width: 100vw;
-    left: 0;
-    top: 0;
-    position: absolute;
+    position: relative;
 
     display: flex;
     justify-content: center;
     flex-flow: column nowrap;
 
     z-index: 1;
+  }
+
+  #slot {
   }
 
   #background {

@@ -29,7 +29,7 @@ dist-ssr
 
 # Sveltekit
 .DS_Store
-node_modules
+node_modules/
 dist
 test-results/
 package-lock.json
