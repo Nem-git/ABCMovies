@@ -26,8 +26,8 @@
 
 <ol>
   {#if searchResults}
-    {#await searchResults then sr}
-      {#each sr as show}
+    {#await searchResults then}
+      {#each searchResults as show}
         <ShowCard {show} />
       {/each}
     {/await}
@@ -37,6 +37,6 @@
 <style>
   ol {
     display: flex;
-    flex-flow: row wrap;
+    flex-wrap: wrap;
   }
 </style>

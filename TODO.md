@@ -66,8 +66,26 @@ Fuzzy search taking into account all the streaming services
 - [ ] Make the http requests asynchronously
 
 ### ManifestController.php
+
 - [ ] Look online for how I should actually name this
 - [ ] Create a parent class that will make all interactions with a repository the same, no matter the database
 
 ### RedisRepository.php
+
 - [ ] Add a nullable TTL parameter to every data entry
+
+
+## Svelte
+
+## Common
+
+## SearchPage.svelte
+
+- [X] Fix inputting ../ and stuff allowing movement through the site, instead use url query params
+
+### NavBar.svelte
+
+- [ ] It seems that trying to put an icon and text side-by-side gives me a result that is not expected, so fix that
+- [ ] 
+
+
