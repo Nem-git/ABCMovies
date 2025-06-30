@@ -8,26 +8,18 @@
     document.getElementById("search-input")?.focus();
   });
 
-  let invalidCharacters = ["."];
+  let query: string = $state("");
 
-  let q: string = $state("");
-
-  const verifyQueryChange = $derived.by(() => {
-    $goto("/search/[query]", { query: encodeURI(q) });
+  $effect(() => {
+    if (encodeURI(query) === "") {
+      $goto("/search");
+    } else {
+      $goto("/search", { q: encodeURI(query) });
+    }
   });
 
-  const updateQuery = async (event) => {
-    let input: string = await event.target.value;
-
-    // TODO: Make this verification actually work, because it allows weird movement through the site
-    invalidCharacters.forEach(async (char) => {
-      console.log(input);
-      input = input.replaceAll(await char, "");
-      console.log(input);
-    });
-
-    q = input;
-    verifyQueryChange;
+  const oninput = async (event: any) => {
+    query = await event.target.value;
   };
 </script>
 
@@ -35,15 +27,9 @@
   <input
     type="text"
     id="search-input"
-    value={$state.snapshot(q)}
-    oninput={updateQuery}
+    value={$state.snapshot(query)}
+    {oninput}
   />
 </div>
 
-<SearchPage query={q} />
-
-<style>
-  input {
-    
-  }
-</style>
+<SearchPage {query} />
