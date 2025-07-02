@@ -82,6 +82,7 @@ Fuzzy search taking into account all the streaming services
 ## SearchPage.svelte
 
 - [X] Fix inputting ../ and stuff allowing movement through the site, instead use url query params
+- [ ] Find out if the autofocus on hover is actually a fun feature or if it should be removed
 
 ### NavBar.svelte
 

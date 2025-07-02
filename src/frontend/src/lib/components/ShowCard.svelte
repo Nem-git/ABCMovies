@@ -12,7 +12,7 @@
   })}
   aria-label={show.title}
 >
-  <ul>
+  <ol>
     <div id="card">
       <img src={show.imageCard.replace("_Size_", "400")} alt={show.title} />
       <div id="card-info">
@@ -20,7 +20,7 @@
       </div>
     </div>
     <h3>{show.title}</h3>
-  </ul>
+  </ol>
 </a>
 
 <style>
@@ -44,9 +44,9 @@
     object-fit: cover;
   }
 
-  ul {
-    width: 400px;
-  }
+  /* ol {
+    max-width: 400px;
+  } */
 
   #card {
     position: relative;

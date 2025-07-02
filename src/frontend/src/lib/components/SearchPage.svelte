@@ -1,28 +1,19 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-
   import type { Show } from "../../api/config";
   import { getSearchResults } from "../../api/search";
 
+  import { q } from "../shared.svelte";
+  import SearchBar from "./SearchBar.svelte";
   import ShowCard from "./ShowCard.svelte";
 
   let searchResults: Show[] | undefined = $state();
 
-  let { query }: { query: string } = $props();
-
-  onMount(async () => {
-    search;
-  });
-
   $effect(() => {
-    search;
-  });
-
-  const search = $derived.by(async () => {
-    getSearchResults(query).then(async (sr) => (searchResults = await sr));
-    console.log(query);
+    getSearchResults(q.query).then(async (sr) => (searchResults = await sr));
   });
 </script>
+
+<SearchBar />
 
 <ol>
   {#if searchResults}
@@ -38,5 +29,6 @@
   ol {
     display: flex;
     flex-wrap: wrap;
+    justify-content: center;
   }
 </style>
