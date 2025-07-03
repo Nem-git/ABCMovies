@@ -2,32 +2,9 @@
   import { q } from "../shared.svelte";
 
   let searchInputEl: HTMLInputElement;
-  // Represents if the focus state is the one from the mounting of the component
-  let shouldBlur = false;
-
-  let onmouseenter = (event: any) => {
-    if (searchInputEl !== document.activeElement) {
-      shouldBlur = true;
-    }
-
-    searchInputEl.focus();
-  };
-
-  let onmouseleave = (event: any) => {
-    if (shouldBlur) {
-      searchInputEl.blur();
-    }
-  };
-
-  let onclick = (event: any) => {
-    shouldBlur = false;
-  };
 
   let oninput = (event: any) => {
     q.query = event.target.value;
-
-    // Because if the user started typing, we don't remove focus from field
-    shouldBlur = false;
   };
 </script>
 
@@ -39,9 +16,6 @@
     bind:this={searchInputEl}
     value={$state.snapshot(q.query)}
     {oninput}
-    {onmouseenter}
-    {onmouseleave}
-    {onclick}
   />
 </div>
 
