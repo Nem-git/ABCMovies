@@ -40,6 +40,10 @@
     max-width: 100%;
     max-height: 100%;
     object-fit: cover;
+
+    transition-property: transform;
+    transition-duration: 0.2s;
+    transition-timing-function: ease-in;
   }
 
   .card {
@@ -67,5 +71,9 @@
 
   a:hover .card-info {
     opacity: 1;
+  }
+
+  a:hover img {
+    transform: scale(1.05);
   }
 </style>
