@@ -16,7 +16,7 @@
 
     // Make that seasonId check to avoid race conditions, where it sets the right season
     // then the first available season
-    if (seasonId.id === "") {
+    if (!$state.snapshot(seasonId.id)) {
       setSeason((await s).seasons[0].id);
     }
   });
