@@ -12,15 +12,13 @@
   })}
   aria-label={show.title}
 >
-  <ol>
-    <div id="card">
-      <img src={show.imageCard.replace("_Size_", "400")} alt={show.title} />
-      <div id="card-info">
-        <span id="description">{show.shortDescription}</span>
-      </div>
+  <div class="card">
+    <img src={show.imageCard.replace("_Size_", "700")} alt={show.title} />
+    <div class="card-info">
+      <span class="description">{show.shortDescription}</span>
     </div>
-    <h3>{show.title}</h3>
-  </ol>
+  </div>
+  <h3>{show.title}</h3>
 </a>
 
 <style>
@@ -31,8 +29,6 @@
   a {
     display: flex;
     flex-flow: column nowrap;
-
-    margin: 1em;
   }
 
   span {
@@ -41,18 +37,18 @@
   }
 
   img {
+    max-width: 100%;
+    max-height: 100%;
     object-fit: cover;
   }
 
-  /* ol {
-    max-width: 400px;
-  } */
-
-  #card {
+  .card {
     position: relative;
+    overflow: hidden;
+
   }
 
-  #card-info {
+  .card-info {
     opacity: 0;
     position: absolute;
     top: 0;
@@ -64,17 +60,12 @@
     display: flex;
     flex-flow: row nowrap;
 
-    align-items: center;
     justify-content: center;
-  }
-
-  #description {
-    font-family: sans-serif;
   }
 
   /* This part is only shown on hover */
 
-  a:hover #card-info {
+  a:hover .card-info {
     opacity: 1;
   }
 </style>

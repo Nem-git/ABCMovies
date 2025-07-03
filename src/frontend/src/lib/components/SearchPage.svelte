@@ -27,8 +27,8 @@
 
 <style>
   ol {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(325px, 1fr));
+    gap: 1em;
   }
 </style>
