@@ -1,12 +1,15 @@
 <script lang="ts">
-  let { baseUrl }: { baseUrl: string } = $props();
+  let { path }: { path: Path } = $props();
 
+  import { Path } from "../path";
   import type { Season } from "../../api/config";
   import { getSeason } from "../../api/season";
   import EpisodeCard from "./EpisodeCard.svelte";
   import { seasonId } from "../shared.svelte";
 
-  let s: Promise<Season> = $derived(getSeason(baseUrl + "/" + seasonId.id));
+  let s: Promise<Season> = $derived(
+    getSeason([path.getShow(), seasonId.id].join("/")),
+  );
 </script>
 
 {#if s}
@@ -14,10 +17,7 @@
     <h3>{sea.title}</h3>
     <ol>
       {#each sea.episodes as episode}
-        <EpisodeCard
-          {episode}
-          baseUrl={baseUrl + "/" + sea.id + "/" + episode.number}
-        />
+        <EpisodeCard {episode} {path} />
       {/each}
     </ol>
   {/await}

@@ -13,7 +13,7 @@
   aria-label={show.title}
 >
   <div class="card">
-    <img src={show.imageCard.replace("_Size_", "700")} alt={show.title} />
+    <img src={show.imageCard.replace("_Size_", "480")} alt={show.title} />
     <div class="card-info">
       <span class="description">{show.shortDescription}</span>
     </div>
@@ -49,7 +49,6 @@
   .card {
     position: relative;
     overflow: hidden;
-
   }
 
   .card-info {

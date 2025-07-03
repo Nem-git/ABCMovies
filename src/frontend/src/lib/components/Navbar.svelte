@@ -65,7 +65,7 @@
   }
 
   .abc {
-    font-size: 30px;
+    font-size: 1.5em;
     font-weight: 500;
 
     flex-grow: 1;

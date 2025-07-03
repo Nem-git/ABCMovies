@@ -8,10 +8,11 @@
   import type { Episode } from "../../api/config";
   import { getEpisode } from "../../api/episode";
   import { onMount } from "svelte";
+  import type { Path } from "../path";
 
-  let { baseUrl }: { baseUrl: string } = $props();
+  let { path }: { path: Path } = $props();
 
-  let e: Promise<Episode> = getEpisode(baseUrl);
+  let e: Promise<Episode> = getEpisode(path.getEpisode());
 
   onMount(async () => {
     manifestUrl.url = (await e).url;

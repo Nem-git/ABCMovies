@@ -1,8 +1,10 @@
 <script lang="ts">
-  let { baseUrl }: { baseUrl: string } = $props();
+  let { path }: { path: Path } = $props();
 
+  import { Path } from "../path";
   import type { Show } from "../../api/config";
   import { onMount } from "svelte";
+  import { url } from "@roxi/routify";
   import { getShow } from "../../api/show";
   import { seasonId } from "../shared.svelte";
   import SeasonPage from "./SeasonPage.svelte";
@@ -10,7 +12,8 @@
   let s: Promise<Show> | undefined = $state();
 
   onMount(async () => {
-    s = getShow(baseUrl);
+    s = getShow(path.getShow());
+
     // Make that seasonId check to avoid race conditions, where it sets the right season
     // then the first available season
     if (seasonId.id === "") {
@@ -50,7 +53,7 @@
           onclick={() => {
             setSeason(season.id);
           }}
-          href={baseUrl + "/" + season.number.toString()}
+          href={$url("../", { s: season.id })}
           aria-label={season.number.toString()}>{season.title}</a
         >
       {/each}
@@ -58,4 +61,4 @@
   {/if}
 </ol>
 
-<SeasonPage {baseUrl} />
+<SeasonPage {path} />

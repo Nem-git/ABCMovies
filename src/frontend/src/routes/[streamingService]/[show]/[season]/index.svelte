@@ -3,14 +3,11 @@
   import { params } from "@roxi/routify";
   import ShowPage from "../../../../lib/components/ShowPage.svelte";
   import { seasonId } from "../../../../lib/shared.svelte";
+  import { Path } from "../../../../lib/path";
 
   let { season } = $params;
-
-  let splitUrl = $url("$leaf").split("/");
-  splitUrl.pop();
-  let showUrl = splitUrl.join("/");
 
   seasonId.id = season;
 </script>
 
-<ShowPage baseUrl={showUrl} />
+<ShowPage path={new Path($url("$leaf"))} />
