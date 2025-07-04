@@ -19,6 +19,8 @@ use App\Services\StreamingService;
 use App\Services\StreamingServices\Toutv as StreamingServiceToutv;
 use App\Models\SearchRecommender;
 use App\Services\SearchRecommender\Fuzzy as SearchRecommenderFuzzy;
+use App\Models\MediaRecommender;
+use App\Services\MediaRecommender\Random as MediaRecommenderRandom;
 use App\Services\StreamingServiceManager;
 use App\Models\Show;
 use App\Models\Season;
@@ -51,6 +53,10 @@ class ObjectFactory
 
     private static array $searchRecommender = [
         "fuzzy" => SearchRecommenderFuzzy::class,
+    ];
+
+    private static array $mediaRecommender = [
+        "random" => MediaRecommenderRandom::class,
     ];
 
     public static function createStreamingService(string $tag): StreamingService
@@ -122,6 +128,12 @@ class ObjectFactory
     public static function createSearchRecommender(string $type): SearchRecommender
     {
         $class = self::$searchRecommender[$type] ?? null;
+        return new $class();
+    }
+
+    public static function createMediaRecommender(string $type): MediaRecommender
+    {
+        $class = self::$mediaRecommender[$type] ?? null;
         return new $class();
     }
 

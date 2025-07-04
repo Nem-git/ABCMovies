@@ -25,6 +25,15 @@ define("DEFAULT_SEARCH_RESULTS_AMOUNT", 20);
 define("DEFAULT_RECOMMENDATIONS_AMOUNT", 50);
 
 define(
+    "RECOMMENDATION_TYPES",
+    [
+        "movies",
+        "series",
+        "documentaries",
+    ]
+);
+
+define(
     "STREAMING_TECH",
     [
         "dash" => "manifest.mpd",

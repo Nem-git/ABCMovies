@@ -30,6 +30,7 @@ class StreamingServiceHelper
     {
         return [
             "amount" => (int)($request->getQueryParams()["amount"] ?? DEFAULT_RECOMMENDATIONS_AMOUNT),
+            "type" => $args["type"] ?? "",
         ];
     }
 
@@ -108,6 +109,20 @@ class StreamingServiceHelper
     public static function getEpisodeDatabaseIdentifier(string $streamingServiceTag, string $showId, string $seasonId, string $episodeId): string
     {
         return join("/", [strtolower($streamingServiceTag), $showId, $seasonId, $episodeId]);
+    }
+
+    public static function getRecommendationMethodName(string $type): string
+    {
+        if (in_array(strtolower($type), RECOMMENDATION_TYPES, true)) {
+            return "execute".self::getPascalCaseWord($type)."Recommendations";
+        }
+
+        return "";
+    }
+
+    public static function getPascalCaseWord(string $word): string
+    {
+        return ucfirst(strtolower($word));
     }
 
 }

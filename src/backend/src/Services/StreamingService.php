@@ -114,64 +114,26 @@ abstract class StreamingService
 
     //region Movies
 
-    public function getMoviesRecommendations(Request $request, array $args): array
+    public function getMediaRecommendations(Request $request, array $args): array
     {
-        $moviesRecommendationsCriteria = StreamingServiceHelper::parseRecommendationsCriteria($request, $args);
+        $recommendationsCriteria = StreamingServiceHelper::parseRecommendationsCriteria($request, $args);
 
-        return $this->executeMoviesRecommendations(
-            $moviesRecommendationsCriteria["amount"],
+        return $this->executeMediaRecommendations(
+            $recommendationsCriteria["amount"],
+            $recommendationsCriteria["type"],
         );
     }
 
-    public function executeMoviesRecommendations(int $amount): array
+    public function executeMediaRecommendations(int $amount, string $type): array
     {
-        $parameters = $this->getMoviesRecommendationsParameters($amount);
-        $response = RequestHelper::get($this->getMoviesRecommendationsUrl($amount), HTTP_DEFAULT_HEADERS, $parameters);
-        $moviesRecommendations = $this->parseMoviesRecommendationsResults(json_decode($response, true));
-        return array_slice($moviesRecommendations, 0, $amount);
+        $parameters = call_user_func_array([$this, "get".StreamingServiceHelper::getPascalCaseWord($type)."RecommendationsParameters"], [$amount]);
+        $recommendationsUrl = call_user_func_array([$this, "get".StreamingServiceHelper::getPascalCaseWord($type)."RecommendationsUrl"], [$amount]);
+        $response = RequestHelper::get($recommendationsUrl, HTTP_DEFAULT_HEADERS, $parameters);
+        $recommendations = call_user_func_array([$this, "parse".StreamingServiceHelper::getPascalCaseWord($type)."RecommendationsResults"], [json_decode($response, true)]);
+        return array_slice($recommendations, 0, $amount);
     }
 
     //endregion
-
-    //region Series
-
-    public function getSeriesRecommendations(Request $request, array $args): array
-    {
-        $seriesRecommendationsCriteria = StreamingServiceHelper::parseRecommendationsCriteria($request, $args);
-
-        return $this->executeSeriesRecommendations(
-            $seriesRecommendationsCriteria["amount"],
-        );
-    }
-
-    public function executeSeriesRecommendations(int $amount): array
-    {
-        $parameters = $this->getSeriesRecommendationsParameters($amount);
-        $response = RequestHelper::get($this->getSeriesRecommendationsUrl($amount), HTTP_DEFAULT_HEADERS, $parameters);
-        $seriesRecommendations = $this->parseSeriesRecommendationsResults(json_decode($response, true));
-        return array_slice($seriesRecommendations, 0, $amount);
-    }
-
-    //endregion
-
-    //region Documentaries
-
-    public function getDocumentariesRecommendations(Request $request, array $args): array
-    {
-        $documentariesRecommendationsCriteria = StreamingServiceHelper::parseRecommendationsCriteria($request, $args);
-
-        return $this->executeDocumentariesRecommendations(
-            $documentariesRecommendationsCriteria["amount"],
-        );
-    }
-
-    public function executeDocumentariesRecommendations(int $amount): array
-    {
-        $parameters = $this->getDocumentariesRecommendationsParameters($amount);
-        $response = RequestHelper::get($this->getDocumentariesRecommendationsUrl($amount), HTTP_DEFAULT_HEADERS, $parameters);
-        $documentariesRecommendations = $this->parseDocumentariesRecommendationsResults(json_decode($response, true));
-        return array_slice($documentariesRecommendations, 0, $amount);
-    }
 
     //endregion
 

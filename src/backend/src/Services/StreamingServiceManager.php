@@ -8,10 +8,12 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Helpers\StreamingServiceHelper;
 use App\Models\ObjectFactory;
 use App\Models\SearchRecommender;
+use App\Models\MediaRecommender;
 
 class StreamingServiceManager
 {
     private SearchRecommender $searchRecommender;
+    private MediaRecommender $mediaRecommender;
 
     private array $streamingServices = [
         "TOUTV",
@@ -20,10 +22,11 @@ class StreamingServiceManager
     public function __construct()
     {
         $this->searchRecommender = ObjectFactory::createSearchRecommender("fuzzy");
+        $this->mediaRecommender = ObjectFactory::createMediaRecommender("random");
     }
 
 
-    public function getSearchResults(Request $request, array $args)
+    public function getSearchResults(Request $request, array $args): array
     {
         $searchResultsCriteria = StreamingServiceHelper::parseSearchCriteria($request, $args);
 
@@ -51,7 +54,31 @@ class StreamingServiceManager
         return $orderedResults;
     }
 
+    public function getMediaRecommendations(Request $request, array $args): array
+    {
+        $recommendationsCriteria = StreamingServiceHelper::parseRecommendationsCriteria($request, $args);
 
+        return $this->executeMediaRecommendations(
+            $recommendationsCriteria["amount"],
+            $recommendationsCriteria["type"],
+        );
+    }
+
+    public function executeMediaRecommendations(int $amount, string $type): array
+    {
+        $allResults = [];
+
+        foreach ($this->streamingServices as $streamingServiceTag) {
+            $streamingService = ObjectFactory::createStreamingService($streamingServiceTag);
+            $allResults[] = $streamingService->executeMediaRecommendations($amount, $type);
+        }
+
+        $allResults = array_merge(...json_decode(json_encode($allResults), true));
+
+        $orderedResults = $this->mediaRecommender->orderResults($amount, $allResults);
+
+        return $orderedResults;
+    }
 
 
 }

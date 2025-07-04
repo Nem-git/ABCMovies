@@ -188,7 +188,7 @@ class Toutv extends StreamingService
         $releaseDate = $ssResponse["structuredMetadata"]["datePublished"] ?? null;
         $show->year = (int)explode("-", $releaseDate ? $releaseDate : "")[0]; // The first number being the year
 
-        $show->imageBackground = $ssResponse["images"]["background"]["url"];
+        $show->imageBackground = $ssResponse["images"]["background"]["url"] ?? "";
         $show->provider = $this->tag;
 
         foreach ($ssResponse["content"][0]["lineups"] as $ssResponseSeason) {

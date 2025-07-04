@@ -32,7 +32,7 @@ Fuzzy search taking into account all the streaming services
 
 ### StreamingService.php
 
-- [ ] Add multiple methods for recommendations, like series, movies, documentaries etc..
+- [X] Add multiple methods for recommendations, like series, movies, documentaries etc..
 - [X] Split those big methods into small methods that only do one thing and one thing only
 - [X] Add a helper class for most of those small methods that don't need overriding or direct access from outside the class
 - [ ] Add other abstract methods that give the different headers for the requests, as now I am just using HTTP_DEFAULT_HEADERS
@@ -87,6 +87,9 @@ Fuzzy search taking into account all the streaming services
 ### NavBar.svelte
 
 - [ ] It seems that trying to put an icon and text side-by-side gives me a result that is not expected, so fix that
-- [ ] 
+
+### ShowPage.svelte
+
+- [ ] Find a nice and intuitive way to position the show image, title, description etc.. at the top of page
 
 
