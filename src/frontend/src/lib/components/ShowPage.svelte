@@ -26,24 +26,29 @@
   };
 </script>
 
-{#if s}
-  {#await s}
-    <div id="hero">
-      <div id="hero-info">
+<div class="hero">
+  <div class="hero-info">
+    {#if s}
+      {#await s}
         <p>Loading...</p>
+      {:then sh}
+        <span class="title">{sh.title}</span>
+        <span class="description">{sh.fullDescription}</span>
+        <span class="year">Release year: {sh.year}</span>
+      {/await}
+    {/if}
+  </div>
+  {#if s}
+    {#await s then sh}
+      <div class="img-container">
+        <img
+          src={sh.imageBackground.replace("_Size_", "1280")}
+          alt={sh.title}
+        />
       </div>
-    </div>
-  {:then sh}
-    <div id="hero">
-      <div id="hero-info">
-        <h2>{sh.title}</h2>
-        <h4>{sh.fullDescription}</h4>
-        <p>Release year: {sh.year}</p>
-      </div>
-      <img src={sh.imageBackground.replace("_Size_", "720")} alt={sh.title} />
-    </div>
-  {/await}
-{/if}
+    {/await}
+  {/if}
+</div>
 
 <ol>
   {#if s}
@@ -54,7 +59,8 @@
             setSeason(season.id);
           }}
           href={$url("../", { s: season.id })}
-          aria-label={season.number.toString()}>{season.title}</a
+          aria-label={season.number.toString()}
+          id={`s${season.id}`}>{season.title}</a
         >
       {/each}
     {/await}
@@ -62,3 +68,68 @@
 </ol>
 
 <SeasonPage {path} />
+
+<style>
+  img {
+    object-fit: cover;
+    width: 100%;
+
+    border-style: solid;
+    border-width: 5px;
+    border-radius: var(--showpage-image-border-radius);
+    border-color: var(--showpage-image-border-color);
+
+    box-shadow: var(--showpage-image-box-shadow);
+  }
+
+  ol {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow: scroll;
+
+    gap: 50px;
+  }
+
+  a {
+  }
+
+  .hero {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+
+    justify-content: center;
+  }
+
+  .hero-info {
+    display: flex;
+    flex-direction: column;
+
+    max-width: 40vw;
+
+    margin-right: 30px;
+  }
+
+  .title {
+    font-size: 50px;
+  }
+
+  .description {
+    margin-top: 50px;
+    font-size: large;
+
+    line-height: 1.3em;
+  }
+
+  .year {
+    margin-top: 10px;
+    font-size: small;
+
+    color: var(--showpage-year-color);
+  }
+
+  .img-container {
+    max-width: 30vw;
+  }
+</style>

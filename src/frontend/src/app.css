@@ -25,11 +25,24 @@
 
   /** Search */
   --searchbar-background-color: transparent;
-  --searchbar-background-highlight-color: ;
-  --searchbar-box-shadow: rgba(85, 40, 110, 0.2) 0px 0px 30px 20px;
+  --searchbar-box-shadow: var(--navbar-box-shadow);
   --searchbar-border-radius: 0.5em;
   --searchbar-border-color: rgb(95, 60, 95);
   --searchbar-border-inactive-color: rgba(120, 120, 120, 0.3);
+
+  /** Show Card */
+  --showcard-hover-overlay: linear-gradient(
+    to top,
+    rgb(18, 13, 19),
+    rgba(20, 15, 20, 0.2)
+  );
+  --showcard-image-border-radius: 0.25em;
+
+  /** Show Page */
+  --showpage-image-border-radius: 1em;
+  --showpage-image-border-color: var(--searchbar-border-color);
+  --showpage-image-box-shadow: var(--navbar-box-shadow);
+  --showpage-year-color: rgb(130, 110, 130);
 
   /** Text */
   --text-color: rgb(255, 230, 255);
@@ -64,7 +77,6 @@ main {
   top: 0;
   left: 0;
   width: calc(100% - 2 * 5vw);
-
   margin: 150px 5vw 0 5vw;
 }
 

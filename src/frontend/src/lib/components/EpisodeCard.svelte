@@ -8,7 +8,7 @@
 
 <div id="layout">
   <a href={[path.getShow(), seasonId.id, episode.number].join("/")}>
-    <img src={episode.imageCard.replace("_Size_", "400")} alt={episode.title} />
+    <img src={episode.imageCard.replace("_Size_", "480")} alt={episode.title} />
   </a>
   <div id="text">
     <a href={[path.getShow(), seasonId.id, episode.number].join("/")}>

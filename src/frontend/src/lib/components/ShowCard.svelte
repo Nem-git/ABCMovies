@@ -18,14 +18,10 @@
       <span class="description">{show.shortDescription}</span>
     </div>
   </div>
-  <h3>{show.title}</h3>
+  <span class="title">{show.title}</span>
 </a>
 
 <style>
-  :root {
-    --hover-overlay: linear-gradient(0deg, #0d0d0d, transparent);
-  }
-
   a {
     display: flex;
     flex-flow: column nowrap;
@@ -40,6 +36,8 @@
     max-width: 100%;
     max-height: 100%;
     object-fit: cover;
+
+    border-radius: var(--showcard-image-border-radius);
 
     transition-property: transform;
     transition-duration: 0.2s;
@@ -56,7 +54,7 @@
     position: absolute;
     top: 0;
     left: 0;
-    background: var(--hover-overlay);
+    background: var(--showcard-hover-overlay);
     width: 100%;
     height: 100%;
 
@@ -66,13 +64,23 @@
     justify-content: center;
   }
 
+  .title {
+    margin-top: 10px;
+    line-height: 1.3em;
+    font-size: large;
+  }
+
   /* This part is only shown on hover */
 
   a:hover .card-info {
     opacity: 1;
   }
 
+  a:hover .title {
+    text-decoration: underline;
+  }
+
   a:hover img {
-    transform: scale(1.05);
+    transform: scale(1.1);
   }
 </style>
