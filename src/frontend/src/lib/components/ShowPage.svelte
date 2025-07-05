@@ -1,135 +1,132 @@
 <script lang="ts">
-  let { path }: { path: Path } = $props();
+	let { path }: { path: Path } = $props();
 
-  import { Path } from "../path";
-  import type { Show } from "../../api/config";
-  import { onMount } from "svelte";
-  import { url } from "@roxi/routify";
-  import { getShow } from "../../api/show";
-  import { seasonId } from "../shared.svelte";
-  import SeasonPage from "./SeasonPage.svelte";
+	import { Path } from "../path";
+	import type { Show } from "../api/config";
+	import { onMount } from "svelte";
+	import { url } from "@roxi/routify";
+	import { getShow } from "../api/show";
+	import { seasonId } from "../shared.svelte";
+	import SeasonPage from "./SeasonPage.svelte";
 
-  let s: Promise<Show> | undefined = $state();
+	let s: Promise<Show> | undefined = $state();
 
-  onMount(async () => {
-    s = getShow(path.getShow());
+	onMount(async () => {
+		s = getShow(path.getShow());
 
-    // Make that seasonId check to avoid race conditions, where it sets the right season
-    // then the first available season
-    if (!$state.snapshot(seasonId.id)) {
-      setSeason((await s).seasons[0].id);
-    }
-  });
+		// Make that seasonId check to avoid race conditions, where it sets the right season
+		// then the first available season
+		if (!$state.snapshot(seasonId.id)) {
+			setSeason((await s).seasons[0].id);
+		}
+	});
 
-  const setSeason = (id: string) => {
-    seasonId.id = id;
-  };
+	const setSeason = (id: string) => {
+		seasonId.id = id;
+	};
 </script>
 
 <div class="hero">
-  <div class="hero-info">
-    {#if s}
-      {#await s}
-        <p>Loading...</p>
-      {:then sh}
-        <span class="title">{sh.title}</span>
-        <span class="description">{sh.fullDescription}</span>
-        <span class="year">Release year: {sh.year}</span>
-      {/await}
-    {/if}
-  </div>
-  {#if s}
-    {#await s then sh}
-      <div class="img-container">
-        <img
-          src={sh.imageBackground.replace("_Size_", "1280")}
-          alt={sh.title}
-        />
-      </div>
-    {/await}
-  {/if}
+	<div class="hero-info">
+		{#if s}
+			{#await s}
+				<p>Loading...</p>
+			{:then sh}
+				<span class="title">{sh.title}</span>
+				<span class="description">{sh.fullDescription}</span>
+				<span class="year">Release year: {sh.year}</span>
+			{/await}
+		{/if}
+	</div>
+	{#if s}
+		{#await s then sh}
+			<div class="img-container">
+				<img
+					src={sh.imageBackground.replace("_Size_", "1280")}
+					alt={sh.title}
+				/>
+			</div>
+		{/await}
+	{/if}
 </div>
 
 <ol>
-  {#if s}
-    {#await s then sh}
-      {#each sh.seasons as season}
-        <a
-          onclick={() => {
-            setSeason(season.id);
-          }}
-          href={$url("../", { s: season.id })}
-          aria-label={season.number.toString()}
-          id={`s${season.id}`}>{season.title}</a
-        >
-      {/each}
-    {/await}
-  {/if}
+	{#if s}
+		{#await s then sh}
+			{#each sh.seasons as season}
+				<a
+					onclick={() => {
+						setSeason(season.id);
+					}}
+					href={$url("../", { s: season.id })}
+					aria-label={season.number.toString()}
+					id={`s${season.id}`}>{season.title}</a
+				>
+			{/each}
+		{/await}
+	{/if}
 </ol>
 
 <SeasonPage {path} />
 
 <style>
-  img {
-    object-fit: cover;
-    width: 100%;
+	img {
+		object-fit: cover;
+		width: 100%;
 
-    border-style: solid;
-    border-width: 5px;
-    border-radius: var(--showpage-image-border-radius);
-    border-color: var(--showpage-image-border-color);
+		border-style: solid;
+		border-width: 5px;
+		border-radius: var(--showpage-image-border-radius);
+		border-color: var(--showpage-image-border-color);
 
-    box-shadow: var(--showpage-image-box-shadow);
-  }
+		box-shadow: var(--showpage-image-box-shadow);
+	}
 
-  ol {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    overflow: scroll;
+	ol {
+		display: flex;
+		flex-direction: row;
+		flex-wrap: nowrap;
+		overflow: scroll;
 
-    gap: 50px;
-  }
+		gap: 50px;
+	}
 
-  a {
-  }
+	.hero {
+		display: flex;
+		flex-direction: row;
+		flex-wrap: nowrap;
 
-  .hero {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
+		justify-content: center;
+	}
 
-    justify-content: center;
-  }
+	.hero-info {
+		display: flex;
+		flex-direction: column;
 
-  .hero-info {
-    display: flex;
-    flex-direction: column;
+		max-width: 40vw;
 
-    max-width: 40vw;
+		margin-right: 30px;
+	}
 
-    margin-right: 30px;
-  }
+	.title {
+		font-size: 50px;
+	}
 
-  .title {
-    font-size: 50px;
-  }
+	.description {
+		margin-top: 50px;
+		font-size: large;
 
-  .description {
-    margin-top: 50px;
-    font-size: large;
+		line-height: 1.3em;
+	}
 
-    line-height: 1.3em;
-  }
+	.year {
+		margin-top: 10px;
+		font-size: small;
 
-  .year {
-    margin-top: 10px;
-    font-size: small;
+		color: var(--showpage-year-color);
+	}
 
-    color: var(--showpage-year-color);
-  }
-
-  .img-container {
-    max-width: 30vw;
-  }
+	.img-container {
+		max-width: 30vw;
+	}
 </style>

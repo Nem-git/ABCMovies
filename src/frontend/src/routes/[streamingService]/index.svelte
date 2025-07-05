@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { params } from "@roxi/routify";
+	import { params } from "@roxi/routify";
 
-  let { streamingService } = $params;
+	let { streamingService } = $params;
 </script>
 
 <p>{streamingService}</p>
