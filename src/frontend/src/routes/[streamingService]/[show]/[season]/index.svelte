@@ -1,13 +1,11 @@
 <script lang="ts">
-	import { url } from "@roxi/routify";
 	import { params } from "@roxi/routify";
 	import ShowPage from "../../../../lib/components/ShowPage.svelte";
-	import { seasonId } from "../../../../lib/shared.svelte";
-	import { Path } from "../../../../lib/path";
+	import { id } from "../../../../lib/shared.svelte";
 
-	let { season } = $params;
+	let { streamingService, show, season } = $params;
 
-	seasonId.id = season;
+	id.season = season;
 </script>
 
-<ShowPage path={new Path($url("$leaf"))} />
+<ShowPage {streamingService} {show} />

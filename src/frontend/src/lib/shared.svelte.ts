@@ -1,7 +1,3 @@
-export const seasonId = $state({
-	id: "",
-});
-
-export const q = $state({
-	query: "",
+export const id = $state({
+	season: "",
 });

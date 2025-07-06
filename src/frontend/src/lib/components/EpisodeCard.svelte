@@ -1,20 +1,25 @@
 <script lang="ts">
-	let { episode, path }: { episode: Episode; path: Path } = $props();
+	let {
+		streamingService,
+		show,
+		episode,
+	}: { streamingService: string; show: string; episode: Episode } = $props();
 
 	import type { Episode } from "../api/config";
-	import type { Path } from "../path";
-	import { seasonId } from "../shared.svelte";
+	import { id } from "../shared.svelte";
+
+	let href = `/${[streamingService, show, id.season, episode.number].join("/")}`;
 </script>
 
 <div id="layout">
-	<a href={[path.getShow(), seasonId.id, episode.number].join("/")}>
+	<a {href}>
 		<img
 			src={episode.imageCard.replace("_Size_", "480")}
 			alt={episode.title}
 		/>
 	</a>
 	<div id="text">
-		<a href={[path.getShow(), seasonId.id, episode.number].join("/")}>
+		<a {href}>
 			<h5>{episode.title}</h5>
 		</a>
 		<p id="description">{episode.fullDescription}</p>

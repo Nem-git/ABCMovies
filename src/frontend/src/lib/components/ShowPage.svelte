@@ -1,28 +1,28 @@
 <script lang="ts">
-	let { path }: { path: Path } = $props();
+	let { streamingService, show }: { streamingService: string; show: string } =
+		$props();
 
-	import { Path } from "../path";
 	import type { Show } from "../api/config";
 	import { onMount } from "svelte";
 	import { url } from "@roxi/routify";
 	import { getShow } from "../api/show";
-	import { seasonId } from "../shared.svelte";
+	import { id } from "../shared.svelte";
 	import SeasonPage from "./SeasonPage.svelte";
 
 	let s: Promise<Show> | undefined = $state();
 
 	onMount(async () => {
-		s = getShow(path.getShow());
+		s = getShow(streamingService, show);
 
 		// Make that seasonId check to avoid race conditions, where it sets the right season
 		// then the first available season
-		if (!$state.snapshot(seasonId.id)) {
+		if (!$state.snapshot(id).season) {
 			setSeason((await s).seasons[0].id);
 		}
 	});
 
-	const setSeason = (id: string) => {
-		seasonId.id = id;
+	const setSeason = (sId: string) => {
+		id.season = sId;
 	};
 </script>
 
@@ -58,16 +58,19 @@
 					onclick={() => {
 						setSeason(season.id);
 					}}
-					href={$url("../", { s: season.id })}
-					aria-label={season.number.toString()}
-					id={`s${season.id}`}>{season.title}</a
+					href={$url("/[streamingService]/[show]", {
+						streamingService: streamingService,
+						show: show,
+						s: season.id,
+					})}
+					aria-label={season.title}>{season.title}</a
 				>
 			{/each}
 		{/await}
 	{/if}
 </ol>
 
-<SeasonPage {path} />
+<SeasonPage {streamingService} {show} />
 
 <style>
 	img {
