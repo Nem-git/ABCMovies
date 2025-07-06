@@ -79,6 +79,8 @@ Fuzzy search taking into account all the streaming services
 
 ## Common
 
+- [ ] Make the switch from Routify to SvelteKit (Big project, takes time to do right, maybe new branch)
+
 ## SearchPage.svelte
 
 - [X] Fix inputting ../ and stuff allowing movement through the site, instead use url query params

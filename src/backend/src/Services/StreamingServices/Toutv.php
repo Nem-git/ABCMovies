@@ -266,7 +266,7 @@ class Toutv extends StreamingService
         $episode->title = $ssResponse["Metas"]["Title"];
         $episode->number = (int)$ssResponse["Metas"]["SrcEpisode"];
 
-        $episode->fullDescription = $ssResponse["Metas"]["Description"];
+        $episode->fullDescription = ($ssResponse["Metas"]["Description"] ?: $ssResponse["Metas"]["ShortDescription"]) ?: "";
         $episode->shortDescription = !empty($ssResponse["Metas"]["ShortDescription"]) ? $ssResponse["Metas"]["ShortDescription"] : $episode->fullDescription;
     }
 
