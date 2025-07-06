@@ -21,7 +21,13 @@ class Fuzzy extends SearchRecommender
     {
         self::$options["keys"] = $keys;
         $fuse = new Fuse($results, self::$options);
-        $orderedResults = $fuse->search($query);
+        $rawOrderedResults = $fuse->search($query);
+
+        $orderedResults = [];
+
+        foreach ($rawOrderedResults as $result) {
+            array_push($orderedResults, $result["item"]);
+        }
 
         return $orderedResults;
     }
