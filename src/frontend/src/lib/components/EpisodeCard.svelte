@@ -5,7 +5,7 @@
 		episode,
 	}: { streamingService: string; show: string; episode: Episode } = $props();
 
-	import type { Episode } from "../api/config";
+	import type { Episode } from "../types";
 	import { id } from "../shared.svelte";
 
 	let href = `/${[streamingService, show, id.season, episode.number].join("/")}`;

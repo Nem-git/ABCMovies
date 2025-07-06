@@ -2,11 +2,9 @@
 	import { init } from "../../../../../lib/videoPlayer/dashjsPlayer.svelte";
 	import { manifestUrl } from "../../../../../lib/videoPlayer/dashjsPlayer.svelte";
 
-	import { url } from "@roxi/routify";
-	import type { Episode } from "../../../../../lib/api/config";
-	import { getEpisode } from "../../../../../lib/api/episode";
+	import type { Episode } from "../../../../../lib/types";
+	import { getEpisode } from "../../../../../lib/api";
 	import { onMount } from "svelte";
-	import { Path } from "../../../../../lib/path";
 	import { params } from "@roxi/routify";
 
 	let { streamingService, show, season, episode } = $params;

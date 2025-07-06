@@ -2,8 +2,8 @@
 	let { streamingService, show }: { streamingService: string; show: string } =
 		$props();
 
-	import type { Season } from "../api/config";
-	import { getSeason } from "../api/season";
+	import type { Season } from "../types";
+	import { getSeason } from "../api";
 	import EpisodeCard from "./EpisodeCard.svelte";
 	import { id } from "../shared.svelte";
 

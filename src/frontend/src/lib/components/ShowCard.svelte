@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { url } from "@roxi/routify";
 
-	import type { Show } from "../api/config";
+	import type { Show } from "../types";
 	let { show }: { show: Show } = $props();
 </script>
 

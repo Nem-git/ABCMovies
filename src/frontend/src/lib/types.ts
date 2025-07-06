@@ -1,5 +1,3 @@
-export const API_URL = "http://localhost/api";
-
 export type Show = {
 	id: string;
 	title: string;

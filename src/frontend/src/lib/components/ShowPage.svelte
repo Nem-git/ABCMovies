@@ -2,10 +2,10 @@
 	let { streamingService, show }: { streamingService: string; show: string } =
 		$props();
 
-	import type { Show } from "../api/config";
+	import type { Show } from "../types";
 	import { onMount } from "svelte";
 	import { url } from "@roxi/routify";
-	import { getShow } from "../api/show";
+	import { getShow } from "../api";
 	import { id } from "../shared.svelte";
 	import SeasonPage from "./SeasonPage.svelte";
 

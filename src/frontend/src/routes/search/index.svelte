@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { goto } from "@roxi/routify";
 	import { params } from "@roxi/routify";
-	import type { Show } from "../../lib/api/config";
-	import { getSearchResults } from "../../lib/api/search";
+
+	import type { Show } from "../../lib/types";
+	import { getSearchResults } from "../../lib/api";
 
 	import ShowCard from "../../lib/components/ShowCard.svelte";
 
