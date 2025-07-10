@@ -1,259 +1,175 @@
 import urllib
 import base64
+import os
 import requests
 import re
+from lxml import etree
 from mpd_parser.parser import Parser
 from mpd_parser.models.composite_tags import MPD
-import os
-from lxml import etree
+from uuid import uuid4
 
-# Removed just for debugging
+# Production
 from app.models import MpdRequest
 from app.models import Response
 
+# Development
 # from models import MpdRequest
 # from models import Response
 
-
-# TODO: Look at base_urls, segment_bases, segment_lists and segment_templates for URLS to take into account
 # TODO: Remove/replace base_urls
-# TODO: Verify what kind of decryption the web player and mpv support (with/without init merging, etc..)
 
 
 class ManifestModifier:
 
-    manifest_url: str
-    mpd: MPD
+    base_url: str
+    mpd_url: str
+    mpd_object: Parser
+    mpd_content: str
 
     def get_modified_mpd(self, request: MpdRequest, response: Response) -> str:
-
         try:
-            self.manifest_url = request.mpdUrl
+            self.mpd_url = request.mpdUrl
+            self.mpd_content = request.mpdContent
+            # Sets the base url from the manifest
+            self.mpd_object = Parser.from_string(self.mpd_content)
+            self._set_initial_base_url()
 
-            self.mpd = Parser.from_string(
-                self._get_mpd_content(request.mpdUrl, request.mpdHeaders)
-            )
-
-            self._parse_periods(self.mpd)
-
+            self._parse_xml()
         except Exception as e:
-            response.error = e
+            response.error = str(e)
+            return
 
-        str_mpd: str = Parser.to_string(self.mpd)
-        str_mpd: str = self._lxml_modifications(str_mpd)
-        mpd: MPD = Parser.from_string(str_mpd)
-        response.value = Parser.to_string(mpd)
+        # Apply XML modifications (cleaning up DRM, etc.)
+        mpd_str = Parser.to_string(self.mpd_object)
+        mpd_str = self._apply_lxml_modifications(mpd_str)
 
-    def _lxml_modifications(self, mpd_xml_str: str):
+        response.value = mpd_str
+
+    def _set_initial_base_url(self):
+        # This gives the Manifest url WITHOUT the manifest's filename
+        # self.base_url = self._join_url(self.mpd_url, "../")
+        self.base_url = self.mpd_url
+
+    def _extend_base_url(self, element: Parser, original_base_url: str) -> str:
+
+        if len(element.base_urls) > 0:
+            return self._join_url(original_base_url, element.base_urls[0])
+
+        return original_base_url
+
+    def _join_url(self, base_url, new_part):
+        return urllib.parse.urljoin(base_url, new_part)
+
+    def _apply_lxml_modifications(self, mpd_xml_str: str) -> str:
         parser = etree.XMLParser(remove_blank_text=True, ns_clean=True, recover=True)
         root = etree.fromstring(mpd_xml_str.encode("utf-8"), parser)
 
-        # root = self._remove_drm_remains(root)
-        root = self._remove_content_protection(root)
-        # root = self._remove_non_compliant(root)
-        root = self._remove_drm_namespaces(root)
+        # Remove DRM-related elements
+        root = self._remove_drm_namespaces(self._remove_content_protection(root))
 
         return etree.tostring(root, encoding="unicode", pretty_print=True)
 
-    def _remove_drm_remains(self, root):
-
-        drm_ns_prefixes = {"mspr", "cenc", "widevine"}
-
-        # Build a new nsmap without DRM namespaces
-        new_nsmap = {k: v for k, v in root.nsmap.items() if k not in drm_ns_prefixes}
-
-        # Create a new root element with the same tag, text, tail, attributes, but filtered nsmap
-        new_root = etree.Element(root.tag, nsmap=new_nsmap)
-
-        # Copy attributes (excluding xmlns declarations, which are handled by nsmap)
-        for attr_key, attr_val in root.attrib.items():
-            new_root.set(attr_key, attr_val)
-
-        # Copy children
-        for child in root:
-            new_root.append(child)
-
-        # Copy text and tail
-        new_root.text = root.text
-        new_root.tail = root.tail
-
-        # Serialize back to string with pretty print
-        return new_root
-
     def _remove_drm_namespaces(self, root):
-
         mpd_content = etree.tostring(root, encoding="unicode")
 
-        # Remove PlayReady namespace declarations
+        # Remove DRM namespaces and associated elements
         mpd_content = re.sub(r'\sxmlns:mspr="urn:microsoft:playready"', "", mpd_content)
-
-        # Remove any attributes that use the PlayReady namespace
         mpd_content = re.sub(r'\smspr:[^\s=]+="[^"]*"', "", mpd_content)
-
-        # Remove any elements that use the PlayReady namespace
         mpd_content = re.sub(
             r"<mspr:[^>]+>[^<]*</mspr:[^>]+>", "", mpd_content, flags=re.DOTALL
         )
 
-        parser = etree.XMLParser(remove_blank_text=True, ns_clean=True, recover=True)
-        root = etree.fromstring(mpd_content.encode("utf-8"), parser)
-        return root
-
-    def _remove_non_compliant(self, root) -> str:
-
-        cps = root.xpath(
-            ".//mpd:SupplementalProperty",
-            namespaces={"mpd": "urn:mpeg:dash:schema:mpd:2011"},
-        )
-
-        for cp in cps:
-            parent = cp.getparent()
-            if parent is not None:
-                parent.remove(cp)
-
-        cps = root.xpath(
-            ".//mpd:Accessibility", namespaces={"mpd": "urn:mpeg:dash:schema:mpd:2011"}
-        )
-
-        for cp in cps:
-            parent = cp.getparent()
-            if parent is not None:
-                parent.remove(cp)
-
-        cps = root.xpath(
-            ".//mpd:Role", namespaces={"mpd": "urn:mpeg:dash:schema:mpd:2011"}
-        )
-
-        for cp in cps:
-            parent = cp.getparent()
-            if parent is not None:
-                parent.remove(cp)
-
-        return root
+        return etree.fromstring(mpd_content.encode("utf-8"))
 
     def _remove_content_protection(self, root):
-
+        # Remove <ContentProtection> tags
         cps = root.xpath(
             ".//mpd:ContentProtection",
             namespaces={"mpd": "urn:mpeg:dash:schema:mpd:2011"},
         )
-
         for cp in cps:
             parent = cp.getparent()
-            if parent is not None:
+            if len(parent):
                 parent.remove(cp)
 
         return root
 
-    def _get_mpd_content(self, url: str, headers: dict) -> str:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        return response.text
+    def _parse_xml(self):
+        mpd_base_url = self._extend_base_url(self.mpd_object, self.base_url)
 
-    def _parse_periods(self, parent):
-        for period in parent.periods:
-            self._parse_adaptation_sets(period)
+        for period in self.mpd_object.periods:
+            period_base_url = self._extend_base_url(period, mpd_base_url)
 
-    def _parse_adaptation_sets(self, parent):
-        for adaptation_set in parent.adaptation_sets:
-            self._parse_segment_templates(adaptation_set)
-            self._parse_representations(adaptation_set)
+            for adaptation_set in period.adaptation_sets:
+                adaptation_set_base_url = self._extend_base_url(
+                    adaptation_set, period_base_url
+                )
+                self._parse_segment_templates(adaptation_set, adaptation_set_base_url)
 
-    def _parse_representations(self, parent):
-        for representation in parent.representations:
-            self._parse_segment_templates(representation)
+                for representation in adaptation_set.representations:
+                    representation_base_url = self._extend_base_url(
+                        representation, adaptation_set_base_url
+                    )
+                    self._parse_segment_templates(
+                        representation, representation_base_url
+                    )
 
-    def _parse_segment_templates(self, parent):
+    def _parse_segment_templates(self, parent, base_url=""):
         for segment_template in parent.segment_templates:
 
-            init_base_url = self._find_base_url(parent, segment_template.initialization)
-            media_base_url = self._find_base_url(parent, segment_template.media)
+            init_media_id = self._get_unique_id()
 
-            init_path = self._clean_segment_url(segment_template.initialization)
-            media_path = self._clean_segment_url(segment_template.media)
+            init_url = self._join_url(base_url, segment_template.initialization)
+            formatted_init_path = self._get_formatted_path(init_url)
 
-            init_url = os.path.join(
-                "init", self._base_64_encode(init_base_url), init_path
+            media_url = self._join_url(base_url, segment_template.media)
+            formatted_media_path = self._get_formatted_path(media_url)
+
+            # Init Url also needs to know it's own checksum
+            # Because of changing values in the url, like $RepresentationId$
+            # it would be impossible to link the init with the media
+            init_url = self._construct_segment_url(
+                "dash/init", formatted_init_path, init_url, init_media_id
             )
-            # Added the init URL, to be able to identify and select the right init content in the DB for merging
-            b64_init_url = self._base_64_encode(
-                urllib.parse.urljoin(init_base_url, init_path)
+            media_url = self._construct_segment_url(
+                "dash/media", formatted_media_path, init_url, init_media_id
             )
 
-            media_url = os.path.join(
-                "media", b64_init_url, self._base_64_encode(media_base_url), media_path
-            )
-
-            # Removed init now, because it interferes with the non-encrypted segments
+            # Replace URLs in the segment template
             self._replace_init_url(segment_template, init_url)
             self._replace_media_url(segment_template, media_url)
 
-    def _base_64_encode(self, url: str) -> str:
-        return base64.b64encode(url.encode("utf-8")).decode("utf-8")
+    def _get_formatted_path(self, url: str) -> str:
+        split_url = urllib.parse.urlsplit(url)
 
-    def _urlencoded(self, url: str) -> str:
-        return urllib.parse.quote_plus(url)
+        # This creates a link that looks like https/rcatoutv.ca/test
+        new_path = "/".join([split_url.scheme, split_url.netloc]) + split_url.path
 
-    def _base_url_from_url(self, url) -> str:
-        return os.path.dirname(url) + "/"
+        if split_url.query:
+            new_path += "?" + split_url.query
 
-    # I only use urllib.parse.urljoin here and not os.path.join, because it takes ../ paths and
-    # is meant for full urls, not relatives like in the other cases
-    def _find_base_url(self, parent, segment_url):
-        base_url = ""
+        if split_url.fragment:
+            new_path += "#" + split_url.fragment
 
-        # If there is a baseurl, add it firt to the base_url
-        if len(parent.base_urls) > 0:
-            base_url = urllib.parse.urljoin(base_url, parent.base_urls[0])
-        else:
-            base_url = urllib.parse.urljoin(
-                base_url, self._base_url_from_url(self.manifest_url)
-            )
+        return new_path
 
-        re_match = re.search(r"^[\./]+", segment_url)
+    def _construct_segment_url(
+        self, segment_type: str, formatted_path: str, init_url: str, init_media_id: str
+    ) -> str:
 
-        if re_match:
-            # Only matters if there are ../../ in front of the segment url template
-            base_url = urllib.parse.urljoin(base_url, re_match.group())
+        return os.path.join(segment_type, init_media_id, formatted_path)
 
-        return base_url
+    def _get_unique_id(self, text: str = "") -> str:
+        return str(uuid4())
 
-    def _clear_base_url(self, parent):
-        parent.base_urls = []
+    def _get_last_url_part(self, url: str) -> str:
+        # Removes trailing / and returns the last part of the URL (usually filename, ?q=params, #frags etc)
+        return url.rstrip("/").split("/")[-1]
 
-    def _replace_init_url(self, parent, url):
-        parent.initialization = url
+    def _replace_init_url(self, parent, url: str):
+        if parent.initialization:
+            parent.initialization = url
 
-    def _replace_media_url(self, parent, url):
-        parent.media = url
-
-    def _clean_segment_url(self, url: str) -> str:
-        parsed_url = urllib.parse.urlsplit(url)
-        clean_url = ""
-
-        # Takes only what is after https:// and ../
-        # Should always match (except for rare cases, like images)
-        re_match = re.search(r"[^./]+[\w\W]*$", parsed_url.path)
-
-        if re_match:
-            clean_url = re_match.group()
-
-        if len(parsed_url.query) > 0:
-            clean_url += "?" + parsed_url.query
-
-        # Should return a cleaned URL, from: ../file.mp4 to: file.mp4
-        # or from: https://video.com/file.mp4 to file.mp4
-        # (don't worry, the video.com part is saved as urlencoded base_url)
-        return clean_url
-
-
-if __name__ == "__main__":
-    mpd_request = MpdRequest()
-    mpd_request.mpdUrl = "https://cbcrcott-aws-toutv.akamaized.net/out/v1/e71b9f2ee8684145982294c54e2311ed/97c7a58d11d84ea78801a32f293d0a21/27f2eb30c8fb43f99ba46fee14ce2d37/index-multi-drm.mpd?pckgrp=bd19b98e3f6f49156464835f3aa1e8bb&ewid=83314&filter=3000&EIA608ClosedCaptions=true&lang=fr"
-    response = Response()
-
-    manifest_modifier = ManifestModifier()
-    manifest_modifier.get_modified_mpd(mpd_request, response)
-
-    with open("file.xml", "wt") as f:
-        f.write(response.value)
+    def _replace_media_url(self, parent, url: str):
+        if parent.media:
+            parent.media = url

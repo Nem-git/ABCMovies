@@ -20,4 +20,4 @@ class DecryptRequest(BaseModel):
 
 class MpdRequest(BaseModel):
     mpdUrl: str = ""
-    mpdHeaders: dict = {}
+    mpdContent: str = ""
