@@ -17,12 +17,12 @@ use App\Models\ObjectFactory;
  */
 class Toutv extends StreamingService
 {
-    protected string $name = "Tou.TV";
-    protected string $tag = "TOUTV";
+    public string $name = "Tou.TV";
+    public string $tag = "TOUTV";
 
     //region Parsing
 
-    protected function parseSearchResults(array $ssResponse): array
+    public function parseSearchResults(array $ssResponse): array
     {
         $results = [];
 
@@ -46,7 +46,7 @@ class Toutv extends StreamingService
         return $results;
     }
 
-    protected function parseShowRecommendationsResults(array $response): array
+    public function parseShowRecommendationsResults(array $response): array
     {
         $recommendations = [];
 
@@ -68,7 +68,7 @@ class Toutv extends StreamingService
         return $recommendations;
     }
 
-    protected function parseMoviesRecommendationsResults(array $response): array
+    public function parseMoviesRecommendationsResults(array $response): array
     {
         $recommendations = [];
 
@@ -90,18 +90,18 @@ class Toutv extends StreamingService
         return $recommendations;
     }
 
-    protected function parseSeriesRecommendationsResults(array $response): array
+    public function parseSeriesRecommendationsResults(array $response): array
     {
         return $this->parseMoviesRecommendationsResults($response);
     }
 
-    protected function parseDocumentariesRecommendationsResults(array $response): array
+    public function parseDocumentariesRecommendationsResults(array $response): array
     {
         return $this->parseMoviesRecommendationsResults($response);
     }
 
     // This is totally wrong and I shouldn't do this, but the way I structured my functions made me do it
-    protected function parseNextRecommendationResult(array $response, string $showId, string $seasonId, string $episodeId): array
+    public function parseNextRecommendationResult(array $response, string $showId, string $seasonId, string $episodeId): array
     {
         // I have actually no idea how to comply with this function, because in this case I really need to have access
         // to the show, season and episode. Having only the response will lead to nothing, because I do not have the
@@ -179,7 +179,7 @@ class Toutv extends StreamingService
         return [];
     }
 
-    protected function parseShowInfo(Show $show, array $ssResponse): void
+    public function parseShowInfo(Show $show, array $ssResponse): void
     {
         // Set title, and if it is originally in a language other than french set it to original language
         $show->title = $ssResponse["originalTitle"] ?? $ssResponse["title"];
@@ -202,7 +202,7 @@ class Toutv extends StreamingService
         }
     }
 
-    protected function parseSeasonInfo(Season $season, array $ssResponse): void
+    public function parseSeasonInfo(Season $season, array $ssResponse): void
     {
         foreach ($ssResponse["content"][0]["lineups"] as $ssResponseSeason) {
 
@@ -236,7 +236,7 @@ class Toutv extends StreamingService
         $season->id = ""; // To clean the season, as the season requested does not exist
     }
 
-    protected function parseEpisodeInfo(Episode $episode, array $ssResponse): void
+    public function parseEpisodeInfo(Episode $episode, array $ssResponse): void
     {
         $episode->id = $ssResponse["idFichierToutv"];
         $episode->title = $ssResponse["emission"];
@@ -244,7 +244,7 @@ class Toutv extends StreamingService
         $episode->provider = $this->tag;
     }
 
-    protected function parseEpisodeDownloadInfo(Episode $episode, array $ssResponse): DownloadInfo
+    public function getEpisodeDownloadInfo(Episode $episode, array $ssResponse): DownloadInfo
     {
         $downloadInfo = ObjectFactory::createDownloadInfo();
 
@@ -291,12 +291,12 @@ class Toutv extends StreamingService
 
     //region Get TOU.TV values
 
-    protected function getSearchUrl(string $query, int $amount): string
+    public function getSearchUrl(string $query, int $amount): string
     {
         return TOUTV_URL_SEARCH;
     }
 
-    protected function getSearchParameters(string $query, int $amount): array
+    public function getSearchParameters(string $query, int $amount): array
     {
         $parameters = TOUTV_PARAMETERS_SEARCH;
         $parameters["pageSize"] = $amount;
@@ -304,87 +304,87 @@ class Toutv extends StreamingService
         return $parameters;
     }
 
-    protected function getShowRecommendationsUrl(string $showId, int $amount): string
+    public function getShowRecommendationsUrl(string $showId, int $amount): string
     {
         return $this->getShowInfoUrl($showId);
     }
 
-    protected function getShowRecommendationsParameters(string $showId, int $amount): array
+    public function getShowRecommendationsParameters(string $showId, int $amount): array
     {
         $parameters = TOUTV_PARAMETERS_SHOW_RECOMMENDATIONS;
         $parameters["pageSize"] = $amount;
         return $parameters;
     }
 
-    protected function getMoviesRecommendationsUrl(int $amount): string
+    public function getMoviesRecommendationsUrl(int $amount): string
     {
         return TOUTV_URL_MOVIES_RECOMMENDATIONS;
     }
 
-    protected function getMoviesRecommendationsParameters(int $amount): array
+    public function getMoviesRecommendationsParameters(int $amount): array
     {
         $parameters = TOUTV_PARAMETERS_MOVIES_RECOMMENDATIONS;
         $parameters["pageSize"] = $amount;
         return $parameters;
     }
 
-    protected function getSeriesRecommendationsUrl(int $amount): string
+    public function getSeriesRecommendationsUrl(int $amount): string
     {
         return TOUTV_URL_SERIES_RECOMMENDATIONS;
     }
 
-    protected function getSeriesRecommendationsParameters(int $amount): array
+    public function getSeriesRecommendationsParameters(int $amount): array
     {
         return $this->getMoviesRecommendationsParameters($amount);
     }
 
-    protected function getDocumentariesRecommendationsUrl(int $amount): string
+    public function getDocumentariesRecommendationsUrl(int $amount): string
     {
         return TOUTV_URL_DOCUMENTARIES_RECOMMENDATIONS;
     }
 
-    protected function getDocumentariesRecommendationsParameters(int $amount): array
+    public function getDocumentariesRecommendationsParameters(int $amount): array
     {
         return $this->getMoviesRecommendationsParameters($amount);
     }
 
-    protected function getNextRecommendationUrl(string $showId, string $seasonId, string $episodeId): string
+    public function getNextRecommendationUrl(string $showId, string $seasonId, string $episodeId): string
     {
         return $this->getSeasonInfoUrl($showId, $seasonId);
     }
 
-    protected function getNextRecommendationParameters(string $showId, string $seasonId, string $episodeId): array
+    public function getNextRecommendationParameters(string $showId, string $seasonId, string $episodeId): array
     {
         return $this->getSeasonInfoParameters($showId, $seasonId);
     }
 
-    protected function getShowInfoUrl(string $showId): string
+    public function getShowInfoUrl(string $showId): string
     {
         return TOUTV_URL_SHOW_INFO . $showId;
     }
 
-    protected function getShowInfoParameters(string $showId): array
+    public function getShowInfoParameters(string $showId): array
     {
         return TOUTV_PARAMETERS_SHOW_INFO;
     }
 
-    protected function getSeasonInfoUrl(string $showId, string $seasonId): string
+    public function getSeasonInfoUrl(string $showId, string $seasonId): string
     {
         return TOUTV_URL_SEASON_INFO . $showId . "/s" . $seasonId;
     }
 
-    protected function getSeasonInfoParameters(string $showId, string $seasonId): array
+    public function getSeasonInfoParameters(string $showId, string $seasonId): array
     {
         return TOUTV_PARAMETERS_SEASON_INFO;
     }
 
-    protected function getEpisodeInfoUrl(string $showId, string $seasonId, string $episodeId): string
+    public function getEpisodeInfoUrl(string $showId, string $seasonId, string $episodeId): string
     {
         // THis %02d adds a trailing 0 in front of the number as a string, like 01 instead of 1
         return TOUTV_URL_EPISODE_INFO . $showId . "/s" . sprintf("%02d", $seasonId) . "e" . sprintf("%02d", $episodeId);
     }
 
-    protected function getEpisodeInfoParameters(string $showId, string $seasonId, string $episodeId): array
+    public function getEpisodeInfoParameters(string $showId, string $seasonId, string $episodeId): array
     {
         return TOUTV_PARAMETERS_EPISODE_INFO;
     }

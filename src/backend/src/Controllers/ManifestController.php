@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+require_once __DIR__ . "../../../config/constants.php";
+
 class ManifestController
 {
     private $repository; // Database Repository
@@ -26,7 +28,7 @@ class ManifestController
 
     public function addInitContent(string $id, string $content)
     {
-        return $this->repository->add($id, $content, null);
+        return $this->repository->add($id, $content, DEFAULT_INIT_CONTENT_TTL);
     }
 
     public function getInitContent(string $id): string | null

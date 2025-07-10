@@ -23,7 +23,7 @@ class RedisRepository
 
     public function add($key, $value, ?int $ttl): Status | null
     {
-        return $this->conn->set($key, $value, expireTTL: $ttl);
+        return $this->conn->set($key, $value, DEFAULT_REDIS_TTL_TYPE, expireTTL: $ttl);
     }
 
     public function addToList(string $key, array $value): int

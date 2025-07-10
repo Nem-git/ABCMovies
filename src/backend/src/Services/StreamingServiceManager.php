@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Helpers\SlimRequestParsingHelper;
 use Psr\Http\Message\ServerRequestInterface as Request;
-use App\Helpers\StreamingServiceHelper;
 use App\Models\ObjectFactory;
 use App\Models\SearchRecommender;
 use App\Models\MediaRecommender;
@@ -28,7 +28,7 @@ class StreamingServiceManager
 
     public function getSearchResults(Request $request, array $args): array
     {
-        $searchResultsCriteria = StreamingServiceHelper::parseSearchCriteria($request, $args);
+        $searchResultsCriteria = SlimRequestParsingHelper::parseSearchCriteria($request, $args);
 
         return $this->executeSearchResults(
             $searchResultsCriteria["query"],
@@ -56,7 +56,7 @@ class StreamingServiceManager
 
     public function getMediaRecommendations(Request $request, array $args): array
     {
-        $recommendationsCriteria = StreamingServiceHelper::parseRecommendationsCriteria($request, $args);
+        $recommendationsCriteria = SlimRequestParsingHelper::parseRecommendationsCriteria($request, $args);
 
         return $this->executeMediaRecommendations(
             $recommendationsCriteria["amount"],

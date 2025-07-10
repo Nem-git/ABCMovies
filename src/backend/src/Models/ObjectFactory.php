@@ -4,33 +4,67 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Controllers\ManifestController;
-use App\Models\PsshRetriever;
-use App\Models\DecryptionKeysRetriever;
-use App\Models\ManifestModifier;
-use App\Repositories\RedisRepository;
-use App\Services\DecryptionKeysRetriever\PythonBackend as DecryptionKeysRetrieverPythonBackend;
-use App\Services\PsshRetriever\PythonBackend as PsshRetrieverPythonBackend;
-use App\Services\ManifestModifier\PythonBackend as ManifestModifierPythonBackend;
-use App\Services\SegmentDecryptor\Shell as SegmentDecryptorShell;
-use App\Services\SegmentDecryptor\Php as SegmentDecryptorPhp;
-use App\Services\SegmentDecryptor\PythonBackend as SegmentDecryptorPythonBackend;
-use App\Services\StreamingService;
-use App\Services\StreamingServices\Toutv as StreamingServiceToutv;
-use App\Models\SearchRecommender;
-use App\Services\SearchRecommender\Fuzzy as SearchRecommenderFuzzy;
-use App\Models\MediaRecommender;
-use App\Services\MediaRecommender\Random as MediaRecommenderRandom;
-use App\Services\StreamingServiceManager;
-use App\Models\Show;
-use App\Models\Season;
-use App\Models\Episode;
-use App\Models\DownloadInfo;
+use App\Controllers\{
+    ManifestController,
+};
+use App\Models\{
+    DecryptionKeysRetriever,
+    DownloadInfo,
+    Episode,
+    ManifestModifier,
+    MediaRecommender,
+    PsshRetriever,
+    SearchRecommender,
+    Season,
+    Show,
+    StreamingTechnology
+};
+use App\Repositories\{
+    RedisRepository,
+};
+use App\Services\{
+    StreamingService,
+    StreamingServiceManager,
+};
+use App\Services\ManifestModifier\{
+    PythonBackend as ManifestModifierPythonBackend,
+};
+use App\Services\MediaRecommender\{
+    Random as MediaRecommenderRandom
+};
+use App\Services\PsshRetriever\{
+    PythonBackend as PsshRetrieverPythonBackend,
+};
+use App\Services\DecryptionKeysRetriever\{
+    PythonBackend as DecryptionKeysRetrieverPythonBackend,
+};
+use App\Services\SearchRecommender\{
+    Fuzzy as SearchRecommenderFuzzy
+};
+use App\Services\SegmentDecryptor\{
+    Php as SegmentDecryptorPhp,
+    PythonBackend as SegmentDecryptorPythonBackend,
+    Shell as SegmentDecryptorShell
+};
+use App\Services\StreamingServices\{
+    Toutv as StreamingServiceToutv,
+};
+use App\Services\StreamingTechnology\{
+    Dash as StreamingTechnologyDash,
+    Hls as StreamingTechnologyHls,
+    Mp4 as StreamingTechnologyMp4
+};
 
 class ObjectFactory
 {
     private static array $streamingService = [
         "TOUTV" => StreamingServiceToutv::class,
+    ];
+
+    private static array $streamingTechnology = [
+        "dash" => StreamingTechnologyDash::class,
+        "hls" => StreamingTechnologyHls::class,
+        "mp4" => StreamingTechnologyMp4::class,
     ];
 
     private static array $psshRetriever = [
@@ -51,6 +85,10 @@ class ObjectFactory
         "shell" => SegmentDecryptorShell::class,
     ];
 
+    private static array $repository = [
+        "redis" => RedisRepository::class,
+    ];
+
     private static array $searchRecommender = [
         "fuzzy" => SearchRecommenderFuzzy::class,
     ];
@@ -62,6 +100,12 @@ class ObjectFactory
     public static function createStreamingService(string $tag): StreamingService
     {
         $class = self::$streamingService[$tag];
+        return new $class();
+    }
+
+    public static function createStreamingTechnology(string $name): StreamingTechnology
+    {
+        $class = self::$streamingTechnology[$name];
         return new $class();
     }
 
@@ -113,9 +157,9 @@ class ObjectFactory
         return new $class();
     }
 
-    public static function createRepository(): RedisRepository
+    public static function createRepository(string $type): RedisRepository
     {
-        $class = RedisRepository::class;
+        $class = self::$repository[$type] ?? null;
         return new $class();
     }
 
@@ -142,5 +186,4 @@ class ObjectFactory
         $class = StreamingServiceManager::class;
         return new $class();
     }
-
 }

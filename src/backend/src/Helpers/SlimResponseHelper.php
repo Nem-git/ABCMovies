@@ -16,6 +16,14 @@ class SlimResponseHelper
         return $response;
     }
 
+    public static function response_text($data, Response $response): Response
+    {
+        $response->getBody()->write($data);
+        $response = self::basic_response($response);
+        $response = $response->withHeader("Content-Type", "text/plain");
+        return $response;
+    }
+
     public static function response_dash(string $data, Response $response): Response
     {
         $response->getBody()->write($data);

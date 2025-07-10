@@ -12,6 +12,11 @@ class DownloadInfo
     public string $mpdUrl;
 
     /**
+     * MPD Content
+     */
+    public string $mpdContent;
+
+    /**
      * Headers for the MPD request
      */
     public array $mpdHeaders = [];

@@ -23,6 +23,8 @@ define(
 
 define("DEFAULT_SEARCH_RESULTS_AMOUNT", 20);
 define("DEFAULT_RECOMMENDATIONS_AMOUNT", 50);
+define("DEFAULT_REDIS_TTL_TYPE", "EX"); // EX seconds, PX milliseconds, https://redis.io/docs/latest/commands/set/
+define("DEFAULT_INIT_CONTENT_TTL", 60 * 60 * 24);
 
 define(
     "RECOMMENDATION_TYPES",
@@ -34,10 +36,30 @@ define(
 );
 
 define(
-    "STREAMING_TECH",
+    "STREAMING_TECH_TO_FILENAME",
     [
         "dash" => "manifest.mpd",
         "hls" => "master.m3u8",
+    ]
+);
+
+define(
+    "FILENAME_TO_STREAMING_TECH",
+    [
+        "dash" => "dash",
+        "manifest.mpd" => "dash",
+        "hls" => "hls",
+        "master.m3u8" => "hls",
+    ]
+);
+
+define(
+    "STREAMING_TECH_RANK",
+    [
+        "dash",
+        "hls",
+        "mp4",
+        "smooth",
     ]
 );
 

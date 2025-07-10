@@ -11,10 +11,6 @@ Y - Works perfectly
 N - Does not play at all
 E - Plays with errors / warnings
 
-What needs to be done:
-Fuzzy search taking into account all the streaming services
-
-
 
 # TODOs
 
@@ -24,6 +20,7 @@ Fuzzy search taking into account all the streaming services
 
 - [ ] Validation of HTTP requests
 - [ ] Error detection and logging
+- [ ] Throw HTTP errors, don't just return half-broken JSON
 - [ ] API Access logging
 - [ ] More try/catch
 - [ ] Figure out if require_once is a good way to import constants
@@ -32,14 +29,10 @@ Fuzzy search taking into account all the streaming services
 
 ### StreamingService.php
 
-- [X] Add multiple methods for recommendations, like series, movies, documentaries etc..
-- [X] Split those big methods into small methods that only do one thing and one thing only
-- [X] Add a helper class for most of those small methods that don't need overriding or direct access from outside the class
 - [ ] Add other abstract methods that give the different headers for the requests, as now I am just using HTTP_DEFAULT_HEADERS
-- [X] Improve the link Manifest link creation to support other than Dash Manifest and make it more robust
-- [ ] Remove/Rename all the functions about Manifest, init, segment and stuff, so this can support in the future HLS and MP4s that are either encrypted or decrypted. Now that I'm thinking about it, I should instead create classes that manage dash, hls, straight MP4, encrypted and decrypted data
-- [X] Add a logic that recommends you an episode/show after watching an episode
-- [X] For the next recommendation, maybe only recommend episodes, or when recommending shows say it clearly in the JSON, so not to get confused
+- [X] Abstract the logic with Dash Manifest and create a parent class that can englobe more streaming techs
+- [ ] Make the decryption of segments optional
+- [ ] Abstract the decryption so it can support other forms of DRM, like Fairplay or PlayReady
 
 ### ObjectFactory.php
 
@@ -51,6 +44,10 @@ Fuzzy search taking into account all the streaming services
 - [ ] Add a method that allows for logging in the streaming service
 - [ ] Add the login keys to the database, with a TTL of how long it says in the JWT
 - [ ] Make the login all in PHP, no interacting with the Python backend pleaaaase
+
+### SegmentDecryptor\
+
+- [ ] Find out if/how to clean the PSSH box to remove the remaining DRM informations
 
 ### SegmentDecryptor\PHP.php
 
@@ -83,7 +80,6 @@ Fuzzy search taking into account all the streaming services
 
 ## SearchPage.svelte
 
-- [X] Fix inputting ../ and stuff allowing movement through the site, instead use url query params
 - [ ] Find out if the autofocus on hover is actually a fun feature or if it should be removed
 
 ### NavBar.svelte

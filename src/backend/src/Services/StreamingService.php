@@ -4,20 +4,15 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Controllers\ManifestController;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Models\Episode;
 use App\Models\Season;
 use App\Models\Show;
 use App\Helpers\RequestHelper;
-use App\Models\DecryptionKeysRetriever;
 use App\Models\DownloadInfo;
-use App\Models\ManifestModifier;
-use App\Models\SegmentDecryptor;
 use App\Models\ObjectFactory;
-use App\Models\PsshRetriever;
-use App\Repositories\RedisRepository;
 use App\Helpers\StreamingServiceHelper;
+use App\Helpers\SlimRequestParsingHelper;
 
 require_once __DIR__ . "/../../config/constants.php";
 
@@ -26,51 +21,36 @@ abstract class StreamingService
     /**
      * Streaming service's name
      */
-    protected string $name;
+    public string $name;
     /**
      * Streaming service's abreviation (EX: DSNP)
      */
-    protected string $tag;
+    public string $tag;
 
-    protected PsshRetriever $psshRetriever;
-    protected DecryptionKeysRetriever $decryptionKeysRetriever;
-    protected ManifestModifier $manifestModifier;
-    protected SegmentDecryptor $segmentDecryptor;
-    protected RedisRepository $repository;
-    protected ManifestController $manifestController;
-
-    public function __construct()
-    {
-        $this->psshRetriever = ObjectFactory::createPsshRetriever("python");
-        $this->decryptionKeysRetriever = ObjectFactory::createDecryptionKeysRetriever("python");
-        $this->manifestModifier = ObjectFactory::createManifestModifier("python");
-        $this->segmentDecryptor = ObjectFactory::createSegmentDecryptor("shell");
-        $this->repository = ObjectFactory::createRepository();
-        $this->manifestController = ObjectFactory::createManifestController($this->repository);
-    }
 
     //region Parsing
 
-    abstract protected function parseSearchResults(array $response): array;
-    abstract protected function parseShowRecommendationsResults(array $response): array;
-    abstract protected function parseMoviesRecommendationsResults(array $response): array;
-    abstract protected function parseSeriesRecommendationsResults(array $response): array;
-    abstract protected function parseDocumentariesRecommendationsResults(array $response): array;
-    abstract protected function parseNextRecommendationResult(array $response, string $showId, string $seasonId, string $episodeId): array;
-    abstract protected function parseShowInfo(Show $show, array $response): void;
-    abstract protected function parseSeasonInfo(Season $season, array $response): void;
-    abstract protected function parseEpisodeInfo(Episode $episode, array $response): void;
-    abstract protected function parseEpisodeDownloadInfo(Episode $episode, array $response): DownloadInfo;
+    abstract public function parseSearchResults(array $response): array;
+    abstract public function parseShowRecommendationsResults(array $response): array;
+    abstract public function parseMoviesRecommendationsResults(array $response): array;
+    abstract public function parseSeriesRecommendationsResults(array $response): array;
+    abstract public function parseDocumentariesRecommendationsResults(array $response): array;
+    abstract public function parseNextRecommendationResult(array $response, string $showId, string $seasonId, string $episodeId): array;
+    abstract public function parseShowInfo(Show $show, array $response): void;
+    abstract public function parseSeasonInfo(Season $season, array $response): void;
+    abstract public function parseEpisodeInfo(Episode $episode, array $response): void;
 
     //endregion
 
     //region Get Informations
 
+    abstract public function getEpisodeDownloadInfo(Episode $episode, array $response): DownloadInfo;
+
     //region Search
 
     public function getSearchResults(Request $request, array $args): array
     {
-        $searchResultsCriteria = StreamingServiceHelper::parseSearchCriteria($request, $args);
+        $searchResultsCriteria = SlimRequestParsingHelper::parseSearchCriteria($request, $args);
 
         return $this->executeSearchResults(
             $searchResultsCriteria["query"],
@@ -94,7 +74,7 @@ abstract class StreamingService
 
     public function getShowRecommendations(Request $request, array $args): array
     {
-        $showRecommendationsCriteria = StreamingServiceHelper::parseShowRecommendationsCriteria($request, $args);
+        $showRecommendationsCriteria = SlimRequestParsingHelper::parseShowRecommendationsCriteria($request, $args);
 
         return $this->executeShowRecommendations(
             $showRecommendationsCriteria["showId"],
@@ -116,7 +96,7 @@ abstract class StreamingService
 
     public function getMediaRecommendations(Request $request, array $args): array
     {
-        $recommendationsCriteria = StreamingServiceHelper::parseRecommendationsCriteria($request, $args);
+        $recommendationsCriteria = SlimRequestParsingHelper::parseRecommendationsCriteria($request, $args);
 
         return $this->executeMediaRecommendations(
             $recommendationsCriteria["amount"],
@@ -139,7 +119,7 @@ abstract class StreamingService
 
     public function getNextRecommendation(Request $request, array $args): array
     {
-        $nextRecommendationCriteria = StreamingServiceHelper::parseNextRecommendationCriteria($request, $args);
+        $nextRecommendationCriteria = SlimRequestParsingHelper::parseNextRecommendationCriteria($request, $args);
 
         return $this->executeGetNextRecommendation(
             $nextRecommendationCriteria["showId"],
@@ -162,7 +142,7 @@ abstract class StreamingService
 
     public function getShowInfo(Request $request, array $args): Show
     {
-        $showInfoCriteria = StreamingServiceHelper::parseShowInfoCriteria($request, $args);
+        $showInfoCriteria = SlimRequestParsingHelper::parseShowInfoCriteria($request, $args);
 
         return $this->executeShowInfo(
             $showInfoCriteria["showId"],
@@ -185,7 +165,7 @@ abstract class StreamingService
 
     public function getSeasonInfo(Request $request, array $args): Season
     {
-        $seasonInfoCriteria = StreamingServiceHelper::parseSeasonInfoCriteria($request, $args);
+        $seasonInfoCriteria = SlimRequestParsingHelper::parseSeasonInfoCriteria($request, $args);
 
         return $this->executeSeasonInfo(
             $seasonInfoCriteria["showId"],
@@ -209,7 +189,7 @@ abstract class StreamingService
 
     public function getEpisodeInfo(Request $request, array $args): Episode
     {
-        $episodeInfoCriteria = StreamingServiceHelper::parseEpisodeInfoCriteria($request, $args);
+        $episodeInfoCriteria = SlimRequestParsingHelper::parseEpisodeInfoCriteria($request, $args);
 
         return $this->executeEpisodeInfo(
             $episodeInfoCriteria["showId"],
@@ -222,7 +202,7 @@ abstract class StreamingService
     {
         $episode = ObjectFactory::createEpisode();
         $episode->id = $episodeId;
-        $episode->url = StreamingServiceHelper::getStreamUrl($this->tag, $showId, $seasonId, $episodeId, "dash");
+        $episode->url = StreamingServiceHelper::getStreamUrl($this->tag, $showId, $seasonId, $episodeId, STREAMING_TECH_RANK[0]);
 
         $response = RequestHelper::get($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters($showId, $seasonId, $episodeId));
         $this->parseEpisodeInfo($episode, json_decode($response, true));
@@ -232,100 +212,27 @@ abstract class StreamingService
 
     //endregion
 
-    //region Episode's Stream
+    //region Episode's Video
 
-    public function getEpisodeStream(Request $request, array $args): string
+    /**
+     * This gets called whenever the client requests anything related to video,
+     * like a DASH manifest or a playlist segment
+     */
+    public function getEpisodeVideo(Request $request, array $args): string
     {
-        $episodeStreamCriteria = StreamingServiceHelper::parseEpisodeStreamCriteria($request, $args);
+        $episodeVideoCriteria = SlimRequestParsingHelper::parseEpisodeVideoCriteria($request, $args);
 
-        return $this->executeEpisodeStream(
-            $episodeStreamCriteria["showId"],
-            $episodeStreamCriteria["seasonId"],
-            $episodeStreamCriteria["episodeId"],
+        $streamingTechnology = ObjectFactory::createStreamingTechnology($episodeVideoCriteria["streamingTechnology"]);
+
+        // Unsure about removing completely the args when requesting the manifest, as when using filename, there are no extraArgs
+        return $streamingTechnology->getVideo(
+            $this,
+            $request,
+            $episodeVideoCriteria["showId"],
+            $episodeVideoCriteria["seasonId"],
+            $episodeVideoCriteria["episodeId"],
+            isset($args["extraArgs"]) ? explode('/', $args["extraArgs"]) : [],
         );
-    }
-
-    public function executeEpisodeStream(string $showId, string $seasonId, string $episodeId): string
-    {
-        $episode = $this->executeEpisodeInfo($showId, $seasonId, $episodeId);
-
-        $response = json_decode(RequestHelper::get($this->getEpisodeInfoUrl($showId, $seasonId, $episodeId), HTTP_DEFAULT_HEADERS, $this->getEpisodeInfoParameters($showId, $seasonId, $episodeId)), true);
-        $downloadInfo = $this->parseEpisodeDownloadInfo($episode, $response);
-
-        $this->psshRetriever->getPssh($downloadInfo);
-        $this->decryptionKeysRetriever->getDecryptionKeys($downloadInfo);
-
-        $episodeDatabaseIdentifier = StreamingServiceHelper::getEpisodeDatabaseIdentifier($this->tag, $showId, $seasonId, $episodeId);
-        $this->manifestController->addDecryptionKeys($episodeDatabaseIdentifier, $downloadInfo->decryptionKeys);
-
-        $modifiedManifestContent = $this->manifestModifier->getModifiedMpd($downloadInfo);
-
-        return $modifiedManifestContent;
-    }
-
-    //endregion
-
-    //region Episode's Init Segments
-
-    public function getEpisodeInitSegment(Request $request, array $args): string
-    {
-        $episodeInitSegmentCriteria = StreamingServiceHelper::parseEpisodeInitSegmentCriteria($request, $args);
-
-        return $this->executeEpisodeInitSegment(
-            $episodeInitSegmentCriteria["originalInitUrl"],
-        );
-    }
-
-    public function executeEpisodeInitSegment(string $originalInitUrl): string
-    {
-        $initContent = $this->manifestController->getInitContent($originalInitUrl);
-
-        if (!$initContent) {
-            $initContent = RequestHelper::get($originalInitUrl);
-            $this->manifestController->addInitContent($originalInitUrl, $initContent);
-        }
-
-        return $initContent;
-    }
-
-    //endregion
-
-    //region Episode's Media Segments
-
-    public function getEpisodeMediaSegment(Request $request, array $args): string
-    {
-        $episodeMediaSegmentCriteria = StreamingServiceHelper::parseEpisodeMediaSegmentCriteria($request, $args);
-
-        return $this->executeEpisodeMediaSegment(
-            $episodeMediaSegmentCriteria["originalInitUrl"],
-            $episodeMediaSegmentCriteria["originalMediaUrl"],
-            $episodeMediaSegmentCriteria["showId"],
-            $episodeMediaSegmentCriteria["seasonId"],
-            $episodeMediaSegmentCriteria["episodeId"],
-        );
-    }
-
-    public function executeEpisodeMediaSegment(string $originalInitUrl, string $originalMediaUrl, string $showId, string $seasonId, string $episodeId): string
-    {
-        $episodeDatabaseIdentifier = StreamingServiceHelper::getEpisodeDatabaseIdentifier($this->tag, $showId, $seasonId, $episodeId);
-        $decryptionKeys = $this->manifestController->getDecryptionKeys($episodeDatabaseIdentifier);
-
-        if (!$decryptionKeys) {
-            $this->executeEpisodeStream($showId, $seasonId, $episodeId);
-            $decryptionKeys = $this->manifestController->getDecryptionKeys($episodeDatabaseIdentifier);
-        }
-
-        $initContent = $this->manifestController->getInitContent($originalInitUrl);
-
-        if (!$initContent) {
-            $this->executeEpisodeInitSegment($originalInitUrl);
-            $initContent = $this->manifestController->getInitContent($originalInitUrl);
-        }
-
-        $segmentContent = RequestHelper::get($originalMediaUrl);
-        $decryptedSegmentContent = $this->segmentDecryptor->getDecryptedSegment($initContent, $segmentContent, $decryptionKeys);
-
-        return $decryptedSegmentContent;
     }
 
     //endregion
@@ -334,32 +241,32 @@ abstract class StreamingService
 
     //region Abstract methods for URLs and parameters (to be implemented per service)
 
-    abstract protected function getSearchUrl(string $query, int $amount): string;
-    abstract protected function getSearchParameters(string $query, int $amount): array;
+    abstract public function getSearchUrl(string $query, int $amount): string;
+    abstract public function getSearchParameters(string $query, int $amount): array;
 
-    abstract protected function getShowRecommendationsUrl(string $showId, int $amount): string;
-    abstract protected function getShowRecommendationsParameters(string $showId, int $amount): array;
+    abstract public function getShowRecommendationsUrl(string $showId, int $amount): string;
+    abstract public function getShowRecommendationsParameters(string $showId, int $amount): array;
 
-    abstract protected function getMoviesRecommendationsUrl(int $amount): string;
-    abstract protected function getMoviesRecommendationsParameters(int $amount): array;
+    abstract public function getMoviesRecommendationsUrl(int $amount): string;
+    abstract public function getMoviesRecommendationsParameters(int $amount): array;
 
-    abstract protected function getSeriesRecommendationsUrl(int $amount): string;
-    abstract protected function getSeriesRecommendationsParameters(int $amount): array;
+    abstract public function getSeriesRecommendationsUrl(int $amount): string;
+    abstract public function getSeriesRecommendationsParameters(int $amount): array;
 
-    abstract protected function getDocumentariesRecommendationsUrl(int $amount): string;
-    abstract protected function getDocumentariesRecommendationsParameters(int $amount): array;
+    abstract public function getDocumentariesRecommendationsUrl(int $amount): string;
+    abstract public function getDocumentariesRecommendationsParameters(int $amount): array;
 
-    abstract protected function getNextRecommendationUrl(string $showId, string $seasonId, string $episodeId): string;
-    abstract protected function getNextRecommendationParameters(string $showId, string $seasonId, string $episodeId): array;
+    abstract public function getNextRecommendationUrl(string $showId, string $seasonId, string $episodeId): string;
+    abstract public function getNextRecommendationParameters(string $showId, string $seasonId, string $episodeId): array;
 
-    abstract protected function getShowInfoUrl(string $showId): string;
-    abstract protected function getShowInfoParameters(string $showId): array;
+    abstract public function getShowInfoUrl(string $showId): string;
+    abstract public function getShowInfoParameters(string $showId): array;
 
-    abstract protected function getSeasonInfoUrl(string $showId, string $seasonId): string;
-    abstract protected function getSeasonInfoParameters(string $showId, string $seasonId): array;
+    abstract public function getSeasonInfoUrl(string $showId, string $seasonId): string;
+    abstract public function getSeasonInfoParameters(string $showId, string $seasonId): array;
 
-    abstract protected function getEpisodeInfoUrl(string $showId, string $seasonId, string $episodeId): string;
-    abstract protected function getEpisodeInfoParameters(string $showId, string $seasonId, string $episodeId): array;
+    abstract public function getEpisodeInfoUrl(string $showId, string $seasonId, string $episodeId): string;
+    abstract public function getEpisodeInfoParameters(string $showId, string $seasonId, string $episodeId): array;
 
     //endregion
 

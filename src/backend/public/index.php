@@ -113,30 +113,23 @@ $app->get(
 );
 
 $app->get(
-    "/api/{streamingService}/{show}/{season}/{episode}/manifest.mpd",
+    "/api/{streamingService}/{show}/{season}/{episode}/{filename}",
     function (Request $request, Response $response, array $args) {
         $streamingService = ObjectFactory::createStreamingService(strtoupper($args["streamingService"]));
-        $modifiedManifestContent = $streamingService->getEpisodeStream($request, $args);
+        $modifiedManifestContent = $streamingService->getEpisodeVideo($request, $args);
         $response = SlimResponseHelper::response_dash($modifiedManifestContent, $response);
         return $response;
     }
 );
 
+// The goal of extraArgs is to avoid creating a new endpoint for each streaming tech
+// Instead, this code will look at the streamingTechnology and decide from there what
+// method to call
 $app->get(
-    "/api/{streamingService}/{show}/{season}/{episode}/init/{encodedBaseUrl}/{segmentPath:.*}",
+    "/api/{streamingService}/{show}/{season}/{episode}/{streamingTechnology}/{extraArgs:.*}",
     function (Request $request, Response $response, array $args) {
         $streamingService = ObjectFactory::createStreamingService(strtoupper($args["streamingService"]));
-        $initContent = $streamingService->getEpisodeInitSegment($request, $args);
-        $response = SlimResponseHelper::response_segment($initContent, $response);
-        return $response;
-    }
-);
-
-$app->get(
-    "/api/{streamingService}/{show}/{season}/{episode}/media/{encodedInitUrl}/{encodedBaseUrl}/{segmentPath:.*}",
-    function (Request $request, Response $response, array $args) {
-        $streamingService = ObjectFactory::createStreamingService(strtoupper($args["streamingService"]));
-        $initContent = $streamingService->getEpisodeMediaSegment($request, $args);
+        $initContent = $streamingService->getEpisodeVideo($request, $args);
         $response = SlimResponseHelper::response_segment($initContent, $response);
         return $response;
     }
