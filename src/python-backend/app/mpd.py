@@ -16,15 +16,15 @@ from app.models import Response
 # from models import MpdRequest
 # from models import Response
 
-# TODO: Remove/replace base_urls
-
 
 class ManifestModifier:
 
-    base_url: str
     mpd_url: str
-    mpd_object: Parser
     mpd_content: str
+
+    base_url: str
+    mpd_object: Parser
+   
 
     def get_modified_mpd(self, request: MpdRequest, response: Response) -> str:
         try:
@@ -53,7 +53,7 @@ class ManifestModifier:
     def _extend_base_url(self, element: Parser, original_base_url: str) -> str:
 
         if len(element.base_urls) > 0:
-            return self._join_url(original_base_url, element.base_urls[0])
+            return self._join_url(original_base_url, element.base_urls[0].text)
 
         return original_base_url
 
@@ -65,7 +65,9 @@ class ManifestModifier:
         root = etree.fromstring(mpd_xml_str.encode("utf-8"), parser)
 
         # Remove DRM-related elements
-        root = self._remove_drm_namespaces(self._remove_content_protection(root))
+        root = self._remove_base_url(root)
+        root = self._remove_content_protection(root)
+        root = self._remove_drm_namespaces(root)
 
         return etree.tostring(root, encoding="unicode", pretty_print=True)
 
@@ -85,6 +87,19 @@ class ManifestModifier:
         # Remove <ContentProtection> tags
         cps = root.xpath(
             ".//mpd:ContentProtection",
+            namespaces={"mpd": "urn:mpeg:dash:schema:mpd:2011"},
+        )
+        for cp in cps:
+            parent = cp.getparent()
+            if len(parent):
+                parent.remove(cp)
+
+        return root
+    
+    def _remove_base_url(self, root):
+        # Remove <ContentProtection> tags
+        cps = root.xpath(
+            ".//mpd:BaseURL",
             namespaces={"mpd": "urn:mpeg:dash:schema:mpd:2011"},
         )
         for cp in cps:
@@ -173,3 +188,24 @@ class ManifestModifier:
     def _replace_media_url(self, parent, url: str):
         if parent.media:
             parent.media = url
+
+
+
+
+if __name__ == "__main__":
+    
+    import requests
+    mpdRequest = MpdRequest()
+    response = Response()
+    mm = ManifestModifier()
+
+    url = "https://raw.githubusercontent.com/emarsden/dash-mpd-cli/refs/heads/main/tests/fixtures/jurassic-compact-5975.mpd"
+    mpdContent = requests.get(url).text
+    
+    mpdRequest.mpdContent = mpdContent
+    mpdRequest.mpdUrl = url
+
+    mm.get_modified_mpd(mpdRequest, response)
+
+    with open("file.xml", "wt") as f:
+        f.write(response.value)
