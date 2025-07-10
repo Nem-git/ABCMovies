@@ -7,8 +7,12 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Factory\AppFactory;
 use App\Models\ObjectFactory;
 use App\Helpers\SlimResponseHelper;
+use Dotenv\Dotenv;
 
 require __DIR__ . '/../vendor/autoload.php';
+
+$dotenv = Dotenv::createImmutable(__DIR__ . "/../config/");
+$dotenv->load();
 
 $app = AppFactory::create();
 

@@ -72,11 +72,11 @@ class SlimRequestParsingHelper
         $streamingTechnology = "";
 
         if (isset($args["streamingTechnology"])) {
-            $streamingTechnology = FILENAME_TO_STREAMING_TECH[$args["streamingTechnology"]] ?? "";
+            $streamingTechnology = WORD_TO_STREAMING_TECH[$args["streamingTechnology"]] ?? "";
         }
 
         if (isset($args["filename"])) {
-            $streamingTechnology = FILENAME_TO_STREAMING_TECH[$args["filename"]] ?? "";
+            $streamingTechnology = WORD_TO_STREAMING_TECH[$args["filename"]] ?? "";
         }
 
         return [

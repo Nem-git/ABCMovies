@@ -91,7 +91,7 @@ class RequestHelper
 
     public static function pythonBackend(string $endpoint, DownloadInfo $downloadInfo)
     {
-        $response = json_decode(self::post(PYTHON_URL_BACKEND . $endpoint, data: $downloadInfo), true);
+        $response = json_decode(self::post($_ENV["PYTHON_BACKEND_URL"] . $endpoint, data: $downloadInfo), true);
 
         return $response["value"];
     }

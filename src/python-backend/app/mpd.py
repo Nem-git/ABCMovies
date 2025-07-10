@@ -24,7 +24,6 @@ class ManifestModifier:
 
     base_url: str
     mpd_object: Parser
-   
 
     def get_modified_mpd(self, request: MpdRequest, response: Response) -> str:
         try:
@@ -95,7 +94,7 @@ class ManifestModifier:
                 parent.remove(cp)
 
         return root
-    
+
     def _remove_base_url(self, root):
         # Remove <ContentProtection> tags
         cps = root.xpath(
@@ -190,18 +189,17 @@ class ManifestModifier:
             parent.media = url
 
 
-
-
 if __name__ == "__main__":
-    
+
     import requests
+
     mpdRequest = MpdRequest()
     response = Response()
     mm = ManifestModifier()
 
     url = "https://raw.githubusercontent.com/emarsden/dash-mpd-cli/refs/heads/main/tests/fixtures/jurassic-compact-5975.mpd"
     mpdContent = requests.get(url).text
-    
+
     mpdRequest.mpdContent = mpdContent
     mpdRequest.mpdUrl = url
 

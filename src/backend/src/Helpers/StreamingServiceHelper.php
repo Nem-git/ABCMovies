@@ -10,7 +10,7 @@ class StreamingServiceHelper
 {
     public static function getStreamUrl(string $streamingServiceTag, string $showId, string $seasonId, string $episodeId, string $tech): string
     {
-        return PHP_URL_BACKEND . join("/", [strtolower($streamingServiceTag), $showId, $seasonId, $episodeId, STREAMING_TECH_TO_FILENAME[$tech]]);
+        return $_ENV["PHP_BACKEND_URL"] . join("/", [strtolower($streamingServiceTag), $showId, $seasonId, $episodeId, STREAMING_TECH_TO_FILENAME[$tech]]);
     }
 
     public static function getEpisodeDatabaseIdentifier(string $streamingServiceTag, string $showId, string $seasonId, string $episodeId): string

@@ -14,9 +14,12 @@ require_once __DIR__ . "/../../../config/constants.php";
  */
 class Shell extends SegmentDecryptor
 {
+    /**
+     * Decrypt ONLY the segment using the init as fragment info, so no binary merging
+     */
     private function getMp4decryptCommand(string $encryptedFilePath, string $initFilePath, string $decryptedFilePath, array $decryptionKeys): string
     {
-        $cmd = MP4DECRYPT_PATH;
+        $cmd = $_ENV["MP4DECRYPT_PATH"];
 
         foreach ($decryptionKeys as $decryptionKey) {
             $cmd .= " --key " . escapeshellarg($decryptionKey);
@@ -29,9 +32,12 @@ class Shell extends SegmentDecryptor
         return $cmd;
     }
 
+    /**
+     * Decrypting the segment made from init and segment merging
+     */
     private function getMp4DecryptFullSegmentCommand(string $encryptedFilePath, string $decryptedFilePath, array $decryptionKeys): string
     {
-        $cmd = MP4DECRYPT_PATH;
+        $cmd = $_ENV["MP4DECRYPT_PATH"];
 
         foreach ($decryptionKeys as $decryptionKey) {
             $cmd .= " --key " . escapeshellarg($decryptionKey);
@@ -46,9 +52,9 @@ class Shell extends SegmentDecryptor
 
     public function getDecryptedSegment($initContent, $segmentContent, $decryptionKeys): string
     {
-        $initFilePath = tempnam(TEMP_DIR, "ABC_I_");
-        $segmentFilePath = tempnam(TEMP_DIR, "ABC_S_");
-        $decryptedFilePath = tempnam(TEMP_DIR, "ABC_D_");
+        $initFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_I_");
+        $segmentFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_S_");
+        $decryptedFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_D_");
 
         // Separate init and media
         // file_put_contents($initFilePath, $initContent);

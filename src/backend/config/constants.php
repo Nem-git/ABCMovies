@@ -1,21 +1,16 @@
 <?php
 
-//region To be modified in order to run the webapp on your platform
-
-define("PYTHON_URL_BACKEND", "localhost:8000/");
-define('PHP_URL_BACKEND', "http://localhost/api/");
-define("TEMP_DIR", "/tmp/");
-define("MP4DECRYPT_PATH", "/run/current-system/sw/bin/mp4decrypt");
+//region ENV
 
 define(
     "REDIS_CONFIG",
     [
     "scheme" => "tcp",
-    "host" => "localhost",
-    "port" => 6379,
+    "host" => $_ENV["DB_HOST"],
+    "port" => $_ENV["DB_PORT"],
     "protocol" => 3,
-    "password" => "",
-    "database" => 0
+    "password" => $_ENV["DB_PW"],
+    "database" => $_ENV["DB_ID"],
     ]
 );
 
@@ -44,7 +39,7 @@ define(
 );
 
 define(
-    "FILENAME_TO_STREAMING_TECH",
+    "WORD_TO_STREAMING_TECH",
     [
         "dash" => "dash",
         "manifest.mpd" => "dash",
