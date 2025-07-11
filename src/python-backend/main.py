@@ -20,7 +20,7 @@ def create_pssh(request: PsshRequest):
     return response
 
 
-@app.post("/decrypt")
+@app.post("/decryptionKeys")
 def create_decryption_keys(request: DecryptRequest):
     retriever = Widevine()
     response = Response()
@@ -28,7 +28,7 @@ def create_decryption_keys(request: DecryptRequest):
     return response
 
 
-@app.post("/mpd")
+@app.post("/manifest")
 def create_modified_manifest(request: MpdRequest):
     modifier = ManifestModifier()
     response = Response()

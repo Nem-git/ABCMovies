@@ -11,4 +11,9 @@ use App\Streaming\DRMTechnology\DRMTechnology;
  */
 class Widevine extends DRMTechnology
 {
+    public string $name = "widevine";
+    /**
+     * PSSH in Base64
+     */
+    public string $pssh;
 }

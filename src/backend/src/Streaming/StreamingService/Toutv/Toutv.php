@@ -6,7 +6,6 @@ namespace App\Streaming\StreamingService\Toutv;
 
 use App\Config\Constants;
 use App\Streaming\StreamingService\StreamingService;
-use App\Streaming\Classes\DownloadInfo;
 use App\Streaming\Helpers\RequestHelper;
 use App\Streaming\Classes\Show;
 use App\Streaming\Classes\Season;
@@ -263,40 +262,75 @@ class Toutv extends StreamingService
         $episode->provider = $this->tag;
     }
 
-    public function getEpisodeDownloadInfo(
-        Episode $episode,
-        array $ssResponse,
-    ): DownloadInfo {
-        $downloadInfo = ObjectFactory::createDownloadInfo();
+    // TODO: Find the right way to choose the right stream/drm
+    // public function getEpisodeStreamingTechnology(Episode $episode)
+    // {
+    //     $fileParameters = $this->getEpisodeFileParameters($episode);
 
-        $fileParameters = $this->getEpisodeFileParameters($episode->id);
+    //     $ssResponse = RequestHelper::get(
+    //         $this->getEpisodeFileUrl($episode),
+    //         Constants::HTTP_DEFAULT_HEADERS,
+    //         $fileParameters,
+    //     );
+
+    //     $this->parseEpisodeFileInfo($episode, json_decode($ssResponse, true));
+
+    // }
+
+    public function getEpisodeStreamInfo(Episode $episode)
+    {
+        $fileParameters = $this->getEpisodeFileParameters($episode);
+
         $ssResponse = RequestHelper::get(
-            $this->getEpisodeFileUrl($episode->id),
+            $this->getEpisodeFileUrl($episode),
             Constants::HTTP_DEFAULT_HEADERS,
             $fileParameters,
         );
+
         $this->parseEpisodeFileInfo($episode, json_decode($ssResponse, true));
 
         $headers = $this->getEpisodeDownloadHeaders();
-        $downloadParameters = $this->getEpisodeDownloadParameters($episode->id);
+        $downloadParameters = $this->getEpisodeDownloadParameters($episode);
         $ssResponse = RequestHelper::get(
-            $this->getEpisodeDownloadUrl(),
+            $this->getEpisodeDownloadUrl($episode),
             $headers,
             $downloadParameters,
         );
         $this->parseEpisodeDownloadStreamInfo(
             $episode,
             json_decode($ssResponse, true),
-            $downloadInfo,
         );
-
-        return $downloadInfo;
     }
 
     private function parseEpisodeFileInfo(
         Episode $episode,
         array $ssResponse,
     ): void {
+        // TODO: Actually choose a streaming technology and don't just pick dash with widevine
+
+        // Parses the availableTechs for the available DRM and streaming techs
+        foreach ($ssResponse["availableTechs"] as $streamingTechnology) {
+            if (array_keys(
+                Constants::WORD_TO_STREAMING_TECH,
+                $streamingTechnology["name"],
+                strict: true,
+            )
+            ) {
+                if ($streamingTechnology["name"] === "dash") {
+                    foreach ($streamingTechnology["drm"] as $drmTechnology) {
+                        if ($drmTechnology === "widevine") {
+                            $episode->streamingTechnology = ObjectFactory::createStreamingTechnology(
+                                $streamingTechnology["name"],
+                            );
+                            $episode->streamingTechnology->drmTechnology = ObjectFactory::createDrmTechnology(
+                                $drmTechnology,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
         $episode->id = $ssResponse["Metas"]["idMedia"];
         $episode->title = $ssResponse["Metas"]["Title"];
         $episode->number = (int) $ssResponse["Metas"]["SrcEpisode"];
@@ -310,27 +344,32 @@ class Toutv extends StreamingService
         )
             ? $ssResponse["Metas"]["ShortDescription"]
             : $episode->fullDescription;
+
+        $episode->containsDrm = (bool) $ssResponse["Metas"]["isDrmActive"];
     }
 
     public function parseEpisodeDownloadStreamInfo(
         Episode $episode,
         array $ssResponse,
-        DownloadInfo $downloadInfo,
     ): void {
-        $downloadInfo->licenseHeaders = array_merge(
+        $episode->url = $ssResponse["url"];
+
+        $episode->streamingTechnology->drmTechnology->licenseHeaders = array_merge(
             Constants::HTTP_DEFAULT_HEADERS,
             Constants::TOUTV_HEADERS_EPISODE_DOWNLOAD_LICENSE_INFO,
         );
 
-        $downloadInfo->mpdUrl = $ssResponse["url"];
-
-        foreach ($ssResponse["params"] as $parameter) {
-            if ($parameter["name"] === "widevineLicenseUrl") {
-                $downloadInfo->licenseUrl = $parameter["value"];
-            }
-            if ($parameter["name"] === "widevineAuthToken") {
-                $downloadInfo->licenseHeaders["x-dt-auth-token"] =
-                    $parameter["value"];
+        if ($episode->streamingTechnology->drmTechnology->name === "widevine") {
+            foreach ($ssResponse["params"] as $parameter) {
+                if ($parameter["name"] === "widevineLicenseUrl") {
+                    $episode->streamingTechnology->drmTechnology->licenseUrl =
+                        $parameter["value"];
+                }
+                if ($parameter["name"] === "widevineAuthToken") {
+                    $episode->streamingTechnology->drmTechnology->licenseHeaders[
+                        "x-dt-auth-token"
+                    ] = $parameter["value"];
+                }
             }
         }
     }
@@ -352,15 +391,13 @@ class Toutv extends StreamingService
         return $parameters;
     }
 
-    public function getShowRecommendationsUrl(
-        string $showId,
-        int $amount,
-    ): string {
-        return $this->getShowInfoUrl($showId);
+    public function getShowRecommendationsUrl(Show $show, int $amount): string
+    {
+        return $this->getShowInfoUrl($show);
     }
 
     public function getShowRecommendationsParameters(
-        string $showId,
+        Show $show,
         int $amount,
     ): array {
         $parameters = Constants::TOUTV_PARAMETERS_SHOW_RECOMMENDATIONS;
@@ -417,12 +454,12 @@ class Toutv extends StreamingService
         return $this->getSeasonInfoParameters($showId, $seasonId);
     }
 
-    public function getShowInfoUrl(string $showId): string
+    public function getShowInfoUrl(Show $show): string
     {
-        return Constants::TOUTV_URL_SHOW_INFO . $showId;
+        return Constants::TOUTV_URL_SHOW_INFO . $show->id;
     }
 
-    public function getShowInfoParameters(string $showId): array
+    public function getShowInfoParameters(Show $show): array
     {
         return Constants::TOUTV_PARAMETERS_SHOW_INFO;
     }
@@ -463,27 +500,27 @@ class Toutv extends StreamingService
 
     //region New functions
 
-    private function getEpisodeFileUrl(string $episodeId): string
+    private function getEpisodeFileUrl(Episode $episode): string
     {
         return Constants::TOUTV_URL_EPISODE_FILE_INFO;
     }
 
-    private function getEpisodeFileParameters(string $episodeId): array
+    private function getEpisodeFileParameters(Episode $episode): array
     {
         $parameters = Constants::TOUTV_PARAMETERS_EPISODE_FILE_INFO;
-        $parameters["idMedia"] = $episodeId;
+        $parameters["idMedia"] = $episode->id;
         return $parameters;
     }
 
-    private function getEpisodeDownloadUrl(): string
+    private function getEpisodeDownloadUrl(Episode $episode): string
     {
         return Constants::TOUTV_URL_EPISODE_DOWNLOAD_INFO;
     }
 
-    private function getEpisodeDownloadParameters(string $episodeId): array
+    private function getEpisodeDownloadParameters(Episode $episode): array
     {
         $parameters = Constants::TOUTV_PARAMETERS_EPISODE_DOWNLOAD_INFO;
-        $parameters["idMedia"] = $episodeId;
+        $parameters["idMedia"] = $episode->id;
         return $parameters;
     }
 

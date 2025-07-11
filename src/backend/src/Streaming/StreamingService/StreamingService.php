@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Streaming\StreamingService;
 
 use Psr\Http\Message\ServerRequestInterface as Request;
-use App\Streaming\Classes\DownloadInfo;
 use App\Streaming\Helpers\RequestHelper;
 use App\Streaming\Classes\Show;
 use App\Streaming\Classes\Season;
@@ -61,10 +60,7 @@ abstract class StreamingService
 
     //region Get Informations
 
-    abstract public function getEpisodeDownloadInfo(
-        Episode $episode,
-        array $response,
-    ): DownloadInfo;
+    abstract public function getEpisodeStreamInfo(Episode $episode);
 
     //region Search
 
@@ -118,9 +114,12 @@ abstract class StreamingService
         string $showId,
         int $amount,
     ): array {
-        $parameters = $this->getShowRecommendationsParameters($showId, $amount);
+        $show = ObjectFactory::createShow();
+        $show->id = $showId;
+
+        $parameters = $this->getShowRecommendationsParameters($show, $amount);
         $response = RequestHelper::get(
-            $this->getShowRecommendationsUrl($showId, $amount),
+            $this->getShowRecommendationsUrl($show, $amount),
             Constants::HTTP_DEFAULT_HEADERS,
             $parameters,
         );
@@ -250,9 +249,9 @@ abstract class StreamingService
         $show->id = $showId;
 
         $response = RequestHelper::get(
-            $this->getShowInfoUrl($showId),
+            $this->getShowInfoUrl($show),
             Constants::HTTP_DEFAULT_HEADERS,
-            $this->getShowInfoParameters($showId),
+            $this->getShowInfoParameters($show),
         );
         $this->parseShowInfo($show, json_decode($response, true));
         return $show;
@@ -321,6 +320,7 @@ abstract class StreamingService
             $episodeId,
             Constants::STREAMING_TECH_RANK[0],
         );
+        // TODO: Find the right way to get streaming tech
 
         $response = RequestHelper::get(
             $this->getEpisodeInfoUrl($showId, $seasonId, $episodeId),
@@ -351,7 +351,8 @@ abstract class StreamingService
             $episodeVideoCriteria["streamingTechnology"],
         );
 
-        // Unsure about removing completely the args when requesting the manifest, as when using filename, there are no extraArgs
+        // Unsure about removing completely the args when requesting
+        // the manifest, as when using filename, there are no extraArgs
         return $streamingTechnology->getVideo(
             $this,
             $request,
@@ -375,11 +376,11 @@ abstract class StreamingService
     ): array;
 
     abstract public function getShowRecommendationsUrl(
-        string $showId,
+        Show $show,
         int $amount,
     ): string;
     abstract public function getShowRecommendationsParameters(
-        string $showId,
+        Show $show,
         int $amount,
     ): array;
 
@@ -411,8 +412,8 @@ abstract class StreamingService
         string $episodeId,
     ): array;
 
-    abstract public function getShowInfoUrl(string $showId): string;
-    abstract public function getShowInfoParameters(string $showId): array;
+    abstract public function getShowInfoUrl(Show $show): string;
+    abstract public function getShowInfoParameters(Show $show): array;
 
     abstract public function getSeasonInfoUrl(
         string $showId,

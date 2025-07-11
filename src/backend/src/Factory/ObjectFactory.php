@@ -17,6 +17,12 @@ class ObjectFactory
         "smooth" => \App\Streaming\StreamingTechnology\Smooth\Smooth::class,
     ];
 
+    private static array $drmTechnology = [
+        "fairplay" => \App\Streaming\DRMTechnology\Fairplay\Fairplay::class,
+        "playready" => \App\Streaming\DRMTechnology\Playready\Playready::class,
+        "widevine" => \App\Streaming\DRMTechnology\Widevine\Widevine::class,
+    ];
+
     private static array $psshRetriever = [
         "python" =>
             \App\Streaming\DRMTechnology\Widevine\PsshRetriever\PythonBackend::class,
@@ -79,6 +85,18 @@ class ObjectFactory
         return new $class();
     }
 
+    public static function createDrmTechnology(
+        string $name,
+    ): \App\Streaming\DRMTechnology\DRMTechnology {
+        $class = self::$drmTechnology[$name] ?? null;
+        if ($class === null) {
+            throw new \InvalidArgumentException(
+                "Unknown drm technology name: $name",
+            );
+        }
+        return new $class();
+    }
+
     public static function createShow(): \App\Streaming\Classes\Show
     {
         return new \App\Streaming\Classes\Show();
@@ -94,9 +112,9 @@ class ObjectFactory
         return new \App\Streaming\Classes\Episode();
     }
 
-    public static function createDownloadInfo(): \App\Streaming\Classes\DownloadInfo
+    public static function createPythonBackendResponse(array $data): \App\Streaming\Helpers\PythonBackend\Classes\PythonBackendResponse
     {
-        return new \App\Streaming\Classes\DownloadInfo();
+        return new \App\Streaming\Helpers\PythonBackend\Classes\PythonBackendResponse($data);
     }
 
     public static function createPsshRetriever(

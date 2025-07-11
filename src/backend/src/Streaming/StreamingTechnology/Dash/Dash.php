@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Streaming\StreamingTechnology\Dash;
 
 use Psr\Http\Message\ServerRequestInterface as Request;
-use App\Config\Constants;
 use App\Streaming\Helpers\RequestHelper;
 use App\Streaming\StreamingTechnology\StreamingTechnology;
 use App\Streaming\StreamingService\StreamingService;
@@ -18,6 +17,7 @@ use App\Streaming\DRMTechnology\Widevine\Classes\PsshRetriever;
 use App\Controllers\ManifestController;
 use App\Repositories\RedisRepository;
 use App\Factory\ObjectFactory;
+use App\Streaming\DRMTechnology\DRMTechnology;
 
 /**
  * Google's adaptative streaming technology
@@ -26,6 +26,7 @@ class Dash extends StreamingTechnology
 {
     public string $name = "dash";
     public string $mimeType = "application/dash+xml";
+    public DRMTechnology $drmTechnology;
 
     protected PsshRetriever $psshRetriever;
     protected DecryptionKeysRetriever $decryptionKeysRetriever;
@@ -113,29 +114,10 @@ class Dash extends StreamingTechnology
             $episodeId,
         );
 
-        $url = $streamingService->getEpisodeInfoUrl(
-            $showId,
-            $seasonId,
-            $episodeId,
-        );
-        $headers = Constants::HTTP_DEFAULT_HEADERS;
-        $parameters = $streamingService->getEpisodeInfoParameters(
-            $showId,
-            $seasonId,
-            $episodeId,
-        );
+        $streamingService->getEpisodeStreamInfo($episode);
 
-        $response = json_decode(
-            RequestHelper::get($url, $headers, $parameters),
-            true,
-        );
-        $downloadInfo = $streamingService->getEpisodeDownloadInfo(
-            $episode,
-            $response,
-        );
-
-        $this->psshRetriever->getPssh($downloadInfo);
-        $this->decryptionKeysRetriever->getDecryptionKeys($downloadInfo);
+        // TODO: Find a good way to retrieve the right headers
+        $pssh = $this->psshRetriever->getPssh($episode->url, [], []);
 
         // Create the database id to identify the Decryption Keys
         $episodeDatabaseIdentifier = StreamingServiceHelper::getEpisodeDatabaseIdentifier(
@@ -145,14 +127,29 @@ class Dash extends StreamingTechnology
             $episodeId,
         );
 
-        $this->manifestController->addDecryptionKeys(
+        $episode->streamingTechnology->drmTechnology->decryptionKeys = $this->manifestController->getDecryptionKeys(
             $episodeDatabaseIdentifier,
-            $downloadInfo->decryptionKeys,
         );
 
-        $downloadInfo->mpdContent = RequestHelper::get($downloadInfo->mpdUrl);
+        // Retrieve the keys instead of relying on the DB
+        if (!$episode->streamingTechnology->drmTechnology->decryptionKeys) {
+            $episode->streamingTechnology->drmTechnology->decryptionKeys = $this->decryptionKeysRetriever->getDecryptionKeys(
+                $pssh,
+                $episode->streamingTechnology->drmTechnology->licenseUrl,
+                $episode->streamingTechnology->drmTechnology->licenseHeaders,
+            );
+
+            $this->manifestController->addDecryptionKeys(
+                $episodeDatabaseIdentifier,
+                $episode->streamingTechnology->drmTechnology->decryptionKeys,
+            );
+        }
+
+        $manifestContent = RequestHelper::get($episode->url);
+
         $modifiedManifestContent = $this->manifestModifier->getModifiedMpd(
-            $downloadInfo,
+            $episode->url,
+            $manifestContent,
         );
 
         return $modifiedManifestContent;

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Streaming\Helpers;
 
-use App\Streaming\Classes\DownloadInfo;
-
 class RequestHelper
 {
     public static function format_headers(array $headers): array
@@ -96,20 +94,5 @@ class RequestHelper
         );
 
         return self::http($url, $headers, $options);
-    }
-
-    public static function pythonBackend(
-        string $endpoint,
-        DownloadInfo $downloadInfo,
-    ) {
-        $response = json_decode(
-            self::post(
-                $_ENV["PYTHON_BACKEND_URL"] . $endpoint,
-                data: $downloadInfo,
-            ),
-            true,
-        );
-
-        return $response["value"];
     }
 }

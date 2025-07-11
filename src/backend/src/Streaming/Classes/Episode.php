@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Streaming\Classes;
 
+use App\Streaming\StreamingTechnology\StreamingTechnology;
+
 class Episode
 {
     /**
@@ -37,7 +39,17 @@ class Episode
     public string $provider;
 
     /**
-     * MPD link
+     * Download link
      */
     public string $url;
+
+    /**
+     * The chosen streaming technology using settings in constants
+     */
+    public StreamingTechnology $streamingTechnology;
+
+    /**
+     * Wether or not the episode's video is DRM-protected
+     */
+    public bool $containsDrm;
 }
