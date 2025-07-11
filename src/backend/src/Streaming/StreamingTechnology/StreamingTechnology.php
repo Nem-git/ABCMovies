@@ -12,6 +12,12 @@ abstract class StreamingTechnology
     public string $name;
     public string $mimeType;
 
-    abstract public function getVideo(StreamingService $streamingService, Request $request, string $showId, string $seasonId, string $episodeId, array $args = []): string;
-
+    abstract public function getVideo(
+        StreamingService $streamingService,
+        Request $request,
+        string $showId,
+        string $seasonId,
+        string $episodeId,
+        array $args = [],
+    ): string;
 }

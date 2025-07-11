@@ -6,5 +6,8 @@ namespace App\Streaming\StreamingServiceManager\Classes;
 
 abstract class MediaRecommender
 {
-    abstract public static function orderResults(int $amount, array $results): array;
+    abstract public static function orderResults(
+        int $amount,
+        array $results,
+    ): array;
 }

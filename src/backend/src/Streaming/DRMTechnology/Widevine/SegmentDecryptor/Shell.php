@@ -14,8 +14,12 @@ class Shell extends SegmentDecryptor
     /**
      * Decrypt ONLY the segment using the init as fragment info, so no binary merging
      */
-    private function getMp4decryptCommand(string $encryptedFilePath, string $initFilePath, string $decryptedFilePath, array $decryptionKeys): string
-    {
+    private function getMp4decryptCommand(
+        string $encryptedFilePath,
+        string $initFilePath,
+        string $decryptedFilePath,
+        array $decryptionKeys,
+    ): string {
         $cmd = $_ENV["MP4DECRYPT_PATH"];
 
         foreach ($decryptionKeys as $decryptionKey) {
@@ -32,8 +36,11 @@ class Shell extends SegmentDecryptor
     /**
      * Decrypting the segment made from init and segment merging
      */
-    private function getMp4DecryptFullSegmentCommand(string $encryptedFilePath, string $decryptedFilePath, array $decryptionKeys): string
-    {
+    private function getMp4DecryptFullSegmentCommand(
+        string $encryptedFilePath,
+        string $decryptedFilePath,
+        array $decryptionKeys,
+    ): string {
         $cmd = $_ENV["MP4DECRYPT_PATH"];
 
         foreach ($decryptionKeys as $decryptionKey) {
@@ -46,9 +53,11 @@ class Shell extends SegmentDecryptor
         return $cmd;
     }
 
-
-    public function getDecryptedSegment($initContent, $segmentContent, $decryptionKeys): string
-    {
+    public function getDecryptedSegment(
+        $initContent,
+        $segmentContent,
+        $decryptionKeys,
+    ): string {
         $initFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_I_");
         $segmentFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_S_");
         $decryptedFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_D_");
@@ -59,11 +68,14 @@ class Shell extends SegmentDecryptor
 
         // $cmd = $this->getMp4decryptCommand($segmentFilePath, $initFilePath, $decryptedFilePath, $decryptionKeys);
 
-
         // Merged init and media
         file_put_contents($segmentFilePath, $initContent . $segmentContent);
 
-        $cmd = $this->getMp4DecryptFullSegmentCommand($segmentFilePath, $decryptedFilePath, $decryptionKeys);
+        $cmd = $this->getMp4DecryptFullSegmentCommand(
+            $segmentFilePath,
+            $decryptedFilePath,
+            $decryptionKeys,
+        );
 
         exec($cmd . " 2>&1", $output, $err);
         unlink($segmentFilePath);
@@ -71,7 +83,9 @@ class Shell extends SegmentDecryptor
         // unlink($initFilePath);
 
         if ($err !== 0) {
-            throw new \RuntimeException("mp4decrypt failed: " . implode("\n", $output));
+            throw new \RuntimeException(
+                "mp4decrypt failed: " . implode("\n", $output),
+            );
         }
 
         $decryptedContent = file_get_contents($decryptedFilePath);
@@ -79,5 +93,4 @@ class Shell extends SegmentDecryptor
 
         return $decryptedContent;
     }
-
 }

@@ -17,14 +17,19 @@ class RedisRepository
         $this->conn = new PredisClient();
     }
 
-    public function select(string $key): string | null
+    public function select(string $key): string|null
     {
         return $this->conn->get($key);
     }
 
-    public function add($key, $value, ?int $ttl): Status | null
+    public function add($key, $value, ?int $ttl): Status|null
     {
-        return $this->conn->set($key, $value, Constants::DEFAULT_REDIS_TTL_TYPE, expireTTL: $ttl);
+        return $this->conn->set(
+            $key,
+            $value,
+            Constants::DEFAULT_REDIS_TTL_TYPE,
+            expireTTL: $ttl,
+        );
     }
 
     public function addToList(string $key, array $value): int
@@ -32,8 +37,11 @@ class RedisRepository
         return $this->conn->lpush($key, $value);
     }
 
-    public function selectFromList(string $key, int $indexStart = 0, int $indexEnd = -1): array
-    {
+    public function selectFromList(
+        string $key,
+        int $indexStart = 0,
+        int $indexEnd = -1,
+    ): array {
         return $this->conn->lrange($key, $indexStart, $indexEnd);
     }
 

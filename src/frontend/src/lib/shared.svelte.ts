@@ -1,3 +1,3 @@
 export const id = $state({
-	season: "",
+    season: "",
 });

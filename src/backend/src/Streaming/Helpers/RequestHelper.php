@@ -30,17 +30,20 @@ class RequestHelper
         return $formatted ? "?" . $formatted : "";
     }
 
-    public static function http(string $url, array $headers = [], array $options = []): string | null
-    {
+    public static function http(
+        string $url,
+        array $headers = [],
+        array $options = [],
+    ): string|null {
         $ch = curl_init();
 
         curl_setopt_array(
             $ch,
             [
-                CURLOPT_URL => $url,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_HEADER => false,
-                CURLOPT_HTTPHEADER => self::format_headers($headers)
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HEADER => false,
+            CURLOPT_HTTPHEADER => self::format_headers($headers),
             ]
         );
 
@@ -53,9 +56,12 @@ class RequestHelper
         return $response;
     }
 
-    public static function get(string $url, array $headers = [], array $parameters = [], array $options = []): string | null
-    {
-
+    public static function get(
+        string $url,
+        array $headers = [],
+        array $parameters = [],
+        array $options = [],
+    ): string|null {
         // If no URL was given
         if (!$url) {
             return null;
@@ -69,31 +75,41 @@ class RequestHelper
         return self::http($url, $headers, $options);
     }
 
-    public static function post(string $url, array $headers = [], array $options = [], $data = []): string | null
-    {
-
+    public static function post(
+        string $url,
+        array $headers = [],
+        array $options = [],
+        $data = [],
+    ): string|null {
         // Add data to the request body
         if (empty($options)) {
             $options = [
-                CURLOPT_POSTFIELDS => json_encode($data, JSON_FORCE_OBJECT)
+                CURLOPT_POSTFIELDS => json_encode($data, JSON_FORCE_OBJECT),
             ];
         }
 
         $headers = array_merge(
             [
-            "Content-Type" => "application/json"
+                "Content-Type" => "application/json",
             ],
-            $headers
+            $headers,
         );
 
         return self::http($url, $headers, $options);
     }
 
-    public static function pythonBackend(string $endpoint, DownloadInfo $downloadInfo)
-    {
-        $response = json_decode(self::post($_ENV["PYTHON_BACKEND_URL"] . $endpoint, data: $downloadInfo), true);
+    public static function pythonBackend(
+        string $endpoint,
+        DownloadInfo $downloadInfo,
+    ) {
+        $response = json_decode(
+            self::post(
+                $_ENV["PYTHON_BACKEND_URL"] . $endpoint,
+                data: $downloadInfo,
+            ),
+            true,
+        );
 
         return $response["value"];
     }
-
 }

@@ -8,5 +8,7 @@ use App\Streaming\Classes\DownloadInfo;
 
 abstract class DecryptionKeysRetriever
 {
-    abstract public function getDecryptionKeys(DownloadInfo $downloadInfo): DownloadInfo;
+    abstract public function getDecryptionKeys(
+        DownloadInfo $downloadInfo,
+    ): DownloadInfo;
 }

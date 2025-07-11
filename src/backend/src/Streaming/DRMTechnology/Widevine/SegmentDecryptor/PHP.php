@@ -12,9 +12,11 @@ use App\Streaming\DRMTechnology\Widevine\Classes\SegmentDecryptor;
 class Php extends SegmentDecryptor
 {
     // TODO: Look into FFI for direct function calls the a shared library (need to recompile)
-    public function getDecryptedSegment($initContent, $segmentContent, $decryptionKeys): string
-    {
+    public function getDecryptedSegment(
+        $initContent,
+        $segmentContent,
+        $decryptionKeys,
+    ): string {
         return "";
     }
-
 }

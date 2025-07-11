@@ -15,8 +15,10 @@ class PythonBackend extends PsshRetriever
 {
     public function getPssh(DownloadInfo $downloadInfo): DownloadInfo
     {
-        $downloadInfo->pssh = RequestHelper::pythonBackend("pssh", $downloadInfo);
+        $downloadInfo->pssh = RequestHelper::pythonBackend(
+            "pssh",
+            $downloadInfo,
+        );
         return $downloadInfo;
     }
-
 }

@@ -15,7 +15,10 @@ class PythonBackend extends DecryptionKeysRetriever
 {
     public function getDecryptionKeys(DownloadInfo $downloadInfo): DownloadInfo
     {
-        $downloadInfo->decryptionKeys = RequestHelper::pythonBackend("decrypt", $downloadInfo);
+        $downloadInfo->decryptionKeys = RequestHelper::pythonBackend(
+            "decrypt",
+            $downloadInfo,
+        );
         return $downloadInfo;
     }
 }

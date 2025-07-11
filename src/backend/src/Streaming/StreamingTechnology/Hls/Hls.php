@@ -16,16 +16,20 @@ class Hls extends StreamingTechnology
     public string $name = "hls";
     public string $mimeType = "application/vnd.apple.mpegurl";
 
-    public function getVideo(StreamingService $streamingService, Request $request, string $showId, string $seasonId, string $episodeId, array $args = []): string
-    {
+    public function getVideo(
+        StreamingService $streamingService,
+        Request $request,
+        string $showId,
+        string $seasonId,
+        string $episodeId,
+        array $args = [],
+    ): string {
         return "";
     }
 
     private function getMaster()
     {
-
     }
-
 
     private function getPlaylist()
     {
@@ -33,6 +37,5 @@ class Hls extends StreamingTechnology
 
     private function getFragment()
     {
-
     }
 }

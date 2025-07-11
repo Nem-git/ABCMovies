@@ -37,22 +37,45 @@ class Dash extends StreamingTechnology
     public function __construct()
     {
         $this->psshRetriever = ObjectFactory::createPsshRetriever("python");
-        $this->decryptionKeysRetriever = ObjectFactory::createDecryptionKeysRetriever("python");
-        $this->manifestModifier = ObjectFactory::createManifestModifier("python");
-        $this->segmentDecryptor = ObjectFactory::createSegmentDecryptor("shell");
+        $this->decryptionKeysRetriever = ObjectFactory::createDecryptionKeysRetriever(
+            "python",
+        );
+        $this->manifestModifier = ObjectFactory::createManifestModifier(
+            "python",
+        );
+        $this->segmentDecryptor = ObjectFactory::createSegmentDecryptor(
+            "shell",
+        );
         $this->repository = ObjectFactory::createRepository("redis");
-        $this->manifestController = ObjectFactory::createManifestController($this->repository);
+        $this->manifestController = ObjectFactory::createManifestController(
+            $this->repository,
+        );
     }
 
-    public function getVideo(StreamingService $streamingService, Request $request, string $showId, string $seasonId, string $episodeId, array $args = []): string
-    {
+    public function getVideo(
+        StreamingService $streamingService,
+        Request $request,
+        string $showId,
+        string $seasonId,
+        string $episodeId,
+        array $args = [],
+    ): string {
         // That means that it is not requesting segments, but the manifest
         if (count($args) === 0) {
-            return $this->getManifest($streamingService, $request, $showId, $seasonId, $episodeId);
+            return $this->getManifest(
+                $streamingService,
+                $request,
+                $showId,
+                $seasonId,
+                $episodeId,
+            );
         }
 
         $segmentType = strtolower(array_shift($args));
-        $dashSegmentCriteria = DashHelper::parseDashSegmentCriteria($request, $args);
+        $dashSegmentCriteria = DashHelper::parseDashSegmentCriteria(
+            $request,
+            $args,
+        );
 
         if ($segmentType === "init") {
             return $this->getInitSegment(
@@ -77,61 +100,131 @@ class Dash extends StreamingTechnology
         return "";
     }
 
-    private function getManifest(StreamingService $streamingService, Request $request, string $showId, string $seasonId, string $episodeId): string
-    {
-        $episode = $streamingService->executeEpisodeInfo($showId, $seasonId, $episodeId);
+    private function getManifest(
+        StreamingService $streamingService,
+        Request $request,
+        string $showId,
+        string $seasonId,
+        string $episodeId,
+    ): string {
+        $episode = $streamingService->executeEpisodeInfo(
+            $showId,
+            $seasonId,
+            $episodeId,
+        );
 
-        $url = $streamingService->getEpisodeInfoUrl($showId, $seasonId, $episodeId);
+        $url = $streamingService->getEpisodeInfoUrl(
+            $showId,
+            $seasonId,
+            $episodeId,
+        );
         $headers = Constants::HTTP_DEFAULT_HEADERS;
-        $parameters = $streamingService->getEpisodeInfoParameters($showId, $seasonId, $episodeId);
+        $parameters = $streamingService->getEpisodeInfoParameters(
+            $showId,
+            $seasonId,
+            $episodeId,
+        );
 
-        $response = json_decode(RequestHelper::get($url, $headers, $parameters), true);
-        $downloadInfo = $streamingService->getEpisodeDownloadInfo($episode, $response);
+        $response = json_decode(
+            RequestHelper::get($url, $headers, $parameters),
+            true,
+        );
+        $downloadInfo = $streamingService->getEpisodeDownloadInfo(
+            $episode,
+            $response,
+        );
 
         $this->psshRetriever->getPssh($downloadInfo);
         $this->decryptionKeysRetriever->getDecryptionKeys($downloadInfo);
 
         // Create the database id to identify the Decryption Keys
-        $episodeDatabaseIdentifier = StreamingServiceHelper::getEpisodeDatabaseIdentifier($streamingService->tag, $showId, $seasonId, $episodeId);
+        $episodeDatabaseIdentifier = StreamingServiceHelper::getEpisodeDatabaseIdentifier(
+            $streamingService->tag,
+            $showId,
+            $seasonId,
+            $episodeId,
+        );
 
-        $this->manifestController->addDecryptionKeys($episodeDatabaseIdentifier, $downloadInfo->decryptionKeys);
+        $this->manifestController->addDecryptionKeys(
+            $episodeDatabaseIdentifier,
+            $downloadInfo->decryptionKeys,
+        );
 
         $downloadInfo->mpdContent = RequestHelper::get($downloadInfo->mpdUrl);
-        $modifiedManifestContent = $this->manifestModifier->getModifiedMpd($downloadInfo);
+        $modifiedManifestContent = $this->manifestModifier->getModifiedMpd(
+            $downloadInfo,
+        );
 
         return $modifiedManifestContent;
     }
 
-
-    private function getInitSegment(string $initMediaIdentifier, string $reconstructedUrl): string
-    {
-        $initContent = $this->manifestController->getInitContent($reconstructedUrl);
+    private function getInitSegment(
+        string $initMediaIdentifier,
+        string $reconstructedUrl,
+    ): string {
+        $initContent = $this->manifestController->getInitContent(
+            $reconstructedUrl,
+        );
 
         if (!$initContent) {
             $initContent = RequestHelper::get($reconstructedUrl);
-            $this->manifestController->addInitContent($initMediaIdentifier, $initContent);
+            $this->manifestController->addInitContent(
+                $initMediaIdentifier,
+                $initContent,
+            );
         }
 
         return $initContent;
     }
 
-    private function getMediaSegment(StreamingService $streamingService, Request $request, string $showId, string $seasonId, string $episodeId, string $initMediaIdentifier, string $reconstructedUrl): string
-    {
-        $episodeDatabaseIdentifier = StreamingServiceHelper::getEpisodeDatabaseIdentifier($streamingService->tag, $showId, $seasonId, $episodeId);
+    private function getMediaSegment(
+        StreamingService $streamingService,
+        Request $request,
+        string $showId,
+        string $seasonId,
+        string $episodeId,
+        string $initMediaIdentifier,
+        string $reconstructedUrl,
+    ): string {
+        $episodeDatabaseIdentifier = StreamingServiceHelper::getEpisodeDatabaseIdentifier(
+            $streamingService->tag,
+            $showId,
+            $seasonId,
+            $episodeId,
+        );
 
-        $decryptionKeys = $this->manifestController->getDecryptionKeys($episodeDatabaseIdentifier);
+        $decryptionKeys = $this->manifestController->getDecryptionKeys(
+            $episodeDatabaseIdentifier,
+        );
 
         if (!$decryptionKeys) {
-            $this->getManifest($streamingService, $request, $showId, $seasonId, $episodeId);
-            $decryptionKeys = $this->manifestController->getDecryptionKeys($episodeDatabaseIdentifier);
+            $this->getManifest(
+                $streamingService,
+                $request,
+                $showId,
+                $seasonId,
+                $episodeId,
+            );
+            $decryptionKeys = $this->manifestController->getDecryptionKeys(
+                $episodeDatabaseIdentifier,
+            );
         }
 
-        return $this->executeMediaSegment($initMediaIdentifier, $reconstructedUrl, $decryptionKeys);
+        return $this->executeMediaSegment(
+            $initMediaIdentifier,
+            $reconstructedUrl,
+            $decryptionKeys,
+        );
     }
 
-    private function executeMediaSegment(string $initMediaIdentifier, string $reconstructedUrl, array $decryptionKeys): string
-    {
-        $initContent = $this->manifestController->getInitContent($initMediaIdentifier);
+    private function executeMediaSegment(
+        string $initMediaIdentifier,
+        string $reconstructedUrl,
+        array $decryptionKeys,
+    ): string {
+        $initContent = $this->manifestController->getInitContent(
+            $initMediaIdentifier,
+        );
 
         // Shouldn't happen with video players that are not dumb
         if (!$initContent) {
@@ -140,7 +233,11 @@ class Dash extends StreamingTechnology
         }
 
         $segmentContent = RequestHelper::get($reconstructedUrl);
-        $decryptedSegmentContent = $this->segmentDecryptor->getDecryptedSegment($initContent, $segmentContent, $decryptionKeys);
+        $decryptedSegmentContent = $this->segmentDecryptor->getDecryptedSegment(
+            $initContent,
+            $segmentContent,
+            $decryptionKeys,
+        );
 
         return $decryptedSegmentContent;
     }

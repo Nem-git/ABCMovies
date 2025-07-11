@@ -28,12 +28,15 @@ class ManifestController
 
     public function addInitContent(string $id, string $content)
     {
-        return $this->repository->add($id, $content, Constants::DEFAULT_INIT_CONTENT_TTL);
+        return $this->repository->add(
+            $id,
+            $content,
+            Constants::DEFAULT_INIT_CONTENT_TTL,
+        );
     }
 
-    public function getInitContent(string $id): string | null
+    public function getInitContent(string $id): string|null
     {
         return $this->repository->select($id);
     }
-
 }

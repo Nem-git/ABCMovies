@@ -24,11 +24,16 @@ class SlimResponseHelper
         return $response;
     }
 
-    public static function response_dash(string $data, Response $response): Response
-    {
+    public static function response_dash(
+        string $data,
+        Response $response,
+    ): Response {
         $response->getBody()->write($data);
         $response = self::basic_response($response);
-        $response = $response->withHeader("Content-Type", "application/dash+xml");
+        $response = $response->withHeader(
+            "Content-Type",
+            "application/dash+xml",
+        );
         return $response;
     }
 
@@ -37,14 +42,20 @@ class SlimResponseHelper
         $response->getBody()->write($data);
         $response = self::basic_response($response);
         $response = $response->withHeader("Content-Type", "video/mp4");
-        $response = $response->withHeader("Access-Control-Allow-Headers", "Range");
+        $response = $response->withHeader(
+            "Access-Control-Allow-Headers",
+            "Range",
+        );
         return $response;
     }
 
     private static function basic_response(Response $response): Response
     {
         $response = $response->withHeader("Access-Control-Allow-Origin", "*");
-        $response = $response->withHeader("Content-Length", $response->getBody()->getSize());
+        $response = $response->withHeader(
+            "Content-Length",
+            $response->getBody()->getSize(),
+        );
 
         return $response;
     }

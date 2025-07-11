@@ -16,16 +16,20 @@ class Mp4 extends StreamingTechnology
     public string $name = "mp4";
     public string $mimeType = "video/mp4";
 
-    public function getVideo(StreamingService $streamingService, Request $request, string $showId, string $seasonId, string $episodeId, array $args = []): string
-    {
+    public function getVideo(
+        StreamingService $streamingService,
+        Request $request,
+        string $showId,
+        string $seasonId,
+        string $episodeId,
+        array $args = [],
+    ): string {
         return "";
     }
 
     private function getMaster()
     {
-
     }
-
 
     private function getPlaylist()
     {
@@ -33,6 +37,5 @@ class Mp4 extends StreamingTechnology
 
     private function getFragment()
     {
-
     }
 }

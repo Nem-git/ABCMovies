@@ -18,21 +18,27 @@ class ObjectFactory
     ];
 
     private static array $psshRetriever = [
-        "python" => \App\Streaming\DRMTechnology\Widevine\PsshRetriever\PythonBackend::class,
+        "python" =>
+            \App\Streaming\DRMTechnology\Widevine\PsshRetriever\PythonBackend::class,
     ];
 
     private static array $decryptionKeysRetriever = [
-        "python" => \App\Streaming\DRMTechnology\Widevine\DecryptionKeysRetriever\PythonBackend::class,
+        "python" =>
+            \App\Streaming\DRMTechnology\Widevine\DecryptionKeysRetriever\PythonBackend::class,
     ];
 
     private static array $manifestModifier = [
-        "python" => \App\Streaming\StreamingTechnology\Dash\ManifestModifier\PythonBackend::class,
+        "python" =>
+            \App\Streaming\StreamingTechnology\Dash\ManifestModifier\PythonBackend::class,
     ];
 
     private static array $segmentDecryptor = [
-        "python" => \App\Streaming\DRMTechnology\Widevine\SegmentDecryptor\PythonBackend::class,
-        "php" => \App\Streaming\DRMTechnology\Widevine\SegmentDecryptor\PHP::class,
-        "shell" => \App\Streaming\DRMTechnology\Widevine\SegmentDecryptor\Shell::class,
+        "python" =>
+            \App\Streaming\DRMTechnology\Widevine\SegmentDecryptor\PythonBackend::class,
+        "php" =>
+            \App\Streaming\DRMTechnology\Widevine\SegmentDecryptor\PHP::class,
+        "shell" =>
+            \App\Streaming\DRMTechnology\Widevine\SegmentDecryptor\Shell::class,
     ];
 
     private static array $repository = [
@@ -40,27 +46,35 @@ class ObjectFactory
     ];
 
     private static array $searchRecommender = [
-        "fuzzy" => \App\Streaming\StreamingServiceManager\SearchRecommender\Fuzzy::class,
+        "fuzzy" =>
+            \App\Streaming\StreamingServiceManager\SearchRecommender\Fuzzy::class,
     ];
 
     private static array $mediaRecommender = [
-        "random" => \App\Streaming\StreamingServiceManager\MediaRecommender\Random::class,
+        "random" =>
+            \App\Streaming\StreamingServiceManager\MediaRecommender\Random::class,
     ];
 
-    public static function createStreamingService(string $tag): \App\Streaming\StreamingService\StreamingService
-    {
+    public static function createStreamingService(
+        string $tag,
+    ): \App\Streaming\StreamingService\StreamingService {
         $class = self::$streamingService[$tag] ?? null;
         if ($class === null) {
-            throw new \InvalidArgumentException("Unknown streaming service tag: $tag");
+            throw new \InvalidArgumentException(
+                "Unknown streaming service tag: $tag",
+            );
         }
         return new $class();
     }
 
-    public static function createStreamingTechnology(string $name): \App\Streaming\StreamingTechnology\StreamingTechnology
-    {
+    public static function createStreamingTechnology(
+        string $name,
+    ): \App\Streaming\StreamingTechnology\StreamingTechnology {
         $class = self::$streamingTechnology[$name] ?? null;
         if ($class === null) {
-            throw new \InvalidArgumentException("Unknown streaming technology name: $name");
+            throw new \InvalidArgumentException(
+                "Unknown streaming technology name: $name",
+            );
         }
         return new $class();
     }
@@ -85,70 +99,92 @@ class ObjectFactory
         return new \App\Streaming\Classes\DownloadInfo();
     }
 
-    public static function createPsshRetriever(string $type): \App\Streaming\DRMTechnology\Widevine\Classes\PsshRetriever
-    {
+    public static function createPsshRetriever(
+        string $type,
+    ): \App\Streaming\DRMTechnology\Widevine\Classes\PsshRetriever {
         $class = self::$psshRetriever[$type] ?? null;
         if ($class === null) {
-            throw new \InvalidArgumentException("Unknown PSSH retriever type: $type");
+            throw new \InvalidArgumentException(
+                "Unknown PSSH retriever type: $type",
+            );
         }
         return new $class();
     }
 
-    public static function createDecryptionKeysRetriever(string $type): \App\Streaming\DRMTechnology\Widevine\Classes\DecryptionKeysRetriever
-    {
+    public static function createDecryptionKeysRetriever(
+        string $type,
+    ): \App\Streaming\DRMTechnology\Widevine\Classes\DecryptionKeysRetriever {
         $class = self::$decryptionKeysRetriever[$type] ?? null;
         if ($class === null) {
-            throw new \InvalidArgumentException("Unknown decryption keys retriever type: $type");
+            throw new \InvalidArgumentException(
+                "Unknown decryption keys retriever type: $type",
+            );
         }
         return new $class();
     }
 
-    public static function createManifestModifier(string $type): \App\Streaming\StreamingTechnology\Dash\Classes\ManifestModifier
-    {
+    public static function createManifestModifier(
+        string $type,
+    ): \App\Streaming\StreamingTechnology\Dash\Classes\ManifestModifier {
         $class = self::$manifestModifier[$type] ?? null;
         if ($class === null) {
-            throw new \InvalidArgumentException("Unknown manifest modifier type: $type");
+            throw new \InvalidArgumentException(
+                "Unknown manifest modifier type: $type",
+            );
         }
         return new $class();
     }
 
-    public static function createSegmentDecryptor(string $type): \App\Streaming\DRMTechnology\Widevine\Classes\SegmentDecryptor
-    {
+    public static function createSegmentDecryptor(
+        string $type,
+    ): \App\Streaming\DRMTechnology\Widevine\Classes\SegmentDecryptor {
         $class = self::$segmentDecryptor[$type] ?? null;
         if ($class === null) {
-            throw new \InvalidArgumentException("Unknown segment decryptor type: $type");
+            throw new \InvalidArgumentException(
+                "Unknown segment decryptor type: $type",
+            );
         }
         return new $class();
     }
 
-    public static function createRepository(string $type): \App\Repositories\RedisRepository
-    {
+    public static function createRepository(
+        string $type,
+    ): \App\Repositories\RedisRepository {
         $class = self::$repository[$type] ?? null;
         if ($class === null) {
-            throw new \InvalidArgumentException("Unknown repository type: $type");
+            throw new \InvalidArgumentException(
+                "Unknown repository type: $type",
+            );
         }
         return new $class();
     }
 
-    public static function createManifestController(\App\Repositories\RedisRepository $repository): \App\Controllers\ManifestController
-    {
+    public static function createManifestController(
+        \App\Repositories\RedisRepository $repository,
+    ): \App\Controllers\ManifestController {
         return new \App\Controllers\ManifestController($repository);
     }
 
-    public static function createSearchRecommender(string $type): \App\Streaming\StreamingServiceManager\Classes\SearchRecommender
-    {
+    public static function createSearchRecommender(
+        string $type,
+    ): \App\Streaming\StreamingServiceManager\Classes\SearchRecommender {
         $class = self::$searchRecommender[$type] ?? null;
         if ($class === null) {
-            throw new \InvalidArgumentException("Unknown search recommender type: $type");
+            throw new \InvalidArgumentException(
+                "Unknown search recommender type: $type",
+            );
         }
         return new $class();
     }
 
-    public static function createMediaRecommender(string $type): \App\Streaming\StreamingServiceManager\Classes\MediaRecommender
-    {
+    public static function createMediaRecommender(
+        string $type,
+    ): \App\Streaming\StreamingServiceManager\Classes\MediaRecommender {
         $class = self::$mediaRecommender[$type] ?? null;
         if ($class === null) {
-            throw new \InvalidArgumentException("Unknown media recommender type: $type");
+            throw new \InvalidArgumentException(
+                "Unknown media recommender type: $type",
+            );
         }
         return new $class();
     }
@@ -157,5 +193,4 @@ class ObjectFactory
     {
         return new \App\Streaming\StreamingServiceManager\StreamingServiceManager();
     }
-
 }
