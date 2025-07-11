@@ -12,3 +12,6 @@ phpunit.xml
 clover.xml
 vendor
 coverage
+
+# For prettier's PHP plugin
+node_modules/

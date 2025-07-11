@@ -18,6 +18,7 @@ E - Plays with errors / warnings
 
 ## Common
 
+- [ ] Add .env to gitignore when .env is feature complete
 - [ ] Validation of HTTP requests
 - [ ] Error detection and logging
 - [ ] Throw HTTP errors, don't just return half-broken JSON

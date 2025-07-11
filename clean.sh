@@ -3,11 +3,9 @@
 export PHP_CS_FIXER_IGNORE_ENV=true
 
 # PHP
-./src/backend/vendor/bin/phpcbf ./src/backend/config
 ./src/backend/vendor/bin/phpcbf ./src/backend/public
 ./src/backend/vendor/bin/phpcbf ./src/backend/src
 
-./src/backend/vendor/bin/php-cs-fixer fix ./src/backend/config
 ./src/backend/vendor/bin/php-cs-fixer fix ./src/backend/public
 ./src/backend/vendor/bin/php-cs-fixer fix ./src/backend/src
 

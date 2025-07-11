@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace App\Helpers;
 
 use Psr\Http\Message\ServerRequestInterface as Request;
-
-require_once __DIR__ . "/../../config/constants.php";
+use App\Config\Constants;
 
 class SlimRequestParsingHelper
 {
@@ -14,7 +13,7 @@ class SlimRequestParsingHelper
     {
         return [
             "query" => $args["query"] ?? "",
-            "amount" => (int)($request->getQueryParams()["amount"] ?? DEFAULT_SEARCH_RESULTS_AMOUNT),
+            "amount" => (int)($request->getQueryParams()["amount"] ?? Constants::DEFAULT_SEARCH_RESULTS_AMOUNT),
         ];
     }
 
@@ -22,14 +21,14 @@ class SlimRequestParsingHelper
     {
         return [
             "showId" => $args["show"] ?? "",
-            "amount" => (int)($request->getQueryParams()["amount"] ?? DEFAULT_RECOMMENDATIONS_AMOUNT),
+            "amount" => (int)($request->getQueryParams()["amount"] ?? Constants::DEFAULT_RECOMMENDATIONS_AMOUNT),
         ];
     }
 
     public static function parseRecommendationsCriteria(Request $request, array $args): array
     {
         return [
-            "amount" => (int)($request->getQueryParams()["amount"] ?? DEFAULT_RECOMMENDATIONS_AMOUNT),
+            "amount" => (int)($request->getQueryParams()["amount"] ?? Constants::DEFAULT_RECOMMENDATIONS_AMOUNT),
             "type" => $args["type"] ?? "",
         ];
     }
@@ -72,11 +71,11 @@ class SlimRequestParsingHelper
         $streamingTechnology = "";
 
         if (isset($args["streamingTechnology"])) {
-            $streamingTechnology = WORD_TO_STREAMING_TECH[$args["streamingTechnology"]] ?? "";
+            $streamingTechnology = Constants::WORD_TO_STREAMING_TECH[$args["streamingTechnology"]] ?? "";
         }
 
         if (isset($args["filename"])) {
-            $streamingTechnology = WORD_TO_STREAMING_TECH[$args["filename"]] ?? "";
+            $streamingTechnology = Constants::WORD_TO_STREAMING_TECH[$args["filename"]] ?? "";
         }
 
         return [

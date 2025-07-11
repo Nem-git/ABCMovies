@@ -1,0 +1,36 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Streaming\StreamingService\Helpers;
+
+use App\Config\Constants;
+
+class StreamingServiceHelper
+{
+    public static function getStreamUrl(string $streamingServiceTag, string $showId, string $seasonId, string $episodeId, string $tech): string
+    {
+        return $_ENV["PHP_BACKEND_URL"] . join("/", [strtolower($streamingServiceTag), $showId, $seasonId, $episodeId, Constants::STREAMING_TECH_TO_FILENAME[$tech]]);
+    }
+
+    public static function getEpisodeDatabaseIdentifier(string $streamingServiceTag, string $showId, string $seasonId, string $episodeId): string
+    {
+        return join("/", [strtolower($streamingServiceTag), $showId, $seasonId, $episodeId]);
+    }
+
+    public static function getRecommendationMethodName(string $type): string
+    {
+        // if type is valid recommendation type
+        if (in_array(strtolower($type), Constants::RECOMMENDATION_TYPES, true)) {
+            return "execute".self::getPascalCaseWord($type)."Recommendations";
+        }
+
+        return "";
+    }
+
+    public static function getPascalCaseWord(string $word): string
+    {
+        return ucfirst(strtolower($word));
+    }
+
+}

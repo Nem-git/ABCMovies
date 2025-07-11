@@ -5,24 +5,18 @@ declare(strict_types=1);
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Factory\AppFactory;
-use App\Models\ObjectFactory;
-use App\Helpers\SlimResponseHelper;
 use Dotenv\Dotenv;
+use App\Helpers\SlimResponseHelper;
+use App\Factory\ObjectFactory;
 
-require __DIR__ . '/../vendor/autoload.php';
+require __DIR__ . "/../vendor/autoload.php";
 
-$dotenv = Dotenv::createImmutable(__DIR__ . "/../config/");
+// Loads the environment variables from .env to $_ENV
+$dotenv = Dotenv::createImmutable(__DIR__ . "/../src/Config/");
 $dotenv->load();
 
 $app = AppFactory::create();
 
-$app->get(
-    "/api/",
-    function (Request $request, Response $response, array $args) {
-        $response->getBody()->write("Hello world!");
-        return $response;
-    }
-);
 
 $app->get(
     "/api/search/{query}",
