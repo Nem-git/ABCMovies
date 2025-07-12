@@ -317,11 +317,11 @@ class Toutv extends StreamingService
             )
             ) {
                 if ($streamingTechnology["name"] === "dash") {
+                    $episode->streamingTechnology = ObjectFactory::createStreamingTechnology(
+                        $streamingTechnology["name"],
+                    );
                     foreach ($streamingTechnology["drm"] as $drmTechnology) {
                         if ($drmTechnology === "widevine") {
-                            $episode->streamingTechnology = ObjectFactory::createStreamingTechnology(
-                                $streamingTechnology["name"],
-                            );
                             $episode->streamingTechnology->drmTechnology = ObjectFactory::createDrmTechnology(
                                 $drmTechnology,
                             );
@@ -353,6 +353,7 @@ class Toutv extends StreamingService
         array $ssResponse,
     ): void {
         $episode->url = $ssResponse["url"];
+        $episode->urlHeaders = [];
 
         $episode->streamingTechnology->drmTechnology->licenseHeaders = array_merge(
             Constants::HTTP_DEFAULT_HEADERS,

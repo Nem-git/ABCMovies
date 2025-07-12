@@ -44,6 +44,11 @@ class Episode
     public string $url;
 
     /**
+     * Headers required to use the download link
+     */
+    public array $urlHeaders;
+
+    /**
      * The chosen streaming technology using settings in constants
      */
     public StreamingTechnology $streamingTechnology;

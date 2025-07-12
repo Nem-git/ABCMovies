@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Streaming\DRMTechnology;
 
-class DRMTechnology
+use App\Streaming\Classes\Episode;
+
+abstract class DRMTechnology
 {
     public string $name;
 
@@ -22,4 +24,16 @@ class DRMTechnology
      * Video's decryption keys
      */
     public array $decryptionKeys;
+
+    abstract public function saveData(
+        Episode $episode,
+        string $episodeStreamingDrmTechnologyIdentifier,
+    ): void;
+
+    abstract public function getSegment(
+        string $episodeStreamingDrmTechnologyIdentifier,
+        string $initMediaIdentifier,
+        string $reconstructedUrl,
+        bool $isInit = false,
+    ): string;
 }

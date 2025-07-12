@@ -6,7 +6,7 @@ namespace App\Streaming\StreamingTechnology;
 
 use App\Streaming\DRMTechnology\DRMTechnology;
 use Psr\Http\Message\ServerRequestInterface as Request;
-use App\Streaming\StreamingService\StreamingService;
+use App\Streaming\Classes\Episode;
 
 abstract class StreamingTechnology
 {
@@ -15,11 +15,10 @@ abstract class StreamingTechnology
     public DRMTechnology $drmTechnology;
 
     abstract public function getVideo(
-        StreamingService $streamingService,
         Request $request,
+        Episode $episode,
         string $showId,
         string $seasonId,
-        string $episodeId,
         array $args = [],
     ): string;
 }

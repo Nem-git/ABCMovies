@@ -351,14 +351,21 @@ abstract class StreamingService
             $episodeVideoCriteria["streamingTechnology"],
         );
 
-        // Unsure about removing completely the args when requesting
-        // the manifest, as when using filename, there are no extraArgs
-        return $streamingTechnology->getVideo(
-            $this,
-            $request,
+        $episode = $this->executeEpisodeInfo(
             $episodeVideoCriteria["showId"],
             $episodeVideoCriteria["seasonId"],
             $episodeVideoCriteria["episodeId"],
+        );
+
+        $this->getEpisodeStreamInfo($episode);
+
+        // Unsure about removing completely the args when requesting
+        // the manifest, as when using filename, there are no extraArgs
+        return $streamingTechnology->getVideo(
+            $request,
+            $episode,
+            $episodeVideoCriteria["showId"],
+            $episodeVideoCriteria["seasonId"],
             isset($args["extraArgs"]) ? explode("/", $args["extraArgs"]) : [],
         );
     }

@@ -6,6 +6,11 @@ namespace App\Controllers;
 
 use App\Config\Constants;
 
+/**
+ * The name is so wrong in so many ways.
+ * This has nothing to do with manifest
+ * specifically and more to do with DRM
+ */
 class ManifestController
 {
     private $repository; // Database Repository

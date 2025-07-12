@@ -112,9 +112,12 @@ class ObjectFactory
         return new \App\Streaming\Classes\Episode();
     }
 
-    public static function createPythonBackendResponse(array $data): \App\Streaming\Helpers\PythonBackend\Classes\PythonBackendResponse
-    {
-        return new \App\Streaming\Helpers\PythonBackend\Classes\PythonBackendResponse($data);
+    public static function createPythonBackendResponse(
+        array $data,
+    ): \App\Streaming\Helpers\PythonBackend\Classes\PythonBackendResponse {
+        return new \App\Streaming\Helpers\PythonBackend\Classes\PythonBackendResponse(
+            $data,
+        );
     }
 
     public static function createPsshRetriever(

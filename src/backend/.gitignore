@@ -15,3 +15,4 @@ coverage
 
 # For prettier's PHP plugin
 node_modules/
+package-lock.json

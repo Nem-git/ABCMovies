@@ -28,12 +28,19 @@ E - Plays with errors / warnings
 - [ ] Add logical groups in the API endpoints using Slim
 - [ ] Add logging for database access
 
+
+### Fairplay.php
+
+- [ ] Program Fairplay DRM tech
+
+### Playready.php
+
+- [ ] Program the Playready DRM tech
+
 ### StreamingService.php
 
 - [ ] Add other abstract methods that give the different headers for the requests, as now I am just using HTTP_DEFAULT_HEADERS
-- [X] Abstract the logic with Dash Manifest and create a parent class that can englobe more streaming techs
 - [ ] Make the decryption of segments optional
-- [ ] Abstract the decryption so it can support other forms of DRM, like Fairplay or PlayReady
 
 ### ObjectFactory.php
 
