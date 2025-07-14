@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Streaming\StreamingService\Toutv;
 
 use App\Config\Constants;
+use App\Streaming\StreamingService\Toutv\Config\ToutvConstants;
 use App\Streaming\StreamingService\StreamingService;
 use App\Streaming\Helpers\RequestHelper;
 use App\Streaming\Classes\Show;
@@ -256,9 +257,9 @@ class Toutv extends StreamingService
 
     public function parseEpisodeInfo(Episode $episode, array $ssResponse): void
     {
-        $episode->id = $ssResponse["idFichierToutv"];
-        $episode->title = $ssResponse["emission"];
-        $episode->number = (int) $ssResponse["episode"];
+        $episode->id = $ssResponse["content.mediaId"];
+        $episode->title = $ssResponse["content.title"];
+        $episode->number = (int) $ssResponse["content.episode"];
         $episode->provider = $this->tag;
     }
 
@@ -357,7 +358,7 @@ class Toutv extends StreamingService
 
         $episode->streamingTechnology->drmTechnology->licenseHeaders = array_merge(
             Constants::HTTP_DEFAULT_HEADERS,
-            Constants::TOUTV_HEADERS_EPISODE_DOWNLOAD_LICENSE_INFO,
+            ToutvConstants::TOUTV_HEADERS_EPISODE_DOWNLOAD_LICENSE_INFO,
         );
 
         if ($episode->streamingTechnology->drmTechnology->name === "widevine") {
@@ -381,12 +382,12 @@ class Toutv extends StreamingService
 
     public function getSearchUrl(string $query, int $amount): string
     {
-        return Constants::TOUTV_URL_SEARCH;
+        return ToutvConstants::TOUTV_URL_SEARCH;
     }
 
     public function getSearchParameters(string $query, int $amount): array
     {
-        $parameters = Constants::TOUTV_PARAMETERS_SEARCH;
+        $parameters = ToutvConstants::TOUTV_PARAMETERS_SEARCH;
         $parameters["pageSize"] = $amount;
         $parameters["term"] = urlencode($query);
         return $parameters;
@@ -401,26 +402,26 @@ class Toutv extends StreamingService
         Show $show,
         int $amount,
     ): array {
-        $parameters = Constants::TOUTV_PARAMETERS_SHOW_RECOMMENDATIONS;
+        $parameters = ToutvConstants::TOUTV_PARAMETERS_SHOW_RECOMMENDATIONS;
         $parameters["pageSize"] = $amount;
         return $parameters;
     }
 
     public function getMoviesRecommendationsUrl(int $amount): string
     {
-        return Constants::TOUTV_URL_MOVIES_RECOMMENDATIONS;
+        return ToutvConstants::TOUTV_URL_MOVIES_RECOMMENDATIONS;
     }
 
     public function getMoviesRecommendationsParameters(int $amount): array
     {
-        $parameters = Constants::TOUTV_PARAMETERS_MOVIES_RECOMMENDATIONS;
+        $parameters = ToutvConstants::TOUTV_PARAMETERS_MOVIES_RECOMMENDATIONS;
         $parameters["pageSize"] = $amount;
         return $parameters;
     }
 
     public function getSeriesRecommendationsUrl(int $amount): string
     {
-        return Constants::TOUTV_URL_SERIES_RECOMMENDATIONS;
+        return ToutvConstants::TOUTV_URL_SERIES_RECOMMENDATIONS;
     }
 
     public function getSeriesRecommendationsParameters(int $amount): array
@@ -430,7 +431,7 @@ class Toutv extends StreamingService
 
     public function getDocumentariesRecommendationsUrl(int $amount): string
     {
-        return Constants::TOUTV_URL_DOCUMENTARIES_RECOMMENDATIONS;
+        return ToutvConstants::TOUTV_URL_DOCUMENTARIES_RECOMMENDATIONS;
     }
 
     public function getDocumentariesRecommendationsParameters(
@@ -457,24 +458,27 @@ class Toutv extends StreamingService
 
     public function getShowInfoUrl(Show $show): string
     {
-        return Constants::TOUTV_URL_SHOW_INFO . $show->id;
+        return ToutvConstants::TOUTV_URL_SHOW_INFO . $show->id;
     }
 
     public function getShowInfoParameters(Show $show): array
     {
-        return Constants::TOUTV_PARAMETERS_SHOW_INFO;
+        return ToutvConstants::TOUTV_PARAMETERS_SHOW_INFO;
     }
 
     public function getSeasonInfoUrl(string $showId, string $seasonId): string
     {
-        return Constants::TOUTV_URL_SEASON_INFO . $showId . "/s" . $seasonId;
+        return ToutvConstants::TOUTV_URL_SEASON_INFO .
+            $showId .
+            "/s" .
+            $seasonId;
     }
 
     public function getSeasonInfoParameters(
         string $showId,
         string $seasonId,
     ): array {
-        return Constants::TOUTV_PARAMETERS_SEASON_INFO;
+        return ToutvConstants::TOUTV_PARAMETERS_SEASON_INFO;
     }
 
     public function getEpisodeInfoUrl(
@@ -483,7 +487,7 @@ class Toutv extends StreamingService
         string $episodeId,
     ): string {
         // THis %02d adds a trailing 0 in front of the number as a string, like 01 instead of 1
-        return Constants::TOUTV_URL_EPISODE_INFO .
+        return ToutvConstants::TOUTV_URL_EPISODE_INFO .
             $showId .
             "/s" .
             sprintf("%02d", $seasonId) .
@@ -496,38 +500,38 @@ class Toutv extends StreamingService
         string $seasonId,
         string $episodeId,
     ): array {
-        return Constants::TOUTV_PARAMETERS_EPISODE_INFO;
+        return ToutvConstants::TOUTV_PARAMETERS_EPISODE_INFO;
     }
 
     //region New functions
 
     private function getEpisodeFileUrl(Episode $episode): string
     {
-        return Constants::TOUTV_URL_EPISODE_FILE_INFO;
+        return ToutvConstants::TOUTV_URL_EPISODE_FILE_INFO;
     }
 
     private function getEpisodeFileParameters(Episode $episode): array
     {
-        $parameters = Constants::TOUTV_PARAMETERS_EPISODE_FILE_INFO;
+        $parameters = ToutvConstants::TOUTV_PARAMETERS_EPISODE_FILE_INFO;
         $parameters["idMedia"] = $episode->id;
         return $parameters;
     }
 
     private function getEpisodeDownloadUrl(Episode $episode): string
     {
-        return Constants::TOUTV_URL_EPISODE_DOWNLOAD_INFO;
+        return ToutvConstants::TOUTV_URL_EPISODE_DOWNLOAD_INFO;
     }
 
     private function getEpisodeDownloadParameters(Episode $episode): array
     {
-        $parameters = Constants::TOUTV_PARAMETERS_EPISODE_DOWNLOAD_INFO;
+        $parameters = ToutvConstants::TOUTV_PARAMETERS_EPISODE_DOWNLOAD_INFO;
         $parameters["idMedia"] = $episode->id;
         return $parameters;
     }
 
     private function getEpisodeDownloadHeaders(): array
     {
-        $headers = Constants::TOUTV_HEADERS_EPISODE_DOWNLOAD_INFO;
+        $headers = ToutvConstants::TOUTV_HEADERS_EPISODE_DOWNLOAD_INFO;
         $headers["Authorization"] = "";
         $headers["x-claims-token"] = "";
         $headers = array_merge(Constants::HTTP_DEFAULT_HEADERS, $headers);
