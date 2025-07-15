@@ -23,7 +23,7 @@ export type Season = {
 export type Episode = {
     id: string;
     title: string;
-    number: string;
+    number: number;
     fullDescription: string;
     shortDescription: string;
     imageCard: string;

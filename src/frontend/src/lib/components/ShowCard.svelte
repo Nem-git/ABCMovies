@@ -1,17 +1,10 @@
 <script lang="ts">
-    import { url } from "@roxi/routify";
+    import type { Show } from "$lib/types";
 
-    import type { Show } from "../types";
     let { show }: { show: Show } = $props();
 </script>
 
-<a
-    href={$url("/[streamingService]/[show]", {
-        streamingService: show.provider.toLowerCase(),
-        show: show.id,
-    })}
-    aria-label={show.title}
->
+<a href={`/${show.provider.toLowerCase()}/${show.id}`} aria-label={show.title}>
     <div class="card">
         <img src={show.imageCard.replace("_Size_", "480")} alt={show.title} />
         <div class="card-info">

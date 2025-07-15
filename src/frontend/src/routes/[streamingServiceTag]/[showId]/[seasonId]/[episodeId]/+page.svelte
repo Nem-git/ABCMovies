@@ -1,31 +1,24 @@
 <script lang="ts">
-    import { init } from "../../../../../lib/videoPlayer/dashjsPlayer.svelte";
-    import { manifestUrl } from "../../../../../lib/videoPlayer/dashjsPlayer.svelte";
+    import type { PageProps } from "./$types";
 
-    import type { Episode } from "../../../../../lib/types";
-    import { getEpisode } from "../../../../../lib/api";
     import { onMount } from "svelte";
-    import { params } from "@roxi/routify";
 
-    let { streamingService, show, season, episode } = $params;
+    let { data }: PageProps = $props();
 
-    let e: Promise<Episode> = getEpisode(
-        streamingService,
-        show,
-        season,
-        episode,
-    );
+    let videoPlayerEl: HTMLVideoElement;
 
-    onMount(async () => {
-        manifestUrl.url = (await e).url;
-        init();
+    onMount(() => {
+        import("dashjs").then((dashjs) => {
+            let player = dashjs.MediaPlayer().create();
+            player.initialize(videoPlayerEl, data.episode.url, true);
+        });
     });
 </script>
 
 <div id="fullscreen">
     <div id="container">
         <a href="./" id="back-button">Back</a>
-        <video id="video-player" controls autoplay>
+        <video id="video-player" bind:this={videoPlayerEl} controls autoplay>
             <track kind="captions" />
             <!-- I am unsure about the need for this, but it gives me errors in svelte when I don't put it -->
         </video>

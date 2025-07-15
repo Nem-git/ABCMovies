@@ -1,4 +1,8 @@
 <script lang="ts">
+    import logo from "$lib/images/abc-logo.svg";
+    import search from "$lib/images/search.svg";
+    import account from "$lib/images/account.svg";
+
     let searchOnClick = () => {
         document.getElementById("search-input")?.focus();
     };
@@ -6,26 +10,19 @@
 
 <header>
     <nav>
+        <!-- Add a UL and LIs -->
         <a href="/" class="home-button">
-            <img src="/logoX.svg" alt="ABCMovies' Logo" class="logo" />
+            <img src={logo} alt="ABCMovies' Logo" class="logo" />
             <span class="abc">ABC</span>
         </a>
         <div class="right">
             <a href="/search" onclick={searchOnClick} class="search-container">
-                <img
-                    src="/searchX.svg"
-                    alt="Magnifying glass"
-                    class="search-icon"
-                />
+                <img src={search} alt="Magnifying glass" class="search-icon" />
                 <span class="search">Search</span>
             </a>
 
             <a href="/account">
-                <img
-                    src="/accountX.svg"
-                    alt="User account"
-                    class="account-icon"
-                />
+                <img src={account} alt="User account" class="account-icon" />
             </a>
         </div>
     </nav>

@@ -82,6 +82,16 @@ E - Plays with errors / warnings
 
 ## Svelte
 
+			<picture>
+				<source srcset={welcome} type="image/webp" />
+				<img src={welcomeFallback} alt="Welcome" />
+			</picture>
+
+<svelte:head>
+	<title>Home</title>
+	<meta name="description" content="Svelte demo app" />
+</svelte:head>
+
 ## Common
 
 - [ ] Make the switch from Routify to SvelteKit (Big project, takes time to do right, maybe new branch)

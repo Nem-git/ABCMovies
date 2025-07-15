@@ -1,3 +1,5 @@
+@import "@fontsource/fira-mono";
+
 :root {
     /** Body */
     --body-background-color: rgb(31, 25, 35);
@@ -42,11 +44,6 @@
 
     /** Button */
     --button-border-radius: 0.5em;
-
-    font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-    text-rendering: optimizeLegibility;
-
-    color: var(--text-color);
 }
 
 * {
@@ -57,7 +54,6 @@ html,
 body {
     min-height: 100vh;
     margin: 0;
-    padding: 0;
     background-attachment: fixed;
     background-color: var(--body-background-color);
     background-size: 100vw 100vh;
@@ -75,16 +71,12 @@ p {
 }
 
 a {
-    color: var(--text-color);
+    color: var(--color-theme-1);
     text-decoration: none;
 }
 
 a:hover {
     text-decoration: underline;
-}
-
-header a:hover {
-    text-decoration: none;
 }
 
 h1 {
@@ -100,6 +92,11 @@ input,
 button {
     font-size: inherit;
     font-family: inherit;
+}
+
+input {
+    outline: none;
+    border: none;
 }
 
 button:focus:not(:focus-visible) {
@@ -122,9 +119,4 @@ button:focus:not(:focus-visible) {
     position: absolute;
     width: 1px;
     white-space: nowrap;
-}
-
-input {
-    outline: none;
-    border: none;
 }

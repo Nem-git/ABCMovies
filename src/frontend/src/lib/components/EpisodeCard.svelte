@@ -1,14 +1,10 @@
 <script lang="ts">
-    let {
-        streamingService,
-        show,
-        episode,
-    }: { streamingService: string; show: string; episode: Episode } = $props();
+    import type { Episode } from "$lib/types";
 
-    import type { Episode } from "../types";
-    import { id } from "../shared.svelte";
+    let { seasonId, episode }: { seasonId: string; episode: Episode } =
+        $props();
 
-    let href = `/${[streamingService, show, id.season, episode.number].join("/")}`;
+    let href = [seasonId, episode.number].join("/");
 </script>
 
 <div id="layout">

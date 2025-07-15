@@ -1,18 +1,13 @@
 <script lang="ts">
-    import { goto } from "@roxi/routify";
-    import { params } from "@roxi/routify";
-
-    import type { Show } from "../../lib/types";
-    import { getSearchResults } from "../../lib/api";
-
-    import ShowCard from "../../lib/components/ShowCard.svelte";
-
     import { onMount } from "svelte";
 
-    let { q } = $params;
+    import { goto } from "$app/navigation";
+    import type { PageProps } from "./$types";
 
-    let searchResults: Show[] | undefined = $state();
-    let query: string = $state(q ?? "");
+    import search from "$lib/images/search.svg";
+    import ShowCard from "../../lib/components/ShowCard.svelte";
+
+    let { data }: PageProps = $props();
 
     let searchInputEl: HTMLInputElement;
 
@@ -20,36 +15,27 @@
         searchInputEl.focus();
     });
 
-    let oninput = (event: any) => {
-        query = event.target.value;
-    };
+    let query = $state(data.query);
 
     $effect(() => {
         if (query === "") {
-            $goto("/search");
+            goto("/search", { keepFocus: true });
         } else {
-            $goto("/search", { q: query });
-            getSearchResults(query).then(
-                async (sr) => (searchResults = await sr),
-            );
+            goto("?" + new URLSearchParams({ q: query }), { keepFocus: true });
         }
     });
 </script>
 
 <div class="search-container">
-    <img src="/searchX.svg" alt="Magnifying glass" class="search-icon" />
-    <input type="text" bind:this={searchInputEl} value={query} {oninput} />
+    <img src="x" alt="Magnifying glass" class="search-icon" />
+    <input type="text" bind:this={searchInputEl} bind:value={query} />
 </div>
 
-<ol>
-    {#if searchResults}
-        {#await searchResults then}
-            {#each searchResults as show}
-                <ShowCard {show} />
-            {/each}
-        {/await}
-    {/if}
-</ol>
+<ul>
+    {#each data.searchResults as show}
+        <li><ShowCard {show} /></li>
+    {/each}
+</ul>
 
 <style>
     .search-container {
@@ -84,10 +70,11 @@
         border-color: var(--searchbar-border-color);
     }
 
-    ol {
+    ul {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(325px, 1fr));
 
+        list-style-type: none;
         padding: 0;
         gap: 1em;
         row-gap: 50px;

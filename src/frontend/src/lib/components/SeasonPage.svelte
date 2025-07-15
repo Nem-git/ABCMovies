@@ -1,26 +1,22 @@
 <script lang="ts">
-    let { streamingService, show }: { streamingService: string; show: string } =
-        $props();
-
     import type { Season } from "../types";
-    import { getSeason } from "../api";
+
     import EpisodeCard from "./EpisodeCard.svelte";
-    import { id } from "../shared.svelte";
 
-    let s: Promise<Season> | undefined = $state();
-
-    $effect(() => {
-        s = getSeason(streamingService, show, id.season);
-    });
+    let { season }: { season: Season } = $props();
 </script>
 
-{#if s}
-    {#await s then sea}
-        <h3>{sea.title}</h3>
-        <ol>
-            {#each sea.episodes as episode}
-                <EpisodeCard {streamingService} {show} {episode} />
-            {/each}
-        </ol>
-    {/await}
-{/if}
+<h3>{season.title}</h3>
+<ol>
+    {#each season.episodes as episode}
+        <li>
+            <EpisodeCard seasonId={season.number.toString()} {episode} />
+        </li>
+    {/each}
+</ol>
+
+<style>
+    ol {
+        list-style-type: none;
+    }
+</style>
