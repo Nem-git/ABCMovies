@@ -1,111 +1,179 @@
-NO INIT MERGING:
-1. Utiliser le init comme metadata pour decrypter le segment et garder le init, mais le clean de la pssh box/decryption informations (U-MPV U-WEB)
-2. Utiliser le init comme metadata pour decrypter le segment et garder le init original (Y-MPV N-WEB)
+# DRM Behavior Matrix
 
-INIT MERGING:
-1. Merge le init avec le segment pour decrypter, et garder le init mais le clean de de la pssh box/decryption informations (U-MPV U-WEB)
-2. Merge le init avec le segment pour decrypter, et garder le init comme original (E-MPV E-WEB)
+## INIT Handling Modes
 
-U - Unknown
-Y - Works perfectly
-N - Does not play at all
-E - Plays with errors / warnings
+### NO INIT MERGING
 
+| # | Description                                                              | MPV | WEB |
+|---|--------------------------------------------------------------------------|------|------|
+| 1 | Init used to decrypt, then cleaned of PSSH/decryption info              | U    | U    |
+| 2 | Init used to decrypt, original retained                                 | Y    | N    |
 
-# TODOs
+### INIT MERGING
 
-## PHP
+| # | Description                                                              | MPV | WEB |
+|---|--------------------------------------------------------------------------|------|------|
+| 1 | Init merged with segment for decryption, then cleaned                   | U    | U    |
+| 2 | Init merged with segment for decryption, original retained              | E    | E    |
 
-## Common
+### Legend
 
-- [ ] Add .env to gitignore when .env is feature complete
-- [ ] Validation of HTTP requests
-- [ ] Error detection and logging
-- [ ] Throw HTTP errors, don't just return half-broken JSON
-- [ ] API Access logging
-- [ ] More try/catch
-- [ ] Figure out if require_once is a good way to import constants
-- [ ] Add logical groups in the API endpoints using Slim
-- [ ] Add logging for database access
+- **U** = Unknown
+- **Y** = Works perfectly
+- **N** = Does not play at all
+- **E** = Plays with errors or warnings
 
+---
 
-### Fairplay.php
+## 📦 MP4 Cleanup with `mp4edit`
 
-- [ ] Program Fairplay DRM tech
+To remove DRM-related metadata, use the following paths with `mp4edit`:
 
-### Playready.php
+```text
+moov/pssh
+moov/trak/mdia/minf/stbl/stsd/sinf
+```
 
-- [ ] Program the Playready DRM tech
+---
 
-### StreamingService.php
+## 🧩 Stream Format Cleanup
 
-- [ ] Add other abstract methods that give the different headers for the requests, as now I am just using HTTP_DEFAULT_HEADERS
-- [ ] Make the decryption of segments optional
+The `[tags]` like `encv` and `enca` likely indicate encrypted (DRM-protected) streams. To properly sanitize:
 
-### ObjectFactory.php
+- Replace them with appropriate clear formats like `avc1` (video) or `mp4a` (audio).
+- Ideally, extract the `original_format` from:  
+  `moov/trak/mdia/minf/stbl/stsd/sinf/frma/original_format`
+- Replace the DRM tag with the value from `original_format`.
 
-- [ ] Verify if I should actually put it in Models or somewhere else
-- [ ] Look up how other people manage this kind of object creation, if that's even a good way to do it
+Example before:
 
-### Toutv.php
+```text
+[stbl] size=8+159
+  [stsd] size=12+79
+    entry_count = 1
+    [mp4a] size=8+67
+```
 
-- [ ] Add a method that allows for logging in the streaming service
-- [ ] Add the login keys to the database, with a TTL of how long it says in the JWT
-- [ ] Make the login all in PHP, no interacting with the Python backend pleaaaase
+Replace:
 
-### SegmentDecryptor\
+```text
+moov/trak/mdia/minf/stbl/stsd/encv or enca
+```
 
-- [ ] Find out if/how to clean the PSSH box to remove the remaining DRM informations
+With:
 
-### SegmentDecryptor\PHP.php
+```text
+moov/trak/mdia/minf/stbl/stsd/[original_format]
+```
 
-- [ ] Figure out what FFI is and how it might be useful to call directly functions, to avoid as much as possible to open shell
+---
 
-### SlimResponseHelper.php
+# ✅ TODOs
 
-- [ ] Remove the pretty printing from the JSON response
-- [ ] Find a way to actually return the right MIME and not just a generic video/mp4 while returning segments
+## Docker Container
 
-### RequestHelper.php
+- [ ] Create a Docker container for self-hosting
 
-- [ ] Make the http requests asynchronously
+## 🐘 PHP Backend
 
-### ManifestController.php
+### General
 
-- [ ] Look online for how I should actually name this
-- [ ] Create a parent class that will make all interactions with a repository the same, no matter the database
+- [ ] Add `.env` to `.gitignore` once feature-complete
+- [ ] Validate HTTP requests
+- [ ] Improve error detection and logging
+- [ ] Return proper HTTP errors (not malformed JSON)
+- [ ] Log API access
+- [ ] Add more try/catch blocks
+- [ ] Evaluate if `require_once` is the best practice for constants
+- [ ] Use Slim groups for organizing API endpoints
+- [ ] Log all database access
 
-### RedisRepository.php
+### `Fairplay.php`
 
-- [ ] Add a nullable TTL parameter to every data entry
+- [ ] Implement Fairplay DRM support
 
+### `Playready.php`
 
-## Svelte
+- [ ] Implement Playready DRM support
 
-			<picture>
-				<source srcset={welcome} type="image/webp" />
-				<img src={welcomeFallback} alt="Welcome" />
-			</picture>
+### `StreamingService.php`
+
+- [ ] Add abstract methods for custom request headers (currently using `HTTP_DEFAULT_HEADERS`)
+- [ ] Make segment decryption optional
+
+### `ObjectFactory.php`
+
+- [ ] Reconsider if this belongs in `Models`
+- [ ] Research better object creation patterns in PHP
+
+### `Toutv.php`
+
+- [ ] Add login support for the streaming service
+- [ ] Store login keys in Redis with JWT TTL
+- [ ] Handle login logic entirely in PHP (avoid Python backend dependency)
+
+### `SegmentDecryptor\`
+
+- [ ] Determine how to clean PSSH box to remove DRM info
+
+### `SegmentDecryptor\PHP.php`
+
+- [ ] Investigate FFI to replace shell calls with direct native function access
+
+### `SlimResponseHelper.php`
+
+- [ ] Remove pretty printing in JSON response
+- [ ] Return proper MIME types (not just `video/mp4`)
+
+### `RequestHelper.php`
+
+- [ ] Make HTTP requests asynchronous
+
+### `ManifestController.php`
+
+- [ ] Research proper naming convention for controllers
+- [ ] Create a base class for repository interactions (DB-agnostic)
+
+### `RedisRepository.php`
+
+- [ ] Add optional TTL to all Redis entries
+
+---
+
+## 🌐 Svelte Frontend
+
+### General
+
+- [ ] Migrate from Routify to SvelteKit (new branch, large refactor)
+
+### `SearchPage.svelte`
+
+- [ ] Evaluate if auto-focus on hover is a good UX feature
+
+### `NavBar.svelte`
+
+- [ ] Fix layout bug with icon and text alignment
+
+### `ShowPage.svelte`
+
+- [ ] Improve layout: intuitive positioning of image, title, description at top
+
+---
+
+## 🔖 Code Snippets & Tags
+
+```svelte
+<picture>
+  <source srcset={welcome} type="image/webp" />
+  <img src={welcomeFallback} alt="Welcome" />
+</picture>
 
 <svelte:head>
-	<title>Home</title>
-	<meta name="description" content="Svelte demo app" />
+  <title>Home</title>
+  <meta name="description" content="Svelte demo app" />
 </svelte:head>
+```
 
-## Common
+---
 
-- [ ] Make the switch from Routify to SvelteKit (Big project, takes time to do right, maybe new branch)
-
-## SearchPage.svelte
-
-- [ ] Find out if the autofocus on hover is actually a fun feature or if it should be removed
-
-### NavBar.svelte
-
-- [ ] It seems that trying to put an icon and text side-by-side gives me a result that is not expected, so fix that
-
-### ShowPage.svelte
-
-- [ ] Find a nice and intuitive way to position the show image, title, description etc.. at the top of page
-
-
+If you have more DRM research, commands, or workflows you'd like structured this way, feel free to drop them in!
