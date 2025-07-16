@@ -8,12 +8,13 @@ import requests
 from app.models import DecryptRequest
 from app.models import Response
 
+from config.constants import WVD_PATH
+
 
 class Widevine:
-    WVD_PATH: str = os.path.join(os.path.dirname(__file__), "wvds/device.wvd")
 
     def __init__(self):
-        self.device = Device.load(self.WVD_PATH)
+        self.device = Device.load(WVD_PATH)
         self.cdm = Cdm.from_device(self.device)
 
     def get_keys(self, request: DecryptRequest, response: Response) -> list[str]:
