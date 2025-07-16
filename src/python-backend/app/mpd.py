@@ -8,13 +8,8 @@ from mpd_parser.parser import Parser
 from mpd_parser.models.composite_tags import MPD
 from uuid import uuid4
 
-# Production
-from app.models import MpdRequest
-from app.models import Response
-
-# Development
-# from models import MpdRequest
-# from models import Response
+from models import MpdRequest
+from models import Response
 
 
 class ManifestModifier:

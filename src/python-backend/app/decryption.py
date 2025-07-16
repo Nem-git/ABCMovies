@@ -5,8 +5,8 @@ import base64
 import os
 import requests
 
-from app.models import DecryptRequest
-from app.models import Response
+from models import DecryptRequest
+from models import Response
 
 from config.constants import WVD_PATH
 
