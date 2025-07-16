@@ -5,10 +5,10 @@ import base64
 import os
 import requests
 
-from models import DecryptRequest
-from models import Response
+from src.models import DecryptRequest
+from src.models import Response
 
-from config.constants import WVD_PATH
+from src.config.constants import WVD_PATH
 
 
 class Widevine:

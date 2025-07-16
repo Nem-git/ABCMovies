@@ -1,14 +1,14 @@
 import uvicorn
 from fastapi import FastAPI
 
-from models import Response
-from models import PsshRequest
-from models import DecryptRequest
-from models import MpdRequest
+from src.models import Response
+from src.models import PsshRequest
+from src.models import DecryptRequest
+from src.models import MpdRequest
 
-from pssh import Pssh
-from decryption import Widevine
-from mpd import ManifestModifier
+from src.pssh import Pssh
+from src.decryption import Widevine
+from src.mpd import ManifestModifier
 
 app = FastAPI()
 
@@ -35,7 +35,3 @@ def create_modified_manifest(request: MpdRequest):
     response = Response()
     modifier.get_modified_mpd(request, response)
     return response
-
-
-if __name__ == "__main__":
-    uvicorn.run("main:app", port=8000, log_level="info")
