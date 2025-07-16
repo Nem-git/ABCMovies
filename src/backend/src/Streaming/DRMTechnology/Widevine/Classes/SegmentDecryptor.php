@@ -10,5 +10,6 @@ abstract class SegmentDecryptor
         string $initContent,
         string $segmentContent,
         array $decryptionKeys,
+        bool $merge = false,
     ): string;
 }

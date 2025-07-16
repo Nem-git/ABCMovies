@@ -15,6 +15,7 @@ class PythonBackend extends SegmentDecryptor
         $initContent,
         $segmentContent,
         $decryptionKeys,
+        $merge = false,
     ): string {
         return "";
     }

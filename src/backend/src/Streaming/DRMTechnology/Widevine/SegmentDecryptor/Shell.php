@@ -14,83 +14,92 @@ class Shell extends SegmentDecryptor
     /**
      * Decrypt ONLY the segment using the init as fragment info, so no binary merging
      */
-    private function getMp4decryptCommand(
-        string $encryptedFilePath,
-        string $initFilePath,
-        string $decryptedFilePath,
+    private function decryptMediaSegment(
+        string $initContent,
+        string $segmentContent,
         array $decryptionKeys,
     ): string {
+        $encryptedSegmentFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_E_");
+        $initSegmentFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_I_");
+        $decryptedSegmentFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_D_");
+
+        file_put_contents($initSegmentFilePath, $initContent);
+        file_put_contents($encryptedSegmentFilePath, $segmentContent);
+
         $cmd = $_ENV["MP4DECRYPT_PATH"];
 
         foreach ($decryptionKeys as $decryptionKey) {
             $cmd .= " --key " . escapeshellarg($decryptionKey);
         }
 
-        $cmd .= " --fragments-info " . escapeshellarg($initFilePath);
-        $cmd .= " " . escapeshellarg($encryptedFilePath);
-        $cmd .= " " . escapeshellarg($decryptedFilePath);
+        $cmd .= " --fragments-info " . escapeshellarg($initSegmentFilePath);
+        $cmd .= " " . escapeshellarg($encryptedSegmentFilePath);
+        $cmd .= " " . escapeshellarg($decryptedSegmentFilePath);
 
-        return $cmd;
+        exec($cmd . " 2>&1");
+
+        $decryptedContent = file_get_contents($decryptedSegmentFilePath);
+
+        unlink($encryptedSegmentFilePath);
+        unlink($decryptedSegmentFilePath);
+
+        return $decryptedContent;
     }
 
     /**
      * Decrypting the segment made from init and segment merging
      */
-    private function getMp4DecryptFullSegmentCommand(
-        string $encryptedFilePath,
-        string $decryptedFilePath,
+    private function decryptMergedSegment(
+        string $initContent,
+        string $segmentContent,
         array $decryptionKeys,
     ): string {
+        $encryptedSegmentFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_E_");
+        $decryptedSegmentFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_D_");
+
+        file_put_contents(
+            $encryptedSegmentFilePath,
+            $initContent . $segmentContent,
+        );
+
         $cmd = $_ENV["MP4DECRYPT_PATH"];
 
         foreach ($decryptionKeys as $decryptionKey) {
             $cmd .= " --key " . escapeshellarg($decryptionKey);
         }
 
-        $cmd .= " " . escapeshellarg($encryptedFilePath);
-        $cmd .= " " . escapeshellarg($decryptedFilePath);
+        $cmd .= " " . escapeshellarg($encryptedSegmentFilePath);
+        $cmd .= " " . escapeshellarg($decryptedSegmentFilePath);
 
-        return $cmd;
+        exec($cmd . " 2>&1");
+
+        $decryptedContent = file_get_contents($decryptedSegmentFilePath);
+
+        unlink($encryptedSegmentFilePath);
+        unlink($decryptedSegmentFilePath);
+
+        return $decryptedContent;
     }
 
     public function getDecryptedSegment(
         $initContent,
         $segmentContent,
         $decryptionKeys,
+        $merge = false,
     ): string {
-        $initFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_I_");
-        $segmentFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_S_");
-        $decryptedFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_D_");
-
-        // Separate init and media
-        // file_put_contents($initFilePath, $initContent);
-        // file_put_contents($segmentFilePath, $segmentContent);
-
-        // $cmd = $this->getMp4decryptCommand($segmentFilePath, $initFilePath, $decryptedFilePath, $decryptionKeys);
-
         // Merged init and media
-        file_put_contents($segmentFilePath, $initContent . $segmentContent);
-
-        $cmd = $this->getMp4DecryptFullSegmentCommand(
-            $segmentFilePath,
-            $decryptedFilePath,
-            $decryptionKeys,
-        );
-
-        exec($cmd . " 2>&1", $output, $err);
-        unlink($segmentFilePath);
-        //
-        // unlink($initFilePath);
-
-        if ($err !== 0) {
-            throw new \RuntimeException(
-                "mp4decrypt failed: " . implode("\n", $output),
+        if ($merge) {
+            return $this->decryptMergedSegment(
+                $initContent,
+                $segmentContent,
+                $decryptionKeys,
+            );
+        } else {
+            return $this->decryptMediaSegment(
+                $initContent,
+                $segmentContent,
+                $decryptionKeys,
             );
         }
-
-        $decryptedContent = file_get_contents($decryptedFilePath);
-        unlink($decryptedFilePath);
-
-        return $decryptedContent;
     }
 }

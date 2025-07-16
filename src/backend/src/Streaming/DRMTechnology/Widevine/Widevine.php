@@ -114,12 +114,13 @@ class Widevine extends DRMTechnology
         );
 
         if ($isInit) {
-            if (!$initContent) {
-                return $this->getInitSegment(
-                    $initMediaIdentifier,
-                    $reconstructedUrl,
-                );
+            if ($initContent) {
+                return $initContent;
             }
+            return $this->getInitSegment(
+                $initMediaIdentifier,
+                $reconstructedUrl,
+            );
         }
 
         $decryptionKeys = $this->manifestController->getDecryptionKeys(
@@ -134,10 +135,14 @@ class Widevine extends DRMTechnology
         // TODO: Add headers
         $segmentContent = RequestHelper::get($reconstructedUrl);
 
+        // If init should be merged with media
+        $merged = $initContent ? true : false;
+
         $decryptedSegmentContent = $this->segmentDecryptor->getDecryptedSegment(
             $initContent,
             $segmentContent,
             $decryptionKeys,
+            $merged,
         );
 
         return $decryptedSegmentContent;
