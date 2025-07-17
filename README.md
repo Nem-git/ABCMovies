@@ -13,6 +13,7 @@ Make sure you have the following installed:
 - [Python 3.12+](https://www.python.org/downloads/)
 - [Node.js and npm](https://nodejs.org/)
 - [Redis](https://redis.io/docs/getting-started/installation/)
+- [Bento4 Binaries](https://www.bento4.com/downloads/)
 
 ---
 

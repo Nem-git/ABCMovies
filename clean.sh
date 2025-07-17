@@ -14,8 +14,7 @@ cd ../../
 ./src/backend/vendor/bin/php-cs-fixer fix ./src/backend/src
 
 # Python
-./src/python-backend/.venv/bin/black -t py313 ./src/python-backend/main.py
-./src/python-backend/.venv/bin/black -t py313 ./src/python-backend/app
+./src/python-backend/.venv/bin/black -t py313 ./src/python-backend/src
 
 # Svelte
 cd ./src/frontend/src/

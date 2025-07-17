@@ -6,8 +6,8 @@ import xml.etree.ElementTree as ET
 import os
 import yt_dlp
 
-from src.models import PsshRequest
-from src.models import Response
+from src.models.models import PsshRequest
+from src.models.models import Response
 
 
 class Pssh:

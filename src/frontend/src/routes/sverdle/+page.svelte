@@ -1,6 +1,5 @@
 <script lang="ts">
     import { enhance } from "$app/forms";
-    import { confetti } from "@neoconfetti/svelte";
     import type { ActionData, PageData } from "./$types";
     import { MediaQuery } from "svelte/reactivity";
 
@@ -209,16 +208,7 @@
 </form>
 
 {#if won}
-    <div
-        style="position: absolute; left: 50%; top: 30%"
-        use:confetti={{
-            particleCount: reducedMotion.current ? 0 : undefined,
-            force: 0.7,
-            stageWidth: window.innerWidth,
-            stageHeight: window.innerHeight,
-            colors: ["#ff3e00", "#40b3ff", "#676778"],
-        }}
-    ></div>
+    <div style="position: absolute; left: 50%; top: 30%"></div>
 {/if}
 
 <style>

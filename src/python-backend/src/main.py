@@ -1,14 +1,14 @@
 import uvicorn
 from fastapi import FastAPI
 
-from src.models import Response
-from src.models import PsshRequest
-from src.models import DecryptRequest
-from src.models import MpdRequest
+from src.models.models import Response
+from src.models.models import PsshRequest
+from src.models.models import DecryptRequest
+from src.models.models import MpdRequest
 
-from src.pssh import Pssh
-from src.decryption import Widevine
-from src.mpd import ManifestModifier
+from src.app.pssh import Pssh
+from src.app.decryption import Widevine
+from src.app.mpd import ManifestModifier
 
 app = FastAPI()
 

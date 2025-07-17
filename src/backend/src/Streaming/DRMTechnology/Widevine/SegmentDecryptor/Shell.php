@@ -81,6 +81,12 @@ class Shell extends SegmentDecryptor
         return $decryptedContent;
     }
 
+    private function removeDrmInitContent(string $initContent): string
+    {
+        $cmd = $_ENV["MP4DUMP_PATH"];
+        return "";
+    }
+
     public function getDecryptedSegment(
         $initContent,
         $segmentContent,

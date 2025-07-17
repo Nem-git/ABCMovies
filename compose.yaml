@@ -1,0 +1,13 @@
+services:
+
+  frontend:
+    build: src/frontend
+
+    ports:
+      - 8001:8000
+
+  python_backend:
+    build: src/python-backend
+    
+    ports:
+      - 8000:8000
