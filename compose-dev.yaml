@@ -1,0 +1,25 @@
+services:
+  frontend:
+    build:
+      context: src/frontend
+      dockerfile: Dockerfile-dev
+    volumes:
+      - type: bind
+        source: ./src/frontend
+        target: /srv/www
+  backend:
+    build:
+      context: src/backend
+      dockerfile: Dockerfile-dev
+    volumes:
+      - type: bind
+        source: ./src/backend
+        target: /srv/www
+  python_backend:
+    build:
+      context: src/python-backend
+      dockerfile: Dockerfile-dev
+    volumes:
+      - type: bind
+        source: ./src/python-backend
+        target: /srv/www

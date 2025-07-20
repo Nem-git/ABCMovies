@@ -1,0 +1,22 @@
+FROM node:alpine
+
+WORKDIR /srv/www
+
+ENV PROTOCOL_HEADER=X-Forwarded-Proto
+ENV HOST_HEADER=X-Forwarded-Host
+
+ENV NODE_ENV=development
+ENV HOST=0.0.0.0
+ENV PORT=8001
+
+RUN addgroup -S appgroup
+RUN adduser -S appuser -G appgroup
+
+COPY package*.json ./
+COPY svelte.config.js ./
+COPY tsconfig.json ./
+COPY vite.config.ts ./
+
+RUN npm ci
+
+CMD ["npm", "run", "dev"]

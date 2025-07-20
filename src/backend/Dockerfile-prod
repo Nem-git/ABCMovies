@@ -1,0 +1,29 @@
+FROM composer AS builder
+
+WORKDIR /app
+
+
+############################################################################################################
+
+FROM php:fpm-alpine
+
+WORKDIR /srv/www
+
+RUN addgroup -S appgroup
+RUN adduser -S appuser -G appgroup
+
+RUN apk --no-cache add bento4
+COPY --from=builder /usr/bin/composer /usr/bin/composer
+
+COPY ./core.ini /usr/local/etc/php
+COPY ./prod.ini /usr/local/etc/php
+
+COPY ./composer.* ./
+
+RUN composer install --no-dev --no-interaction
+
+COPY ./ ./
+
+EXPOSE 9000
+
+USER appuser

@@ -1,0 +1,34 @@
+services:
+  frontend:
+    ports:
+      - '8001:8001'
+    depends_on:
+      - backend
+  backend:
+    ports:
+      - '9000:9000'
+    depends_on:
+      - redis
+      - python_backend
+    environment:
+      - DB_PW=
+      - DB_HOST=redis # Internal
+      - DB_PORT=6379 # Internal
+      - DB_ID=0
+      - TEMP_DIR=/tmp/
+      - BENTO4_PATH=/opt/bento4/bin/
+      - 'PHP_BACKEND_URL=http://localhost:8080/api/' # External
+      - 'PYTHON_BACKEND_URL=http://python_backend:8000/' # Internal
+  python_backend:
+    ports:
+      - '8000:8000'
+  redis:
+    image: 'redis:alpine'
+    ports:
+      - '6379:6379'
+  nginx:
+    ports:
+      - '8080:80'
+    depends_on:
+      - frontend
+      - backend
