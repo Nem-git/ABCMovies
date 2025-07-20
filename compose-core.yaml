@@ -26,6 +26,9 @@ services:
     ports:
       - '6379:6379'
   nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile-nginx
     ports:
       - '8080:80'
     depends_on:

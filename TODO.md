@@ -72,7 +72,7 @@ moov/trak/mdia/minf/stbl/stsd/[original_format]
 
 ## Docker Container
 
-- [ ] Create a Docker container for self-hosting
+- [ ] Make the Dockerfiles more Multi-Stage
 
 ## 🐘 PHP Backend
 
