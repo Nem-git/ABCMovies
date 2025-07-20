@@ -12,7 +12,9 @@
     let searchInputEl: HTMLInputElement;
 
     onMount(() => {
+        let length = searchInputEl.value.length;
         searchInputEl.focus();
+        searchInputEl.setSelectionRange(length, length);
     });
 
     let query = $state(data.query);
