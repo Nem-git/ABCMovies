@@ -136,13 +136,13 @@ class Widevine extends DRMTechnology
         $segmentContent = RequestHelper::get($reconstructedUrl);
 
         // If init should be merged with media
-        $merged = $initContent ? true : false;
+        $shouldBeMerged = $initContent === null ? false : true;
 
         $decryptedSegmentContent = $this->segmentDecryptor->getDecryptedSegment(
             $initContent,
             $segmentContent,
             $decryptionKeys,
-            $merged,
+            $shouldBeMerged,
         );
 
         return $decryptedSegmentContent;

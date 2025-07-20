@@ -14,7 +14,14 @@ class RedisRepository
 
     public function __construct()
     {
-        $this->conn = new PredisClient();
+        $this->conn = new PredisClient(
+            [
+            "host" => $_ENV["DB_HOST"] ?? null,
+            "password" => $_ENV["DB_PW"] ?? null,
+            "port" => $_ENV["DB_PORT"] ?? null,
+            "database" => $_ENV["DB_ID"] ?? null,
+            ]
+        );
     }
 
     public function select(string $key): string|null

@@ -16,7 +16,7 @@ class Php extends SegmentDecryptor
         $initContent,
         $segmentContent,
         $decryptionKeys,
-        $merge = false,
+        $shouldBeMerged = false,
     ): string {
         return "";
     }

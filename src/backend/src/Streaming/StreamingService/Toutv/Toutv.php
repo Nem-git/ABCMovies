@@ -280,23 +280,20 @@ class Toutv extends StreamingService
 
     public function getEpisodeStreamInfo(Episode $episode)
     {
-        $fileParameters = $this->getEpisodeFileParameters($episode);
-
         $ssResponse = RequestHelper::get(
             $this->getEpisodeFileUrl($episode),
             Constants::HTTP_DEFAULT_HEADERS,
-            $fileParameters,
+            $this->getEpisodeFileParameters($episode),
         );
 
         $this->parseEpisodeFileInfo($episode, json_decode($ssResponse, true));
 
-        $headers = $this->getEpisodeDownloadHeaders();
-        $downloadParameters = $this->getEpisodeDownloadParameters($episode);
         $ssResponse = RequestHelper::get(
             $this->getEpisodeDownloadUrl($episode),
-            $headers,
-            $downloadParameters,
+            $this->getEpisodeDownloadHeaders(),
+            $this->getEpisodeDownloadParameters($episode),
         );
+
         $this->parseEpisodeDownloadStreamInfo(
             $episode,
             json_decode($ssResponse, true),

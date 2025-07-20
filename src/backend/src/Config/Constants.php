@@ -6,15 +6,6 @@ namespace App\Config;
 
 class Constants
 {
-    public const REDIS_CONFIG = [
-        "scheme" => "tcp",
-        "host" => "localhost",
-        "port" => 6379,
-        "protocol" => 3,
-        "password" => "",
-        "database" => 0,
-    ];
-
     public const DEFAULT_SEARCH_RESULTS_AMOUNT = 20;
     public const DEFAULT_RECOMMENDATIONS_AMOUNT = 50;
     public const DEFAULT_REDIS_TTL_TYPE = "EX"; // EX seconds, PX milliseconds, https://redis.io/docs/latest/commands/set/

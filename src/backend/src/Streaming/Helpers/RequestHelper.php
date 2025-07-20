@@ -51,6 +51,8 @@ class RequestHelper
 
         curl_close($ch);
 
+        // TOOD: Throw error on bad http code
+
         return $response;
     }
 
