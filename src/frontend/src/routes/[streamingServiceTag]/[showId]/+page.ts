@@ -1,5 +1,4 @@
 import type { PageLoad } from "./$types";
-import { goto } from "$app/navigation";
 
 import type { Show } from "$lib/types";
 

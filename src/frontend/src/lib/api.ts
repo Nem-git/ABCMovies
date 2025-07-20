@@ -1,7 +1,13 @@
-import { API_URL } from "./constants";
+import { API_URL, INTERNAL_API_URL } from "./constants";
+
+import { browser } from "$app/environment";
+
+const getApiUrl = () => {
+    return browser ? API_URL : INTERNAL_API_URL;
+};
 
 export const getSearchResultsUrl = (query: string): string => {
-    return `${API_URL}search/${encodeURI(query)}`;
+    return `${getApiUrl()}search/${encodeURI(query)}`;
 };
 
 // export const getStreamingService = async (
@@ -12,7 +18,7 @@ export const getSearchResultsUrl = (query: string): string => {
 // };
 
 export const getShowUrl = (streamingService: string, show: string): string => {
-    return API_URL + [streamingService, show].join("/");
+    return getApiUrl() + [streamingService, show].join("/");
 };
 
 export const getSeasonUrl = (
@@ -20,7 +26,7 @@ export const getSeasonUrl = (
     show: string,
     season: string,
 ): string => {
-    return API_URL + [streamingService, show, season].join("/");
+    return getApiUrl() + [streamingService, show, season].join("/");
 };
 
 export const getEpisodeUrl = (
@@ -29,5 +35,5 @@ export const getEpisodeUrl = (
     season: string,
     episode: string,
 ): string => {
-    return API_URL + [streamingService, show, season, episode].join("/");
+    return getApiUrl() + [streamingService, show, season, episode].join("/");
 };
