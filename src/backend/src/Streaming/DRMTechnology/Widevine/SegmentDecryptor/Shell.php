@@ -26,7 +26,7 @@ class Shell extends SegmentDecryptor
         file_put_contents($initSegmentFilePath, $initContent);
         file_put_contents($encryptedSegmentFilePath, $segmentContent);
 
-        $cmd = $_ENV["MP4DECRYPT_PATH"];
+        $cmd = "mp4decrypt";
 
         foreach ($decryptionKeys as $decryptionKey) {
             $cmd .= " --key " . escapeshellarg($decryptionKey);
@@ -62,7 +62,7 @@ class Shell extends SegmentDecryptor
             $initContent . $segmentContent,
         );
 
-        $cmd = $_ENV["MP4DECRYPT_PATH"];
+        $cmd = "mp4decrypt";
 
         foreach ($decryptionKeys as $decryptionKey) {
             $cmd .= " --key " . escapeshellarg($decryptionKey);
@@ -83,7 +83,7 @@ class Shell extends SegmentDecryptor
 
     private function removeDrmInitContent(string $initContent): string
     {
-        $cmd = $_ENV["MP4DUMP_PATH"];
+        $cmd = "mp4dump";
         return "";
     }
 
@@ -91,10 +91,10 @@ class Shell extends SegmentDecryptor
         $initContent,
         $segmentContent,
         $decryptionKeys,
-        $merge = false,
+        $shouldBeMerged = false,
     ): string {
         // Merged init and media
-        if ($merge) {
+        if ($shouldBeMerged) {
             return $this->decryptMergedSegment(
                 $initContent,
                 $segmentContent,

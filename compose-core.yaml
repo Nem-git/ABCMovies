@@ -16,7 +16,6 @@ services:
       - DB_PORT=6379 # Internal
       - DB_ID=0
       - TEMP_DIR=/tmp/
-      - BENTO4_PATH=/opt/bento4/bin/
       - 'PHP_BACKEND_URL=http://localhost:8080/api/' # External
       - 'PYTHON_BACKEND_URL=http://python_backend:8000/' # Internal
   python_backend:
