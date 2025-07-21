@@ -18,7 +18,7 @@ use App\Streaming\Helpers\RequestHelper;
 /**
  * Google's DRM Technology
  */
-class Widevine extends DRMTechnology
+final class Widevine extends DRMTechnology
 {
     public string $name = "widevine";
     /**
@@ -52,6 +52,7 @@ class Widevine extends DRMTechnology
     // episode. If there are, the episode is DRM'd, if there are
     // not, this episode is not DRM'd. That'll make it easier to
     // distinguish while keeping the responses fast
+    #[\Override]
     public function saveData(
         Episode $episode,
         string $episodeStreamingDrmTechnologyIdentifier,
@@ -96,13 +97,21 @@ class Widevine extends DRMTechnology
     ): string {
         $initContent = RequestHelper::get($reconstructedUrl);
 
+        // // Cleaned from unneeded atoms using bento4
+        // $initContent = $this->segmentDecryptor->getDecryptedSegment(
+        //     $initContent,
+        //     $initContent,
+        // );
+
         $this->manifestController->addInitContent(
             $initMediaIdentifier,
             $initContent,
         );
+
         return $initContent;
     }
 
+    #[\Override]
     public function getSegment(
         string $episodeStreamingDrmTechnologyIdentifier,
         string $initMediaIdentifier,
@@ -138,13 +147,11 @@ class Widevine extends DRMTechnology
         // If init should be merged with media
         $shouldBeMerged = $initContent === null ? false : true;
 
-        $decryptedSegmentContent = $this->segmentDecryptor->getDecryptedSegment(
-            $initContent,
+        return $this->segmentDecryptor->getDecryptedSegment(
             $segmentContent,
+            $initContent,
             $decryptionKeys,
             $shouldBeMerged,
         );
-
-        return $decryptedSegmentContent;
     }
 }
