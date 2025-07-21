@@ -19,7 +19,7 @@ use App\Streaming\StreamingTechnology\Helpers\StreamingTechnologyHelper;
 /**
  * Google's adaptative streaming technology
  */
-class Dash extends StreamingTechnology
+final class Dash extends StreamingTechnology
 {
     public string $name = "dash";
     public string $mimeType = "application/dash+xml";
@@ -40,6 +40,7 @@ class Dash extends StreamingTechnology
         );
     }
 
+    #[\Override]
     public function getVideo(
         Request $request,
         Episode $episode,
@@ -120,8 +121,7 @@ class Dash extends StreamingTechnology
         string $episodeStreamingDrmTechnologyIdentifier,
         string $initMediaIdentifier,
         string $reconstructedUrl,
-    ): string {
-        $initContent = "";
+    ): string|null {
 
         // If DRM'd
         if ($this->manifestController->getDecryptionKeys(
@@ -146,7 +146,7 @@ class Dash extends StreamingTechnology
         string $episodeStreamingDrmTechnologyIdentifier,
         string $initMediaIdentifier,
         string $reconstructedUrl,
-    ): string {
+    ): string|null {
         $segmentContent = RequestHelper::get($reconstructedUrl);
 
         // If DRM'd

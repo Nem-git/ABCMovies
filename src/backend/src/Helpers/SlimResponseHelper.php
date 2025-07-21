@@ -6,9 +6,9 @@ namespace App\Helpers;
 
 use Psr\Http\Message\ResponseInterface as Response;
 
-class SlimResponseHelper
+final class SlimResponseHelper
 {
-    public static function response_json($data, Response $response): Response
+    public static function response_json(array|\App\Streaming\Classes\Show|\App\Streaming\Classes\Season|\App\Streaming\Classes\Episode $data, Response $response): Response
     {
         $response->getBody()->write(json_encode($data, JSON_PRETTY_PRINT));
         $response = self::basic_response($response);
@@ -37,7 +37,7 @@ class SlimResponseHelper
         return $response;
     }
 
-    public static function response_segment($data, Response $response): Response
+    public static function response_segment(string $data, Response $response): Response
     {
         $response->getBody()->write($data);
         $response = self::basic_response($response);

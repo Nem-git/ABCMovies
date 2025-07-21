@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Factory;
 
-class ObjectFactory
+final class ObjectFactory
 {
     private static array $streamingService = [
         "TOUTV" => \App\Streaming\StreamingService\Toutv\Toutv::class,

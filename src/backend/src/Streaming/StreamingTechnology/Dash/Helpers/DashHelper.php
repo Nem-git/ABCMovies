@@ -27,12 +27,10 @@ class DashHelper
             $request->getQueryParams(),
         );
 
-        return compact(
-            [
-            "segmentType",
-            "initMediaIdentifier",
-            "reconstructedUrl",
-            ]
-        );
+        return [
+            "segmentType" => $segmentType,
+            "initMediaIdentifier" => $initMediaIdentifier,
+            "reconstructedUrl" => $reconstructedUrl,
+            ];
     }
 }

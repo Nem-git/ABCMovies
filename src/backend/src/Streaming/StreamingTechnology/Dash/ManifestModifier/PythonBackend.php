@@ -10,8 +10,9 @@ use App\Streaming\Helpers\PythonBackend\PythonBackendHelper;
 /**
  * Using the Python API to modifiy the Dash Manifest
  */
-class PythonBackend extends ManifestModifier
+final class PythonBackend extends ManifestModifier
 {
+    #[\Override]
     public function getModifiedMpd(string $mpdUrl, string $mpdContent): string
     {
         $response = PythonBackendHelper::get(

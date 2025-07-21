@@ -6,22 +6,22 @@ namespace App\Streaming\StreamingTechnology\Hls;
 
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Streaming\StreamingTechnology\StreamingTechnology;
-use App\Streaming\StreamingService\StreamingService;
+use App\Streaming\Classes\Episode;
 
 /**
  * Apple's adaptative streaming technology
  */
-class Hls extends StreamingTechnology
+final class Hls extends StreamingTechnology
 {
     public string $name = "hls";
     public string $mimeType = "application/vnd.apple.mpegurl";
 
+    #[\Override]
     public function getVideo(
-        StreamingService $streamingService,
         Request $request,
+        Episode $episode,
         string $showId,
         string $seasonId,
-        string $episodeId,
         array $args = [],
     ): string {
         return "";

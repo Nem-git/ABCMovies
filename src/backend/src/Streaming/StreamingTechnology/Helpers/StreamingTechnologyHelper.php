@@ -6,13 +6,13 @@ namespace App\Streaming\StreamingTechnology\Helpers;
 
 use App\Streaming\Helpers\RequestHelper;
 
-class StreamingTechnologyHelper
+final class StreamingTechnologyHelper
 {
     public static function reconstructUrlFromArray(
         string $scheme = "https",
         array $urlPath = [],
         array $queryParams = [],
-    ) {
+    ): string {
         $newUrl = $scheme . "://";
 
         $joinedUrlPath = join("/", $urlPath);
@@ -32,7 +32,7 @@ class StreamingTechnologyHelper
         string $episodeId,
         string $streamingTechnologyName,
         string $drmTechnologyName,
-    ) {
+    ): string {
         return strtolower(
             join(
                 "-",

@@ -10,13 +10,14 @@ use Fuse\Fuse;
 /**
  * Using Fuzzy search to order search results
  */
-class Fuzzy extends SearchRecommender
+final class Fuzzy extends SearchRecommender
 {
     private static array $options = [
         "keys" => [],
         "threshold" => 1, // Be as lax as possible, as I would like as many results as possible, just order them
     ];
 
+    #[\Override]
     public static function orderResults(
         string $query,
         array $results,

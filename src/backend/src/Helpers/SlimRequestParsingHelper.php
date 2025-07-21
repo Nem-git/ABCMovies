@@ -7,7 +7,7 @@ namespace App\Helpers;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Config\Constants;
 
-class SlimRequestParsingHelper
+final class SlimRequestParsingHelper
 {
     public static function parseSearchCriteria(
         Request $request,

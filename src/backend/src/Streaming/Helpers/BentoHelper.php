@@ -1,10 +1,10 @@
-final <?php
+<?php
 
 declare(strict_types=1);
 
 namespace App\Streaming\Helpers;
 
-class BentoHelper
+final class BentoHelper
 {
     // Traverse mp4info
 

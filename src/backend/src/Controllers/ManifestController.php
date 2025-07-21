@@ -11,7 +11,7 @@ use App\Config\Constants;
  * This has nothing to do with manifest
  * specifically and more to do with DRM
  */
-class ManifestController
+final class ManifestController
 {
     private $repository; // Database Repository
 

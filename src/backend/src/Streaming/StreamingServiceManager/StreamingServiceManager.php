@@ -10,7 +10,7 @@ use App\Streaming\StreamingServiceManager\Classes\SearchRecommender;
 use App\Streaming\StreamingServiceManager\Classes\MediaRecommender;
 use App\Factory\ObjectFactory;
 
-class StreamingServiceManager
+final class StreamingServiceManager
 {
     private SearchRecommender $searchRecommender;
     private MediaRecommender $mediaRecommender;

@@ -9,12 +9,13 @@ use App\Streaming\DRMTechnology\Widevine\Classes\SegmentDecryptor;
 /**
  * Using the Python API to decrypt the segment
  */
-class PythonBackend extends SegmentDecryptor
+final class PythonBackend extends SegmentDecryptor
 {
+    #[\Override]
     public function getDecryptedSegment(
-        $initContent,
         $segmentContent,
-        $decryptionKeys,
+        $initContent,
+        $decryptionKeys = [],
         $shouldBeMerged = false,
     ): string {
         return "";

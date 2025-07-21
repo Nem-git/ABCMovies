@@ -8,7 +8,7 @@ use Predis\Client as PredisClient;
 use Predis\Response\Status;
 use App\Config\Constants;
 
-class RedisRepository
+final class RedisRepository
 {
     private PredisClient $conn;
 

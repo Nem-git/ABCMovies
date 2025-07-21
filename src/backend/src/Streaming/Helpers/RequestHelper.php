@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Streaming\Helpers;
 
-class RequestHelper
+final class RequestHelper
 {
     public static function format_headers(array $headers): array
     {
@@ -32,7 +32,7 @@ class RequestHelper
         string $url,
         array $headers = [],
         array $options = [],
-    ): string|null {
+    ): bool|string|null {
         $ch = curl_init();
 
         curl_setopt_array(

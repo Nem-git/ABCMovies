@@ -10,18 +10,20 @@ use App\Streaming\Classes\Episode;
 /**
  * Apple's DRM Technology
  */
-class Fairplay extends DRMTechnology
+final class Fairplay extends DRMTechnology
 {
     // https://deepwiki.com/lqvp/apple-music-downloader
 
     public string $name = "fairplay";
 
+    #[\Override]
     public function saveData(
         Episode $episode,
         string $episodeStreamingDrmTechnologyIdentifier,
     ): void {
     }
 
+    #[\Override]
     public function getSegment(
         string $episodeStreamingDrmTechnologyIdentifier,
         string $initMediaIdentifier,

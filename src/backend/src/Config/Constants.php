@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Config;
 
-class Constants
+final class Constants
 {
     public const DEFAULT_SEARCH_RESULTS_AMOUNT = 20;
     public const DEFAULT_RECOMMENDATIONS_AMOUNT = 50;

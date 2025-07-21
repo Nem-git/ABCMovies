@@ -16,13 +16,14 @@ use App\Factory\ObjectFactory;
 /**
  * Tou.TV, Radio-Canada's streaming service
  */
-class Toutv extends StreamingService
+final class Toutv extends StreamingService
 {
     public string $name = "Tou.TV";
     public string $tag = "TOUTV";
 
     //region Parsing
 
+    #[\Override]
     public function parseSearchResults(array $ssResponse): array
     {
         $results = [];
@@ -47,6 +48,7 @@ class Toutv extends StreamingService
         return $results;
     }
 
+    #[\Override]
     public function parseShowRecommendationsResults(array $response): array
     {
         $recommendations = [];
@@ -70,6 +72,7 @@ class Toutv extends StreamingService
         return $recommendations;
     }
 
+    #[\Override]
     public function parseMoviesRecommendationsResults(array $response): array
     {
         $recommendations = [];
@@ -95,11 +98,13 @@ class Toutv extends StreamingService
         return $recommendations;
     }
 
+    #[\Override]
     public function parseSeriesRecommendationsResults(array $response): array
     {
         return $this->parseMoviesRecommendationsResults($response);
     }
 
+    #[\Override]
     public function parseDocumentariesRecommendationsResults(
         array $response,
     ): array {
@@ -107,6 +112,7 @@ class Toutv extends StreamingService
     }
 
     // This is totally wrong and I shouldn't do this, but the way I structured my functions made me do it
+    #[\Override]
     public function parseNextRecommendationResult(
         array $response,
         string $showId,
@@ -194,6 +200,7 @@ class Toutv extends StreamingService
         return [];
     }
 
+    #[\Override]
     public function parseShowInfo(Show $show, array $ssResponse): void
     {
         // Set title, and if it is originally in a language other than french set it to original language
@@ -220,6 +227,7 @@ class Toutv extends StreamingService
         }
     }
 
+    #[\Override]
     public function parseSeasonInfo(Season $season, array $ssResponse): void
     {
         foreach ($ssResponse["content"][0]["lineups"] as $ssResponseSeason) {
@@ -255,6 +263,7 @@ class Toutv extends StreamingService
         $season->id = ""; // To clean the season, as the season requested does not exist
     }
 
+    #[\Override]
     public function parseEpisodeInfo(Episode $episode, array $ssResponse): void
     {
         $episode->id = $ssResponse["content.mediaId"];
@@ -278,6 +287,10 @@ class Toutv extends StreamingService
 
     // }
 
+    #[\Override]
+    /**
+     * @return void
+     */
     public function getEpisodeStreamInfo(Episode $episode)
     {
         $ssResponse = RequestHelper::get(
@@ -377,11 +390,13 @@ class Toutv extends StreamingService
 
     //region Get TOU.TV values
 
+    #[\Override]
     public function getSearchUrl(string $query, int $amount): string
     {
         return ToutvConstants::TOUTV_URL_SEARCH;
     }
 
+    #[\Override]
     public function getSearchParameters(string $query, int $amount): array
     {
         $parameters = ToutvConstants::TOUTV_PARAMETERS_SEARCH;
@@ -390,11 +405,13 @@ class Toutv extends StreamingService
         return $parameters;
     }
 
+    #[\Override]
     public function getShowRecommendationsUrl(Show $show, int $amount): string
     {
         return $this->getShowInfoUrl($show);
     }
 
+    #[\Override]
     public function getShowRecommendationsParameters(
         Show $show,
         int $amount,
@@ -404,11 +421,13 @@ class Toutv extends StreamingService
         return $parameters;
     }
 
+    #[\Override]
     public function getMoviesRecommendationsUrl(int $amount): string
     {
         return ToutvConstants::TOUTV_URL_MOVIES_RECOMMENDATIONS;
     }
 
+    #[\Override]
     public function getMoviesRecommendationsParameters(int $amount): array
     {
         $parameters = ToutvConstants::TOUTV_PARAMETERS_MOVIES_RECOMMENDATIONS;
@@ -416,27 +435,32 @@ class Toutv extends StreamingService
         return $parameters;
     }
 
+    #[\Override]
     public function getSeriesRecommendationsUrl(int $amount): string
     {
         return ToutvConstants::TOUTV_URL_SERIES_RECOMMENDATIONS;
     }
 
+    #[\Override]
     public function getSeriesRecommendationsParameters(int $amount): array
     {
         return $this->getMoviesRecommendationsParameters($amount);
     }
 
+    #[\Override]
     public function getDocumentariesRecommendationsUrl(int $amount): string
     {
         return ToutvConstants::TOUTV_URL_DOCUMENTARIES_RECOMMENDATIONS;
     }
 
+    #[\Override]
     public function getDocumentariesRecommendationsParameters(
         int $amount,
     ): array {
         return $this->getMoviesRecommendationsParameters($amount);
     }
 
+    #[\Override]
     public function getNextRecommendationUrl(
         string $showId,
         string $seasonId,
@@ -445,6 +469,7 @@ class Toutv extends StreamingService
         return $this->getSeasonInfoUrl($showId, $seasonId);
     }
 
+    #[\Override]
     public function getNextRecommendationParameters(
         string $showId,
         string $seasonId,
@@ -453,16 +478,19 @@ class Toutv extends StreamingService
         return $this->getSeasonInfoParameters($showId, $seasonId);
     }
 
+    #[\Override]
     public function getShowInfoUrl(Show $show): string
     {
         return ToutvConstants::TOUTV_URL_SHOW_INFO . $show->id;
     }
 
+    #[\Override]
     public function getShowInfoParameters(Show $show): array
     {
         return ToutvConstants::TOUTV_PARAMETERS_SHOW_INFO;
     }
 
+    #[\Override]
     public function getSeasonInfoUrl(string $showId, string $seasonId): string
     {
         return ToutvConstants::TOUTV_URL_SEASON_INFO .
@@ -471,6 +499,7 @@ class Toutv extends StreamingService
             $seasonId;
     }
 
+    #[\Override]
     public function getSeasonInfoParameters(
         string $showId,
         string $seasonId,
@@ -478,6 +507,7 @@ class Toutv extends StreamingService
         return ToutvConstants::TOUTV_PARAMETERS_SEASON_INFO;
     }
 
+    #[\Override]
     public function getEpisodeInfoUrl(
         string $showId,
         string $seasonId,
@@ -492,6 +522,7 @@ class Toutv extends StreamingService
             sprintf("%02d", $episodeId);
     }
 
+    #[\Override]
     public function getEpisodeInfoParameters(
         string $showId,
         string $seasonId,

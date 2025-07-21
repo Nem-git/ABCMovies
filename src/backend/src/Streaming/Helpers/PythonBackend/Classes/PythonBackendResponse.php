@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Streaming\Helpers\PythonBackend\Classes;
 
-class PythonBackendResponse
+final class PythonBackendResponse
 {
     public string $error;
     public mixed $value;

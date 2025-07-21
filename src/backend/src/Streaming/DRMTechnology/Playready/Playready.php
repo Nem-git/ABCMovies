@@ -10,18 +10,20 @@ use App\Streaming\DRMTechnology\DRMTechnology;
 /**
  * Microsoft's DRM Technology
  */
-class Playready extends DRMTechnology
+final class Playready extends DRMTechnology
 {
     // https://git.gay/ready-dl/pyplayready
 
     public string $name = "playready";
 
+    #[\Override]
     public function saveData(
         Episode $episode,
         string $episodeStreamingDrmTechnologyIdentifier,
     ): void {
     }
 
+    #[\Override]
     public function getSegment(
         string $episodeStreamingDrmTechnologyIdentifier,
         string $initMediaIdentifier,

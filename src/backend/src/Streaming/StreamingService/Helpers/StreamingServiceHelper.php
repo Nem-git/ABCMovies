@@ -6,7 +6,7 @@ namespace App\Streaming\StreamingService\Helpers;
 
 use App\Config\Constants;
 
-class StreamingServiceHelper
+final class StreamingServiceHelper
 {
     public static function getStreamUrl(
         string $streamingServiceTag,

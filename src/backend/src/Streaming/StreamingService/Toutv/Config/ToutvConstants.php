@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Streaming\StreamingService\Toutv\Config;
 
-class ToutvConstants
+final class ToutvConstants
 {
     public const TOUTV_URL_SEARCH = "https://services.radio-canada.ca/ott/catalog/v2/toutv/search";
 

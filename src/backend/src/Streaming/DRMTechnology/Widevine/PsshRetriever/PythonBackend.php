@@ -10,7 +10,7 @@ use App\Streaming\Helpers\PythonBackend\PythonBackendHelper;
 /**
  * Using the Python API to retrieve the keys
  */
-class PythonBackend extends PsshRetriever
+final class PythonBackend extends PsshRetriever
 {
     public function getPssh(
         string $mpdUrl,

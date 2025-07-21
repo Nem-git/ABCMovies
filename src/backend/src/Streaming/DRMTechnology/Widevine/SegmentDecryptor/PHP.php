@@ -9,13 +9,14 @@ use App\Streaming\DRMTechnology\Widevine\Classes\SegmentDecryptor;
 /**
  * Using PHP to merge and decrypt the segment
  */
-class Php extends SegmentDecryptor
+final class Php extends SegmentDecryptor
 {
     // TODO: Look into FFI for direct function calls the a shared library (need to recompile)
+    #[\Override]
     public function getDecryptedSegment(
-        $initContent,
         $segmentContent,
-        $decryptionKeys,
+        $initContent,
+        $decryptionKeys = [],
         $shouldBeMerged = false,
     ): string {
         return "";

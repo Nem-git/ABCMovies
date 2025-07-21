@@ -10,8 +10,9 @@ use App\Streaming\Helpers\PythonBackend\PythonBackendHelper;
 /**
  * Using the Python API to retrieve the keys
  */
-class PythonBackend extends DecryptionKeysRetriever
+final class PythonBackend extends DecryptionKeysRetriever
 {
+    #[\Override]
     public function getDecryptionKeys(
         string $pssh,
         string $licenseUrl,

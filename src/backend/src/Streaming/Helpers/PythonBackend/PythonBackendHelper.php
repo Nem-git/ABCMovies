@@ -8,7 +8,7 @@ use App\Streaming\Helpers\RequestHelper;
 use App\Streaming\Helpers\PythonBackend\Classes\PythonBackendResponse;
 use App\Factory\ObjectFactory;
 
-class PythonBackendHelper
+final class PythonBackendHelper
 {
     public static function get(
         string $endpoint,
