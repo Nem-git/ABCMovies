@@ -128,7 +128,7 @@ final class Shell extends SegmentDecryptor
     /**
      * Remove unnecessary/DRM atoms from the media segment
      */
-    private function removeDrmMediaContent(string $content): string
+    private function removeDrmMediaContent(string $content): string|false
     {
         $mp4Info = BentoHelper::getMp4Info($content);
 
@@ -161,7 +161,7 @@ final class Shell extends SegmentDecryptor
     /**
      * Remove unnecessary/DRM atoms from the init segment
      */
-    private function removeDrmInitContent(string $initContent): string
+    private function removeDrmInitContent(string $initContent): string|false
     {
         $mp4Info = BentoHelper::getMp4Info($initContent);
 

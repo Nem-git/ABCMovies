@@ -61,7 +61,7 @@ final class RequestHelper
         array $headers = [],
         array $parameters = [],
         array $options = [],
-    ): string|null {
+    ): string|bool|null {
         // If no URL was given
         if (!$url) {
             return null;
@@ -80,7 +80,7 @@ final class RequestHelper
         array $headers = [],
         array $options = [],
         $data = [],
-    ): string|null {
+    ): string|bool|null {
         // Add data to the request body
         if (empty($options)) {
             $options = [

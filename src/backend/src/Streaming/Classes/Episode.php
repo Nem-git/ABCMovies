@@ -6,7 +6,7 @@ namespace App\Streaming\Classes;
 
 use App\Streaming\StreamingTechnology\StreamingTechnology;
 
-class Episode
+final class Episode
 {
     /**
      * Episode's unique identifier (In the streaming service)

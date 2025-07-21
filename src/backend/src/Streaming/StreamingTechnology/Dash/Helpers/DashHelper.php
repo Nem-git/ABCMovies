@@ -7,7 +7,7 @@ namespace App\Streaming\StreamingTechnology\Dash\Helpers;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Streaming\StreamingTechnology\Helpers\StreamingTechnologyHelper;
 
-class DashHelper
+final class DashHelper
 {
     public static function parseDashSegmentCriteria(
         Request $request,

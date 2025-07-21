@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Streaming\Classes;
 
-class StreamingService
+final class StreamingService
 {
     /**
      * Show unique identifier (In the streaming service)

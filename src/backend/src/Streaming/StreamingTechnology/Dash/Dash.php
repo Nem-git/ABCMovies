@@ -93,7 +93,7 @@ final class Dash extends StreamingTechnology
     }
 
     private function getManifest(
-        $episodeStreamingDrmTechnologyIdentifier,
+        string $episodeStreamingDrmTechnologyIdentifier,
         Episode $episode,
     ): string {
         $manifestContent = RequestHelper::get(

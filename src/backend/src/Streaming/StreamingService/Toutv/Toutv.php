@@ -288,10 +288,7 @@ final class Toutv extends StreamingService
     // }
 
     #[\Override]
-    /**
-     * @return void
-     */
-    public function getEpisodeStreamInfo(Episode $episode)
+    public function getEpisodeStreamInfo(Episode $episode): void
     {
         $ssResponse = RequestHelper::get(
             $this->getEpisodeFileUrl($episode),

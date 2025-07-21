@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Streaming\Classes;
 
-class Season
+final class Season
 {
     /**
      * Season unique identifier (In the streaming service)
