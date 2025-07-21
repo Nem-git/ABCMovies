@@ -30,7 +30,7 @@ final class Shell extends SegmentDecryptor
             // );
             return $this->decryptMergedSegment(
                 $initContent,
-                $this->removeDrmMediaContent($segmentContent),
+                $this->$segmentContent,
                 $decryptionKeys,
             );
         } elseif ($segmentContent === $initContent) {
@@ -45,7 +45,7 @@ final class Shell extends SegmentDecryptor
             // );
             return $this->decryptMediaSegment(
                 $initContent,
-                $this->removeDrmMediaContent($segmentContent),
+                $segmentContent,
                 $decryptionKeys,
             );
         }
@@ -53,8 +53,6 @@ final class Shell extends SegmentDecryptor
 
     /**
      * Decrypt ONLY the segment using the init as fragment info, so no binary merging
-     *
-     * @return string|false
      */
     private function decryptMediaSegment(
         string $initContent,
@@ -90,8 +88,6 @@ final class Shell extends SegmentDecryptor
 
     /**
      * Decrypting the segment made from init and segment merging
-     *
-     * @return string|false
      */
     private function decryptMergedSegment(
         string $initContent,
@@ -135,23 +131,26 @@ final class Shell extends SegmentDecryptor
         foreach ($mp4Info as $atom) {
             // Loop through atoms in moov
             if ($atom["name"] === "moov") {
-                foreach ($atom["children"] as $moovChildren) {
-                    // Retrieve all the PSSH's
-                    if ($moovChildren["name"] === "pssh") {
-                        $content = BentoHelper::removeAtom(
-                            $content,
-                            [
-                            $atom["name"],
-                            $moovChildren["name"],
-                            ]
-                        );
-                    }
+                BentoHelper::removeAtom($content, [
+                    $atom["name"]
+                ]);
+                // foreach ($atom["children"] as $moovChildren) {
+                //     // Retrieve all the PSSH's
+                //     if ($moovChildren["name"] === "pssh") {
+                //         $content = BentoHelper::removeAtom(
+                //             $content,
+                //             [
+                //             $atom["name"],
+                //             $moovChildren["name"],
+                //             ]
+                //         );
+                //     }
 
-                    // Remove all the minfs (where most DRM data is stored)
-                    // $stsd = BentoHelper::traverseToPath($atom, ["trak", "mdia", "minf", "stbl", "stsd"]);
+                //     // Remove all the minfs (where most DRM data is stored)
+                //     // $stsd = BentoHelper::traverseToPath($atom, ["trak", "mdia", "minf", "stbl", "stsd"]);
 
-                    // TODO: Fix the mess that is merging the cleaned init with the segment
-                }
+                //     // TODO: Fix the mess that is merging the cleaned init with the segment
+                // }
             }
         }
 
@@ -173,8 +172,8 @@ final class Shell extends SegmentDecryptor
                         $initContent = BentoHelper::removeAtom(
                             $initContent,
                             [
-                            $atom["name"],
-                            $moovChildren["name"],
+                                $atom["name"],
+                                $moovChildren["name"],
                             ]
                         );
                     }
@@ -211,8 +210,8 @@ final class Shell extends SegmentDecryptor
                         $initContent = BentoHelper::removeAtom(
                             $initContent,
                             [
-                            $atom["name"],
-                            $moofChildren["name"],
+                                $atom["name"],
+                                $moofChildren["name"],
                             ]
                         );
                     }
