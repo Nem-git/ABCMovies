@@ -27,15 +27,15 @@ final class Hls extends StreamingTechnology
         return "";
     }
 
-    private function getMaster()
-    {
-    }
+    // private function getMaster()
+    // {
+    // }
 
-    private function getPlaylist()
-    {
-    }
+    // private function getPlaylist()
+    // {
+    // }
 
-    private function getFragment()
-    {
-    }
+    // private function getFragment()
+    // {
+    // }
 }

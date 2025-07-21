@@ -20,14 +20,18 @@ final class PythonBackend extends DecryptionKeysRetriever
     ): array {
         $response = PythonBackendHelper::get(
             "decryptionKeys",
-            compact(["pssh", "licenseUrl", "licenseHeaders"]),
+            [
+            "pssh" => $pssh,
+            "licenseUrl" => $licenseUrl,
+            "licenseHeaders" => $licenseHeaders,
+            ]
         );
 
         if ($response->error) {
-            throw $response->error;
+            // TODO: Throw error
         }
 
-        $decryptionKeys = $response->value;
+        $decryptionKeys = (array) $response->value;
 
         return $decryptionKeys;
     }

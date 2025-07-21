@@ -23,8 +23,7 @@ final class Smooth extends StreamingTechnology
         string $showId,
         string $seasonId,
         array $args = [],
-    ): string
-    {
+    ): string {
         return "";
     }
 }

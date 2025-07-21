@@ -32,7 +32,12 @@ final class RequestHelper
         string $url,
         array $headers = [],
         array $options = [],
-    ): bool|string|null {
+    ): string|null {
+        // If no URL was given
+        if (!$url) {
+            return null;
+        }
+
         $ch = curl_init();
 
         curl_setopt_array(
@@ -51,9 +56,13 @@ final class RequestHelper
 
         curl_close($ch);
 
+        if (!$response) {
+            // TODO: Throw error
+            return null;
+        }
         // TOOD: Throw error on bad http code
 
-        return $response;
+        return (string) $response;
     }
 
     public static function get(
@@ -61,12 +70,7 @@ final class RequestHelper
         array $headers = [],
         array $parameters = [],
         array $options = [],
-    ): string|bool|null {
-        // If no URL was given
-        if (!$url) {
-            return null;
-        }
-
+    ): string|null {
         // If there are parameters
         if (count($parameters) > 0) {
             $url .= self::format_parameters($parameters);
@@ -80,7 +84,7 @@ final class RequestHelper
         array $headers = [],
         array $options = [],
         $data = [],
-    ): string|bool|null {
+    ): string|null {
         // Add data to the request body
         if (empty($options)) {
             $options = [

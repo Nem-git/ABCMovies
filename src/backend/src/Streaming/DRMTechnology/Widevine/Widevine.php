@@ -94,7 +94,7 @@ final class Widevine extends DRMTechnology
     private function getInitSegment(
         string $initMediaIdentifier,
         string $reconstructedUrl,
-    ): bool|string|null {
+    ): string|null {
         $initContent = RequestHelper::get($reconstructedUrl);
 
         // // Cleaned from unneeded atoms using bento4

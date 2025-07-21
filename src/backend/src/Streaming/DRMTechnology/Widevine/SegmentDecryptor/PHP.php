@@ -9,7 +9,7 @@ use App\Streaming\DRMTechnology\Widevine\Classes\SegmentDecryptor;
 /**
  * Using PHP to merge and decrypt the segment
  */
-final class Php extends SegmentDecryptor
+final class PHP extends SegmentDecryptor
 {
     // TODO: Look into FFI for direct function calls the a shared library (need to recompile)
     #[\Override]

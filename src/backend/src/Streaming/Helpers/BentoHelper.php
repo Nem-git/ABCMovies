@@ -6,9 +6,6 @@ namespace App\Streaming\Helpers;
 
 final class BentoHelper
 {
-    // Traverse mp4info
-
-
     //region MP4DUMP
 
     public static function getMp4Info(
@@ -40,8 +37,10 @@ final class BentoHelper
     /**
      * @return false|string
      */
-    public static function removeAtom(string $content, array $path): string|false
-    {
+    public static function removeAtom(
+        string $content,
+        array $path,
+    ): string|false {
         $filePath = tempnam($_ENV["TEMP_DIR"], "ABC_R_");
         $modifiedFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_M_");
 

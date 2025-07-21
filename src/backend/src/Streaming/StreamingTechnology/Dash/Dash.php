@@ -122,7 +122,6 @@ final class Dash extends StreamingTechnology
         string $initMediaIdentifier,
         string $reconstructedUrl,
     ): string|null {
-
         // If DRM'd
         if ($this->manifestController->getDecryptionKeys(
             $episodeStreamingDrmTechnologyIdentifier,

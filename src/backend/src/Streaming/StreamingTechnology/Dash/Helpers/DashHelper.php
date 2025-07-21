@@ -31,6 +31,6 @@ final class DashHelper
             "segmentType" => $segmentType,
             "initMediaIdentifier" => $initMediaIdentifier,
             "reconstructedUrl" => $reconstructedUrl,
-            ];
+        ];
     }
 }

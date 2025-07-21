@@ -21,7 +21,7 @@ final class PythonBackend extends ManifestModifier
         );
 
         if ($response->error) {
-            throw $response->error;
+            // TODO: Throw error
         }
 
         $modifiedManifestContent = $response->value;
