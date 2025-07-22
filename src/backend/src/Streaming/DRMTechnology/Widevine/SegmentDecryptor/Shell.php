@@ -131,9 +131,7 @@ final class Shell extends SegmentDecryptor
         foreach ($mp4Info as $atom) {
             // Loop through atoms in moov
             if ($atom["name"] === "moov") {
-                BentoHelper::removeAtom($content, [
-                    $atom["name"]
-                ]);
+                BentoHelper::removeAtom($content, [$atom["name"]]);
                 // foreach ($atom["children"] as $moovChildren) {
                 //     // Retrieve all the PSSH's
                 //     if ($moovChildren["name"] === "pssh") {
@@ -172,8 +170,8 @@ final class Shell extends SegmentDecryptor
                         $initContent = BentoHelper::removeAtom(
                             $initContent,
                             [
-                                $atom["name"],
-                                $moovChildren["name"],
+                            $atom["name"],
+                            $moovChildren["name"],
                             ]
                         );
                     }
@@ -210,8 +208,8 @@ final class Shell extends SegmentDecryptor
                         $initContent = BentoHelper::removeAtom(
                             $initContent,
                             [
-                                $atom["name"],
-                                $moofChildren["name"],
+                            $atom["name"],
+                            $moofChildren["name"],
                             ]
                         );
                     }
