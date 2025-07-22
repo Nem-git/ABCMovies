@@ -9,13 +9,6 @@
         var(--body-background-highlight-color) 100%
     );
 
-    /** Navigation Bar */
-    --navbar-background-color: rgba(25, 20, 25, 0.75);
-    --navbar-background-highlight-color: rgba(60, 50, 60, 0.85);
-    --navbar-box-shadow: rgba(85, 40, 110, 0.2) 0px 0px 30px 20px;
-    --navbar-border-radius: 0.75em;
-    --navbar-backdrop-filter: blur(20px);
-
     /** Search */
     --searchbar-background-color: transparent;
     --searchbar-box-shadow: var(--navbar-box-shadow);
@@ -45,6 +38,7 @@
 }
 
 * {
+    font-family: sans-serif;
     color: var(--text-color);
 }
 

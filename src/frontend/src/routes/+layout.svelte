@@ -20,6 +20,7 @@
     .app {
         display: flex;
         flex-direction: column;
+        flex-wrap: nowrap;
         min-height: 100vh;
         box-sizing: border-box;
     }
@@ -27,7 +28,7 @@
     main {
         display: flex;
         flex-direction: column;
-        padding-top: 150px;
+        flex-grow: 1;
         width: calc(100% - 2 * 5vw);
         max-width: 100rem;
         padding-inline: 5vw;

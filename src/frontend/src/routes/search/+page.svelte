@@ -4,7 +4,6 @@
     import { goto } from "$app/navigation";
     import type { PageProps } from "./$types";
 
-    import search from "$lib/images/search.svg";
     import ShowCard from "../../lib/components/ShowCard.svelte";
 
     let { data }: PageProps = $props();
@@ -12,10 +11,14 @@
     let searchInputEl: HTMLInputElement;
 
     onMount(() => {
+        focusOnSearchBar();
+    });
+
+    let focusOnSearchBar = () => {
         let length = searchInputEl.value.length;
         searchInputEl.focus();
         searchInputEl.setSelectionRange(length, length);
-    });
+    };
 
     let query = $state(data.query);
 
@@ -28,10 +31,27 @@
     });
 </script>
 
-<div class="search-container">
-    <img src="x" alt="Magnifying glass" class="search-icon" />
+<button
+    class="search-container"
+    onclick={() => focusOnSearchBar()}
+    aria-label="Search Bar"
+>
+    <svg
+        class="search-icon"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+    >
+        <path
+            stroke="#000"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M15.8 15.8 21 21m-3-10.5a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"
+        />
+    </svg>
     <input type="text" bind:this={searchInputEl} bind:value={query} />
-</div>
+</button>
 
 <ul>
     {#each data.searchResults as show}
@@ -53,19 +73,23 @@
 
         display: flex;
         align-items: center;
+        justify-content: space-evenly;
 
         gap: 5px;
         height: 60px;
     }
 
+    .search-container:hover {
+        cursor: text;
+    }
+
     input {
         background-color: transparent;
 
-        width: 100%;
-        height: 100%;
-
         font-size: 1em;
         font-weight: 500;
+
+        flex-grow: 1;
     }
 
     .search-container:focus-within {
@@ -80,5 +104,9 @@
         padding: 0;
         gap: 1em;
         row-gap: 50px;
+    }
+
+    .search-icon {
+        width: 40px;
     }
 </style>
