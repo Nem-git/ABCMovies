@@ -30,7 +30,7 @@ final class Shell extends SegmentDecryptor
             // );
             return $this->decryptMergedSegment(
                 $initContent,
-                $this->$segmentContent,
+                $segmentContent,
                 $decryptionKeys,
             );
         } elseif ($segmentContent === $initContent) {
