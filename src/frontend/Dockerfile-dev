@@ -9,9 +9,6 @@ ENV NODE_ENV=development
 ENV HOST=0.0.0.0
 ENV PORT=8001
 
-RUN addgroup -S appgroup
-RUN adduser -S appuser -G appgroup
-
 COPY package*.json ./
 COPY svelte.config.js ./
 COPY tsconfig.json ./
