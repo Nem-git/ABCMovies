@@ -65,15 +65,14 @@
         --navbar-box-shadow: rgba(85, 40, 110, 0.2) 0px 0px 30px 20px;
 
         --search-container-border-radius: 0.5em;
-        --search-container-box-shadow: 4px 4px 7px 7px rgba(50, 0, 70, 0.384);
+
+        --whiteish-color: rgb(225, 200, 225);
 
         --logo-background: rgb(125, 0, 141);
 
         --search-icon-color: var(--whiteish-color);
 
         --account-icon-color: rgb(120, 100, 120);
-
-        --whiteish-color: rgb(225, 175, 225);
     }
 
     header {
@@ -81,11 +80,12 @@
         top: 0;
         left: 0;
         width: 100%;
+
+        z-index: 5;
     }
 
     nav {
         background: var(--navbar-background-color);
-        box-shadow: var(--navbar-box-shadow);
         padding-inline: 1.5em;
         height: 64px;
     }
@@ -105,6 +105,8 @@
 
     .home-button {
         display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
         align-items: center;
 
         column-gap: 7px;
@@ -141,7 +143,6 @@
         column-gap: 10px;
 
         background-color: var(--navbar-background-highlight-color);
-        box-shadow: var(--search-container-box-shadow);
 
         align-items: center;
         align-content: stretch;

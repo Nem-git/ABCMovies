@@ -15,6 +15,15 @@
 </a>
 
 <style>
+    :root {
+        --showcard-hover-overlay: linear-gradient(
+            to top,
+            rgb(18, 13, 19),
+            rgba(20, 15, 20, 0.2)
+        );
+        --showcard-image-border-radius: 0.25em;
+    }
+
     a {
         display: flex;
         flex-flow: column nowrap;

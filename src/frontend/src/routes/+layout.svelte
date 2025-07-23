@@ -29,9 +29,8 @@
         display: flex;
         flex-direction: column;
         flex-grow: 1;
-        width: calc(100% - 2 * 5vw);
-        max-width: 100rem;
-        padding-inline: 5vw;
-        margin: 0 auto;
+        max-width: 100vw;
+
+        z-index: 0;
     }
 </style>

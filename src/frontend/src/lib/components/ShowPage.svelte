@@ -5,38 +5,73 @@
 </script>
 
 <div class="hero">
-    <div class="hero-info">
-        <span class="title">{show.title}</span>
-        <span class="description">{show.fullDescription}</span>
-        <span class="year">Release year: {show.year}</span>
+    <div class="hero-info-container">
+        <div class="hero-info">
+            <span class="title">{show.title}</span>
+            <span class="description">{show.fullDescription}</span>
+            <span class="year">Release year: {show.year}</span>
+        </div>
+        <div></div>
     </div>
-    <div class="img-container">
-        <img
-            src={show.imageBackground.replace("_Size_", "1280")}
-            alt={show.title}
-        />
+
+    <div class="img-background-container">
+        <div></div>
+        <div class="img-container">
+            <img
+                src={show.imageBackground.replace("_Size_", "1280")}
+                alt={show.title}
+            />
+        </div>
     </div>
 </div>
 
 <style>
+    :root {
+        --showpage-year-color: rgb(130, 110, 130);
+
+        --showpage-image-container-box-shadow: inset 5px -5px 5px 0px
+            rgb(31, 25, 35);
+    }
+
     img {
         object-fit: cover;
         width: 100%;
-
-        border-style: solid;
-        border-width: 5px;
-        border-radius: var(--showpage-image-border-radius);
-        border-color: var(--showpage-image-border-color);
 
         box-shadow: var(--showpage-image-box-shadow);
     }
 
     .hero {
+        height: 500px;
+        max-height: 80%;
+    }
+
+    .hero-info-container {
+        position: relative;
+
         display: flex;
         flex-direction: row;
         flex-wrap: nowrap;
 
-        justify-content: center;
+        justify-content: space-between;
+    }
+
+    .img-background-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+
+        z-index: -1;
+
+        width: 100%;
+
+        height: 500px;
+        max-height: 80%;
+
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+
+        justify-content: space-between;
     }
 
     .hero-info {
@@ -67,6 +102,7 @@
     }
 
     .img-container {
-        max-width: 30vw;
+        max-height: 50em;
+        box-shadow: var(--showpage-image-container-box-shadow);
     }
 </style>
