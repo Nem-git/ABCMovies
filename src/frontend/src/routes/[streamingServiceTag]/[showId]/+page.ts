@@ -13,6 +13,6 @@ export const load: PageLoad = async ({ fetch, parent }) => {
 
     return {
         show: await showPromise,
-        seasonId: (await showPromise).seasons[0].number.toString(),
+        season: (await showPromise).seasons[0],
     };
 };

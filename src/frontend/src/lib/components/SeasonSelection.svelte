@@ -1,0 +1,69 @@
+<script lang="ts">
+    import type { Season } from "$lib/types";
+
+    let {
+        seasons,
+        selectedSeason,
+    }: { seasons: Season[]; selectedSeason: Season } = $props();
+</script>
+
+<ol>
+    {#each seasons as season}
+        <li>
+            <a
+                href={season.number.toString()}
+                class={season.id === selectedSeason.id
+                    ? "selected-season"
+                    : "unselected-season"}
+            >
+                <span>
+                    {season.title}
+                </span>
+            </a>
+        </li>
+    {/each}
+</ol>
+
+<style>
+    :root {
+        --season-selection-background-hover-color: rgb(51, 51, 51);
+        --season-selection-background-color: rgb(83, 83, 83);
+
+        --season-selection-selected-underline-color: rgb(105, 34, 114);
+    }
+
+    ol {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+
+        justify-items: center;
+        list-style-type: none;
+        padding: 0;
+
+        gap: 1em;
+    }
+
+    a {
+        padding: 1em 2em;
+    }
+
+    a:hover {
+        text-decoration: none;
+    }
+
+    span {
+        font-weight: bold;
+    }
+
+    .selected-season {
+        border-bottom-width: 3px;
+        border-bottom-style: solid;
+        border-bottom-color: var(--season-selection-selected-underline-color);
+
+        background-color: var(--season-selection-background-color);
+    }
+
+    .unselected-season:hover {
+        background-color: var(--season-selection-background-hover-color);
+    }
+</style>
