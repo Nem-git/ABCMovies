@@ -21,8 +21,9 @@
 
     let query: string = $state(data.query);
 
-    let keydown = (event: KeyboardEvent): void => {
+    let keypress = (event: KeyboardEvent): void => {
         if (document.activeElement !== searchInputEl) {
+            query += event.key;
             focusOnSearchBar();
         }
     };
@@ -36,7 +37,7 @@
     });
 </script>
 
-<svelte:window onkeydown={keydown} />
+<svelte:window on:keypress={keypress} />
 
 <div class="flex-center">
     <button
