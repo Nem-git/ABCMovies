@@ -11,6 +11,9 @@
 
     afterNavigate((): void => {
         focusOnSearchBar();
+        if (data.query !== query) {
+            getSearchResults();
+        }
     });
 
     let focusOnSearchBar = (): void => {
@@ -28,12 +31,16 @@
         }
     };
 
-    $effect(() => {
+    let getSearchResults = () => {
         if (query === "") {
             goto("/search", { keepFocus: true });
         } else {
             goto("?" + new URLSearchParams({ q: query }), { keepFocus: true });
         }
+    };
+
+    $effect(() => {
+        getSearchResults();
     });
 </script>
 

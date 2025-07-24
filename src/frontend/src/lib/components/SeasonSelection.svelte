@@ -29,6 +29,10 @@
         --season-selection-background-hover-color: rgb(51, 51, 51);
         --season-selection-background-color: rgb(83, 83, 83);
 
+        --season-selection-border-radius: 0.3em;
+        --season-selection-border-color: rgb(158, 158, 158);
+        --season-selection-selected-border-color: rgb(158, 158, 158);
+
         --season-selection-selected-underline-color: rgb(105, 34, 114);
     }
 
@@ -45,6 +49,17 @@
 
     a {
         padding: 1em 2em;
+
+        border-radius: var(--season-selection-border-radius);
+        border-color: var(--season-selection-border-color);
+
+        transition-property: background-color;
+        transition-duration: 0.2s;
+        transition-timing-function: ease-in;
+
+        transition-property: border-bottom-width;
+        transition-duration: 0.05s;
+        transition-timing-function: ease-in;
     }
 
     a:hover {

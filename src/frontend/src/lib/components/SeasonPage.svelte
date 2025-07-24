@@ -1,16 +1,15 @@
 <script lang="ts">
-    import type { Season } from "../types";
+    import type { Season } from "$lib/types";
 
     import EpisodeCard from "./EpisodeCard.svelte";
 
     let { season }: { season: Season } = $props();
 </script>
 
-<h3>{season.title}</h3>
 <ol>
     {#each season.episodes as episode}
         <li>
-            <EpisodeCard seasonId={season.number.toString()} {episode} />
+            <EpisodeCard seasonId={season.id} {episode} />
         </li>
     {/each}
 </ol>
