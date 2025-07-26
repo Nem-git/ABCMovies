@@ -32,7 +32,7 @@
                         >
                             <path
                                 class="search-icon-line"
-                                d="M15.8 15.8 21 21m-3-10.5a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"
+                                d="m20 20l-4.05-4.05m0 0a7 7 0 1 0-9.9-9.9a7 7 0 0 0 9.9 9.9"
                             />
                         </svg>
                         <span class="search">Search</span>
@@ -164,7 +164,7 @@
     }
 
     .search-icon {
-        width: 1.5em;
+        width: 1.6em;
         fill: none;
         stroke-width: 5em;
     }
