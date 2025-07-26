@@ -144,7 +144,6 @@ moov/trak/mdia/minf/stbl/stsd/[original_format]
 
 ### General
 
-- [ ] Migrate from Routify to SvelteKit (new branch, large refactor)
 
 ### `SearchPage.svelte`
 
@@ -157,6 +156,12 @@ moov/trak/mdia/minf/stbl/stsd/[original_format]
 ### `ShowPage.svelte`
 
 - [ ] Improve layout: intuitive positioning of image, title, description at top
+
+
+### `+page.svelte` (Show page)
+
+- [ ] Make the videoplayer page fullscreen and remove the Header and Footer. Like Toutv or Netflix
+- [ ] Create destroy functions for unmounting Video Player component
 
 ---
 
