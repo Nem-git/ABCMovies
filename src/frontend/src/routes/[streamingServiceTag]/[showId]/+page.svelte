@@ -10,7 +10,7 @@
 
     let { data }: PageProps = $props();
 
-    onMount(() => {
+    onMount(async () => {
         goto(
             "/" +
                 [data.streamingServiceTag, data.showId, data.season.id].join(
