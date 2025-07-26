@@ -25,6 +25,8 @@
 		"vite": "^7.0.4"
 	},
 	"dependencies": {
-		"dashjs": "^5.0.3"
+		"dashjs": "^5.0.3",
+		"shaka-player": "^4.15.8",
+		"video.js": "^8.23.3"
 	}
 }

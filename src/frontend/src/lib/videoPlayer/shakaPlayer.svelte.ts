@@ -1,10 +1,6 @@
-import "shaka-player/dist/shaka-player.compiled.debug";
+import * as shaka from "shaka-player/dist/shaka-player.compiled.js";
 
-export const manifestUrl = $state({
-    url: "",
-});
-
-export const init = async () => {
+export const init = async (url: string, videoPlayerEl: HTMLVideoElement) => {
     // Install built-in polyfills to patch browser incompatibilities.
     shaka.polyfill.installAll();
 
@@ -16,13 +12,12 @@ export const init = async () => {
     } else {
     }
 
-    // Create a Player instance.
-    const video = document.getElementById("video-player");
+    // Create a Player instance.;
     const player = new shaka.Player();
-    await player.attach(video);
+    await player.attach(videoPlayerEl);
 
     // Attach player to the window to make it easy to access in the JS console.
-    window.player = player;
+    // window.player = player;
 
     // Listen for error events.
     player.addEventListener("error", onErrorEvent);
@@ -30,7 +25,7 @@ export const init = async () => {
     // Try to load a manifest.
     // This is an asynchronous process.
     try {
-        await player.load(manifestUrl.url);
+        await player.load(url);
         // This runs if the asynchronous load is successful.
         console.log("The video has now been loaded!");
     } catch (e) {
