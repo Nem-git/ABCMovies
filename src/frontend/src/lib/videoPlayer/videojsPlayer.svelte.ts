@@ -1,9 +1,9 @@
 import type Player from "video.js/dist/types/player";
 
 import videojs from "video.js";
-import "videojs-contrib-quality-levels";
 
 import "video.js/dist/video-js.min.css";
+import { playerInfo } from "$lib/helpers/videojsPlayerHelper.svelte";
 
 export const init = async (url: string, videoPlayerEl: HTMLVideoElement) => {
     let player: Player = videojs(videoPlayerEl, {
@@ -19,7 +19,35 @@ export const init = async (url: string, videoPlayerEl: HTMLVideoElement) => {
         type: "application/dash+xml",
     });
 
-    // player.qualityLevels();
+    return player;
+};
 
-    videojs.log.level("debug"); // TODO: Remove, just for debug
+export const toggleFullscreen = async (
+    player: Player,
+    wantsFullscreen = true,
+) => {
+    if (wantsFullscreen) {
+        try {
+            player.requestFullscreen();
+        } catch {
+            player.enterFullWindow();
+        }
+    } else {
+        if (document.fullscreenElement) {
+            player.exitFullscreen();
+        } else if (player.isFullWindow) {
+            player.exitFullWindow();
+        }
+    }
+};
+
+export const toggleSubtitles = async (
+    player: Player,
+    wantsSubtitles = true,
+) => {
+    if (wantsSubtitles && !playerInfo.subtitlesEnabled) {
+        console.log("Subtitles enabled");
+    } else if (playerInfo.subtitlesEnabled) {
+        console.log("Subtitles disabled");
+    }
 };

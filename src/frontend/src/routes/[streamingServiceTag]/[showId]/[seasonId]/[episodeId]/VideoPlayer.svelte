@@ -1,4 +1,6 @@
 <script lang="ts">
+    import type Player from "video.js/dist/types/player";
+
     import { onMount } from "svelte";
 
     import {
@@ -9,14 +11,15 @@
     let { url }: { url: string } = $props();
 
     let videoPlayerEl: HTMLVideoElement;
+    let videoPlayer: Player;
 
     let onkeydown = (event: KeyboardEvent): void => {
-        handleShortcuts(event.key.toUpperCase());
+        handleShortcuts(event.key.toUpperCase(), videoPlayer);
     };
 
     onMount(async () => {
-        let videojs = await import("$lib/videoPlayer/videojsPlayer.svelte");
-        videojs.init(url, videoPlayerEl);
+        let videojs = import("$lib/videoPlayer/videojsPlayer.svelte");
+        videoPlayer = await (await videojs).init(url, videoPlayerEl);
     });
 </script>
 
@@ -32,6 +35,7 @@
         bind:currentTime={playerInfo.currentTime}
         bind:volume={playerInfo.volume}
         bind:muted={playerInfo.muted}
+        bind:duration={playerInfo.duration}
     >
         <track kind="captions" />
         <!-- I am unsure about the need for this, but it gives me errors in svelte when I don't put it -->

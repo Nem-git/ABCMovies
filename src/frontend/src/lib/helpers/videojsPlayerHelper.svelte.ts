@@ -1,4 +1,11 @@
+import type Player from "video.js/dist/types/player";
+
 import { SHORTCUTS, VIDEO_PLAYER_VALUES } from "$lib/constants";
+
+import {
+    toggleFullscreen,
+    toggleSubtitles,
+} from "$lib/videoPlayer/videojsPlayer.svelte";
 
 export const playerInfo = $state({
     // Interacts with the video element directly
@@ -11,9 +18,12 @@ export const playerInfo = $state({
     theaterEnabled: false,
     subtitlesEnabled: false,
     fullscreen: false,
+
+    // READ-ONLY
+    duration: 0,
 });
 
-export function handleShortcuts(key: string) {
+export function handleShortcuts(key: string, player: Player | null = null) {
     switch (true) {
         case SHORTCUTS.togglepause.includes(key):
             playerInfo.paused = !playerInfo.paused;
@@ -24,7 +34,11 @@ export function handleShortcuts(key: string) {
             break;
 
         case SHORTCUTS.togglesubtitles.includes(key):
-            playerInfo.subtitlesEnabled = !playerInfo.subtitlesEnabled;
+            if (player) {
+                playerInfo.subtitlesEnabled = !playerInfo.subtitlesEnabled;
+                toggleSubtitles(player);
+            }
+
             break;
 
         case SHORTCUTS.togglemute.includes(key):
@@ -32,19 +46,41 @@ export function handleShortcuts(key: string) {
             break;
 
         case SHORTCUTS.volumeup.includes(key):
-            playerInfo.volume += VIDEO_PLAYER_VALUES.volumeJump;
+            if (playerInfo.volume > 1 + VIDEO_PLAYER_VALUES.volumeJump) {
+                playerInfo.volume = 1;
+            } else {
+                playerInfo.volume += VIDEO_PLAYER_VALUES.volumeJump;
+            }
+
             break;
 
         case SHORTCUTS.volumedown.includes(key):
-            playerInfo.volume -= VIDEO_PLAYER_VALUES.volumeJump;
+            if (playerInfo.volume < VIDEO_PLAYER_VALUES.volumeJump) {
+                playerInfo.volume = 0;
+            } else {
+                playerInfo.volume -= VIDEO_PLAYER_VALUES.volumeJump;
+            }
+
             break;
 
         case SHORTCUTS.seekforward.includes(key):
-            playerInfo.currentTime += VIDEO_PLAYER_VALUES.seekJump;
+            if (
+                playerInfo.currentTime + VIDEO_PLAYER_VALUES.seekJump >
+                playerInfo.duration
+            ) {
+                playerInfo.currentTime = playerInfo.duration;
+            } else {
+                playerInfo.currentTime += VIDEO_PLAYER_VALUES.seekJump;
+            }
             break;
 
         case SHORTCUTS.seekbackward.includes(key):
-            playerInfo.currentTime -= VIDEO_PLAYER_VALUES.seekJump;
+            if (playerInfo.currentTime < VIDEO_PLAYER_VALUES.seekJump) {
+                playerInfo.currentTime = 0;
+            } else {
+                playerInfo.currentTime -= VIDEO_PLAYER_VALUES.seekJump;
+            }
+
             break;
 
         case SHORTCUTS.gotostart.includes(key):
@@ -52,15 +88,35 @@ export function handleShortcuts(key: string) {
             break;
 
         case SHORTCUTS.gotoend.includes(key):
-            playerInfo.currentTime = -1;
+            playerInfo.currentTime = playerInfo.duration;
             break;
 
-        case SHORTCUTS.enterfullscreen.includes(key):
-            playerInfo.fullscreen = true;
+        case SHORTCUTS.exitfullscreen.includes(key) &&
+            SHORTCUTS.enterfullscreen.includes(key):
+            if (player && playerInfo.fullscreen) {
+                playerInfo.fullscreen = false;
+                toggleFullscreen(player, false);
+            } else if (player && !playerInfo.fullscreen) {
+                playerInfo.fullscreen = true;
+                toggleFullscreen(player);
+            }
+
             break;
 
         case SHORTCUTS.exitfullscreen.includes(key):
-            playerInfo.fullscreen = false;
+            if (player) {
+                playerInfo.fullscreen = false;
+                toggleFullscreen(player, false);
+            }
+
+            break;
+
+        case SHORTCUTS.enterfullscreen.includes(key):
+            if (player) {
+                playerInfo.fullscreen = true;
+                toggleFullscreen(player);
+            }
+
             break;
 
         default:
