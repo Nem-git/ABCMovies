@@ -79,11 +79,10 @@ abstract class StreamingService
 
     public function executeSearchResults(string $query, int $amount): array
     {
-        $parameters = $this->getSearchParameters($query, $amount);
         $response = RequestHelper::get(
             $this->getSearchUrl($query, $amount),
-            Constants::HTTP_DEFAULT_HEADERS,
-            $parameters,
+            $this->getSearchHeaders($query, $amount),
+            $this->getSearchParameters($query, $amount),
         );
         $searchResults = $this->parseSearchResults(
             json_decode($response, true),
@@ -117,11 +116,10 @@ abstract class StreamingService
         $show = ObjectFactory::createShow();
         $show->id = $showId;
 
-        $parameters = $this->getShowRecommendationsParameters($show, $amount);
         $response = RequestHelper::get(
             $this->getShowRecommendationsUrl($show, $amount),
-            Constants::HTTP_DEFAULT_HEADERS,
-            $parameters,
+            $this->getShowRecommendationsHeaders($show, $amount),
+            $this->getShowRecommendationsParameters($show, $amount),
         );
         $showRecommendations = $this->parseShowRecommendationsResults(
             json_decode($response, true),
@@ -148,6 +146,7 @@ abstract class StreamingService
         );
     }
 
+    // TODO: Fix this abomination, no more calling functions using string, wadafak
     public function executeMediaRecommendations(
         int $amount,
         string $type,
@@ -210,15 +209,14 @@ abstract class StreamingService
         string $seasonId,
         string $episodeId,
     ): array {
-        $parameters = $this->getNextRecommendationParameters(
-            $showId,
-            $seasonId,
-            $episodeId,
-        );
         $response = RequestHelper::get(
             $this->getNextRecommendationUrl($showId, $seasonId, $episodeId),
-            Constants::HTTP_DEFAULT_HEADERS,
-            $parameters,
+            $this->getNextRecommendationHeaders($showId, $seasonId, $episodeId),
+            $this->getNextRecommendationParameters(
+                $showId,
+                $seasonId,
+                $episodeId,
+            ),
         );
         $nextRecommendation = $this->parseNextRecommendationResult(
             json_decode($response, true),
@@ -250,7 +248,7 @@ abstract class StreamingService
 
         $response = RequestHelper::get(
             $this->getShowInfoUrl($show),
-            Constants::HTTP_DEFAULT_HEADERS,
+            $this->getShowInfoHeaders($show),
             $this->getShowInfoParameters($show),
         );
         $this->parseShowInfo($show, json_decode($response, true));
@@ -281,7 +279,7 @@ abstract class StreamingService
 
         $response = RequestHelper::get(
             $this->getSeasonInfoUrl($showId, $seasonId),
-            Constants::HTTP_DEFAULT_HEADERS,
+            $this->getSeasonInfoHeaders($showId, $seasonId),
             $this->getSeasonInfoParameters($showId, $seasonId),
         );
         $this->parseSeasonInfo($season, json_decode($response, true));
@@ -324,7 +322,7 @@ abstract class StreamingService
 
         $response = RequestHelper::get(
             $this->getEpisodeInfoUrl($showId, $seasonId, $episodeId),
-            Constants::HTTP_DEFAULT_HEADERS,
+            $this->getEpisodeInfoHeaders($showId, $seasonId, $episodeId),
             $this->getEpisodeInfoParameters($showId, $seasonId, $episodeId),
         );
         $this->parseEpisodeInfo($episode, json_decode($response, true));
@@ -381,6 +379,10 @@ abstract class StreamingService
         string $query,
         int $amount,
     ): array;
+    abstract public function getSearchHeaders(
+        string $query,
+        int $amount,
+    ): array;
 
     abstract public function getShowRecommendationsUrl(
         Show $show,
@@ -390,9 +392,16 @@ abstract class StreamingService
         Show $show,
         int $amount,
     ): array;
+    abstract public function getShowRecommendationsHeaders(
+        Show $show,
+        int $amount,
+    ): array;
 
     abstract public function getMoviesRecommendationsUrl(int $amount): string;
     abstract public function getMoviesRecommendationsParameters(
+        int $amount,
+    ): array;
+    abstract public function getMoviesRecommendationsHeaders(
         int $amount,
     ): array;
 
@@ -400,11 +409,17 @@ abstract class StreamingService
     abstract public function getSeriesRecommendationsParameters(
         int $amount,
     ): array;
+    abstract public function getSeriesRecommendationsHeaders(
+        int $amount,
+    ): array;
 
     abstract public function getDocumentariesRecommendationsUrl(
         int $amount,
     ): string;
     abstract public function getDocumentariesRecommendationsParameters(
+        int $amount,
+    ): array;
+    abstract public function getDocumentariesRecommendationsHeaders(
         int $amount,
     ): array;
 
@@ -418,15 +433,25 @@ abstract class StreamingService
         string $seasonId,
         string $episodeId,
     ): array;
+    abstract public function getNextRecommendationHeaders(
+        string $showId,
+        string $seasonId,
+        string $episodeId,
+    ): array;
 
     abstract public function getShowInfoUrl(Show $show): string;
     abstract public function getShowInfoParameters(Show $show): array;
+    abstract public function getShowInfoHeaders(Show $show): array;
 
     abstract public function getSeasonInfoUrl(
         string $showId,
         string $seasonId,
     ): string;
     abstract public function getSeasonInfoParameters(
+        string $showId,
+        string $seasonId,
+    ): array;
+    abstract public function getSeasonInfoHeaders(
         string $showId,
         string $seasonId,
     ): array;
@@ -437,6 +462,11 @@ abstract class StreamingService
         string $episodeId,
     ): string;
     abstract public function getEpisodeInfoParameters(
+        string $showId,
+        string $seasonId,
+        string $episodeId,
+    ): array;
+    abstract public function getEpisodeInfoHeaders(
         string $showId,
         string $seasonId,
         string $episodeId,

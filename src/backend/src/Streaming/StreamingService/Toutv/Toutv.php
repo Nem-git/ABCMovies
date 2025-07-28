@@ -292,7 +292,7 @@ final class Toutv extends StreamingService
     {
         $ssResponse = RequestHelper::get(
             $this->getEpisodeFileUrl($episode),
-            Constants::HTTP_DEFAULT_HEADERS,
+            $this->getEpisodeFileHeaders($episode),
             $this->getEpisodeFileParameters($episode),
         );
 
@@ -300,7 +300,7 @@ final class Toutv extends StreamingService
 
         $ssResponse = RequestHelper::get(
             $this->getEpisodeDownloadUrl($episode),
-            $this->getEpisodeDownloadHeaders(),
+            $this->getEpisodeDownloadHeaders($episode),
             $this->getEpisodeDownloadParameters($episode),
         );
 
@@ -364,7 +364,7 @@ final class Toutv extends StreamingService
         $episode->urlHeaders = [];
 
         $episode->streamingTechnology->drmTechnology->licenseHeaders = array_merge(
-            Constants::HTTP_DEFAULT_HEADERS,
+            $this->getEpisodeDownloadHeaders($episode),
             ToutvConstants::TOUTV_HEADERS_EPISODE_DOWNLOAD_LICENSE_INFO,
         );
 
@@ -403,6 +403,12 @@ final class Toutv extends StreamingService
     }
 
     #[\Override]
+    public function getSearchHeaders(string $query, int $amount): array
+    {
+        return Constants::HTTP_DEFAULT_HEADERS;
+    }
+
+    #[\Override]
     public function getShowRecommendationsUrl(Show $show, int $amount): string
     {
         return $this->getShowInfoUrl($show);
@@ -416,6 +422,14 @@ final class Toutv extends StreamingService
         $parameters = ToutvConstants::TOUTV_PARAMETERS_SHOW_RECOMMENDATIONS;
         $parameters["pageSize"] = $amount;
         return $parameters;
+    }
+
+    #[\Override]
+    public function getShowRecommendationsHeaders(
+        Show $show,
+        int $amount,
+    ): array {
+        return Constants::HTTP_DEFAULT_HEADERS;
     }
 
     #[\Override]
@@ -433,6 +447,12 @@ final class Toutv extends StreamingService
     }
 
     #[\Override]
+    public function getMoviesRecommendationsHeaders(int $amount): array
+    {
+        return Constants::HTTP_DEFAULT_HEADERS;
+    }
+
+    #[\Override]
     public function getSeriesRecommendationsUrl(int $amount): string
     {
         return ToutvConstants::TOUTV_URL_SERIES_RECOMMENDATIONS;
@@ -442,6 +462,12 @@ final class Toutv extends StreamingService
     public function getSeriesRecommendationsParameters(int $amount): array
     {
         return $this->getMoviesRecommendationsParameters($amount);
+    }
+
+    #[\Override]
+    public function getSeriesRecommendationsHeaders(int $amount): array
+    {
+        return Constants::HTTP_DEFAULT_HEADERS;
     }
 
     #[\Override]
@@ -455,6 +481,12 @@ final class Toutv extends StreamingService
         int $amount,
     ): array {
         return $this->getMoviesRecommendationsParameters($amount);
+    }
+
+    #[\Override]
+    public function getDocumentariesRecommendationsHeaders(int $amount): array
+    {
+        return Constants::HTTP_DEFAULT_HEADERS;
     }
 
     #[\Override]
@@ -476,6 +508,15 @@ final class Toutv extends StreamingService
     }
 
     #[\Override]
+    public function getNextRecommendationHeaders(
+        string $showId,
+        string $seasonId,
+        string $episodeId,
+    ): array {
+        return Constants::HTTP_DEFAULT_HEADERS;
+    }
+
+    #[\Override]
     public function getShowInfoUrl(Show $show): string
     {
         return ToutvConstants::TOUTV_URL_SHOW_INFO . $show->id;
@@ -485,6 +526,12 @@ final class Toutv extends StreamingService
     public function getShowInfoParameters(Show $show): array
     {
         return ToutvConstants::TOUTV_PARAMETERS_SHOW_INFO;
+    }
+
+    #[\Override]
+    public function getShowInfoHeaders(Show $show): array
+    {
+        return Constants::HTTP_DEFAULT_HEADERS;
     }
 
     #[\Override]
@@ -502,6 +549,14 @@ final class Toutv extends StreamingService
         string $seasonId,
     ): array {
         return ToutvConstants::TOUTV_PARAMETERS_SEASON_INFO;
+    }
+
+    #[\Override]
+    public function getSeasonInfoHeaders(
+        string $showId,
+        string $seasonId,
+    ): array {
+        return Constants::HTTP_DEFAULT_HEADERS;
     }
 
     #[\Override]
@@ -528,6 +583,15 @@ final class Toutv extends StreamingService
         return ToutvConstants::TOUTV_PARAMETERS_EPISODE_INFO;
     }
 
+    #[\Override]
+    public function getEpisodeInfoHeaders(
+        string $showId,
+        string $seasonId,
+        string $episodeId,
+    ): array {
+        return Constants::HTTP_DEFAULT_HEADERS;
+    }
+
     //region New functions
 
     private function getEpisodeFileUrl(Episode $episode): string
@@ -542,6 +606,11 @@ final class Toutv extends StreamingService
         return $parameters;
     }
 
+    public function getEpisodeFileHeaders(Episode $episode): array
+    {
+        return Constants::HTTP_DEFAULT_HEADERS;
+    }
+
     private function getEpisodeDownloadUrl(Episode $episode): string
     {
         return ToutvConstants::TOUTV_URL_EPISODE_DOWNLOAD_INFO;
@@ -554,7 +623,7 @@ final class Toutv extends StreamingService
         return $parameters;
     }
 
-    private function getEpisodeDownloadHeaders(): array
+    private function getEpisodeDownloadHeaders(Episode $episode): array
     {
         $headers = ToutvConstants::TOUTV_HEADERS_EPISODE_DOWNLOAD_INFO;
         $headers["Authorization"] = "";
