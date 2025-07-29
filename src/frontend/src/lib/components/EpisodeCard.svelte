@@ -36,8 +36,4 @@
     img {
         object-fit: cover;
     }
-
-    #description {
-        font-family: sans-serif;
-    }
 </style>

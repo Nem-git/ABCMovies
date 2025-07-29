@@ -60,19 +60,13 @@
 
 <style>
     :root {
-        --navbar-background-color: rgb(20, 15, 20);
-        --navbar-background-highlight-color: rgb(60, 50, 60);
-        --navbar-box-shadow: rgba(85, 40, 110, 0.2) 0px 0px 30px 20px;
-
         --search-container-border-radius: 0.5em;
+        --search-container-background-color: var(--color-dark);
 
-        --whiteish-color: rgb(225, 200, 225);
-
-        --logo-background: rgb(125, 0, 141);
-
-        --search-icon-color: var(--whiteish-color);
-
-        --account-icon-color: rgb(120, 100, 120);
+        --navbar-background-color: var(--color-black);
+        --logo-icon-color: var(--color-light);
+        --search-icon-color: var(--color-whiteish);
+        --account-icon-color: var(--color-whiteish);
     }
 
     header {
@@ -120,7 +114,7 @@
     }
 
     .abc-logo-background {
-        fill: var(--logo-background);
+        fill: var(--logo-icon-color);
     }
 
     .abc-logo-circle {
@@ -142,7 +136,7 @@
 
         column-gap: 10px;
 
-        background-color: var(--navbar-background-highlight-color);
+        background-color: var(--search-container-background-color);
 
         align-items: center;
         align-content: stretch;
@@ -160,7 +154,7 @@
     }
 
     .search {
-        color: var(--whiteish-color);
+        color: var(--search-icon-color);
     }
 
     .search-icon {

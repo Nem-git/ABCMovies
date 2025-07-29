@@ -78,10 +78,12 @@
 
 <style>
     :root {
-        --searchbar-background-color: transparent;
+        --searchbar-background-color: var(--color-darker);
         --searchbar-border-radius: 0.5em;
-        --searchbar-border-color: rgb(95, 60, 95);
-        --searchbar-border-inactive-color: rgba(120, 120, 120, 0.3);
+        --searchbar-border-color: var(--color-light);
+        --searchbar-border-inactive-color: var(--color-dark);
+
+        --search-icon-color: var(--color-whiteish);
     }
 
     .flex-center {
@@ -95,7 +97,6 @@
         margin-top: 3em;
 
         background-color: var(--searchbar-background-color);
-        box-shadow: var(--searchbar-box-shadow);
         border-radius: var(--searchbar-border-radius);
 
         border-width: 3px;
@@ -119,6 +120,10 @@
         cursor: text;
     }
 
+    .search-container:focus-within {
+        border-color: var(--searchbar-border-color);
+    }
+
     input {
         background-color: transparent;
 
@@ -126,10 +131,6 @@
         font-weight: 500;
 
         flex-grow: 1;
-    }
-
-    .search-container:focus-within {
-        border-color: var(--searchbar-border-color);
     }
 
     ul {

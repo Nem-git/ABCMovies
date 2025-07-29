@@ -27,17 +27,11 @@
 
 <style>
     :root {
-        --showpage-year-color: rgb(130, 110, 130);
-
-        --showpage-image-container-box-shadow: inset 5px -5px 5px 0px
-            rgb(31, 25, 35);
+        --showpage-year-color: var(--color-whiteish);
     }
-
     img {
         object-fit: cover;
         width: 100%;
-
-        box-shadow: var(--showpage-image-box-shadow);
     }
 
     .hero {
@@ -103,6 +97,5 @@
 
     .img-container {
         max-height: 50em;
-        box-shadow: var(--showpage-image-container-box-shadow);
     }
 </style>

@@ -26,14 +26,12 @@
 
 <style>
     :root {
-        --season-selection-background-hover-color: rgb(51, 51, 51);
-        --season-selection-background-color: rgb(83, 83, 83);
+        --season-selection-background-hover-color: var(--color-grey-dark);
+        --season-selection-background-color: var(--color-grey-normal);
 
         --season-selection-border-radius: 0.3em;
-        --season-selection-border-color: rgb(158, 158, 158);
-        --season-selection-selected-border-color: rgb(158, 158, 158);
 
-        --season-selection-selected-underline-color: rgb(105, 34, 114);
+        --season-selection-selected-underline-color: var(--color-light);
     }
 
     ol {
