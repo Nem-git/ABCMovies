@@ -40,7 +40,11 @@
                 </li>
 
                 <li>
-                    <a href="/account" aria-label="Account">
+                    <a
+                        href="/account"
+                        aria-label="Account"
+                        class="account-icon-link"
+                    >
                         <svg
                             class="account-icon"
                             xmlns="http://www.w3.org/2000/svg"
@@ -172,6 +176,11 @@
 
     .account-icon {
         width: 3em;
+        height: 3em;
         fill: var(--account-icon-color);
+    }
+
+    .account-icon-link {
+        display: flex;
     }
 </style>
