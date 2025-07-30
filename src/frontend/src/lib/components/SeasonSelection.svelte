@@ -26,10 +26,12 @@
 
 <style>
     :root {
-        --season-selection-background-hover-color: var(--color-grey-dark);
-        --season-selection-background-color: var(--color-grey-normal);
+        --season-selection-button-background-hover-color: var(
+            --color-grey-dark
+        );
+        --season-selection-button-background-color: var(--color-grey-normal);
 
-        --season-selection-border-radius: 0.3em;
+        --season-selection-button-border-radius: 0.3em;
 
         --season-selection-selected-underline-color: var(--color-light);
     }
@@ -42,14 +44,16 @@
         list-style-type: none;
         padding: 0;
 
+        margin-inline: 3em;
+
         gap: 1em;
     }
 
     a {
         padding: 1em 2em;
 
-        border-radius: var(--season-selection-border-radius);
-        border-color: var(--season-selection-border-color);
+        border-radius: var(--season-selection-button-border-radius);
+        border-color: var(--season-selection-button-border-color);
 
         transition-property: background-color;
         transition-duration: 0.2s;
@@ -73,7 +77,7 @@
         border-bottom-style: solid;
         border-bottom-color: var(--season-selection-selected-underline-color);
 
-        background-color: var(--season-selection-background-color);
+        background-color: var(--season-selection-button-background-color);
     }
 
     .unselected-season:hover {
