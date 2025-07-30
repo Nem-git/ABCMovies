@@ -43,8 +43,6 @@
 
         gap: 1.5em;
 
-        padding: 1em;
-
         border-radius: var(--container-border-radius);
     }
 
