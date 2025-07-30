@@ -46,14 +46,19 @@
 
         margin-inline: 3em;
 
-        gap: 1em;
+        row-gap: 2em;
+
+        column-gap: 0.5em;
+    }
+
+    li {
+        display: flex;
     }
 
     a {
         padding: 1em 2em;
 
         border-radius: var(--season-selection-button-border-radius);
-        border-color: var(--season-selection-button-border-color);
 
         transition-property: background-color;
         transition-duration: 0.2s;
@@ -81,6 +86,6 @@
     }
 
     .unselected-season:hover {
-        background-color: var(--season-selection-background-hover-color);
+        background-color: var(--season-selection-button-background-hover-color);
     }
 </style>
