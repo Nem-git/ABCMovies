@@ -13,15 +13,15 @@
         </div>
         <div></div>
     </div>
+</div>
 
-    <div class="img-background-container">
-        <div></div>
-        <div class="img-container">
-            <img
-                src={show.imageBackground.replace("_Size_", "1280")}
-                alt={show.title}
-            />
-        </div>
+<div class="img-background-container">
+    <div></div>
+    <div class="img-container">
+        <img
+            src={show.imageBackground.replace("_Size_", "1280")}
+            alt={show.title}
+        />
     </div>
 </div>
 
@@ -29,9 +29,10 @@
     :root {
         --showpage-year-color: var(--color-whiteish);
     }
+
     img {
         object-fit: cover;
-        width: 100%;
+        height: 60vh;
     }
 
     .hero {
@@ -46,19 +47,18 @@
         flex-direction: row;
         flex-wrap: nowrap;
 
+        overflow: hidden;
+
         justify-content: space-between;
     }
 
     .img-background-container {
         position: absolute;
-        top: 0;
-        left: 0;
 
         z-index: -1;
 
         width: 100%;
 
-        height: 500px;
         max-height: 80%;
 
         display: flex;

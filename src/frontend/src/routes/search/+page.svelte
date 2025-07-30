@@ -141,7 +141,7 @@
         list-style-type: none;
         padding: 0;
         gap: 1em;
-        row-gap: 50px;
+        row-gap: 4em;
 
         width: 90%;
     }
