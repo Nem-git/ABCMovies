@@ -7,7 +7,9 @@ namespace App\Factory;
 final class ObjectFactory
 {
     private static array $streamingService = [
-        "TOUTV" => \App\Streaming\StreamingService\Toutv\Toutv::class,
+        "TOUTV" => \App\Streaming\StreamingService\Services\Toutv\Toutv::class,
+        "TLQC" =>
+            \App\Streaming\StreamingService\Services\Telequebec\Telequebec::class,
     ];
 
     private static array $streamingTechnology = [

@@ -15,7 +15,7 @@ final class StreamingServiceManager
     private SearchRecommender $searchRecommender;
     private MediaRecommender $mediaRecommender;
 
-    private array $streamingServices = ["TOUTV"];
+    private array $streamingServices = ["TOUTV", "TLQC"];
 
     public function __construct()
     {

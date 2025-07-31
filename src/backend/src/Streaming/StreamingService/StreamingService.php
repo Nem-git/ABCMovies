@@ -209,14 +209,19 @@ abstract class StreamingService
         string $seasonId,
         string $episodeId,
     ): array {
+        $show = ObjectFactory::createShow();
+        $show->id = $showId;
+
+        $season = ObjectFactory::createSeason();
+        $season->id = $seasonId;
+
+        $episode = ObjectFactory::createEpisode();
+        $episode->id = $episodeId;
+
         $response = RequestHelper::get(
-            $this->getNextRecommendationUrl($showId, $seasonId, $episodeId),
-            $this->getNextRecommendationHeaders($showId, $seasonId, $episodeId),
-            $this->getNextRecommendationParameters(
-                $showId,
-                $seasonId,
-                $episodeId,
-            ),
+            $this->getNextRecommendationUrl($show, $season, $episode),
+            $this->getNextRecommendationHeaders($show, $season, $episode),
+            $this->getNextRecommendationParameters($show, $season, $episode),
         );
         $nextRecommendation = $this->parseNextRecommendationResult(
             json_decode($response, true),
@@ -251,6 +256,7 @@ abstract class StreamingService
             $this->getShowInfoHeaders($show),
             $this->getShowInfoParameters($show),
         );
+
         $this->parseShowInfo($show, json_decode($response, true));
         return $show;
     }
@@ -274,13 +280,16 @@ abstract class StreamingService
 
     public function executeSeasonInfo(string $showId, string $seasonId): Season
     {
+        $show = ObjectFactory::createShow();
+        $show->id = $showId;
+
         $season = ObjectFactory::createSeason();
         $season->id = $seasonId;
 
         $response = RequestHelper::get(
-            $this->getSeasonInfoUrl($showId, $seasonId),
-            $this->getSeasonInfoHeaders($showId, $seasonId),
-            $this->getSeasonInfoParameters($showId, $seasonId),
+            $this->getSeasonInfoUrl($show, $season),
+            $this->getSeasonInfoHeaders($show, $season),
+            $this->getSeasonInfoParameters($show, $season),
         );
         $this->parseSeasonInfo($season, json_decode($response, true));
         return $season;
@@ -309,21 +318,28 @@ abstract class StreamingService
         string $seasonId,
         string $episodeId,
     ): Episode {
+        $show = ObjectFactory::createShow();
+        $show->id = $showId;
+
+        $season = ObjectFactory::createSeason();
+        $season->id = $seasonId;
+
         $episode = ObjectFactory::createEpisode();
         $episode->id = $episodeId;
+
         $episode->url = StreamingServiceHelper::getStreamUrl(
             $this->tag,
-            $showId,
-            $seasonId,
-            $episodeId,
+            $show->id,
+            $season->id,
+            $episode->id,
             Constants::STREAMING_TECH_RANK[0],
         );
         // TODO: Find the right way to get streaming tech
 
         $response = RequestHelper::get(
-            $this->getEpisodeInfoUrl($showId, $seasonId, $episodeId),
-            $this->getEpisodeInfoHeaders($showId, $seasonId, $episodeId),
-            $this->getEpisodeInfoParameters($showId, $seasonId, $episodeId),
+            $this->getEpisodeInfoUrl($show, $season, $episode),
+            $this->getEpisodeInfoHeaders($show, $season, $episode),
+            $this->getEpisodeInfoParameters($show, $season, $episode),
         );
         $this->parseEpisodeInfo($episode, json_decode($response, true));
 
@@ -424,19 +440,19 @@ abstract class StreamingService
     ): array;
 
     abstract public function getNextRecommendationUrl(
-        string $showId,
-        string $seasonId,
-        string $episodeId,
+        Show $show,
+        Season $season,
+        Episode $episode,
     ): string;
     abstract public function getNextRecommendationParameters(
-        string $showId,
-        string $seasonId,
-        string $episodeId,
+        Show $show,
+        Season $season,
+        Episode $episode,
     ): array;
     abstract public function getNextRecommendationHeaders(
-        string $showId,
-        string $seasonId,
-        string $episodeId,
+        Show $show,
+        Season $season,
+        Episode $episode,
     ): array;
 
     abstract public function getShowInfoUrl(Show $show): string;
@@ -444,32 +460,32 @@ abstract class StreamingService
     abstract public function getShowInfoHeaders(Show $show): array;
 
     abstract public function getSeasonInfoUrl(
-        string $showId,
-        string $seasonId,
+        Show $show,
+        Season $season,
     ): string;
     abstract public function getSeasonInfoParameters(
-        string $showId,
-        string $seasonId,
+        Show $show,
+        Season $season,
     ): array;
     abstract public function getSeasonInfoHeaders(
-        string $showId,
-        string $seasonId,
+        Show $show,
+        Season $season,
     ): array;
 
     abstract public function getEpisodeInfoUrl(
-        string $showId,
-        string $seasonId,
-        string $episodeId,
+        Show $show,
+        Season $season,
+        Episode $episode,
     ): string;
     abstract public function getEpisodeInfoParameters(
-        string $showId,
-        string $seasonId,
-        string $episodeId,
+        Show $show,
+        Season $season,
+        Episode $episode,
     ): array;
     abstract public function getEpisodeInfoHeaders(
-        string $showId,
-        string $seasonId,
-        string $episodeId,
+        Show $show,
+        Season $season,
+        Episode $episode,
     ): array;
 
     //endregion

@@ -1,0 +1,3 @@
+#!/bin/sh
+
+docker compose -f compose-core.yaml -f compose-dev.yaml up --build
