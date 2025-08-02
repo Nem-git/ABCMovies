@@ -260,7 +260,6 @@ final class Toutv extends StreamingService
                     $ssResponse["structuredMetadata"]["abstract"];
                 $season->provider = $this->tag;
 
-                // Still not sure if episode should be in Season, but I think it's best to keep it that way for now
                 foreach ($ssResponseSeason["items"] as $ssResponseEpisode) {
                     $episode = ObjectFactory::createEpisode();
 
