@@ -6,6 +6,10 @@ namespace App\Streaming\StreamingService\Services\Telequebec;
 
 final class Config
 {
+    public const DEFAULT_SEASON_NUMBER = 1; // To use when it is not a movies-type
+    public const DEFAULT_SEASON_TITLE = "Saison 1"; // Follows the naming convention of Telequebec
+    public const DEFAULT_EPISODE_NUMBER = 1; // ''
+
     // https://beacon.brightcove.com/telequebec/api/search/list_all == https://beacon.playback.api.brightcove.com/telequebec/api/search/list_all
     public const TELEQUEBEC_SEARCH_URL = "https://beacon.playback.api.brightcove.com/telequebec/api/search/list_all";
     public const TELEQUEBEC_PARAMETERS_SEARCH = [
@@ -58,7 +62,7 @@ final class Config
         "device_type" => "web",
     ];
 
-    public const TELEQUEBEC_URL_SEASON_EPISODES_INFO = "https://beacon.playback.api.brightcove.com/telequebec/api";
+    public const TELEQUEBEC_URL_SEASON_EPISODES_INFO = "https://beacon.playback.api.brightcove.com/telequebec/api/tvshow/";
 
     public const TELEQUEBEC_PARAMETERS_SEASON_EPISODES_INFO = [
         "device_layout" => "web",
