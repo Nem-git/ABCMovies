@@ -11,7 +11,7 @@
     {#each seasons as season}
         <li>
             <a
-                href={season.number.toString()}
+                href={season.id}
                 class={season.id === selectedSeason.id
                     ? "selected-season"
                     : "unselected-season"}
