@@ -284,12 +284,19 @@ final class Toutv extends StreamingService
     }
 
     #[\Override]
-    public function parseEpisodeInfo(Episode $episode, array $ssResponse): void
-    {
+    public function parseEpisodeInfo(
+        Episode $episode,
+        array $ssResponse,
+        ?bool $stream,
+    ): void {
         $episode->id = $ssResponse["content.mediaId"];
         $episode->title = $ssResponse["content.title"];
         $episode->number = (int) $ssResponse["content.episode"];
         $episode->provider = $this->tag;
+
+        if ($stream) {
+            $this->getEpisodeStreamInfo($episode);
+        }
     }
 
     // TODO: Find the right way to choose the right stream/drm
@@ -307,8 +314,7 @@ final class Toutv extends StreamingService
 
     // }
 
-    #[\Override]
-    public function getEpisodeStreamInfo(Episode $episode): void
+    private function getEpisodeStreamInfo(Episode $episode): void
     {
         $ssResponse = RequestHelper::get(
             $this->getEpisodeFileUrl($episode),

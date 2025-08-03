@@ -53,14 +53,11 @@ abstract class StreamingService
     ): void;
     abstract public function parseEpisodeInfo(
         Episode $episode,
-        array $response,
+        array $ssResponse,
+        ?bool $stream,
     ): void;
 
     //endregion
-
-    //region Get Informations
-
-    abstract public function getEpisodeStreamInfo(Episode $episode);
 
     //region Search
 
@@ -291,6 +288,7 @@ abstract class StreamingService
             $this->getSeasonInfoHeaders($show, $season),
             $this->getSeasonInfoParameters($show, $season),
         );
+
         $this->parseSeasonInfo($season, json_decode($response, true));
         return $season;
     }
@@ -310,6 +308,7 @@ abstract class StreamingService
             $episodeInfoCriteria["showId"],
             $episodeInfoCriteria["seasonId"],
             $episodeInfoCriteria["episodeId"],
+            false,
         );
     }
 
@@ -317,6 +316,7 @@ abstract class StreamingService
         string $showId,
         string $seasonId,
         string $episodeId,
+        ?bool $stream,
     ): Episode {
         $show = ObjectFactory::createShow();
         $show->id = $showId;
@@ -341,7 +341,12 @@ abstract class StreamingService
             $this->getEpisodeInfoHeaders($show, $season, $episode),
             $this->getEpisodeInfoParameters($show, $season, $episode),
         );
-        $this->parseEpisodeInfo($episode, json_decode($response, true));
+
+        $this->parseEpisodeInfo(
+            $episode,
+            json_decode($response, true),
+            $stream,
+        );
 
         return $episode;
     }
@@ -369,9 +374,8 @@ abstract class StreamingService
             $episodeVideoCriteria["showId"],
             $episodeVideoCriteria["seasonId"],
             $episodeVideoCriteria["episodeId"],
+            true,
         );
-
-        $this->getEpisodeStreamInfo($episode);
 
         // Unsure about removing completely the args when requesting
         // the manifest, as when using filename, there are no extraArgs
