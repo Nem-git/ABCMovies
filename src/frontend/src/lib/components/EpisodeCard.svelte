@@ -1,10 +1,10 @@
 <script lang="ts">
     import type { Episode } from "$lib/types";
 
-    let { seasonId, episode }: { seasonId: string; episode: Episode } =
+    let { seasonNumber, episode }: { seasonNumber: number; episode: Episode } =
         $props();
 
-    let href = [seasonId, episode.number].join("/");
+    let href = [seasonNumber, episode.number].join("/");
 </script>
 
 <article>

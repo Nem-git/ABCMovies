@@ -14,7 +14,7 @@
                 ? "last-li"
                 : undefined}
         >
-            <EpisodeCard seasonId={season.id} {episode} />
+            <EpisodeCard seasonNumber={season.number} {episode} />
         </li>
     {/each}
 </ol>
