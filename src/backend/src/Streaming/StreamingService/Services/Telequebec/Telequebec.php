@@ -199,7 +199,7 @@ final class Telequebec extends StreamingService
         if ($response["type"] === "movies") {
             $season = ObjectFactory::createSeason();
 
-            $season->id = (string) Config::DEFAULT_SEASON_NUMBER;
+            $season->id = $show->id; // Because no season is created by TLQC in movies
             $season->title = Config::DEFAULT_SEASON_TITLE;
             $season->number = Config::DEFAULT_SEASON_NUMBER;
             $season->provider = $this->tag;
