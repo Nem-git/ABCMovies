@@ -8,8 +8,6 @@ import { getSeasonUrl, getShowUrl } from "$lib/api";
 export const load: PageLoad = async ({ fetch, parent }) => {
     let { streamingServiceTag, showId, seasonNumber } = await parent();
 
-    console.log(typeof seasonNumber);
-
     let showPromise: Promise<Show> = fetch(
         getShowUrl(streamingServiceTag, showId),
     ).then((r: Response) => r.json());
