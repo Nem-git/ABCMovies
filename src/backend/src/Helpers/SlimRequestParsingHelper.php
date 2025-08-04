@@ -90,6 +90,7 @@ final class SlimRequestParsingHelper
         Request $request,
         array $args,
     ): array {
+        $extraArgs = [];
         $streamingTechnology = "";
 
         if (isset($args["streamingTechnology"])) {
@@ -104,11 +105,17 @@ final class SlimRequestParsingHelper
                 Constants::WORD_TO_STREAMING_TECH[$args["filename"]] ?? "";
         }
 
+        if (isset($args["extraArgs"])) {
+            $extraArgs = explode("/", $args["extraArgs"]);
+        }
+
         return [
             "showId" => $args["show"] ?? "",
             "seasonId" => $args["season"] ?? "",
             "episodeId" => $args["episode"] ?? "",
             "streamingTechnology" => $streamingTechnology,
+            "extraArgs" => $extraArgs,
+            "queryParams" => $request->getQueryParams(),
         ];
     }
 }

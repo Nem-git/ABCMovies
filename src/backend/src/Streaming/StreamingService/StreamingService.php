@@ -27,34 +27,31 @@ abstract class StreamingService
 
     //region Parsing
 
-    abstract public function parseSearchResults(array $response): array;
-    abstract public function parseShowRecommendationsResults(
-        array $response,
+    abstract public function retrieveSearchResults(
+        string $query,
+        int $amount,
     ): array;
-    abstract public function parseMoviesRecommendationsResults(
-        array $response,
+    abstract public function retrieveShowRecommendations(
+        Show $show,
+        int $amount,
     ): array;
-    abstract public function parseSeriesRecommendationsResults(
-        array $response,
+    abstract public function retrieveMovieRecommendations(int $amount): array;
+    abstract public function retrieveSerieRecommendations(int $amount): array;
+    abstract public function retrieveDocumentaryRecommendations(
+        int $amount,
     ): array;
-    abstract public function parseDocumentariesRecommendationsResults(
-        array $response,
-    ): array;
-    abstract public function parseNextRecommendationResult(
-        array $response,
-        string $showId,
-        string $seasonId,
-        string $episodeId,
-    ): array;
-    abstract public function parseShowInfo(Show $show, array $response): void;
-    abstract public function parseSeasonInfo(
+    abstract public function retrieveNextEpisodeRecommendation(
+        Show $show,
         Season $season,
-        array $response,
-    ): void;
-    abstract public function parseEpisodeInfo(
         Episode $episode,
-        array $ssResponse,
-        ?bool $stream,
+    ): Episode;
+    abstract public function retrieveShow(Show $show): void;
+    abstract public function retrieveSeason(Show $show, Season $season): void;
+    abstract public function retrieveEpisode(
+        Show $show,
+        Season $season,
+        Episode $episode,
+        bool $stream = false,
     ): void;
 
     //endregion
@@ -76,14 +73,7 @@ abstract class StreamingService
 
     public function executeSearchResults(string $query, int $amount): array
     {
-        $response = RequestHelper::get(
-            $this->getSearchUrl($query, $amount),
-            $this->getSearchHeaders($query, $amount),
-            $this->getSearchParameters($query, $amount),
-        );
-        $searchResults = $this->parseSearchResults(
-            json_decode($response, true),
-        );
+        $searchResults = $this->retrieveSearchResults($query, $amount);
         return array_slice($searchResults, 0, $amount);
     }
 
@@ -113,13 +103,9 @@ abstract class StreamingService
         $show = ObjectFactory::createShow();
         $show->id = $showId;
 
-        $response = RequestHelper::get(
-            $this->getShowRecommendationsUrl($show, $amount),
-            $this->getShowRecommendationsHeaders($show, $amount),
-            $this->getShowRecommendationsParameters($show, $amount),
-        );
-        $showRecommendations = $this->parseShowRecommendationsResults(
-            json_decode($response, true),
+        $showRecommendations = $this->retrieveShowRecommendations(
+            $show,
+            $amount,
         );
         return array_slice($showRecommendations, 0, $amount);
     }
@@ -148,37 +134,14 @@ abstract class StreamingService
         int $amount,
         string $type,
     ): array {
-        $parameters = call_user_func_array(
-            [
-                $this,
-                "get" .
-                StreamingServiceHelper::getPascalCaseWord($type) .
-                "RecommendationsParameters",
-            ],
-            [$amount],
-        );
-        $recommendationsUrl = call_user_func_array(
-            [
-                $this,
-                "get" .
-                StreamingServiceHelper::getPascalCaseWord($type) .
-                "RecommendationsUrl",
-            ],
-            [$amount],
-        );
-        $response = RequestHelper::get(
-            $recommendationsUrl,
-            Constants::HTTP_DEFAULT_HEADERS,
-            $parameters,
-        );
         $recommendations = call_user_func_array(
             [
                 $this,
-                "parse" .
+                "retrieve" .
                 StreamingServiceHelper::getPascalCaseWord($type) .
                 "RecommendationsResults",
             ],
-            [json_decode($response, true)],
+            [$amount],
         );
         return array_slice($recommendations, 0, $amount);
     }
@@ -187,8 +150,10 @@ abstract class StreamingService
 
     //endregion
 
-    public function getNextRecommendation(Request $request, array $args): array
-    {
+    public function getNextEpisodeRecommendation(
+        Request $request,
+        array $args,
+    ): Episode {
         $nextRecommendationCriteria = SlimRequestParsingHelper::parseNextRecommendationCriteria(
             $request,
             $args,
@@ -205,7 +170,7 @@ abstract class StreamingService
         string $showId,
         string $seasonId,
         string $episodeId,
-    ): array {
+    ): Episode {
         $show = ObjectFactory::createShow();
         $show->id = $showId;
 
@@ -215,18 +180,13 @@ abstract class StreamingService
         $episode = ObjectFactory::createEpisode();
         $episode->id = $episodeId;
 
-        $response = RequestHelper::get(
-            $this->getNextRecommendationUrl($show, $season, $episode),
-            $this->getNextRecommendationHeaders($show, $season, $episode),
-            $this->getNextRecommendationParameters($show, $season, $episode),
+        $nextEpisode = $this->retrieveNextEpisodeRecommendation(
+            $show,
+            $season,
+            $episode,
         );
-        $nextRecommendation = $this->parseNextRecommendationResult(
-            json_decode($response, true),
-            $showId,
-            $seasonId,
-            $episodeId,
-        );
-        return $nextRecommendation;
+
+        return $nextEpisode;
     }
 
     //endregion
@@ -248,13 +208,8 @@ abstract class StreamingService
         $show = ObjectFactory::createShow();
         $show->id = $showId;
 
-        $response = RequestHelper::get(
-            $this->getShowInfoUrl($show),
-            $this->getShowInfoHeaders($show),
-            $this->getShowInfoParameters($show),
-        );
+        $this->retrieveShow($show);
 
-        $this->parseShowInfo($show, json_decode($response, true));
         return $show;
     }
 
@@ -283,13 +238,7 @@ abstract class StreamingService
         $season = ObjectFactory::createSeason();
         $season->id = $seasonId;
 
-        $response = RequestHelper::get(
-            $this->getSeasonInfoUrl($show, $season),
-            $this->getSeasonInfoHeaders($show, $season),
-            $this->getSeasonInfoParameters($show, $season),
-        );
-
-        $this->parseSeasonInfo($season, json_decode($response, true));
+        $this->retrieveSeason($show, $season);
         return $season;
     }
 
@@ -316,7 +265,7 @@ abstract class StreamingService
         string $showId,
         string $seasonId,
         string $episodeId,
-        ?bool $stream,
+        bool $stream = false,
     ): Episode {
         $show = ObjectFactory::createShow();
         $show->id = $showId;
@@ -336,17 +285,7 @@ abstract class StreamingService
         );
         // TODO: Find the right way to get streaming tech
 
-        $response = RequestHelper::get(
-            $this->getEpisodeInfoUrl($show, $season, $episode),
-            $this->getEpisodeInfoHeaders($show, $season, $episode),
-            $this->getEpisodeInfoParameters($show, $season, $episode),
-        );
-
-        $this->parseEpisodeInfo(
-            $episode,
-            json_decode($response, true),
-            $stream,
-        );
+        $this->retrieveEpisode($show, $season, $episode, $stream);
 
         return $episode;
     }
@@ -366,131 +305,56 @@ abstract class StreamingService
             $args,
         );
 
-        $streamingTechnology = ObjectFactory::createStreamingTechnology(
-            $episodeVideoCriteria["streamingTechnology"],
-        );
-
-        $episode = $this->executeEpisodeInfo(
+        return $this->executeEpisodeVideo(
             $episodeVideoCriteria["showId"],
             $episodeVideoCriteria["seasonId"],
             $episodeVideoCriteria["episodeId"],
+            $episodeVideoCriteria["streamingTechnology"],
+            $episodeVideoCriteria["extraArgs"],
+            $episodeVideoCriteria["queryParams"],
+        );
+    }
+
+    public function executeEpisodeVideo(
+        string $showId,
+        string $seasonId,
+        string $episodeId,
+        string $streamingTechnology,
+        array $queryParams = [],
+        array $extraArgs = [],
+    ): string {
+        $show = ObjectFactory::createShow();
+        $show->id = $showId;
+
+        $season = ObjectFactory::createSeason();
+        $season->id = $seasonId;
+
+        $episode = ObjectFactory::createEpisode();
+        $episode->id = $episodeId;
+
+        $episode = $this->executeEpisodeInfo(
+            $show->id,
+            $season->id,
+            $episode->id,
             true,
+        );
+
+        $streamingTechnology = ObjectFactory::createStreamingTechnology(
+            $streamingTechnology,
         );
 
         // Unsure about removing completely the args when requesting
         // the manifest, as when using filename, there are no extraArgs
         return $streamingTechnology->getVideo(
-            $request,
             $episode,
-            $episodeVideoCriteria["showId"],
-            $episodeVideoCriteria["seasonId"],
-            isset($args["extraArgs"]) ? explode("/", $args["extraArgs"]) : [],
+            $showId,
+            $seasonId,
+            $extraArgs,
+            $queryParams,
         );
     }
 
     //endregion
-
-    //endregion
-
-    //region Abstract methods for URLs and parameters (to be implemented per service)
-
-    abstract public function getSearchUrl(string $query, int $amount): string;
-    abstract public function getSearchParameters(
-        string $query,
-        int $amount,
-    ): array;
-    abstract public function getSearchHeaders(
-        string $query,
-        int $amount,
-    ): array;
-
-    abstract public function getShowRecommendationsUrl(
-        Show $show,
-        int $amount,
-    ): string;
-    abstract public function getShowRecommendationsParameters(
-        Show $show,
-        int $amount,
-    ): array;
-    abstract public function getShowRecommendationsHeaders(
-        Show $show,
-        int $amount,
-    ): array;
-
-    abstract public function getMoviesRecommendationsUrl(int $amount): string;
-    abstract public function getMoviesRecommendationsParameters(
-        int $amount,
-    ): array;
-    abstract public function getMoviesRecommendationsHeaders(
-        int $amount,
-    ): array;
-
-    abstract public function getSeriesRecommendationsUrl(int $amount): string;
-    abstract public function getSeriesRecommendationsParameters(
-        int $amount,
-    ): array;
-    abstract public function getSeriesRecommendationsHeaders(
-        int $amount,
-    ): array;
-
-    abstract public function getDocumentariesRecommendationsUrl(
-        int $amount,
-    ): string;
-    abstract public function getDocumentariesRecommendationsParameters(
-        int $amount,
-    ): array;
-    abstract public function getDocumentariesRecommendationsHeaders(
-        int $amount,
-    ): array;
-
-    abstract public function getNextRecommendationUrl(
-        Show $show,
-        Season $season,
-        Episode $episode,
-    ): string;
-    abstract public function getNextRecommendationParameters(
-        Show $show,
-        Season $season,
-        Episode $episode,
-    ): array;
-    abstract public function getNextRecommendationHeaders(
-        Show $show,
-        Season $season,
-        Episode $episode,
-    ): array;
-
-    abstract public function getShowInfoUrl(Show $show): string;
-    abstract public function getShowInfoParameters(Show $show): array;
-    abstract public function getShowInfoHeaders(Show $show): array;
-
-    abstract public function getSeasonInfoUrl(
-        Show $show,
-        Season $season,
-    ): string;
-    abstract public function getSeasonInfoParameters(
-        Show $show,
-        Season $season,
-    ): array;
-    abstract public function getSeasonInfoHeaders(
-        Show $show,
-        Season $season,
-    ): array;
-
-    abstract public function getEpisodeInfoUrl(
-        Show $show,
-        Season $season,
-        Episode $episode,
-    ): string;
-    abstract public function getEpisodeInfoParameters(
-        Show $show,
-        Season $season,
-        Episode $episode,
-    ): array;
-    abstract public function getEpisodeInfoHeaders(
-        Show $show,
-        Season $season,
-        Episode $episode,
-    ): array;
 
     //endregion
 }

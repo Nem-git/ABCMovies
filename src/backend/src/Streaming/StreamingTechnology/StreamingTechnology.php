@@ -15,10 +15,10 @@ abstract class StreamingTechnology
     public DRMTechnology $drmTechnology;
 
     abstract public function getVideo(
-        Request $request,
         Episode $episode,
         string $showId,
         string $seasonId,
+        array $queryParams = [],
         array $args = [],
     ): string;
 }

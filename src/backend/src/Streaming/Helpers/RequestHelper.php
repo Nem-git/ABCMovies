@@ -67,8 +67,8 @@ final class RequestHelper
 
     public static function get(
         string $url,
-        array $headers = [],
         array $parameters = [],
+        array $headers = [],
         array $options = [],
     ): string|null {
         // If there are parameters

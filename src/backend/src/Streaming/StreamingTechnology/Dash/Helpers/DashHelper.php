@@ -10,7 +10,7 @@ use App\Streaming\StreamingTechnology\Helpers\StreamingTechnologyHelper;
 final class DashHelper
 {
     public static function parseDashSegmentCriteria(
-        Request $request,
+        array $queryParams,
         array $args,
     ): array {
         // Whether it is an init or media segment
@@ -24,7 +24,7 @@ final class DashHelper
         $reconstructedUrl = StreamingTechnologyHelper::reconstructUrlFromArray(
             $scheme,
             $args,
-            $request->getQueryParams(),
+            $queryParams,
         );
 
         return [

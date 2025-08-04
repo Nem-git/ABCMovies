@@ -9,6 +9,11 @@ final class Config
     public const API_URL = "https://beacon.playback.api.brightcove.com/telequebec/api/";
     public const ASSETS_URL = self::API_URL . "assets/";
 
+    public const DEFAULT_PARAMETERS = [
+        "device_layout" => "web",
+        "device_type" => "web",
+    ];
+
     // Brightsight DHCP UUID
     // Don't know if it is different per device
     public const DUID = "2a0e9037-76fc-4d51-858f-7f7127afec44";
@@ -37,45 +42,27 @@ final class Config
 
     public const TELEQUEBEC_URL_SHOW_RECOMMENDATIONS = self::ASSETS_URL;
 
-    public const TELEQUEBEC_PARAMETERS_SHOW_RECOMMENDATIONS = [
-        "device_layout" => "web",
-        "device_type" => "web",
-    ];
+    public const TELEQUEBEC_PARAMETERS_SHOW_RECOMMENDATIONS = self::DEFAULT_PARAMETERS;
 
     public const TELEQUEBEC_URL_MOVIES_RECOMMENDATIONS = self::API_URL . "";
 
-    public const TELEQUEBEC_PARAMETERS_MOVIES_RECOMMENDATIONS = [
-        "device" => "web",
-        "pageSize" => 0,
-    ];
+    public const TELEQUEBEC_PARAMETERS_MOVIES_RECOMMENDATIONS = self::DEFAULT_PARAMETERS;
 
     public const TELEQUEBEC_URL_SERIES_RECOMMENDATIONS = "https://services.radio-canada.ca/ott/catalog/v2/toutv/category/serie";
 
-    public const TELEQUEBEC_PARAMETERS_SERIES_RECOMMENDATIONS = [
-        "device" => "web",
-        "pageSize" => 0,
-    ];
+    public const TELEQUEBEC_PARAMETERS_SERIES_RECOMMENDATIONS = self::DEFAULT_PARAMETERS;
 
     public const TELEQUEBEC_URL_DOCUMENTARIES_RECOMMENDATIONS = "https://services.radio-canada.ca/ott/catalog/v2/toutv/category/documentaire";
 
-    public const TELEQUEBEC_PARAMETERS_DOCUMENTARIES_RECOMMENDATIONS = [
-        "device" => "web",
-        "pageSize" => 0,
-    ];
+    public const TELEQUEBEC_PARAMETERS_DOCUMENTARIES_RECOMMENDATIONS = self::DEFAULT_PARAMETERS;
 
     public const TELEQUEBEC_URL_SHOW_INFO = self::ASSETS_URL;
 
-    public const TELEQUEBEC_PARAMETERS_SHOW_INFO = [
-        "device_layout" => "web",
-        "device_type" => "web",
-    ];
+    public const TELEQUEBEC_PARAMETERS_SHOW_INFO = self::DEFAULT_PARAMETERS;
 
     public const TELEQUEBEC_URL_SEASON_INFO = self::ASSETS_URL;
 
-    public const TELEQUEBEC_PARAMETERS_SEASON_INFO = [
-        "device_layout" => "web",
-        "device_type" => "web",
-    ];
+    public const TELEQUEBEC_PARAMETERS_SEASON_INFO = self::DEFAULT_PARAMETERS;
 
     public const TELEQUEBEC_URL_SEASON_EPISODES_INFO =
         self::API_URL . "tvshow/";
@@ -89,9 +76,7 @@ final class Config
 
     public const TELEQUEBEC_URL_EPISODE_INFO = self::ASSETS_URL;
 
-    public const TELEQUEBEC_PARAMETERS_EPISODE_INFO = [
-        "device" => "web",
-    ];
+    public const TELEQUEBEC_PARAMETERS_EPISODE_INFO = self::DEFAULT_PARAMETERS;
 
     public const TELEQUEBEC_HEADERS_EPISODE_INFO = [
         "Accept" => "pk=" . self::POLICY_KEY,

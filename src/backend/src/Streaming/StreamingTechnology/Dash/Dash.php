@@ -42,10 +42,10 @@ final class Dash extends StreamingTechnology
 
     #[\Override]
     public function getVideo(
-        Request $request,
         Episode $episode,
         string $showId,
         string $seasonId,
+        array $queryParams = [],
         array $args = [],
     ): string {
         $episodeStreamingDrmTechnologyIdentifier = StreamingTechnologyHelper::getEpisodeStreamingDRMTechnologyIdentifier(
@@ -66,7 +66,7 @@ final class Dash extends StreamingTechnology
         }
 
         $dashSegmentCriteria = DashHelper::parseDashSegmentCriteria(
-            $request,
+            $queryParams,
             $args,
         );
 

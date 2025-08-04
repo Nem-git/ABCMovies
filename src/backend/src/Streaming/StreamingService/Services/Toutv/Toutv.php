@@ -12,6 +12,7 @@ use App\Streaming\Classes\Show;
 use App\Streaming\Classes\Season;
 use App\Streaming\Classes\Episode;
 use App\Factory\ObjectFactory;
+use Error;
 
 /**
  * Tou.TV, Radio-Canada's streaming service
@@ -24,12 +25,22 @@ final class Toutv extends StreamingService
     //region Parsing
 
     #[\Override]
-    public function parseSearchResults(array $ssResponse): array
+    public function retrieveSearchResults(string $query, int $amount): array
     {
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getSearchUrl($query, $amount),
+                $this->getSearchParameters($query, $amount),
+                $this->getSearchHeaders($query, $amount),
+            ),
+            true,
+        );
+
         $results = [];
 
-        if (isset($ssResponse["results"])) {
-            foreach ($ssResponse["results"] as $result) {
+        // New API, but cannot return results that have less than 3 characters
+        if (isset($response["results"])) {
+            foreach ($response["results"] as $result) {
                 $show = ObjectFactory::createShow();
 
                 $show->id = $result["url"];
@@ -47,8 +58,9 @@ final class Toutv extends StreamingService
             }
         }
 
-        if (isset($ssResponse["result"])) {
-            foreach ($ssResponse["result"] as $result) {
+        // Old API, worse results but less strict on query length
+        if (isset($response["result"])) {
+            foreach ($response["result"] as $result) {
                 $show = ObjectFactory::createShow();
 
                 $show->id = $result["url"];
@@ -70,8 +82,17 @@ final class Toutv extends StreamingService
     }
 
     #[\Override]
-    public function parseShowRecommendationsResults(array $response): array
+    public function retrieveShowRecommendations(Show $show, int $amount): array
     {
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getShowRecommendationsUrl($show, $amount),
+                $this->getShowRecommendationsParameters($show, $amount),
+                $this->getShowRecommendationsHeaders($show, $amount),
+            ),
+            true,
+        );
+
         $recommendations = [];
 
         foreach ($response["recommendations"]["items"] as $recommendation) {
@@ -93,8 +114,7 @@ final class Toutv extends StreamingService
         return $recommendations;
     }
 
-    #[\Override]
-    public function parseMoviesRecommendationsResults(array $response): array
+    private function parseRecommendations(array $response): array
     {
         $recommendations = [];
 
@@ -120,26 +140,78 @@ final class Toutv extends StreamingService
     }
 
     #[\Override]
-    public function parseSeriesRecommendationsResults(array $response): array
+    public function retrieveMovieRecommendations(int $amount): array
     {
-        return $this->parseMoviesRecommendationsResults($response);
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getMovieRecommendationsUrl($amount),
+                $this->getMovieRecommendationsParameters($amount),
+                $this->getMovieRecommendationsHeaders($amount),
+            ),
+            true,
+        );
+
+        return $this->parseRecommendations($response);
     }
 
     #[\Override]
-    public function parseDocumentariesRecommendationsResults(
-        array $response,
-    ): array {
-        return $this->parseMoviesRecommendationsResults($response);
+    public function retrieveSerieRecommendations(int $amount): array
+    {
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getSerieRecommendationsUrl($amount),
+                $this->getSerieRecommendationsParameters($amount),
+                $this->getSerieRecommendationsHeaders($amount),
+            ),
+            true,
+        );
+
+        return $this->parseRecommendations($response);
+    }
+
+    #[\Override]
+    public function retrieveDocumentaryRecommendations(int $amount): array
+    {
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getDocumentaryRecommendationsUrl($amount),
+                $this->getDocumentaryRecommendationsParameters($amount),
+                $this->getDocumentaryRecommendationsHeaders($amount),
+            ),
+            true,
+        );
+
+        return $this->parseRecommendations($response);
     }
 
     // This is totally wrong and I shouldn't do this, but the way I structured my functions made me do it
     #[\Override]
-    public function parseNextRecommendationResult(
-        array $response,
-        string $showId,
-        string $seasonId,
-        string $episodeId,
-    ): array {
+    public function retrieveNextEpisodeRecommendation(
+        Show $show,
+        Season $season,
+        Episode $episode,
+    ): Episode {
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getNextEpisodeRecommendationUrl(
+                    $show,
+                    $season,
+                    $episode,
+                ),
+                $this->getNextEpisodeRecommendationParameters(
+                    $show,
+                    $season,
+                    $episode,
+                ),
+                $this->getNextEpisodeRecommendationHeaders(
+                    $show,
+                    $season,
+                    $episode,
+                ),
+            ),
+            true,
+        );
+
         // I have actually no idea how to comply with this function, because in this case I really need to have access
         // to the show, season and episode. Having only the response will lead to nothing, because I do not have the
         // episode, so I won't know what episode to look for. Maybe I should add some episode info in that function
@@ -152,8 +224,8 @@ final class Toutv extends StreamingService
         // This loop is for the next episode in the same season
         foreach ($response["content"][0]["lineups"] as $season) {
             foreach ($season["items"] as $episodeKey => $episode) {
-                if ($season["seasonNumber"] === (int) $seasonId) {
-                    if ($episode["episodeNumber"] === (int) $episodeId) {
+                if ($season["seasonNumber"] === (int) $season->id) {
+                    if ($episode["episodeNumber"] === (int) $episode->id) {
                         if (isset($season["items"][$episodeKey + 1])) {
                             $nextEpisode = $season["items"][$episodeKey + 1];
                             $e = ObjectFactory::createEpisode();
@@ -167,7 +239,7 @@ final class Toutv extends StreamingService
                                 $nextEpisode["images"]["card"]["url"];
                             $e->provider = $this->tag;
 
-                            return (array) $e;
+                            return $e;
                         }
                     }
                 }
@@ -176,7 +248,7 @@ final class Toutv extends StreamingService
 
         // This loop is for retrieving the next season's first episode
         foreach ($response["content"][0]["lineups"] as $seasonKey => $season) {
-            if ($season["seasonNumber"] === (int) $seasonId) {
+            if ($season["seasonNumber"] === (int) $season->id) {
                 if (isset($response["content"][0]["lineups"][$seasonKey + 1])) {
                     $nextSeason =
                         $response["content"][0]["lineups"][$seasonKey + 1];
@@ -193,7 +265,7 @@ final class Toutv extends StreamingService
 
                         // Don't recommend Trailers
                         if ($episode["type"] !== "Trailer") {
-                            return (array) $e;
+                            return $e;
                         }
                     }
                 }
@@ -214,34 +286,41 @@ final class Toutv extends StreamingService
 
             // Don't recommend Trailers
             if ($episode["type"] !== "Trailer") {
-                return (array) $e;
+                return $e;
             }
         }
 
-        return [];
+        return ObjectFactory::createEpisode();
     }
 
     #[\Override]
-    public function parseShowInfo(Show $show, array $ssResponse): void
+    public function retrieveShow(Show $show): void
     {
-        // Set title, and if it is originally in a language other than french set it to original language
-        $show->title = $ssResponse["originalTitle"] ?? $ssResponse["title"];
-        $show->shortDescription = $show->fullDescription =
-            $ssResponse["description"] ?? "";
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getShowUrl($show),
+                $this->getShowParameters($show),
+                $this->getShowHeaders($show),
+            ),
+            true,
+        );
 
-        $releaseDate =
-            $ssResponse["structuredMetadata"]["datePublished"] ?? null;
+        // Set title, and if it is originally in a language other than french set it to original language
+        $show->title = $response["originalTitle"] ?? $response["title"];
+        $show->shortDescription = $show->fullDescription =
+            $response["description"] ?? "";
+
+        $releaseDate = $response["structuredMetadata"]["datePublished"] ?? null;
         $show->year = (int) explode("-", $releaseDate ? $releaseDate : "")[0]; // The first number being the year
 
-        $show->imageBackground =
-            $ssResponse["images"]["background"]["url"] ?? "";
+        $show->imageBackground = $response["images"]["background"]["url"] ?? "";
         $show->provider = $this->tag;
 
-        foreach ($ssResponse["content"][0]["lineups"] as $ssResponseSeason) {
+        foreach ($response["content"][0]["lineups"] as $responseSeason) {
             $season = ObjectFactory::createSeason();
-            $season->id = (string) $ssResponseSeason["seasonNumber"];
-            $season->title = $ssResponseSeason["title"];
-            $season->number = $ssResponseSeason["seasonNumber"];
+            $season->id = (string) $responseSeason["seasonNumber"];
+            $season->title = $responseSeason["title"];
+            $season->number = $responseSeason["seasonNumber"];
             $season->provider = $this->tag;
 
             $show->seasons[] = $season;
@@ -249,31 +328,40 @@ final class Toutv extends StreamingService
     }
 
     #[\Override]
-    public function parseSeasonInfo(Season $season, array $ssResponse): void
+    public function retrieveSeason(Show $show, Season $season): void
     {
-        foreach ($ssResponse["content"][0]["lineups"] as $ssResponseSeason) {
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getSeasonUrl($show, $season),
+                $this->getSeasonParameters($show, $season),
+                $this->getSeasonHeaders($show, $season),
+            ),
+            true,
+        );
+
+        foreach ($response["content"][0]["lineups"] as $responseSeason) {
             // Find the right season that matches the season's ID requested
-            if ($ssResponseSeason["seasonNumber"] === (int) $season->id) {
-                $season->title = $ssResponseSeason["title"];
+            if ($responseSeason["seasonNumber"] === (int) $season->id) {
+                $season->title = $responseSeason["title"];
                 $season->number = (int) $season->id;
                 $season->fullDescription = $season->shortDescription =
-                    $ssResponse["structuredMetadata"]["abstract"];
+                    $response["structuredMetadata"]["abstract"];
                 $season->provider = $this->tag;
 
-                foreach ($ssResponseSeason["items"] as $ssResponseEpisode) {
+                foreach ($responseSeason["items"] as $responseEpisode) {
                     $episode = ObjectFactory::createEpisode();
 
-                    $episode->id = (string) $ssResponseEpisode["idMedia"];
-                    $episode->title = $ssResponseEpisode["title"];
-                    $episode->number = $ssResponseEpisode["episodeNumber"];
+                    $episode->id = (string) $responseEpisode["idMedia"];
+                    $episode->title = $responseEpisode["title"];
+                    $episode->number = $responseEpisode["episodeNumber"];
                     $episode->shortDescription = $episode->fullDescription =
-                        $ssResponseEpisode["description"] ?? "";
+                        $responseEpisode["description"] ?? "";
                     $episode->imageCard =
-                        $ssResponseEpisode["images"]["card"]["url"];
+                        $responseEpisode["images"]["card"]["url"];
                     $episode->provider = $this->tag;
 
                     // Don't add Trailers
-                    if ($ssResponseEpisode["type"] !== "Trailer") {
+                    if ($responseEpisode["type"] !== "Trailer") {
                         $season->episodes[] = $episode;
                     }
                 }
@@ -284,14 +372,24 @@ final class Toutv extends StreamingService
     }
 
     #[\Override]
-    public function parseEpisodeInfo(
+    public function retrieveEpisode(
+        Show $show,
+        Season $season,
         Episode $episode,
-        array $ssResponse,
-        ?bool $stream,
+        bool $stream = false,
     ): void {
-        $episode->id = $ssResponse["content.mediaId"];
-        $episode->title = $ssResponse["content.title"];
-        $episode->number = (int) $ssResponse["content.episode"];
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getEpisodeUrl($show, $season, $episode),
+                $this->getEpisodeParameters($show, $season, $episode),
+                $this->getEpisodeHeaders($show, $season, $episode),
+            ),
+            true,
+        );
+
+        $episode->id = $response["content.mediaId"];
+        $episode->title = $response["content.title"];
+        $episode->number = (int) $response["content.episode"];
         $episode->provider = $this->tag;
 
         if ($stream) {
@@ -304,46 +402,49 @@ final class Toutv extends StreamingService
     // {
     //     $fileParameters = $this->getEpisodeFileParameters($episode);
 
-    //     $ssResponse = RequestHelper::get(
+    //     $response = RequestHelper::get(
     //         $this->getEpisodeFileUrl($episode),
-    //         Constants::HTTP_DEFAULT_HEADERS,
     //         $fileParameters,
+    //         Constants::HTTP_DEFAULT_HEADERS,
     //     );
 
-    //     $this->parseEpisodeFileInfo($episode, json_decode($ssResponse, true));
+    //     $this->parseEpisodeFileInfo($episode, json_decode($response, true));
 
     // }
 
     private function getEpisodeStreamInfo(Episode $episode): void
     {
-        $ssResponse = RequestHelper::get(
-            $this->getEpisodeFileUrl($episode),
-            $this->getEpisodeFileHeaders($episode),
-            $this->getEpisodeFileParameters($episode),
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getEpisodeFileUrl($episode),
+                $this->getEpisodeFileParameters($episode),
+                $this->getEpisodeFileHeaders($episode),
+            ),
+            true,
         );
 
-        $this->parseEpisodeFileInfo($episode, json_decode($ssResponse, true));
+        $this->parseEpisodeFileInfo($episode, $response);
 
-        $ssResponse = RequestHelper::get(
-            $this->getEpisodeDownloadUrl($episode),
-            $this->getEpisodeDownloadHeaders($episode),
-            $this->getEpisodeDownloadParameters($episode),
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getEpisodeDownloadUrl($episode),
+                $this->getEpisodeDownloadParameters($episode),
+                $this->getEpisodeDownloadHeaders($episode),
+            ),
+            true,
         );
 
-        $this->parseEpisodeDownloadStreamInfo(
-            $episode,
-            json_decode($ssResponse, true),
-        );
+        $this->parseEpisodeDownloadStreamInfo($episode, $response);
     }
 
     private function parseEpisodeFileInfo(
         Episode $episode,
-        array $ssResponse,
+        array $response,
     ): void {
         // TODO: Actually choose a streaming technology and don't just pick dash with widevine
 
         // Parses the availableTechs for the available DRM and streaming techs
-        foreach ($ssResponse["availableTechs"] as $streamingTechnology) {
+        foreach ($response["availableTechs"] as $streamingTechnology) {
             if (array_keys(
                 Constants::WORD_TO_STREAMING_TECH,
                 $streamingTechnology["name"],
@@ -365,28 +466,28 @@ final class Toutv extends StreamingService
             }
         }
 
-        $episode->id = $ssResponse["Metas"]["idMedia"];
-        $episode->title = $ssResponse["Metas"]["Title"];
-        $episode->number = (int) $ssResponse["Metas"]["SrcEpisode"];
+        $episode->id = $response["Metas"]["idMedia"];
+        $episode->title = $response["Metas"]["Title"];
+        $episode->number = (int) $response["Metas"]["SrcEpisode"];
 
         $episode->fullDescription =
-            $ssResponse["Metas"]["Description"] ?:
-            $ssResponse["Metas"]["ShortDescription"] ?:
+            $response["Metas"]["Description"] ?:
+            $response["Metas"]["ShortDescription"] ?:
             "";
         $episode->shortDescription = !empty(
-            $ssResponse["Metas"]["ShortDescription"]
+            $response["Metas"]["ShortDescription"]
         )
-            ? $ssResponse["Metas"]["ShortDescription"]
+            ? $response["Metas"]["ShortDescription"]
             : $episode->fullDescription;
 
-        $episode->containsDrm = (bool) $ssResponse["Metas"]["isDrmActive"];
+        $episode->containsDrm = (bool) $response["Metas"]["isDrmActive"];
     }
 
-    public function parseEpisodeDownloadStreamInfo(
+    private function parseEpisodeDownloadStreamInfo(
         Episode $episode,
-        array $ssResponse,
+        array $response,
     ): void {
-        $episode->url = $ssResponse["url"];
+        $episode->url = $response["url"];
         $episode->urlHeaders = [];
 
         $episode->streamingTechnology->drmTechnology->licenseHeaders = array_merge(
@@ -395,7 +496,7 @@ final class Toutv extends StreamingService
         );
 
         if ($episode->streamingTechnology->drmTechnology->name === "widevine") {
-            foreach ($ssResponse["params"] as $parameter) {
+            foreach ($response["params"] as $parameter) {
                 if ($parameter["name"] === "widevineLicenseUrl") {
                     $episode->streamingTechnology->drmTechnology->licenseUrl =
                         $parameter["value"];
@@ -413,8 +514,7 @@ final class Toutv extends StreamingService
 
     //region Specific values
 
-    #[\Override]
-    public function getSearchUrl(string $query, int $amount): string
+    private function getSearchUrl(string $query, int $amount): string
     {
         if (strlen($query) < 2) {
             return Config::TOUTV_SECOND_URL_SEARCH;
@@ -422,8 +522,7 @@ final class Toutv extends StreamingService
         return Config::TOUTV_URL_SEARCH;
     }
 
-    #[\Override]
-    public function getSearchParameters(string $query, int $amount): array
+    private function getSearchParameters(string $query, int $amount): array
     {
         $parameters = [];
 
@@ -442,20 +541,17 @@ final class Toutv extends StreamingService
         return $parameters;
     }
 
-    #[\Override]
-    public function getSearchHeaders(string $query, int $amount): array
+    private function getSearchHeaders(string $query, int $amount): array
     {
         return Constants::HTTP_DEFAULT_HEADERS;
     }
 
-    #[\Override]
-    public function getShowRecommendationsUrl(Show $show, int $amount): string
+    private function getShowRecommendationsUrl(Show $show, int $amount): string
     {
-        return $this->getShowInfoUrl($show);
+        return $this->getShowUrl($show);
     }
 
-    #[\Override]
-    public function getShowRecommendationsParameters(
+    private function getShowRecommendationsParameters(
         Show $show,
         int $amount,
     ): array {
@@ -464,91 +560,77 @@ final class Toutv extends StreamingService
         return $parameters;
     }
 
-    #[\Override]
-    public function getShowRecommendationsHeaders(
+    private function getShowRecommendationsHeaders(
         Show $show,
         int $amount,
     ): array {
         return Constants::HTTP_DEFAULT_HEADERS;
     }
 
-    #[\Override]
-    public function getMoviesRecommendationsUrl(int $amount): string
+    private function getMovieRecommendationsUrl(int $amount): string
     {
         return Config::TOUTV_URL_MOVIES_RECOMMENDATIONS;
     }
 
-    #[\Override]
-    public function getMoviesRecommendationsParameters(int $amount): array
+    private function getMovieRecommendationsParameters(int $amount): array
     {
         $parameters = Config::TOUTV_PARAMETERS_MOVIES_RECOMMENDATIONS;
         $parameters["pageSize"] = $amount;
         return $parameters;
     }
 
-    #[\Override]
-    public function getMoviesRecommendationsHeaders(int $amount): array
+    private function getMovieRecommendationsHeaders(int $amount): array
     {
         return Constants::HTTP_DEFAULT_HEADERS;
     }
 
-    #[\Override]
-    public function getSeriesRecommendationsUrl(int $amount): string
+    private function getSerieRecommendationsUrl(int $amount): string
     {
         return Config::TOUTV_URL_SERIES_RECOMMENDATIONS;
     }
 
-    #[\Override]
-    public function getSeriesRecommendationsParameters(int $amount): array
+    private function getSerieRecommendationsParameters(int $amount): array
     {
-        return $this->getMoviesRecommendationsParameters($amount);
+        return $this->getMovieRecommendationsParameters($amount);
     }
 
-    #[\Override]
-    public function getSeriesRecommendationsHeaders(int $amount): array
+    private function getSerieRecommendationsHeaders(int $amount): array
     {
-        return Constants::HTTP_DEFAULT_HEADERS;
+        return $this->getMovieRecommendationsHeaders($amount);
     }
 
-    #[\Override]
-    public function getDocumentariesRecommendationsUrl(int $amount): string
+    private function getDocumentaryRecommendationsUrl(int $amount): string
     {
         return Config::TOUTV_URL_DOCUMENTARIES_RECOMMENDATIONS;
     }
 
-    #[\Override]
-    public function getDocumentariesRecommendationsParameters(
-        int $amount,
-    ): array {
-        return $this->getMoviesRecommendationsParameters($amount);
-    }
-
-    #[\Override]
-    public function getDocumentariesRecommendationsHeaders(int $amount): array
+    private function getDocumentaryRecommendationsParameters(int $amount): array
     {
-        return Constants::HTTP_DEFAULT_HEADERS;
+        return $this->getMovieRecommendationsParameters($amount);
     }
 
-    #[\Override]
-    public function getNextRecommendationUrl(
+    private function getDocumentaryRecommendationsHeaders(int $amount): array
+    {
+        return $this->getMovieRecommendationsHeaders($amount);
+    }
+
+    private function getNextEpisodeRecommendationUrl(
         Show $show,
         Season $season,
         Episode $episode,
     ): string {
-        return $this->getSeasonInfoUrl($show, $season);
+        return $this->getSeasonUrl($show, $season);
     }
 
-    #[\Override]
-    public function getNextRecommendationParameters(
+    private function getNextEpisodeRecommendationParameters(
         Show $show,
         Season $season,
         Episode $episode,
     ): array {
-        return $this->getSeasonInfoParameters($show, $season);
+        return $this->getSeasonParameters($show, $season);
     }
 
-    #[\Override]
-    public function getNextRecommendationHeaders(
+    private function getNextEpisodeRecommendationHeaders(
         Show $show,
         Season $season,
         Episode $episode,
@@ -556,44 +638,37 @@ final class Toutv extends StreamingService
         return Constants::HTTP_DEFAULT_HEADERS;
     }
 
-    #[\Override]
-    public function getShowInfoUrl(Show $show): string
+    private function getShowUrl(Show $show): string
     {
         return Config::TOUTV_URL_SHOW_INFO . $show->id;
     }
 
-    #[\Override]
-    public function getShowInfoParameters(Show $show): array
+    private function getShowParameters(Show $show): array
     {
         return Config::TOUTV_PARAMETERS_SHOW_INFO;
     }
 
-    #[\Override]
-    public function getShowInfoHeaders(Show $show): array
+    private function getShowHeaders(Show $show): array
     {
         return Constants::HTTP_DEFAULT_HEADERS;
     }
 
-    #[\Override]
-    public function getSeasonInfoUrl(Show $show, Season $season): string
+    private function getSeasonUrl(Show $show, Season $season): string
     {
         return Config::TOUTV_URL_SEASON_INFO . $show->id . "/s" . $season->id;
     }
 
-    #[\Override]
-    public function getSeasonInfoParameters(Show $show, Season $season): array
+    private function getSeasonParameters(Show $show, Season $season): array
     {
         return Config::TOUTV_PARAMETERS_SEASON_INFO;
     }
 
-    #[\Override]
-    public function getSeasonInfoHeaders(Show $show, Season $season): array
+    private function getSeasonHeaders(Show $show, Season $season): array
     {
         return Constants::HTTP_DEFAULT_HEADERS;
     }
 
-    #[\Override]
-    public function getEpisodeInfoUrl(
+    private function getEpisodeUrl(
         Show $show,
         Season $season,
         Episode $episode,
@@ -607,8 +682,7 @@ final class Toutv extends StreamingService
             sprintf("%02d", $episode->id);
     }
 
-    #[\Override]
-    public function getEpisodeInfoParameters(
+    private function getEpisodeParameters(
         Show $show,
         Season $season,
         Episode $episode,
@@ -616,8 +690,7 @@ final class Toutv extends StreamingService
         return Config::TOUTV_PARAMETERS_EPISODE_INFO;
     }
 
-    #[\Override]
-    public function getEpisodeInfoHeaders(
+    private function getEpisodeHeaders(
         Show $show,
         Season $season,
         Episode $episode,
@@ -639,7 +712,7 @@ final class Toutv extends StreamingService
         return $parameters;
     }
 
-    public function getEpisodeFileHeaders(Episode $episode): array
+    private function getEpisodeFileHeaders(Episode $episode): array
     {
         return Constants::HTTP_DEFAULT_HEADERS;
     }

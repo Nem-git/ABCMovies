@@ -24,14 +24,21 @@ final class Telequebec extends StreamingService
     //region Parsing
 
     #[\Override]
-    public function parseSearchResults(array $ssResponse): array
+    public function retrieveSearchResults(string $query, int $amount): array
     {
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getSearchUrl($query, $amount),
+                $this->getSearchParameters($query, $amount),
+                $this->getSearchHeaders($query, $amount),
+            ),
+            true,
+        );
+
         $results = [];
 
         foreach (
-            $ssResponse["data"]["blocks"][0]["widgets"][0]["playlist"][
-                "contents"
-            ] as $result
+            $response["data"]["blocks"][0]["widgets"][0]["playlist"]["contents"] as $result
         ) {
             $show = ObjectFactory::createShow();
 
@@ -55,8 +62,17 @@ final class Telequebec extends StreamingService
     }
 
     #[\Override]
-    public function parseShowRecommendationsResults(array $response): array
+    public function retrieveShowRecommendations(Show $show, int $amount): array
     {
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getShowRecommendationsUrl($show, $amount),
+                $this->getShowRecommendationsParameters($show, $amount),
+                $this->getShowRecommendationsHeaders($show, $amount),
+            ),
+            true,
+        );
+
         $recommendations = [];
 
         foreach ($response["data"]["screen"]["blocks"] as $category) {
@@ -88,45 +104,83 @@ final class Telequebec extends StreamingService
     }
 
     #[\Override]
-    public function parseMoviesRecommendationsResults(array $response): array
+    public function retrieveMovieRecommendations(int $amount): array
     {
         $recommendations = [];
+
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getMovieRecommendationsUrl($amount),
+                $this->getMovieRecommendationsParameters($amount),
+                $this->getMovieRecommendationsHeaders($amount),
+            ),
+            true,
+        );
 
         return $recommendations;
     }
 
     #[\Override]
-    public function parseSeriesRecommendationsResults(array $response): array
+    public function retrieveSerieRecommendations(int $amount): array
     {
-        return $this->parseMoviesRecommendationsResults($response);
+        $recommendations = [];
+
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getSerieRecommendationsUrl($amount),
+                $this->getSerieRecommendationsParameters($amount),
+                $this->getSerieRecommendationsHeaders($amount),
+            ),
+            true,
+        );
+
+        return $recommendations;
     }
 
     #[\Override]
-    public function parseDocumentariesRecommendationsResults(
-        array $response,
-    ): array {
-        return $this->parseMoviesRecommendationsResults($response);
+    public function retrieveDocumentaryRecommendations(int $amount): array
+    {
+        $recommendations = [];
+
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getDocumentaryRecommendationsUrl($amount),
+                $this->getDocumentaryRecommendationsParameters($amount),
+                $this->getDocumentaryRecommendationsHeaders($amount),
+            ),
+            true,
+        );
+
+        return $recommendations;
     }
 
     // This is totally wrong and I shouldn't do this, but the way I structured my functions made me do it
     #[\Override]
-    public function parseNextRecommendationResult(
-        array $response,
-        string $showId,
-        string $seasonId,
-        string $episodeId,
-    ): array {
+    public function retrieveNextEpisodeRecommendation(
+        Show $show,
+        Season $season,
+        Episode $episode,
+    ): Episode {
         // Maybe I should just say that it always returns an episode
         // so I wouldn't have to return an array (yuck) instead of an
         // object
 
-        return [];
+        return ObjectFactory::createEpisode();
     }
 
     #[\Override]
-    public function parseShowInfo(Show $show, array $ssResponse): void
+    public function retrieveShow(Show $show): void
     {
-        $response = $ssResponse["data"]["asset"];
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getShowUrl($show),
+                $this->getShowParameters($show),
+                $this->getShowHeaders($show),
+            ),
+            true,
+        );
+
+        $response = $response["data"]["asset"];
 
         $show->id = (string) $response["id"];
         $show->title = $response["original_name"]; // For french: ["name"]
@@ -166,12 +220,11 @@ final class Telequebec extends StreamingService
         }
     }
 
-    private function parseSeasonMoviesInfo(
-        Season $season,
-        array $response,
-    ): void {
+    private function parseMovieSeason(Season $season, array $response): void
+    {
         $asset = $response["data"]["asset"];
 
+        $season->id = (string) $asset["id"];
         $season->title = Config::DEFAULT_SEASON_TITLE; // TODO: Add method that creates season name
         $season->number = Config::DEFAULT_SEASON_NUMBER; // TODO: WADAFAK ^^
         $season->shortDescription = $asset["short_description"];
@@ -193,12 +246,10 @@ final class Telequebec extends StreamingService
         $season->episodes[] = $episode;
     }
 
-    private function parseSeasonSeriesBlockInfo(
-        Season $season,
-        array $block,
-    ): void {
+    private function parseSerieBlock(Season $season, array $block): void
+    {
         foreach ($block["widgets"][0]["playlist"]["contents"] as $s) {
-            if ($season->id === (string) $s["season_number"]) {
+            if ((int) $season->id === $s["season_number"]) {
                 $season->id = (string) $s["id"];
                 $season->title = $s["name"];
                 $season->number = $s["season_number"];
@@ -212,7 +263,7 @@ final class Telequebec extends StreamingService
         }
     }
 
-    private function parseSeasonSeriesEpisodesInfo(
+    private function parseSerieEpisodes(
         Season $season,
         array $block,
         ?string $showId,
@@ -240,18 +291,16 @@ final class Telequebec extends StreamingService
             }
         } else {
             // Request /episodes for the specific season
-            $url = $this->getSeasonEpisodesInfoUrl($showId, $season->id);
-
-            $ssResponse = json_decode(
+            $response = json_decode(
                 RequestHelper::get(
-                    $url,
-                    Constants::HTTP_DEFAULT_HEADERS,
-                    Config::TELEQUEBEC_PARAMETERS_SEASON_EPISODES_INFO,
+                    $this->getSerieEpisodesUrl($showId, $season->id),
+                    $this->getSerieEpisodesParameters($showId, $season->id),
+                    $this->getSerieEpisodesHeaders($showId, $season->id),
                 ),
                 true,
             );
 
-            foreach ($ssResponse["data"] as $e) {
+            foreach ($response["data"] as $e) {
                 $episode = ObjectFactory::createEpisode();
 
                 $episode->id = (string) $e["id"];
@@ -268,72 +317,71 @@ final class Telequebec extends StreamingService
         }
     }
 
-    private function parseSeasonSeriesInfo(
-        Season $season,
-        array $response,
-    ): void {
+    private function parseSeasonSeries(Season $season, array $response): void
+    {
         $showId = (string) $response["data"]["asset"]["id"];
-        // Season slug is the weird ID that mixes the show name with it's ID
-        $seasonSlug =
-            $response["data"]["asset"]["slug"] . "s" . (string) $season->id;
 
         foreach ($response["data"]["screen"]["blocks"] as $block) {
             $blockType = $block["widgets"][0]["playlist"]["type"];
 
             if ($blockType === "seasons") {
-                $this->parseSeasonSeriesBlockInfo($season, $block);
+                $this->parseSerieBlock($season, $block);
             }
 
             if ($blockType === "episodes") {
-                $this->parseSeasonSeriesEpisodesInfo($season, $block, $showId);
+                $this->parseSerieEpisodes($season, $block, $showId);
             }
         }
     }
 
     #[\Override]
-    public function parseSeasonInfo(Season $season, array $ssResponse): void
+    public function retrieveSeason(Show $show, Season $season): void
     {
-        $type = $ssResponse["data"]["asset"]["type"];
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getSeasonUrl($show, $season),
+                $this->getSeasonParameters($show, $season),
+                $this->getSeasonHeaders($show, $season),
+            ),
+            true,
+        );
 
-        if ($type === "movies") {
-            if ($season->id === (string) Config::DEFAULT_SEASON_NUMBER) {
-                $this->parseSeasonMoviesInfo($season, $ssResponse);
-            } else {
-                $season->id = ""; // TOOD: FIXME
-            }
-        }
+        $type = $response["data"]["asset"]["type"];
 
-        if ($type === "series") {
-            $this->parseSeasonSeriesInfo($season, $ssResponse);
-        }
+        match ($type) {
+            "movies" => $this->parseMovieSeason($season, $response),
+            "series" => $this->parseSeasonSeries($season, $response),
+            "default" => ($season->id = ""), // TODO: FIXME
+        };
     }
 
     #[\Override]
-    public function parseEpisodeInfo(
+    public function retrieveEpisode(
+        Show $show,
+        Season $season,
         Episode $episode,
-        array $ssResponse,
-        ?bool $stream,
+        bool $stream = false,
     ): void {
-    }
-
-    public function parseEpisodeDownloadStreamInfo(
-        Episode $episode,
-        array $ssResponse,
-    ): void {
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getEpisodeUrl($show, $season, $episode),
+                $this->getEpisodeParameters($show, $season, $episode),
+                $this->getEpisodeHeaders($show, $season, $episode),
+            ),
+            true,
+        );
     }
 
     //endregion
 
     //region Specific values
 
-    #[\Override]
-    public function getSearchUrl(string $query, int $amount): string
+    private function getSearchUrl(string $query, int $amount): string
     {
         return Config::TELEQUEBEC_SEARCH_URL;
     }
 
-    #[\Override]
-    public function getSearchParameters(string $query, int $amount): array
+    private function getSearchParameters(string $query, int $amount): array
     {
         $parameters = Config::TELEQUEBEC_PARAMETERS_SEARCH;
 
@@ -343,111 +391,94 @@ final class Telequebec extends StreamingService
         return $parameters;
     }
 
-    #[\Override]
-    public function getSearchHeaders(string $query, int $amount): array
+    private function getSearchHeaders(string $query, int $amount): array
     {
         return Constants::HTTP_DEFAULT_HEADERS;
     }
 
-    #[\Override]
-    public function getShowRecommendationsUrl(Show $show, int $amount): string
+    private function getShowRecommendationsUrl(Show $show, int $amount): string
     {
-        return $this->getShowInfoUrl($show);
+        return $this->getShowUrl($show);
     }
 
-    #[\Override]
-    public function getShowRecommendationsParameters(
+    private function getShowRecommendationsParameters(
         Show $show,
         int $amount,
     ): array {
-        return $this->getShowInfoParameters($show);
+        return $this->getShowParameters($show);
     }
 
-    #[\Override]
-    public function getShowRecommendationsHeaders(
+    private function getShowRecommendationsHeaders(
         Show $show,
         int $amount,
     ): array {
         return Constants::HTTP_DEFAULT_HEADERS;
     }
 
-    #[\Override]
-    public function getMoviesRecommendationsUrl(int $amount): string
+    private function getMovieRecommendationsUrl(int $amount): string
     {
         return Config::TELEQUEBEC_URL_MOVIES_RECOMMENDATIONS;
     }
 
-    #[\Override]
-    public function getMoviesRecommendationsParameters(int $amount): array
+    private function getMovieRecommendationsParameters(int $amount): array
     {
         $parameters = Config::TELEQUEBEC_PARAMETERS_MOVIES_RECOMMENDATIONS;
         $parameters["pageSize"] = $amount;
         return $parameters;
     }
 
-    #[\Override]
-    public function getMoviesRecommendationsHeaders(int $amount): array
+    private function getMovieRecommendationsHeaders(int $amount): array
     {
         return Constants::HTTP_DEFAULT_HEADERS;
     }
 
-    #[\Override]
-    public function getSeriesRecommendationsUrl(int $amount): string
+    private function getSerieRecommendationsUrl(int $amount): string
     {
         return Config::TELEQUEBEC_URL_SERIES_RECOMMENDATIONS;
     }
 
-    #[\Override]
-    public function getSeriesRecommendationsParameters(int $amount): array
+    private function getSerieRecommendationsParameters(int $amount): array
     {
-        return $this->getMoviesRecommendationsParameters($amount);
+        return $this->getMovieRecommendationsParameters($amount);
     }
 
-    #[\Override]
-    public function getSeriesRecommendationsHeaders(int $amount): array
+    private function getSerieRecommendationsHeaders(int $amount): array
     {
         return Constants::HTTP_DEFAULT_HEADERS;
     }
 
-    #[\Override]
-    public function getDocumentariesRecommendationsUrl(int $amount): string
+    private function getDocumentaryRecommendationsUrl(int $amount): string
     {
         return Config::TELEQUEBEC_URL_DOCUMENTARIES_RECOMMENDATIONS;
     }
 
-    #[\Override]
-    public function getDocumentariesRecommendationsParameters(
-        int $amount,
-    ): array {
-        return $this->getMoviesRecommendationsParameters($amount);
+    private function getDocumentaryRecommendationsParameters(int $amount): array
+    {
+        return $this->getMovieRecommendationsParameters($amount);
     }
 
-    #[\Override]
-    public function getDocumentariesRecommendationsHeaders(int $amount): array
+    private function getDocumentaryRecommendationsHeaders(int $amount): array
     {
         return Constants::HTTP_DEFAULT_HEADERS;
     }
 
-    #[\Override]
-    public function getNextRecommendationUrl(
+    private function getNextEpisodeRecommendationUrl(
         Show $show,
         Season $season,
         Episode $episode,
     ): string {
-        return $this->getSeasonInfoUrl($show, $season);
+        return $this->getSeasonUrl($show, $season);
     }
 
-    #[\Override]
-    public function getNextRecommendationParameters(
+    private function getNextEpisodeRecommendationParameters(
         Show $show,
         Season $season,
         Episode $episode,
     ): array {
-        return $this->getSeasonInfoParameters($show, $season);
+        return $this->getSeasonParameters($show, $season);
     }
 
-    #[\Override]
-    public function getNextRecommendationHeaders(
+    private function getNextEpisodeRecommendationHeaders(
         Show $show,
         Season $season,
         Episode $episode,
@@ -455,72 +486,63 @@ final class Telequebec extends StreamingService
         return Constants::HTTP_DEFAULT_HEADERS;
     }
 
-    #[\Override]
-    public function getShowInfoUrl(Show $show): string
+    private function getShowUrl(Show $show): string
     {
         return Config::TELEQUEBEC_URL_SHOW_INFO . $show->id;
     }
 
-    #[\Override]
-    public function getShowInfoParameters(Show $show): array
+    private function getShowParameters(Show $show): array
     {
         return Config::TELEQUEBEC_PARAMETERS_SHOW_INFO;
     }
 
-    #[\Override]
-    public function getShowInfoHeaders(Show $show): array
+    private function getShowHeaders(Show $show): array
     {
         return Constants::HTTP_DEFAULT_HEADERS;
     }
 
-    #[\Override]
-    public function getSeasonInfoUrl(Show $show, Season $season): string
+    private function getSeasonUrl(Show $show, Season $season): string
     {
-        return $this->getShowInfoUrl($show);
+        return $this->getShowUrl($show);
     }
 
-    #[\Override]
-    public function getSeasonInfoParameters(Show $show, Season $season): array
+    private function getSeasonParameters(Show $show, Season $season): array
     {
-        return $this->getShowInfoParameters($show);
+        return $this->getShowParameters($show);
     }
 
-    #[\Override]
-    public function getSeasonInfoHeaders(Show $show, Season $season): array
+    private function getSeasonHeaders(Show $show, Season $season): array
     {
-        return $this->getShowInfoHeaders($show);
+        return $this->getShowHeaders($show);
     }
 
-    #[\Override]
-    public function getEpisodeInfoUrl(
+    private function getEpisodeUrl(
         Show $show,
         Season $season,
         Episode $episode,
     ): string {
-        return Config::TELEQUEBEC_URL_EPISODE_INFO . $episode->id;
+        return $this->getShowUrl($show);
     }
 
-    #[\Override]
-    public function getEpisodeInfoParameters(
+    private function getEpisodeParameters(
         Show $show,
         Season $season,
         Episode $episode,
     ): array {
-        return $this->getShowInfoParameters($show);
+        return $this->getShowParameters($show);
     }
 
-    #[\Override]
-    public function getEpisodeInfoHeaders(
+    private function getEpisodeHeaders(
         Show $show,
         Season $season,
         Episode $episode,
     ): array {
-        return Constants::HTTP_DEFAULT_HEADERS;
+        return $this->getShowHeaders($show);
     }
 
     //region New functions
 
-    public function getSeasonEpisodesInfoUrl(
+    private function getSeasonEpisodesUrl(
         string $showId,
         string $seasonId,
     ): string {
@@ -528,18 +550,37 @@ final class Telequebec extends StreamingService
             join("/", [$showId, "season", $seasonId, "episodes"]);
     }
 
-    public function getSeasonEpisodesInfoParameters(
+    private function getSeasonEpisodesParameters(
         Show $show,
         Season $season,
     ): array {
-        return $this->getShowInfoParameters($show);
+        return $this->getShowParameters($show);
     }
 
-    public function getSeasonEpisodesInfoHeaders(
-        Show $show,
-        Season $season,
+    private function getSeasonEpisodesHeaders(Show $show, Season $season): array
+    {
+        return $this->getShowHeaders($show);
+    }
+
+    private function getSerieEpisodesUrl(
+        string $showId,
+        string $seasonId,
+    ): string {
+        return $this->getSeasonEpisodesUrl($showId, $seasonId);
+    }
+
+    private function getSerieEpisodesParameters(
+        string $showId,
+        string $seasonId,
     ): array {
-        return $this->getShowInfoHeaders($show);
+        return Config::TELEQUEBEC_PARAMETERS_SEASON_EPISODES_INFO;
+    }
+
+    private function getSerieEpisodesHeaders(
+        string $showId,
+        string $seasonId,
+    ): array {
+        return Constants::HTTP_DEFAULT_HEADERS;
     }
 
     //endregion
