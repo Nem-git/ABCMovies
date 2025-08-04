@@ -17,23 +17,29 @@ export const getSearchResultsUrl = (query: string): string => {
 //     return request(url);
 // };
 
-export const getShowUrl = (streamingService: string, show: string): string => {
-    return getApiUrl() + [streamingService, show].join("/");
+export const getShowUrl = (
+    streamingService: string,
+    showId: string,
+): string => {
+    return getApiUrl() + [streamingService, showId].join("/");
 };
 
 export const getSeasonUrl = (
     streamingService: string,
-    show: string,
-    season: string,
+    showId: string,
+    seasonNumber: number,
 ): string => {
-    return getApiUrl() + [streamingService, show, season].join("/");
+    return getApiUrl() + [streamingService, showId, seasonNumber].join("/");
 };
 
 export const getEpisodeUrl = (
     streamingService: string,
-    show: string,
-    season: string,
-    episode: string,
+    showId: string,
+    seasonNumber: number,
+    episodeNumber: number,
 ): string => {
-    return getApiUrl() + [streamingService, show, season, episode].join("/");
+    return (
+        getApiUrl() +
+        [streamingService, showId, seasonNumber, episodeNumber].join("/")
+    );
 };

@@ -13,9 +13,11 @@
     onMount(async () => {
         goto(
             "/" +
-                [data.streamingServiceTag, data.showId, data.season.id].join(
-                    "/",
-                ),
+                [
+                    data.streamingServiceTag,
+                    data.showId,
+                    data.season.number,
+                ].join("/"),
             { replaceState: true },
         );
     });

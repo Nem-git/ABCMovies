@@ -9,7 +9,7 @@ export const load: PageLoad = async ({ fetch, parent }) => {
 
     let showPromise: Promise<Show> = fetch(
         getShowUrl(streamingServiceTag, showId),
-    ).then((r) => r.json());
+    ).then((r: Response) => r.json());
 
     return {
         show: await showPromise,
