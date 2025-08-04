@@ -223,23 +223,22 @@ final class Toutv extends StreamingService
 
         // This loop is for the next episode in the same season
         foreach ($response["content"][0]["lineups"] as $season) {
-            foreach ($season["items"] as $episodeKey => $episode) {
-                if ($season["seasonNumber"] === (int) $season->id) {
-                    if ($episode["episodeNumber"] === (int) $episode->id) {
+            foreach ($season["items"] as $episodeKey => $e) {
+                if ($season["seasonNumber"] === $season->number) {
+                    if ($e["episodeNumber"] === $episode->number) {
                         if (isset($season["items"][$episodeKey + 1])) {
                             $nextEpisode = $season["items"][$episodeKey + 1];
-                            $e = ObjectFactory::createEpisode();
 
-                            $e->id = (string) $nextEpisode["idMedia"];
-                            $e->title = $nextEpisode["title"];
-                            $e->number = $nextEpisode["episodeNumber"];
-                            $e->shortDescription = $e->fullDescription =
+                            $episode->id = (string) $nextEpisode["idMedia"];
+                            $episode->title = $nextEpisode["title"];
+                            $episode->number = $nextEpisode["episodeNumber"];
+                            $episode->shortDescription = $episode->fullDescription =
                                 $nextEpisode["description"] ?? "";
-                            $e->imageCard =
+                            $episode->imageCard =
                                 $nextEpisode["images"]["card"]["url"];
-                            $e->provider = $this->tag;
+                            $episode->provider = $this->tag;
 
-                            return $e;
+                            return $episode;
                         }
                     }
                 }
@@ -248,24 +247,22 @@ final class Toutv extends StreamingService
 
         // This loop is for retrieving the next season's first episode
         foreach ($response["content"][0]["lineups"] as $seasonKey => $season) {
-            if ($season["seasonNumber"] === (int) $season->id) {
+            if ($season["seasonNumber"] === $season->number) {
                 if (isset($response["content"][0]["lineups"][$seasonKey + 1])) {
                     $nextSeason =
                         $response["content"][0]["lineups"][$seasonKey + 1];
-                    foreach ($nextSeason["items"] as $episode) {
-                        $e = ObjectFactory::createEpisode();
-
-                        $e->id = (string) $episode["idMedia"];
-                        $e->title = $episode["title"];
-                        $e->number = $episode["episodeNumber"];
-                        $e->shortDescription = $e->fullDescription =
-                            $episode["description"] ?? "";
-                        $e->imageCard = $episode["images"]["card"]["url"];
-                        $e->provider = $this->tag;
+                    foreach ($nextSeason["items"] as $e) {
+                        $episode->id = (string) $e["idMedia"];
+                        $episode->title = $e["title"];
+                        $episode->number = $e["episodeNumber"];
+                        $episode->shortDescription = $episode->fullDescription =
+                            $e["description"] ?? "";
+                        $episode->imageCard = $e["images"]["card"]["url"];
+                        $episode->provider = $this->tag;
 
                         // Don't recommend Trailers
-                        if ($episode["type"] !== "Trailer") {
-                            return $e;
+                        if ($e["type"] !== "Trailer") {
+                            return $episode;
                         }
                     }
                 }
@@ -273,24 +270,22 @@ final class Toutv extends StreamingService
         }
 
         // Returns the first episode of the show
-        foreach ($response["content"][0]["lineups"][0]["items"] as $episode) {
-            $e = ObjectFactory::createEpisode();
-
-            $e->id = (string) $episode["idMedia"];
-            $e->title = $episode["title"];
-            $e->number = $episode["episodeNumber"];
-            $e->shortDescription = $e->fullDescription =
-                $episode["description"] ?? "";
-            $e->imageCard = $episode["images"]["card"]["url"];
-            $e->provider = $this->tag;
+        foreach ($response["content"][0]["lineups"][0]["items"] as $e) {
+            $episode->id = (string) $e["idMedia"];
+            $episode->title = $e["title"];
+            $episode->number = $e["episodeNumber"];
+            $episode->shortDescription = $episode->fullDescription =
+                $e["description"] ?? "";
+            $episode->imageCard = $e["images"]["card"]["url"];
+            $episode->provider = $this->tag;
 
             // Don't recommend Trailers
-            if ($episode["type"] !== "Trailer") {
-                return $e;
+            if ($e["type"] !== "Trailer") {
+                return $episode;
             }
         }
 
-        return ObjectFactory::createEpisode();
+        return $episode;
     }
 
     #[\Override]
@@ -318,7 +313,7 @@ final class Toutv extends StreamingService
 
         foreach ($response["content"][0]["lineups"] as $responseSeason) {
             $season = ObjectFactory::createSeason();
-            $season->id = (string) $responseSeason["seasonNumber"];
+            $season->id = (string) $responseSeason["seasonNumber"]; // Toutv doesn't have a ID, except URL
             $season->title = $responseSeason["title"];
             $season->number = $responseSeason["seasonNumber"];
             $season->provider = $this->tag;
@@ -341,9 +336,10 @@ final class Toutv extends StreamingService
 
         foreach ($response["content"][0]["lineups"] as $responseSeason) {
             // Find the right season that matches the season's ID requested
-            if ($responseSeason["seasonNumber"] === (int) $season->id) {
+            if ($responseSeason["seasonNumber"] === $season->number) {
+                $season->number = $responseSeason["seasonNumber"];
+                $season->id = (string) $season->number;
                 $season->title = $responseSeason["title"];
-                $season->number = (int) $season->id;
                 $season->fullDescription = $season->shortDescription =
                     $response["structuredMetadata"]["abstract"];
                 $season->provider = $this->tag;
@@ -368,7 +364,6 @@ final class Toutv extends StreamingService
                 return; // If it enters the if, that's the only time it will
             }
         }
-        $season->id = ""; // To clean the season, as the season requested does not exist
     }
 
     #[\Override]
@@ -655,7 +650,10 @@ final class Toutv extends StreamingService
 
     private function getSeasonUrl(Show $show, Season $season): string
     {
-        return Config::TOUTV_URL_SEASON_INFO . $show->id . "/s" . $season->id;
+        return Config::TOUTV_URL_SEASON_INFO .
+            $show->id .
+            "/s" .
+            $season->number;
     }
 
     private function getSeasonParameters(Show $show, Season $season): array
@@ -677,9 +675,9 @@ final class Toutv extends StreamingService
         return Config::TOUTV_URL_EPISODE_INFO .
             $show->id .
             "/s" .
-            sprintf("%02d", $season->id) .
+            sprintf("%02d", $season->number) .
             "e" .
-            sprintf("%02d", $episode->id);
+            sprintf("%02d", $episode->number);
     }
 
     private function getEpisodeParameters(

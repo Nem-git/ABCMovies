@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Streaming\StreamingTechnology\Helpers;
 
 use App\Streaming\Helpers\RequestHelper;
+use App\Streaming\Classes\Episode;
+use App\Streaming\Classes\Season;
+use App\Streaming\Classes\Show;
 
 final class StreamingTechnologyHelper
 {
@@ -26,23 +29,20 @@ final class StreamingTechnologyHelper
     }
 
     public static function getEpisodeStreamingDRMTechnologyIdentifier(
-        string $streamingServiceTag,
-        string $showId,
-        string $seasonId,
-        string $episodeId,
-        string $streamingTechnologyName,
-        string $drmTechnologyName,
+        Show $show,
+        Season $season,
+        Episode $episode,
     ): string {
         return strtolower(
             join(
                 "-",
                 [
-                $streamingServiceTag,
-                $showId,
-                $seasonId,
-                $episodeId,
-                $streamingTechnologyName,
-                $drmTechnologyName,
+                $episode->provider,
+                $show->id,
+                $season->number,
+                $episode->number,
+                $episode->streamingTechnology->name,
+                $episode->streamingTechnology->drmTechnology->name,
                 ]
             ),
         );

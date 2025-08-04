@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Streaming\StreamingTechnology\Dash\Helpers;
 
-use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Streaming\StreamingTechnology\Helpers\StreamingTechnologyHelper;
 
 final class DashHelper

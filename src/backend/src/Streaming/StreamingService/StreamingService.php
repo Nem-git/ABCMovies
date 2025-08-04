@@ -161,24 +161,24 @@ abstract class StreamingService
 
         return $this->executeGetNextRecommendation(
             $nextRecommendationCriteria["showId"],
-            $nextRecommendationCriteria["seasonId"],
-            $nextRecommendationCriteria["episodeId"],
+            $nextRecommendationCriteria["seasonNumber"],
+            $nextRecommendationCriteria["episodeNumber"],
         );
     }
 
     public function executeGetNextRecommendation(
         string $showId,
-        string $seasonId,
-        string $episodeId,
+        int $seasonNumber,
+        int $episodeNumber,
     ): Episode {
         $show = ObjectFactory::createShow();
         $show->id = $showId;
 
         $season = ObjectFactory::createSeason();
-        $season->id = $seasonId;
+        $season->number = $seasonNumber;
 
         $episode = ObjectFactory::createEpisode();
-        $episode->id = $episodeId;
+        $episode->number = $episodeNumber;
 
         $nextEpisode = $this->retrieveNextEpisodeRecommendation(
             $show,
@@ -226,17 +226,17 @@ abstract class StreamingService
 
         return $this->executeSeasonInfo(
             $seasonInfoCriteria["showId"],
-            $seasonInfoCriteria["seasonId"],
+            $seasonInfoCriteria["seasonNumber"],
         );
     }
 
-    public function executeSeasonInfo(string $showId, string $seasonId): Season
+    public function executeSeasonInfo(string $showId, int $seasonNumber): Season
     {
         $show = ObjectFactory::createShow();
         $show->id = $showId;
 
         $season = ObjectFactory::createSeason();
-        $season->id = $seasonId;
+        $season->number = $seasonNumber;
 
         $this->retrieveSeason($show, $season);
         return $season;
@@ -255,32 +255,32 @@ abstract class StreamingService
 
         return $this->executeEpisodeInfo(
             $episodeInfoCriteria["showId"],
-            $episodeInfoCriteria["seasonId"],
-            $episodeInfoCriteria["episodeId"],
+            $episodeInfoCriteria["seasonNumber"],
+            $episodeInfoCriteria["episodeNumber"],
             false,
         );
     }
 
     public function executeEpisodeInfo(
         string $showId,
-        string $seasonId,
-        string $episodeId,
+        int $seasonNumber,
+        int $episodeNumber,
         bool $stream = false,
     ): Episode {
         $show = ObjectFactory::createShow();
         $show->id = $showId;
 
         $season = ObjectFactory::createSeason();
-        $season->id = $seasonId;
+        $season->number = $seasonNumber;
 
         $episode = ObjectFactory::createEpisode();
-        $episode->id = $episodeId;
+        $episode->number = $episodeNumber;
 
         $episode->url = StreamingServiceHelper::getStreamUrl(
             $this->tag,
             $show->id,
-            $season->id,
-            $episode->id,
+            $season->number,
+            $episode->number,
             Constants::STREAMING_TECH_RANK[0],
         );
         // TODO: Find the right way to get streaming tech
@@ -307,8 +307,8 @@ abstract class StreamingService
 
         return $this->executeEpisodeVideo(
             $episodeVideoCriteria["showId"],
-            $episodeVideoCriteria["seasonId"],
-            $episodeVideoCriteria["episodeId"],
+            $episodeVideoCriteria["seasonNumber"],
+            $episodeVideoCriteria["episodeNumber"],
             $episodeVideoCriteria["streamingTechnology"],
             $episodeVideoCriteria["extraArgs"],
             $episodeVideoCriteria["queryParams"],
@@ -317,8 +317,8 @@ abstract class StreamingService
 
     public function executeEpisodeVideo(
         string $showId,
-        string $seasonId,
-        string $episodeId,
+        int $seasonNumber,
+        int $episodeNumber,
         string $streamingTechnology,
         array $queryParams = [],
         array $extraArgs = [],
@@ -327,15 +327,15 @@ abstract class StreamingService
         $show->id = $showId;
 
         $season = ObjectFactory::createSeason();
-        $season->id = $seasonId;
+        $season->number = $seasonNumber;
 
         $episode = ObjectFactory::createEpisode();
-        $episode->id = $episodeId;
+        $episode->number = $episodeNumber;
 
         $episode = $this->executeEpisodeInfo(
             $show->id,
-            $season->id,
-            $episode->id,
+            $season->number,
+            $episode->number,
             true,
         );
 
@@ -346,9 +346,9 @@ abstract class StreamingService
         // Unsure about removing completely the args when requesting
         // the manifest, as when using filename, there are no extraArgs
         return $streamingTechnology->getVideo(
+            $show,
+            $season,
             $episode,
-            $showId,
-            $seasonId,
             $extraArgs,
             $queryParams,
         );

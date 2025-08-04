@@ -220,8 +220,11 @@ final class Telequebec extends StreamingService
         }
     }
 
-    private function parseMovieSeason(Season $season, array $response): void
-    {
+    private function parseMovieSeason(
+        Show $show,
+        Season $season,
+        array $response,
+    ): void {
         $asset = $response["data"]["asset"];
 
         $season->id = (string) $asset["id"];
@@ -246,10 +249,13 @@ final class Telequebec extends StreamingService
         $season->episodes[] = $episode;
     }
 
-    private function parseSerieBlock(Season $season, array $block): void
-    {
+    private function parseSerieBlock(
+        Show $show,
+        Season $season,
+        array $block,
+    ): void {
         foreach ($block["widgets"][0]["playlist"]["contents"] as $s) {
-            if ((int) $season->id === $s["season_number"]) {
+            if ($season->number === $s["season_number"]) {
                 $season->id = (string) $s["id"];
                 $season->title = $s["name"];
                 $season->number = $s["season_number"];
@@ -263,73 +269,53 @@ final class Telequebec extends StreamingService
         }
     }
 
-    private function parseSerieEpisodes(
-        Season $season,
-        array $block,
-        ?string $showId,
-    ): void {
-        // If the needed season is the same as the default one in the Show response
-        $isFirstSeason =
-            $season->id ===
-            $block["widgets"][0]["playlist"]["contents"][0]["season_number"];
+    private function retrieveSerieEpisodes(Show $show, Season $season): void
+    {
+        // parseSerieBlock hasn't seen season block yet
+        if (empty($season->id)) {
+            return;
+        }
 
-        if ($isFirstSeason) {
-            // Traverse each episode in the season
-            foreach ($block["widgets"][0]["playlist"]["contents"] as $e) {
-                $episode = ObjectFactory::createEpisode();
+        // Request /episodes for the specific season
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getSerieEpisodesUrl($show, $season),
+                $this->getSerieEpisodesParameters($show, $season),
+                $this->getSerieEpisodesHeaders($show, $season),
+            ),
+            true,
+        );
 
-                $episode->id = (string) $e["id"];
-                $episode->title = $e["original_name"];
-                $episode->number = $e["episode_number"];
-                $episode->shortDescription = $episode->fullDescription =
-                    $e["short_description"];
-                $episode->imageCard = $e["image"]["url"];
+        foreach ($response["data"] as $e) {
+            $episode = ObjectFactory::createEpisode();
 
-                $episode->provider = $this->tag;
+            $episode->id = (string) $e["id"];
+            $episode->title = $e["original_name"];
+            $episode->number = $e["episode_number"];
+            $episode->shortDescription = $episode->fullDescription =
+                $e["short_description"];
+            $episode->imageCard = $e["image"]["url"];
 
-                $season->episodes[] = $episode;
-            }
-        } else {
-            // Request /episodes for the specific season
-            $response = json_decode(
-                RequestHelper::get(
-                    $this->getSerieEpisodesUrl($showId, $season->id),
-                    $this->getSerieEpisodesParameters($showId, $season->id),
-                    $this->getSerieEpisodesHeaders($showId, $season->id),
-                ),
-                true,
-            );
+            $episode->provider = $this->tag;
 
-            foreach ($response["data"] as $e) {
-                $episode = ObjectFactory::createEpisode();
-
-                $episode->id = (string) $e["id"];
-                $episode->title = $e["original_name"];
-                $episode->number = $e["episode_number"];
-                $episode->shortDescription = $episode->fullDescription =
-                    $e["short_description"];
-                $episode->imageCard = $e["image"]["url"];
-
-                $episode->provider = $this->tag;
-
-                $season->episodes[] = $episode;
-            }
+            $season->episodes[] = $episode;
         }
     }
 
-    private function parseSeasonSeries(Season $season, array $response): void
-    {
-        $showId = (string) $response["data"]["asset"]["id"];
-
+    private function parseSeasonSeries(
+        Show $show,
+        Season $season,
+        array $response,
+    ): void {
         foreach ($response["data"]["screen"]["blocks"] as $block) {
             $blockType = $block["widgets"][0]["playlist"]["type"];
 
             if ($blockType === "seasons") {
-                $this->parseSerieBlock($season, $block);
+                $this->parseSerieBlock($show, $season, $block);
             }
 
             if ($blockType === "episodes") {
-                $this->parseSerieEpisodes($season, $block, $showId);
+                $this->retrieveSerieEpisodes($show, $season, $block);
             }
         }
     }
@@ -349,9 +335,8 @@ final class Telequebec extends StreamingService
         $type = $response["data"]["asset"]["type"];
 
         match ($type) {
-            "movies" => $this->parseMovieSeason($season, $response),
-            "series" => $this->parseSeasonSeries($season, $response),
-            "default" => ($season->id = ""), // TODO: FIXME
+            "movies" => $this->parseMovieSeason($show, $season, $response),
+            "series" => $this->parseSeasonSeries($show, $season, $response),
         };
     }
 
@@ -542,12 +527,10 @@ final class Telequebec extends StreamingService
 
     //region New functions
 
-    private function getSeasonEpisodesUrl(
-        string $showId,
-        string $seasonId,
-    ): string {
+    private function getSeasonEpisodesUrl(Show $show, Season $season): string
+    {
         return Config::TELEQUEBEC_URL_SEASON_EPISODES_INFO .
-            join("/", [$showId, "season", $seasonId, "episodes"]);
+            join("/", [$show->id, "season", $season->id, "episodes"]);
     }
 
     private function getSeasonEpisodesParameters(
@@ -562,24 +545,20 @@ final class Telequebec extends StreamingService
         return $this->getShowHeaders($show);
     }
 
-    private function getSerieEpisodesUrl(
-        string $showId,
-        string $seasonId,
-    ): string {
-        return $this->getSeasonEpisodesUrl($showId, $seasonId);
+    private function getSerieEpisodesUrl(Show $show, Season $season): string
+    {
+        return $this->getSeasonEpisodesUrl($show, $season);
     }
 
     private function getSerieEpisodesParameters(
-        string $showId,
-        string $seasonId,
+        Show $show,
+        Season $season,
     ): array {
         return Config::TELEQUEBEC_PARAMETERS_SEASON_EPISODES_INFO;
     }
 
-    private function getSerieEpisodesHeaders(
-        string $showId,
-        string $seasonId,
-    ): array {
+    private function getSerieEpisodesHeaders(Show $show, Season $season): array
+    {
         return Constants::HTTP_DEFAULT_HEADERS;
     }
 

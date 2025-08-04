@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Streaming\StreamingTechnology\Dash;
 
-use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Streaming\Helpers\RequestHelper;
 use App\Streaming\StreamingTechnology\StreamingTechnology;
 use App\Streaming\StreamingTechnology\Dash\Helpers\DashHelper;
@@ -12,9 +11,11 @@ use App\Streaming\StreamingTechnology\Dash\Classes\ManifestModifier;
 use App\Controllers\ManifestController;
 use App\Repositories\RedisRepository;
 use App\Factory\ObjectFactory;
-use App\Streaming\Classes\Episode;
 use App\Streaming\DRMTechnology\DRMTechnology;
 use App\Streaming\StreamingTechnology\Helpers\StreamingTechnologyHelper;
+use App\Streaming\Classes\Episode;
+use App\Streaming\Classes\Season;
+use App\Streaming\Classes\Show;
 
 /**
  * Google's adaptative streaming technology
@@ -42,19 +43,16 @@ final class Dash extends StreamingTechnology
 
     #[\Override]
     public function getVideo(
+        Show $show,
+        Season $season,
         Episode $episode,
-        string $showId,
-        string $seasonId,
         array $queryParams = [],
         array $args = [],
     ): string {
         $episodeStreamingDrmTechnologyIdentifier = StreamingTechnologyHelper::getEpisodeStreamingDRMTechnologyIdentifier(
-            $episode->provider,
-            $showId,
-            $seasonId,
-            $episode->id,
-            $episode->streamingTechnology->name,
-            $episode->streamingTechnology->drmTechnology->name,
+            $show,
+            $season,
+            $episode,
         );
 
         // That means that it is not requesting segments, but the manifest

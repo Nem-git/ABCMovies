@@ -11,8 +11,8 @@ final class StreamingServiceHelper
     public static function getStreamUrl(
         string $streamingServiceTag,
         string $showId,
-        string $seasonId,
-        string $episodeId,
+        int $seasonNumber,
+        int $episodeNumber,
         string $tech,
     ): string {
         return $_ENV["PHP_BACKEND_URL"] .
@@ -21,8 +21,8 @@ final class StreamingServiceHelper
                 [
                 strtolower($streamingServiceTag),
                 $showId,
-                $seasonId,
-                $episodeId,
+                (string) $seasonNumber,
+                (string) $episodeNumber,
                 Constants::STREAMING_TECH_TO_FILENAME[$tech],
                 ]
             );
@@ -31,16 +31,16 @@ final class StreamingServiceHelper
     public static function getEpisodeDatabaseIdentifier(
         string $streamingServiceTag,
         string $showId,
-        string $seasonId,
-        string $episodeId,
+        int $seasonNumber,
+        int $episodeNumber,
     ): string {
         return join(
             "/",
             [
             strtolower($streamingServiceTag),
             $showId,
-            $seasonId,
-            $episodeId,
+            $seasonNumber,
+            $episodeNumber,
             ]
         );
     }

@@ -7,6 +7,8 @@ namespace App\Streaming\StreamingTechnology\Hls;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Streaming\StreamingTechnology\StreamingTechnology;
 use App\Streaming\Classes\Episode;
+use App\Streaming\Classes\Season;
+use App\Streaming\Classes\Show;
 
 /**
  * Apple's adaptative streaming technology
@@ -18,10 +20,10 @@ final class Hls extends StreamingTechnology
 
     #[\Override]
     public function getVideo(
-        Request $request,
+        Show $show,
+        Season $season,
         Episode $episode,
-        string $showId,
-        string $seasonId,
+        array $queryParams = [],
         array $args = [],
     ): string {
         return "";
