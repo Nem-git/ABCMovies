@@ -276,16 +276,20 @@ abstract class StreamingService
         $episode = ObjectFactory::createEpisode();
         $episode->number = $episodeNumber;
 
-        $episode->url = StreamingServiceHelper::getStreamUrl(
-            $this->tag,
-            $show->id,
-            $season->number,
-            $episode->number,
-            Constants::STREAMING_TECH_RANK[0],
-        );
-        // TODO: Find the right way to get streaming tech
-
         $this->retrieveEpisode($show, $season, $episode, $stream);
+
+        // Only sets the episode url if you don't want to stream right now
+        // as it will fuck up the episode->url given in the retrieveEpisode method
+        if (!$stream) {
+            // TODO: Find the right way to get streaming tech
+            $episode->url = StreamingServiceHelper::getStreamUrl(
+                $this->tag,
+                $show->id,
+                $season->number,
+                $episode->number,
+                Constants::STREAMING_TECH_RANK[0],
+            );
+        }
 
         return $episode;
     }

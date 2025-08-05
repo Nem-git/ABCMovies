@@ -9,22 +9,11 @@ final class Config
     public const API_URL = "https://beacon.playback.api.brightcove.com/telequebec/api/";
     public const ASSETS_URL = self::API_URL . "assets/";
 
+    // Types: web,Android,iOS,appletv,Firetv,Samsung,androidtv
     public const DEFAULT_PARAMETERS = [
         "device_layout" => "web",
         "device_type" => "web",
     ];
-
-    // Brightsight DHCP UUID
-    // Don't know if it is different per device
-    public const DUID = "2a0e9037-76fc-4d51-858f-7f7127afec44";
-
-    // Retrieved from config.json
-    public const ACCOUNT_ID = "6101674910001";
-    public const POLICY_KEY = "BCpkADawqM2A4ZomkTDWD1LdUfsOmlQ_3Xi0TnQ58f8fhbLfO-_gdBd1jjmWSlhia8NfnpwVmoEF2-sHbJe8DuwnEUh7QUobKZptq-5pgp3eObByOvRsYRyor9RqMcqPMcV-Pj-XTuZNiIm3agaV3huSRu8by_g945jTng";
-
-    // Episode info:
-    // 3515: Stream ID retrieved from
-    // https://beacon.playback.api.brightcove.com/telequebec/api/assets/28634/streams/3515?device_type=web&device_layout=web
 
     public const DEFAULT_SEASON_NUMBER = 1; // To use when it is not a movies-type
     public const DEFAULT_SEASON_TITLE = "Saison 1"; // Follows the naming convention of Telequebec
@@ -78,8 +67,12 @@ final class Config
 
     public const TELEQUEBEC_PARAMETERS_EPISODE_INFO = self::DEFAULT_PARAMETERS;
 
-    public const TELEQUEBEC_HEADERS_EPISODE_INFO = [
-        "Accept" => "pk=" . self::POLICY_KEY,
+    public const TELEQUEBEC_URL_EPISODE_STREAM_INFO = self::ASSETS_URL;
+
+    public const TELEQUEBEC_URL_EPISODE_VIDEO = "https://edge.api.brightcove.com/playback/v1/accounts/";
+
+    public const TELEQUEBEC_HEADERS_EPISODE_VIDEO = [
+        "Accept" => "pk=",
     ];
 
     // Stream URL
@@ -102,13 +95,5 @@ final class Config
 
     public const TELEQUEBEC_HEADERS_EPISODE_DOWNLOAD_LICENSE_INFO = [
         "x-dt-auth-token" => null,
-    ];
-
-    public const TELEQUEBEC_URL_ANONYMOUS_LOGIN =
-        self::API_URL . "account/anonymous_login";
-
-    public const TELEQUEBEC_PARAMETERS_ANONYMOUS_LOGIN = [
-        "device_type" => "web",
-        "duid" => self::DUID,
     ];
 }

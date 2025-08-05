@@ -33,18 +33,19 @@ final class StreamingTechnologyHelper
         Season $season,
         Episode $episode,
     ): string {
-        return strtolower(
-            join(
-                "-",
-                [
-                $episode->provider,
-                $show->id,
-                $season->number,
-                $episode->number,
-                $episode->streamingTechnology->name,
-                $episode->streamingTechnology->drmTechnology->name,
-                ]
-            ),
-        );
+        $id = [
+            $episode->provider,
+            $show->id,
+            $season->number,
+            $episode->number,
+            $episode->streamingTechnology->name,
+        ];
+
+        // Only add the drm IF the content is DRM protected
+        if (isset($episode->streamingTechnology->drmTechnology)) {
+            $id[] = $episode->streamingTechnology->drmTechnology->name;
+        }
+
+        return strtolower(join("-", $id));
     }
 }

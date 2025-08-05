@@ -39,7 +39,7 @@ final class Episode
     public string $provider;
 
     /**
-     * Download link
+     * Download link. Not only used to show local download link, but also streaming service download link
      */
     public string $url;
 

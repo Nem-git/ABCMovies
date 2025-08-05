@@ -16,13 +16,18 @@ final class Constants
     public const STREAMING_TECH_TO_FILENAME = [
         "dash" => "manifest.mpd",
         "hls" => "master.m3u8",
+        "mp4" => "video.mp4",
     ];
 
     public const WORD_TO_STREAMING_TECH = [
         "dash" => "dash",
         "manifest.mpd" => "dash",
+        "urn:mpeg:dash:profile:isoff-live:2011" => "dash",
+        "application/dash+xml" => "dash",
         "hls" => "hls",
         "master.m3u8" => "hls",
+        "application/x-mpegurl" => "hls",
+        "mp4" => "mp4",
     ];
 
     public const STREAMING_TECH_RANK = ["dash", "hls", "mp4", "smooth"];

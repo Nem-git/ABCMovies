@@ -238,7 +238,7 @@ final class Telequebec extends StreamingService
         $episode = ObjectFactory::createEpisode();
 
         $episode->id = $season->id; // TODO: Doesn't make sense, but idk
-        $episode->title = $season->title;
+        $episode->title = $asset["original_name"];
         $episode->number = Config::DEFAULT_EPISODE_NUMBER; // TODO: FIXME
         $episode->shortDescription = $season->shortDescription;
         $episode->fullDescription = $season->fullDescription;
@@ -325,9 +325,9 @@ final class Telequebec extends StreamingService
     {
         $response = json_decode(
             RequestHelper::get(
-                $this->getSeasonUrl($show, $season),
-                $this->getSeasonParameters($show, $season),
-                $this->getSeasonHeaders($show, $season),
+                $this->getShowUrl($show, $season),
+                $this->getShowParameters($show, $season),
+                $this->getShowHeaders($show, $season),
             ),
             true,
         );
@@ -340,6 +340,102 @@ final class Telequebec extends StreamingService
         };
     }
 
+    private function parseMovieEpisode(Episode $episode, array $asset): void
+    {
+        $episode->number = Config::DEFAULT_EPISODE_NUMBER;
+    }
+
+    private function parseSerieEpisode(Episode $episode, array $asset): void
+    {
+        $episode->number = $asset["episode_number"];
+    }
+
+    private function parseEpisode(Episode $episode, array $response): void
+    {
+        $asset = $response["data"]["asset"];
+        $type = $asset["type"];
+
+        $episode->id = (string) $asset["id"];
+        $episode->title = $asset["original_name"];
+        $episode->shortDescription = $asset["short_description"];
+        $episode->fullDescription = $asset["long_description"];
+        $episode->imageCard = $asset["images"]["square"]["url"];
+
+        $episode->containsDrm =
+            $asset["video"]["streams"]["encryption"] !== "open";
+
+        $episode->provider = $this->tag;
+
+        match ($type) {
+            "movies" => $this->parseMovieEpisode($episode, $asset),
+            "episodes" => $this->parseSerieEpisode($episode, $asset),
+        };
+
+        // TODO: Add streaming tech scanning
+    }
+
+    private function parseStreamingTechnologies(
+        Episode $episode,
+        array $sources,
+    ) {
+        // Parses the sources to retrieve all available streaming techs
+        foreach ($sources as $source) {
+            // String that indicates the streaming tech
+            $definingString = isset($source["type"])
+                ? strtolower($source["type"])
+                : (isset($source["container"])
+                    ? strtolower($source["container"])
+                    : "");
+
+            if (isset(Constants::WORD_TO_STREAMING_TECH[$definingString])) {
+                if (Constants::WORD_TO_STREAMING_TECH[$definingString] === "dash"
+                ) {
+                    $episode->streamingTechnology = ObjectFactory::createStreamingTechnology(
+                        Constants::WORD_TO_STREAMING_TECH[$definingString],
+                    );
+
+                    $episode->url = $source["src"];
+                    $episode->urlHeaders = [];
+
+                    // There shouldn't be any DRM
+                }
+            }
+        }
+    }
+
+    private function getEpisodeStreamInfo(
+        Episode $episode,
+        array $response,
+    ): void {
+        $streamId = $response["data"]["asset"]["video"]["streams"]["id"];
+
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getEpisodeStreamUrl($episode, $streamId),
+                $this->getEpisodeStreamParameters($episode, $streamId),
+                $this->getEpisodeStreamHeaders($episode, $streamId),
+            ),
+            true,
+        );
+
+        $stream = $response["data"]["stream"];
+
+        $streamUrl = $stream["url"];
+        $policyKey = $stream["video_provider_details"]["policy_key"];
+        $accountId = $stream["video_provider_details"]["account_id"];
+
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getEpisodeVideoUrl($accountId, $streamUrl),
+                $this->getEpisodeVideoParameters(),
+                $this->getEpisodeVideoHeaders($policyKey),
+            ),
+            true,
+        );
+
+        $this->parseStreamingTechnologies($episode, $response["sources"]);
+    }
+
     #[\Override]
     public function retrieveEpisode(
         Show $show,
@@ -347,14 +443,35 @@ final class Telequebec extends StreamingService
         Episode $episode,
         bool $stream = false,
     ): void {
-        $response = json_decode(
-            RequestHelper::get(
-                $this->getEpisodeUrl($show, $season, $episode),
-                $this->getEpisodeParameters($show, $season, $episode),
-                $this->getEpisodeHeaders($show, $season, $episode),
-            ),
-            true,
-        );
+        $this->retrieveSeason($show, $season);
+
+        foreach ($season->episodes as $e) {
+            if ($episode->number === $e->number) {
+                // Mirror the values from the season's episode to the original episode
+                $episode->id = $e->id;
+                $episode->title = $e->title;
+                $episode->number = $e->number;
+                $episode->shortDescription = $e->shortDescription;
+                $episode->fullDescription = $e->fullDescription;
+                $episode->imageCard = $e->imageCard;
+                $episode->provider = $e->provider;
+
+                $response = json_decode(
+                    RequestHelper::get(
+                        $this->getEpisodeUrl($show, $season, $e),
+                        $this->getEpisodeParameters($show, $season, $e),
+                        $this->getEpisodeHeaders($show, $season, $e),
+                    ),
+                    true,
+                );
+
+                $this->parseEpisode($episode, $response);
+
+                if ($stream) {
+                    $this->getEpisodeStreamInfo($episode, $response);
+                }
+            }
+        }
     }
 
     //endregion
@@ -501,32 +618,6 @@ final class Telequebec extends StreamingService
         return $this->getShowHeaders($show);
     }
 
-    private function getEpisodeUrl(
-        Show $show,
-        Season $season,
-        Episode $episode,
-    ): string {
-        return $this->getShowUrl($show);
-    }
-
-    private function getEpisodeParameters(
-        Show $show,
-        Season $season,
-        Episode $episode,
-    ): array {
-        return $this->getShowParameters($show);
-    }
-
-    private function getEpisodeHeaders(
-        Show $show,
-        Season $season,
-        Episode $episode,
-    ): array {
-        return $this->getShowHeaders($show);
-    }
-
-    //region New functions
-
     private function getSeasonEpisodesUrl(Show $show, Season $season): string
     {
         return Config::TELEQUEBEC_URL_SEASON_EPISODES_INFO .
@@ -545,6 +636,81 @@ final class Telequebec extends StreamingService
         return $this->getShowHeaders($show);
     }
 
+    private function getEpisodeUrl(
+        Show $show,
+        Season $season,
+        Episode $episode,
+    ): string {
+        return Config::TELEQUEBEC_URL_SHOW_INFO . $episode->id;
+    }
+
+    private function getEpisodeParameters(
+        Show $show,
+        Season $season,
+        Episode $episode,
+    ): array {
+        return $this->getShowParameters($show);
+    }
+
+    private function getEpisodeHeaders(
+        Show $show,
+        Season $season,
+        Episode $episode,
+    ): array {
+        return $this->getShowHeaders($show);
+    }
+
+    private function getEpisodeStreamUrl(
+        Episode $episode,
+        string $streamId,
+    ): string {
+        return Config::TELEQUEBEC_URL_EPISODE_STREAM_INFO .
+            $episode->id .
+            "/streams/" .
+            $streamId;
+    }
+
+    private function getEpisodeStreamParameters(
+        Episode $episode,
+        string $streamId,
+    ): array {
+        return Config::DEFAULT_PARAMETERS;
+    }
+
+    private function getEpisodeStreamHeaders(
+        Episode $episode,
+        string $streamId,
+    ): array {
+        return Constants::HTTP_DEFAULT_HEADERS;
+    }
+
+    private function getEpisodeVideoUrl(
+        string $accountId,
+        string $streamUrl,
+    ): string {
+        return Config::TELEQUEBEC_URL_EPISODE_VIDEO .
+            $accountId .
+            "/videos/" .
+            $streamUrl;
+    }
+
+    private function getEpisodeVideoParameters(): array
+    {
+        return [];
+    }
+
+    private function getEpisodeVideoHeaders(string $policyKey): array
+    {
+        $headers = array_merge(
+            Constants::HTTP_DEFAULT_HEADERS,
+            Config::TELEQUEBEC_HEADERS_EPISODE_VIDEO,
+        );
+
+        $headers["Accept"] .= $policyKey;
+
+        return $headers;
+    }
+
     private function getSerieEpisodesUrl(Show $show, Season $season): string
     {
         return $this->getSeasonEpisodesUrl($show, $season);
@@ -561,8 +727,6 @@ final class Telequebec extends StreamingService
     {
         return Constants::HTTP_DEFAULT_HEADERS;
     }
-
-    //endregion
 
     //endregion
 }

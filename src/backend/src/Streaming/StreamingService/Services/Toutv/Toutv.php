@@ -12,7 +12,6 @@ use App\Streaming\Classes\Show;
 use App\Streaming\Classes\Season;
 use App\Streaming\Classes\Episode;
 use App\Factory\ObjectFactory;
-use Error;
 
 /**
  * Tou.TV, Radio-Canada's streaming service
@@ -432,14 +431,12 @@ final class Toutv extends StreamingService
         $this->parseEpisodeDownloadStreamInfo($episode, $response);
     }
 
-    private function parseEpisodeFileInfo(
+    private function parseStreamingTechnologies(
         Episode $episode,
-        array $response,
-    ): void {
-        // TODO: Actually choose a streaming technology and don't just pick dash with widevine
-
+        array $availableTechs,
+    ) {
         // Parses the availableTechs for the available DRM and streaming techs
-        foreach ($response["availableTechs"] as $streamingTechnology) {
+        foreach ($availableTechs as $streamingTechnology) {
             if (array_keys(
                 Constants::WORD_TO_STREAMING_TECH,
                 $streamingTechnology["name"],
@@ -460,6 +457,18 @@ final class Toutv extends StreamingService
                 }
             }
         }
+    }
+
+    private function parseEpisodeFileInfo(
+        Episode $episode,
+        array $response,
+    ): void {
+        // TODO: Actually choose a streaming technology and don't just pick dash with widevine
+
+        $this->parseStreamingTechnologies(
+            $episode,
+            $response["availableTechs"],
+        );
 
         $episode->id = $response["Metas"]["idMedia"];
         $episode->title = $response["Metas"]["Title"];

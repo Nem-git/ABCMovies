@@ -78,15 +78,14 @@ moov/trak/mdia/minf/stbl/stsd/[original_format]
 
 ### General
 
-- [ ] Add `.env` to `.gitignore` once feature-complete
 - [ ] Validate HTTP requests
 - [ ] Improve error detection and logging
 - [ ] Return proper HTTP errors (not malformed JSON)
 - [ ] Log API access
 - [ ] Add more try/catch blocks
-- [ ] Evaluate if `require_once` is the best practice for constants
 - [ ] Use Slim groups for organizing API endpoints
 - [ ] Log all database access
+- [ ] Subtitles/Captions class to support external subs urls
 
 ### `Fairplay.php`
 
@@ -95,11 +94,6 @@ moov/trak/mdia/minf/stbl/stsd/[original_format]
 ### `Playready.php`
 
 - [ ] Implement Playready DRM support
-
-### `StreamingService.php`
-
-- [ ] Add abstract methods for custom request headers (currently using `HTTP_DEFAULT_HEADERS`)
-- [ ] Make segment decryption optional
 
 ### `ObjectFactory.php`
 
@@ -144,19 +138,9 @@ moov/trak/mdia/minf/stbl/stsd/[original_format]
 
 ### General
 
-
-### `SearchPage.svelte`
-
-- [ ] Evaluate if auto-focus on hover is a good UX feature
-
-### `NavBar.svelte`
-
-- [ ] Fix layout bug with icon and text alignment
-
 ### `ShowPage.svelte`
 
 - [ ] Improve layout: intuitive positioning of image, title, description at top
-
 
 ### `+page.svelte` (Show page)
 
@@ -180,5 +164,3 @@ moov/trak/mdia/minf/stbl/stsd/[original_format]
 ```
 
 ---
-
-If you have more DRM research, commands, or workflows you'd like structured this way, feel free to drop them in!
