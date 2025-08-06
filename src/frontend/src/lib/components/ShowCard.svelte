@@ -4,7 +4,10 @@
     let { show }: { show: Show } = $props();
 </script>
 
-<a href={`/${show.provider.toLowerCase()}/${show.id}`} aria-label={show.title}>
+<a
+    href={`/${show.streamingServiceTag.toLowerCase()}/${show.id}`}
+    aria-label={show.title}
+>
     <div class="card">
         <img src={show.imageCard.replace("_Size_", "480")} alt={show.title} />
         <div class="card-info">
