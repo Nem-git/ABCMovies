@@ -49,8 +49,6 @@ final class Toutv extends StreamingService
 
                 $show->imageCard = $result["images"]["card"]["url"];
 
-                $show->provider = $this->tag;
-
                 if ($result["type"] == "Show") {
                     $results[] = $show;
                 }
@@ -68,8 +66,6 @@ final class Toutv extends StreamingService
                     $result["searchableText"]; // Totally false, this is not a description
 
                 $show->imageCard = $result["image"]["url"];
-
-                $show->provider = $this->tag;
 
                 if ($result["type"] == "Show") {
                     $results[] = $show;
@@ -105,7 +101,6 @@ final class Toutv extends StreamingService
             $show->imageBackground =
                 $recommendation["images"]["background"]["url"];
             $show->imageCard = $recommendation["images"]["card"]["url"];
-            $show->provider = $this->tag;
 
             $recommendations[] = $show;
         }
@@ -130,7 +125,6 @@ final class Toutv extends StreamingService
             $show->imageBackground =
                 $recommendation["images"]["background"]["url"];
             $show->imageCard = $recommendation["images"]["card"]["url"];
-            $show->provider = $this->tag;
 
             $recommendations[] = $show;
         }
@@ -183,6 +177,100 @@ final class Toutv extends StreamingService
         return $this->parseRecommendations($response);
     }
 
+    private function parseNextEpisodeInSeasonRecommendation(
+        Show $show,
+        Season $season,
+        Episode $episode,
+        array $response,
+    ): bool {
+        // This loop is for the next episode in the same season
+        foreach ($response["content"][0]["lineups"] as $s) {
+            foreach ($s["items"] as $episodeKey => $e) {
+                if ($s["seasonNumber"] === $season->number) {
+                    if ($e["episodeNumber"] === $episode->number) {
+                        if (isset($s["items"][$episodeKey + 1])) {
+                            $nextEpisode = $s["items"][$episodeKey + 1];
+
+                            $episode->id = (string) $nextEpisode["idMedia"];
+                            $episode->title = $nextEpisode["title"];
+                            $episode->number = $nextEpisode["episodeNumber"];
+                            $episode->shortDescription = $episode->fullDescription =
+                                $nextEpisode["description"] ?? "";
+                            $episode->imageCard =
+                                $nextEpisode["images"]["card"]["url"];
+
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function parseFirstEpisodeInNextSeasonRecommendation(
+        Show $show,
+        Season $season,
+        Episode $episode,
+        array $response,
+    ): bool {
+        // This loop is for retrieving the next season's first episode
+        foreach ($response["content"][0]["lineups"] as $seasonKey => $s) {
+            if ($s["seasonNumber"] === $season->number) {
+                if (isset($response["content"][0]["lineups"][$seasonKey + 1])) {
+                    $nextSeason =
+                        $response["content"][0]["lineups"][$seasonKey + 1];
+                    foreach ($nextSeason["items"] as $e) {
+                        // Don't recommend Trailers
+                        if ($e["type"] !== "Trailer") {
+                            $season->number = $nextSeason["seasonNumber"];
+
+                            $episode->id = (string) $e["idMedia"];
+                            $episode->title = $e["title"];
+                            $episode->number = $e["episodeNumber"];
+                            $episode->shortDescription = $episode->fullDescription =
+                                $e["description"] ?? "";
+                            $episode->imageCard = $e["images"]["card"]["url"];
+
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function parseFirstEpisodeInFirstSeasonRecommendation(
+        Show $show,
+        Season $season,
+        Episode $episode,
+        array $response,
+    ): bool {
+        $firstSeason = $response["content"][0]["lineups"][0];
+
+        $season->number = $firstSeason["seasonNumber"];
+
+        // Returns the first episode of the show
+        foreach ($firstSeason["items"] as $e) {
+            // Don't recommend Trailers
+            if ($e["type"] !== "Trailer") {
+                $episode->id = (string) $e["idMedia"];
+                $episode->title = $e["title"];
+                $episode->number = $e["episodeNumber"];
+                $episode->shortDescription = $episode->fullDescription =
+                    $e["description"] ?? "";
+                $episode->imageCard = $e["images"]["card"]["url"];
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     // This is totally wrong and I shouldn't do this, but the way I structured my functions made me do it
     #[\Override]
     public function retrieveNextEpisodeRecommendation(
@@ -220,71 +308,37 @@ final class Toutv extends StreamingService
         // If that's not possible, give back the first episode of the next season
         // If you're at the end of the show, recommend the first show recommendation
 
-        // This loop is for the next episode in the same season
-        foreach ($response["content"][0]["lineups"] as $season) {
-            foreach ($season["items"] as $episodeKey => $e) {
-                if ($season["seasonNumber"] === $season->number) {
-                    if ($e["episodeNumber"] === $episode->number) {
-                        if (isset($season["items"][$episodeKey + 1])) {
-                            $nextEpisode = $season["items"][$episodeKey + 1];
-
-                            $episode->id = (string) $nextEpisode["idMedia"];
-                            $episode->title = $nextEpisode["title"];
-                            $episode->number = $nextEpisode["episodeNumber"];
-                            $episode->shortDescription = $episode->fullDescription =
-                                $nextEpisode["description"] ?? "";
-                            $episode->imageCard =
-                                $nextEpisode["images"]["card"]["url"];
-                            $episode->provider = $this->tag;
-
-                            return $episode;
-                        }
-                    }
-                }
-            }
+        if ($this->parseNextEpisodeInSeasonRecommendation(
+            $show,
+            $season,
+            $episode,
+            $response,
+        )
+        ) {
+            return $episode;
         }
 
-        // This loop is for retrieving the next season's first episode
-        foreach ($response["content"][0]["lineups"] as $seasonKey => $season) {
-            if ($season["seasonNumber"] === $season->number) {
-                if (isset($response["content"][0]["lineups"][$seasonKey + 1])) {
-                    $nextSeason =
-                        $response["content"][0]["lineups"][$seasonKey + 1];
-                    foreach ($nextSeason["items"] as $e) {
-                        $episode->id = (string) $e["idMedia"];
-                        $episode->title = $e["title"];
-                        $episode->number = $e["episodeNumber"];
-                        $episode->shortDescription = $episode->fullDescription =
-                            $e["description"] ?? "";
-                        $episode->imageCard = $e["images"]["card"]["url"];
-                        $episode->provider = $this->tag;
-
-                        // Don't recommend Trailers
-                        if ($e["type"] !== "Trailer") {
-                            return $episode;
-                        }
-                    }
-                }
-            }
+        if ($this->parseFirstEpisodeInNextSeasonRecommendation(
+            $show,
+            $season,
+            $episode,
+            $response,
+        )
+        ) {
+            return $episode;
         }
 
-        // Returns the first episode of the show
-        foreach ($response["content"][0]["lineups"][0]["items"] as $e) {
-            $episode->id = (string) $e["idMedia"];
-            $episode->title = $e["title"];
-            $episode->number = $e["episodeNumber"];
-            $episode->shortDescription = $episode->fullDescription =
-                $e["description"] ?? "";
-            $episode->imageCard = $e["images"]["card"]["url"];
-            $episode->provider = $this->tag;
-
-            // Don't recommend Trailers
-            if ($e["type"] !== "Trailer") {
-                return $episode;
-            }
+        if ($this->parseFirstEpisodeInFirstSeasonRecommendation(
+            $show,
+            $season,
+            $episode,
+            $response,
+        )
+        ) {
+            return $episode;
         }
 
-        return $episode;
+        return ObjectFactory::createEpisode();
     }
 
     #[\Override]
@@ -308,14 +362,12 @@ final class Toutv extends StreamingService
         $show->year = (int) explode("-", $releaseDate ? $releaseDate : "")[0]; // The first number being the year
 
         $show->imageBackground = $response["images"]["background"]["url"] ?? "";
-        $show->provider = $this->tag;
 
         foreach ($response["content"][0]["lineups"] as $responseSeason) {
             $season = ObjectFactory::createSeason();
             $season->id = (string) $responseSeason["seasonNumber"]; // Toutv doesn't have a ID, except URL
             $season->title = $responseSeason["title"];
             $season->number = $responseSeason["seasonNumber"];
-            $season->provider = $this->tag;
 
             $show->seasons[] = $season;
         }
@@ -341,7 +393,6 @@ final class Toutv extends StreamingService
                 $season->title = $responseSeason["title"];
                 $season->fullDescription = $season->shortDescription =
                     $response["structuredMetadata"]["abstract"];
-                $season->provider = $this->tag;
 
                 foreach ($responseSeason["items"] as $responseEpisode) {
                     $episode = ObjectFactory::createEpisode();
@@ -353,14 +404,14 @@ final class Toutv extends StreamingService
                         $responseEpisode["description"] ?? "";
                     $episode->imageCard =
                         $responseEpisode["images"]["card"]["url"];
-                    $episode->provider = $this->tag;
 
                     // Don't add Trailers
                     if ($responseEpisode["type"] !== "Trailer") {
                         $season->episodes[] = $episode;
                     }
                 }
-                return; // If it enters the if, that's the only time it will
+
+                break; // If it enters the if, that's the only time it will
             }
         }
     }
@@ -384,7 +435,6 @@ final class Toutv extends StreamingService
         $episode->id = $response["content.mediaId"];
         $episode->title = $response["content.title"];
         $episode->number = (int) $response["content.episode"];
-        $episode->provider = $this->tag;
 
         if ($stream) {
             $this->getEpisodeStreamInfo($episode);
