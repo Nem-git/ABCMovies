@@ -58,7 +58,7 @@ final class Shell extends SegmentDecryptor
         string $initContent,
         string $segmentContent,
         array $decryptionKeys,
-    ): string|false {
+    ): string {
         $encryptedSegmentFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_E_");
         $initSegmentFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_I_");
         $decryptedSegmentFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_D_");
@@ -93,7 +93,7 @@ final class Shell extends SegmentDecryptor
         string $initContent,
         string $segmentContent,
         array $decryptionKeys,
-    ): string|false {
+    ): string {
         $encryptedSegmentFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_E_");
         $decryptedSegmentFilePath = tempnam($_ENV["TEMP_DIR"], "ABC_D_");
 
@@ -124,41 +124,41 @@ final class Shell extends SegmentDecryptor
     /**
      * Remove unnecessary/DRM atoms from the media segment
      */
-    private function removeDrmMediaContent(string $content): string|false
-    {
-        $mp4Info = BentoHelper::getMp4Info($content);
+    // private function removeDrmMediaContent(string $content): string
+    // {
+    //     $mp4Info = BentoHelper::getMp4Info($content);
 
-        foreach ($mp4Info as $atom) {
-            // Loop through atoms in moov
-            if ($atom["name"] === "moov") {
-                BentoHelper::removeAtom($content, [$atom["name"]]);
-                // foreach ($atom["children"] as $moovChildren) {
-                //     // Retrieve all the PSSH's
-                //     if ($moovChildren["name"] === "pssh") {
-                //         $content = BentoHelper::removeAtom(
-                //             $content,
-                //             [
-                //             $atom["name"],
-                //             $moovChildren["name"],
-                //             ]
-                //         );
-                //     }
+    //     foreach ($mp4Info as $atom) {
+    //         // Loop through atoms in moov
+    //         if ($atom["name"] === "moov") {
+    //             BentoHelper::removeAtom($content, [$atom["name"]]);
+    //             // foreach ($atom["children"] as $moovChildren) {
+    //             //     // Retrieve all the PSSH's
+    //             //     if ($moovChildren["name"] === "pssh") {
+    //             //         $content = BentoHelper::removeAtom(
+    //             //             $content,
+    //             //             [
+    //             //             $atom["name"],
+    //             //             $moovChildren["name"],
+    //             //             ]
+    //             //         );
+    //             //     }
 
-                //     // Remove all the minfs (where most DRM data is stored)
-                //     // $stsd = BentoHelper::traverseToPath($atom, ["trak", "mdia", "minf", "stbl", "stsd"]);
+    //             //     // Remove all the minfs (where most DRM data is stored)
+    //             //     // $stsd = BentoHelper::traverseToPath($atom, ["trak", "mdia", "minf", "stbl", "stsd"]);
 
-                //     // TODO: Fix the mess that is merging the cleaned init with the segment
-                // }
-            }
-        }
+    //             //     // TODO: Fix the mess that is merging the cleaned init with the segment
+    //             // }
+    //         }
+    //     }
 
-        return $content;
-    }
+    //     return $content;
+    // }
 
     /**
      * Remove unnecessary/DRM atoms from the init segment
      */
-    private function removeDrmInitContent(string $initContent): string|false
+    private function removeDrmInitContent(string $initContent): string
     {
         $mp4Info = BentoHelper::getMp4Info($initContent);
 

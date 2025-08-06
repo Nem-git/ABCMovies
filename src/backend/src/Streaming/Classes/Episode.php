@@ -34,9 +34,17 @@ final class Episode
     public string $imageCard;
 
     /**
-     * The streaming service's name
+     * Season Number
      */
-    public string $provider;
+    public int $seasonNumber;
+    /**
+     * Show ID
+     */
+    public string $showId;
+    /**
+     * The streaming service's tag
+     */
+    public string $streamingServiceTag;
 
     /**
      * Download link. Not only used to show local download link, but also streaming service download link
@@ -45,6 +53,8 @@ final class Episode
 
     /**
      * Headers required to use the download link
+     *
+     * @var array<string, string>
      */
     public array $urlHeaders;
 

@@ -51,8 +51,8 @@ final class SlimRequestParsingHelper
     ): array {
         return [
             "showId" => $args["show"] ?? "",
-            "seasonNumber" => (int) $args["season"] ?? null,
-            "episodeNumber" => (int) $args["episode"] ?? null,
+            "seasonNumber" => (int) ($args["season"] ?? null),
+            "episodeNumber" => (int) ($args["episode"] ?? null),
         ];
     }
 
@@ -71,7 +71,7 @@ final class SlimRequestParsingHelper
     ): array {
         return [
             "showId" => $args["show"] ?? "",
-            "seasonNumber" => (int) $args["season"] ?? null,
+            "seasonNumber" => (int) ($args["season"] ?? null),
         ];
     }
 
@@ -81,8 +81,8 @@ final class SlimRequestParsingHelper
     ): array {
         return [
             "showId" => $args["show"] ?? "",
-            "seasonNumber" => (int) $args["season"] ?? null,
-            "episodeNumber" => (int) $args["episode"] ?? null,
+            "seasonNumber" => (int) ($args["season"] ?? null),
+            "episodeNumber" => (int) ($args["episode"] ?? null),
         ];
     }
 
@@ -111,8 +111,8 @@ final class SlimRequestParsingHelper
 
         return [
             "showId" => $args["show"] ?? "",
-            "seasonNumber" => (int) $args["season"] ?? null,
-            "episodeNumber" => (int) $args["episode"] ?? null,
+            "seasonNumber" => (int) ($args["season"] ?? null),
+            "episodeNumber" => (int) ($args["episode"] ?? null),
             "streamingTechnology" => $streamingTechnology,
             "extraArgs" => $extraArgs,
             "queryParams" => $request->getQueryParams(),

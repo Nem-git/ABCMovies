@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Streaming\StreamingService;
 
 use Psr\Http\Message\ServerRequestInterface as Request;
-use App\Streaming\Helpers\RequestHelper;
 use App\Streaming\Classes\Show;
 use App\Streaming\Classes\Season;
 use App\Streaming\Classes\Episode;
@@ -56,6 +55,43 @@ abstract class StreamingService
 
     //endregion
 
+    //region Tagging
+
+    protected function tagShow(Show $show): void
+    {
+        $show->streamingServiceTag = $this->tag;
+
+        if (isset($show->seasons)) {
+            foreach ($show->seasons as $season) {
+                $this->tagSeason($show, $season);
+            }
+        }
+    }
+
+    protected function tagSeason(Show $show, Season $season): void
+    {
+        $season->streamingServiceTag = $this->tag;
+        $season->showId = $show->id;
+
+        if (isset($season->episodes)) {
+            foreach ($season->episodes as $episode) {
+                $this->tagEpisode($show, $season, $episode);
+            }
+        }
+    }
+
+    protected function tagEpisode(
+        Show $show,
+        Season $season,
+        Episode $episode,
+    ): void {
+        $episode->streamingServiceTag = $this->tag;
+        $episode->showId = $show->id;
+        $episode->seasonNumber = $season->number;
+    }
+
+    //endregion
+
     //region Search
 
     public function getSearchResults(Request $request, array $args): array
@@ -74,6 +110,11 @@ abstract class StreamingService
     public function executeSearchResults(string $query, int $amount): array
     {
         $searchResults = $this->retrieveSearchResults($query, $amount);
+
+        foreach ($searchResults as $show) {
+            $this->tagShow($show);
+        }
+
         return array_slice($searchResults, 0, $amount);
     }
 
@@ -107,6 +148,11 @@ abstract class StreamingService
             $show,
             $amount,
         );
+
+        foreach ($showRecommendations as $show) {
+            $this->tagShow($show);
+        }
+
         return array_slice($showRecommendations, 0, $amount);
     }
 
@@ -139,10 +185,15 @@ abstract class StreamingService
                 $this,
                 "retrieve" .
                 StreamingServiceHelper::getPascalCaseWord($type) .
-                "RecommendationsResults",
+                "Recommendations",
             ],
             [$amount],
         );
+
+        foreach ($recommendations as $show) {
+            $this->tagShow($show);
+        }
+
         return array_slice($recommendations, 0, $amount);
     }
 
@@ -159,14 +210,14 @@ abstract class StreamingService
             $args,
         );
 
-        return $this->executeGetNextRecommendation(
+        return $this->executeNextEpisodeRecommendation(
             $nextRecommendationCriteria["showId"],
             $nextRecommendationCriteria["seasonNumber"],
             $nextRecommendationCriteria["episodeNumber"],
         );
     }
 
-    public function executeGetNextRecommendation(
+    protected function executeNextEpisodeRecommendation(
         string $showId,
         int $seasonNumber,
         int $episodeNumber,
@@ -185,6 +236,8 @@ abstract class StreamingService
             $season,
             $episode,
         );
+
+        $this->tagEpisode($show, $season, $episode);
 
         return $nextEpisode;
     }
@@ -209,6 +262,8 @@ abstract class StreamingService
         $show->id = $showId;
 
         $this->retrieveShow($show);
+
+        $this->tagShow($show);
 
         return $show;
     }
@@ -239,6 +294,9 @@ abstract class StreamingService
         $season->number = $seasonNumber;
 
         $this->retrieveSeason($show, $season);
+
+        $this->tagSeason($show, $season);
+
         return $season;
     }
 
@@ -277,6 +335,8 @@ abstract class StreamingService
         $episode->number = $episodeNumber;
 
         $this->retrieveEpisode($show, $season, $episode, $stream);
+
+        $this->tagEpisode($show, $season, $episode);
 
         // Only sets the episode url if you don't want to stream right now
         // as it will fuck up the episode->url given in the retrieveEpisode method

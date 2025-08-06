@@ -53,8 +53,6 @@ final class Telequebec extends StreamingService
 
             $show->imageCard = $result["image"]["url"];
 
-            $show->provider = $this->tag;
-
             $results[] = $show;
         }
 
@@ -93,10 +91,35 @@ final class Telequebec extends StreamingService
 
                     $show->imageCard = $recommendation["image"]["url"];
 
-                    $show->provider = $this->tag;
-
                     $results[] = $show;
                 }
+            }
+        }
+
+        return $recommendations;
+    }
+
+    private function parseMediaRecommendations(
+        array $response,
+        int $amount,
+    ): array {
+        $recommendations = [];
+
+        $blocks = $response["data"]["screen"]["blocks"];
+
+        foreach ($blocks as $block) {
+            $contents = $block["widgets"][0]["playlist"]["contents"];
+
+            foreach ($contents as $recommendation) {
+                $episode = ObjectFactory::createEpisode();
+
+                $episode->id = (string) $recommendation["id"];
+                $episode->title = $recommendation["original_name"];
+                $episode->shortDescription = $episode->fullDescription =
+                    $recommendation["short_description"];
+                $episode->imageCard = $recommendation["image"]["url"];
+
+                $recommendations[] = $episode;
             }
         }
 
@@ -106,8 +129,6 @@ final class Telequebec extends StreamingService
     #[\Override]
     public function retrieveMovieRecommendations(int $amount): array
     {
-        $recommendations = [];
-
         $response = json_decode(
             RequestHelper::get(
                 $this->getMovieRecommendationsUrl($amount),
@@ -117,14 +138,14 @@ final class Telequebec extends StreamingService
             true,
         );
 
+        $recommendations = $this->parseMediaRecommendations($response, $amount);
+
         return $recommendations;
     }
 
     #[\Override]
     public function retrieveSerieRecommendations(int $amount): array
     {
-        $recommendations = [];
-
         $response = json_decode(
             RequestHelper::get(
                 $this->getSerieRecommendationsUrl($amount),
@@ -134,14 +155,14 @@ final class Telequebec extends StreamingService
             true,
         );
 
+        $recommendations = $this->parseMediaRecommendations($response, $amount);
+
         return $recommendations;
     }
 
     #[\Override]
     public function retrieveDocumentaryRecommendations(int $amount): array
     {
-        $recommendations = [];
-
         $response = json_decode(
             RequestHelper::get(
                 $this->getDocumentaryRecommendationsUrl($amount),
@@ -151,7 +172,107 @@ final class Telequebec extends StreamingService
             true,
         );
 
+        $recommendations = $this->parseMediaRecommendations($response, $amount);
+
         return $recommendations;
+    }
+
+    private function parseNextEpisodeInSeasonRecommendation(
+        Show $show,
+        Season $season,
+        Episode $episode,
+    ): bool {
+        $currentSeason = ObjectFactory::createSeason();
+
+        $currentSeason->number = $season->number;
+
+        $this->retrieveSeason($show, $currentSeason);
+
+        foreach ($currentSeason->episodes as $episodeKey => $e) {
+            if ($e->number === $episode->number) {
+                if (isset($currentSeason->episodes[$episodeKey + 1])) {
+                    $season->id = $currentSeason->id;
+                    $season->title = $currentSeason->title;
+                    $season->number = $currentSeason->number;
+                    $season->shortDescription =
+                        $currentSeason->shortDescription;
+                    $season->fullDescription = $currentSeason->fullDescription;
+                    $season->episodes = $currentSeason->episodes;
+
+                    $nextEpisode = $season->episodes[$episodeKey + 1];
+
+                    $episode->id = $nextEpisode->id;
+                    $episode->title = $nextEpisode->title;
+                    $episode->number = $nextEpisode->number;
+                    $episode->shortDescription = $nextEpisode->shortDescription;
+                    $episode->fullDescription = $nextEpisode->fullDescription;
+                    $episode->imageCard = $nextEpisode->imageCard;
+
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function parseFirstEpisodeInNextSeasonRecommendation(
+        Show $show,
+        Season $season,
+        Episode $episode,
+    ): bool {
+        foreach ($show->seasons as $seasonKey => $s) {
+            if ($s->number === $season->number) {
+                if (isset($show->seasons[$seasonKey + 1])) {
+                    $nextSeason = $show->seasons[$seasonKey + 1];
+
+                    $season->id = $nextSeason->id;
+                    $season->title = $nextSeason->title;
+                    $season->number = $nextSeason->number;
+
+                    $this->retrieveSeason($show, $season);
+
+                    $firstEpisode = $season->episodes[0];
+
+                    $episode->id = $firstEpisode->id;
+                    $episode->title = $firstEpisode->title;
+                    $episode->number = $firstEpisode->number;
+                    $episode->shortDescription =
+                        $firstEpisode->shortDescription;
+                    $episode->fullDescription = $firstEpisode->fullDescription;
+                    $episode->imageCard = $firstEpisode->imageCard;
+
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function parseFirstEpisodeInFirstSeasonRecommendation(
+        Show $show,
+        Season $season,
+        Episode $episode,
+    ): bool {
+        $firstSeason = $show->seasons[0];
+
+        $season->id = $firstSeason->id;
+        $season->title = $firstSeason->title;
+        $season->number = $firstSeason->number;
+
+        $this->retrieveSeason($show, $season);
+
+        $firstEpisode = $season->episodes[0];
+
+        $episode->id = $firstEpisode->id;
+        $episode->title = $firstEpisode->title;
+        $episode->number = $firstEpisode->number;
+        $episode->shortDescription = $firstEpisode->shortDescription;
+        $episode->fullDescription = $firstEpisode->fullDescription;
+        $episode->imageCard = $firstEpisode->imageCard;
+
+        return true;
     }
 
     // This is totally wrong and I shouldn't do this, but the way I structured my functions made me do it
@@ -161,9 +282,43 @@ final class Telequebec extends StreamingService
         Season $season,
         Episode $episode,
     ): Episode {
-        // Maybe I should just say that it always returns an episode
-        // so I wouldn't have to return an array (yuck) instead of an
-        // object
+        // I have actually no idea how to comply with this function, because in this case I really need to have access
+        // to the show, season and episode. Having only the response will lead to nothing, because I do not have the
+        // episode, so I won't know what episode to look for. Maybe I should add some episode info in that function
+        // declaration, so that even if the streaming service doesn't implement the logic for you, you can still get the
+        // next episode
+        // So, this should give back the next episode in the season
+        // If that's not possible, give back the first episode of the next season
+        // If you're at the end of the show, recommend the first show recommendation
+
+        if ($this->parseNextEpisodeInSeasonRecommendation(
+            $show,
+            $season,
+            $episode,
+        )
+        ) {
+            return $episode;
+        }
+
+        $this->retrieveShow($show);
+
+        if ($this->parseFirstEpisodeInNextSeasonRecommendation(
+            $show,
+            $season,
+            $episode,
+        )
+        ) {
+            return $episode;
+        }
+
+        if ($this->parseFirstEpisodeInFirstSeasonRecommendation(
+            $show,
+            $season,
+            $episode,
+        )
+        ) {
+            return $episode;
+        }
 
         return ObjectFactory::createEpisode();
     }
@@ -194,15 +349,12 @@ final class Telequebec extends StreamingService
         $show->imageCard = $response["images"]["square"]["url"];
         $show->imageBackground = $response["images"]["banner"]["url"]; // Should replace with backdrop but it's rare
 
-        $show->provider = $this->tag;
-
         if ($response["type"] === "movies") {
             $season = ObjectFactory::createSeason();
 
             $season->id = $show->id; // Because no season is created by TLQC in movies
             $season->title = Config::DEFAULT_SEASON_TITLE;
             $season->number = Config::DEFAULT_SEASON_NUMBER;
-            $season->provider = $this->tag;
 
             $show->seasons[] = $season;
         }
@@ -213,7 +365,6 @@ final class Telequebec extends StreamingService
                 $season->id = (string) $s["id"];
                 $season->title = $s["name"];
                 $season->number = $s["seasons_number"];
-                $season->provider = $this->tag;
 
                 $show->seasons[] = $season;
             }
@@ -233,8 +384,6 @@ final class Telequebec extends StreamingService
         $season->shortDescription = $asset["short_description"];
         $season->fullDescription = $asset["long_description"];
 
-        $season->provider = $this->tag;
-
         $episode = ObjectFactory::createEpisode();
 
         $episode->id = $season->id; // TODO: Doesn't make sense, but idk
@@ -243,8 +392,6 @@ final class Telequebec extends StreamingService
         $episode->shortDescription = $season->shortDescription;
         $episode->fullDescription = $season->fullDescription;
         $episode->imageCard = $asset["images"]["square"]["url"];
-
-        $episode->provider = $this->tag;
 
         $season->episodes[] = $episode;
     }
@@ -261,8 +408,6 @@ final class Telequebec extends StreamingService
                 $season->number = $s["season_number"];
                 $season->shortDescription = $season->fullDescription =
                     $s["original_name"];
-
-                $season->provider = $this->tag;
 
                 break;
             }
@@ -296,8 +441,6 @@ final class Telequebec extends StreamingService
                 $e["short_description"];
             $episode->imageCard = $e["image"]["url"];
 
-            $episode->provider = $this->tag;
-
             $season->episodes[] = $episode;
         }
     }
@@ -315,7 +458,7 @@ final class Telequebec extends StreamingService
             }
 
             if ($blockType === "episodes") {
-                $this->retrieveSerieEpisodes($show, $season, $block);
+                $this->retrieveSerieEpisodes($show, $season);
             }
         }
     }
@@ -325,9 +468,9 @@ final class Telequebec extends StreamingService
     {
         $response = json_decode(
             RequestHelper::get(
-                $this->getShowUrl($show, $season),
-                $this->getShowParameters($show, $season),
-                $this->getShowHeaders($show, $season),
+                $this->getSeasonUrl($show, $season),
+                $this->getSeasonParameters($show, $season),
+                $this->getSeasonHeaders($show, $season),
             ),
             true,
         );
@@ -337,6 +480,7 @@ final class Telequebec extends StreamingService
         match ($type) {
             "movies" => $this->parseMovieSeason($show, $season, $response),
             "series" => $this->parseSeasonSeries($show, $season, $response),
+            default => null,
         };
     }
 
@@ -364,11 +508,10 @@ final class Telequebec extends StreamingService
         $episode->containsDrm =
             $asset["video"]["streams"]["encryption"] !== "open";
 
-        $episode->provider = $this->tag;
-
         match ($type) {
             "movies" => $this->parseMovieEpisode($episode, $asset),
             "episodes" => $this->parseSerieEpisode($episode, $asset),
+            default => null,
         };
 
         // TODO: Add streaming tech scanning
@@ -454,7 +597,6 @@ final class Telequebec extends StreamingService
                 $episode->shortDescription = $e->shortDescription;
                 $episode->fullDescription = $e->fullDescription;
                 $episode->imageCard = $e->imageCard;
-                $episode->provider = $e->provider;
 
                 $response = json_decode(
                     RequestHelper::get(
@@ -519,12 +661,12 @@ final class Telequebec extends StreamingService
 
     private function getMovieRecommendationsUrl(int $amount): string
     {
-        return Config::TELEQUEBEC_URL_MOVIES_RECOMMENDATIONS;
+        return Config::TELEQUEBEC_URL_MOVIE_RECOMMENDATIONS;
     }
 
     private function getMovieRecommendationsParameters(int $amount): array
     {
-        $parameters = Config::TELEQUEBEC_PARAMETERS_MOVIES_RECOMMENDATIONS;
+        $parameters = Config::TELEQUEBEC_PARAMETERS_MOVIE_RECOMMENDATIONS;
         $parameters["pageSize"] = $amount;
         return $parameters;
     }
@@ -536,7 +678,7 @@ final class Telequebec extends StreamingService
 
     private function getSerieRecommendationsUrl(int $amount): string
     {
-        return Config::TELEQUEBEC_URL_SERIES_RECOMMENDATIONS;
+        return Config::TELEQUEBEC_URL_SERIE_RECOMMENDATIONS;
     }
 
     private function getSerieRecommendationsParameters(int $amount): array
@@ -551,7 +693,7 @@ final class Telequebec extends StreamingService
 
     private function getDocumentaryRecommendationsUrl(int $amount): string
     {
-        return Config::TELEQUEBEC_URL_DOCUMENTARIES_RECOMMENDATIONS;
+        return Config::TELEQUEBEC_URL_DOCUMENTARY_RECOMMENDATIONS;
     }
 
     private function getDocumentaryRecommendationsParameters(int $amount): array
@@ -561,30 +703,6 @@ final class Telequebec extends StreamingService
 
     private function getDocumentaryRecommendationsHeaders(int $amount): array
     {
-        return Constants::HTTP_DEFAULT_HEADERS;
-    }
-
-    private function getNextEpisodeRecommendationUrl(
-        Show $show,
-        Season $season,
-        Episode $episode,
-    ): string {
-        return $this->getSeasonUrl($show, $season);
-    }
-
-    private function getNextEpisodeRecommendationParameters(
-        Show $show,
-        Season $season,
-        Episode $episode,
-    ): array {
-        return $this->getSeasonParameters($show, $season);
-    }
-
-    private function getNextEpisodeRecommendationHeaders(
-        Show $show,
-        Season $season,
-        Episode $episode,
-    ): array {
         return Constants::HTTP_DEFAULT_HEADERS;
     }
 
@@ -614,24 +732,6 @@ final class Telequebec extends StreamingService
     }
 
     private function getSeasonHeaders(Show $show, Season $season): array
-    {
-        return $this->getShowHeaders($show);
-    }
-
-    private function getSeasonEpisodesUrl(Show $show, Season $season): string
-    {
-        return Config::TELEQUEBEC_URL_SEASON_EPISODES_INFO .
-            join("/", [$show->id, "season", $season->id, "episodes"]);
-    }
-
-    private function getSeasonEpisodesParameters(
-        Show $show,
-        Season $season,
-    ): array {
-        return $this->getShowParameters($show);
-    }
-
-    private function getSeasonEpisodesHeaders(Show $show, Season $season): array
     {
         return $this->getShowHeaders($show);
     }
@@ -713,14 +813,15 @@ final class Telequebec extends StreamingService
 
     private function getSerieEpisodesUrl(Show $show, Season $season): string
     {
-        return $this->getSeasonEpisodesUrl($show, $season);
+        return Config::TELEQUEBEC_URL_SERIE_EPISODES_INFO .
+            join("/", [$show->id, "season", $season->id, "episodes"]);
     }
 
     private function getSerieEpisodesParameters(
         Show $show,
         Season $season,
     ): array {
-        return Config::TELEQUEBEC_PARAMETERS_SEASON_EPISODES_INFO;
+        return Config::TELEQUEBEC_PARAMETERS_SERIE_EPISODES_INFO;
     }
 
     private function getSerieEpisodesHeaders(Show $show, Season $season): array

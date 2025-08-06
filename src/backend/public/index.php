@@ -160,7 +160,7 @@ $app->get(
         $streamingService = ObjectFactory::createStreamingService(
             strtoupper($args["streamingService"]),
         );
-        $show = $streamingService->getNextRecommendation($request, $args);
+        $show = $streamingService->getNextEpisodeRecommendation($request, $args);
         $response = SlimResponseHelper::response_json($show, $response);
         return $response;
     }

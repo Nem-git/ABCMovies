@@ -34,7 +34,7 @@ final class StreamingTechnologyHelper
         Episode $episode,
     ): string {
         $id = [
-            $episode->provider,
+            $episode->streamingServiceTag,
             $show->id,
             $season->number,
             $episode->number,

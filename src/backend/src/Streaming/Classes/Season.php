@@ -28,12 +28,18 @@ final class Season
     public string $shortDescription;
 
     /**
-     * The streaming service's name
+     * Show ID
      */
-    public string $provider;
+    public string $showId;
+    /**
+     * The streaming service's tag
+     */
+    public string $streamingServiceTag;
 
     /**
      * Entirety of episodes in the season
+     *
+     * @var Episode[]
      */
     public array $episodes;
 }

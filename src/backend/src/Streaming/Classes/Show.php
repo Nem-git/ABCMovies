@@ -36,12 +36,14 @@ final class Show
     public string $imageBackground;
 
     /**
-     * The streaming service's name
+     * The streaming service's tag
      */
-    public string $provider;
+    public string $streamingServiceTag;
 
     /**
      * Seasons in the show
+     *
+     * @var Season[]
      */
     public array $seasons;
 }
