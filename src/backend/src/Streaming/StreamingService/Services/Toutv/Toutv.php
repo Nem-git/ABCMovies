@@ -313,8 +313,7 @@ final class Toutv extends StreamingService
             $season,
             $episode,
             $response,
-        )
-        ) {
+        )) {
             return $episode;
         }
 
@@ -323,8 +322,7 @@ final class Toutv extends StreamingService
             $season,
             $episode,
             $response,
-        )
-        ) {
+        )) {
             return $episode;
         }
 
@@ -333,8 +331,7 @@ final class Toutv extends StreamingService
             $season,
             $episode,
             $response,
-        )
-        ) {
+        )) {
             return $episode;
         }
 
@@ -491,8 +488,7 @@ final class Toutv extends StreamingService
                 Constants::WORD_TO_STREAMING_TECH,
                 $streamingTechnology["name"],
                 strict: true,
-            )
-            ) {
+            )) {
                 if ($streamingTechnology["name"] === "dash") {
                     $episode->streamingTechnology = ObjectFactory::createStreamingTechnology(
                         $streamingTechnology["name"],
@@ -528,9 +524,7 @@ final class Toutv extends StreamingService
             $response["Metas"]["Description"] ?:
             $response["Metas"]["ShortDescription"] ?:
             "";
-        $episode->shortDescription = !empty(
-            $response["Metas"]["ShortDescription"]
-        )
+        $episode->shortDescription = !empty($response["Metas"]["ShortDescription"])
             ? $response["Metas"]["ShortDescription"]
             : $episode->fullDescription;
 
@@ -556,12 +550,126 @@ final class Toutv extends StreamingService
                         $parameter["value"];
                 }
                 if ($parameter["name"] === "widevineAuthToken") {
-                    $episode->streamingTechnology->drmTechnology->licenseHeaders[
-                        "x-dt-auth-token"
-                    ] = $parameter["value"];
+                    $episode->streamingTechnology->drmTechnology->licenseHeaders["x-dt-auth-token"] = $parameter["value"];
                 }
             }
         }
+    }
+
+    private function executeLoginAuthorize(): array
+    {
+        $response = RequestHelper::get(
+            Config::LOGIN_URL,
+            $this->getLoginParameters(),
+            Constants::HTTP_DEFAULT_HEADERS,
+            [
+                CURLOPT_HEADER => true,
+            ],
+        );
+
+        $body = $response["body"];
+
+        // Retrieve the internal JSON as string
+        preg_match(Config::LOGIN_SETTINGS_RE, $body, $matches);
+        $settings = json_decode($matches[1], true);
+
+        // Select stateProperties, which is in the transId
+        $explodedStateProperties = explode("=", $settings["transId"]);
+        $stateProperties = [
+            $explodedStateProperties[0] => $explodedStateProperties[1],
+        ];
+        $formattedStateProperties = RequestHelper::format_parameters(
+            $stateProperties,
+            false,
+        );
+        $parameters = ["tx" => $formattedStateProperties];
+
+        $headers = $response["headers"];
+        $cookies = $headers["set-cookie"];
+
+        return [$cookies, $parameters];
+    }
+
+    private function executeLoginSelfAsserted(
+        array $cookies,
+        array $parameters,
+    ): array {
+        $data = Config::LOGIN_SELF_ASSERTED_DATA;
+
+        $data["email"] = $_ENV["TOUTV_EMAIL"];
+        $data["password"] = $_ENV["TOUTV_PASSWORD"];
+
+        $headers = Config::LOGIN_SELF_ASSERTED_HEADERS;
+        $headers["Cookie"] = RequestHelper::format_cookies($cookies);
+
+        $headers["X-CSRF-TOKEN"] = $cookies["x-ms-cpim-csrf"];
+
+        $response = RequestHelper::post(
+            Config::LOGIN_SELF_ASSERTED_URL,
+            $parameters,
+            $headers,
+            [
+                CURLOPT_HEADER => true,
+            ],
+            $data,
+            "application/x-www-form-urlencoded",
+        );
+
+        $headers = $response["headers"];
+        $cookies += $headers["set-cookie"];
+
+        return [$cookies, $parameters];
+    }
+
+    private function executeLoginConfirmed(
+        array $cookies,
+        array $parameters,
+    ): array {
+        $headers = Config::LOGIN_CONFIRMED_HEADERS;
+        $headers["Cookie"] = RequestHelper::format_cookies($cookies);
+
+        $parameters["csrf_token"] = $cookies["x-ms-cpim-csrf"];
+
+        $response = RequestHelper::get(
+            Config::LOGIN_CONFIRMED_URL,
+            $parameters,
+            $headers,
+            [
+                CURLOPT_HEADER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+            ],
+        );
+
+        $redirectUrl = $response["redirectUrl"];
+        $headers = $response["headers"];
+        $cookies = $headers["set-cookie"];
+
+        print_r($redirectUrl);
+        echo "<br>";
+        echo "<br>";
+        print_r($cookies);
+
+        return [$cookies, $parameters];
+    }
+
+    private function login(): array
+    {
+        // GET_AUTHORISE
+        [$cookies, $parameters] = $this->executeLoginAuthorize();
+
+        // GET_SELF_ASSERTED
+        [$cookies, $parameters] = $this->executeLoginSelfAsserted(
+            $cookies,
+            $parameters,
+        );
+
+        // GET_ACCESS_TOKEN_MS (Confirmed)
+        [$cookies, $parameters] = $this->executeLoginConfirmed(
+            $cookies,
+            $parameters,
+        );
+
+        return [];
     }
 
     //endregion
@@ -793,6 +901,32 @@ final class Toutv extends StreamingService
         $headers["x-claims-token"] = "";
         $headers = array_merge(Constants::HTTP_DEFAULT_HEADERS, $headers);
         return $headers;
+    }
+
+    private function getLoginParameters(): array
+    {
+        $parameters = Config::LOGIN_PARAMETERS;
+
+        $parameters["redirect_uri"] = rawurlencode(Config::LOGIN_REDIRECT_URL);
+
+        $parameters["nonce"] = rawurlencode(Config::GET_LOGIN_NONCE());
+
+        $scope = "";
+
+        foreach (Config::LOGIN_SCOPE as $s) {
+            $scope .= $s . " ";
+        }
+
+        $parameters["scope"] = rawurlencode(rtrim($scope));
+
+        $parameters["state"] = $parameters["state_value"] = rawurlencode(
+            Config::GET_LOGIN_STATE(),
+        );
+        $parameters["code_challenge"] = rawurlencode(
+            Config::GET_CODE_CHALLENGE(),
+        );
+
+        return $parameters;
     }
 
     //endregion

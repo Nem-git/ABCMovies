@@ -23,6 +23,8 @@ services:
       - TEMP_DIR=/tmp/
       - 'PHP_BACKEND_URL=http://localhost:8080/api/' # External
       - 'PYTHON_BACKEND_URL=http://python_backend:8000/' # Internal
+      - TOUTV_EMAIL=
+      - TOUTV_PASSWORD=
   python_backend:
     ports:
       - '8000:8000'
