@@ -8,13 +8,13 @@ import { getSeasonUrl, getShowUrl } from "$lib/api";
 export const load: PageLoad = async ({ fetch, parent }) => {
     let { streamingServiceTag, showId, seasonNumber } = await parent();
 
-    let showPromise: Promise<Show> = fetch(
-        getShowUrl(streamingServiceTag, showId),
-    ).then((r: Response) => r.json());
+    let showPromise = fetch(getShowUrl(streamingServiceTag, showId)).then(
+        (r: Response): Promise<Show> => r.json(),
+    );
 
-    let seasonPromise: Promise<Season> = fetch(
+    let seasonPromise = fetch(
         getSeasonUrl(streamingServiceTag, showId, seasonNumber),
-    ).then((r: Response) => r.json());
+    ).then((r: Response): Promise<Season> => r.json());
 
     return {
         show: await showPromise,

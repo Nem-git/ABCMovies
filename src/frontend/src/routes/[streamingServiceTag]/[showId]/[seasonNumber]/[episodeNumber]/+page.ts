@@ -16,7 +16,9 @@ export const load: PageLoad = async ({ fetch, parent }) => {
         seasonNumber,
         episodeNumber,
     );
-    let episodePromise: Promise<Episode> = fetch(url).then((r) => r.json());
+    let episodePromise = fetch(url).then(
+        (r: Response): Promise<Episode> => r.json(),
+    );
 
     return {
         episode: await episodePromise,

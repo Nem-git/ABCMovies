@@ -32,7 +32,6 @@
 
     img {
         object-fit: cover;
-        height: 60vh;
     }
 
     .hero {
