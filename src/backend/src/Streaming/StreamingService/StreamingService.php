@@ -12,6 +12,7 @@ use App\Streaming\StreamingService\Helpers\StreamingServiceHelper;
 use App\Helpers\SlimRequestParsingHelper;
 use App\Config\Constants;
 use App\Factory\ObjectFactory;
+use App\Streaming\Classes\RecommendationType;
 
 abstract class StreamingService
 {
@@ -50,6 +51,10 @@ abstract class StreamingService
         Show $show,
         int $amount,
     ): array;
+    abstract public function retrieveMediaRecommendations(
+        string $type,
+        int $amount,
+    ): array;
     abstract public function retrieveMovieRecommendations(int $amount): array;
     abstract public function retrieveSerieRecommendations(int $amount): array;
     abstract public function retrieveDocumentaryRecommendations(
@@ -73,6 +78,12 @@ abstract class StreamingService
     //endregion
 
     //region Tagging
+
+    protected function tagRecommendationType(
+        RecommendationType $recommendationType,
+    ): void {
+        $recommendationType->streamingServiceTag = $this->tag;
+    }
 
     protected function tagShow(Show $show): void
     {
@@ -128,11 +139,17 @@ abstract class StreamingService
     {
         $searchResults = $this->retrieveSearchResults($query, $amount);
 
+        $searchResults = StreamingServiceHelper::removeDuplicateObjectsInArray(
+            $searchResults,
+        );
+
+        $searchResults = array_slice($searchResults, 0, $amount);
+
         foreach ($searchResults as $show) {
             $this->tagShow($show);
         }
 
-        return array_slice($searchResults, 0, $amount);
+        return $searchResults;
     }
 
     //endregion
@@ -144,7 +161,13 @@ abstract class StreamingService
     public function getRecommendationTypes(Request $request, array $args): array
     {
         // I should maybe add a ?type=movies kinda parameter
-        return $this->retrieveRecommendationTypes();
+        $recommendationTypes = $this->retrieveRecommendationTypes();
+
+        foreach ($recommendationTypes as $recommendationType) {
+            $this->tagRecommendationType($recommendationType);
+        }
+
+        return $recommendationTypes;
     }
 
     //endregion
@@ -176,16 +199,22 @@ abstract class StreamingService
             $amount,
         );
 
+        $showRecommendations = StreamingServiceHelper::removeDuplicateObjectsInArray(
+            $showRecommendations,
+        );
+
+        $showRecommendations = array_slice($showRecommendations, 0, $amount);
+
         foreach ($showRecommendations as $show) {
             $this->tagShow($show);
         }
 
-        return array_slice($showRecommendations, 0, $amount);
+        return $showRecommendations;
     }
 
     //endregion
 
-    //region Movies
+    //region Media
 
     public function getMediaRecommendations(
         Request $request,
@@ -207,21 +236,19 @@ abstract class StreamingService
         int $amount,
         string $type,
     ): array {
-        $recommendations = call_user_func_array(
-            [
-                $this,
-                "retrieve" .
-                StreamingServiceHelper::getPascalCaseWord($type) .
-                "Recommendations",
-            ],
-            [$amount],
+        $recommendations = $this->retrieveMediaRecommendations($type, $amount);
+
+        $recommendations = StreamingServiceHelper::removeDuplicateObjectsInArray(
+            $recommendations,
         );
+
+        $recommendations = array_slice($recommendations, 0, $amount);
 
         foreach ($recommendations as $show) {
             $this->tagShow($show);
         }
 
-        return array_slice($recommendations, 0, $amount);
+        return $recommendations;
     }
 
     //endregion

@@ -8,6 +8,9 @@ use App\Streaming\StreamingService\Helpers\StreamingServiceHelper;
 
 final class Config
 {
+    // TODO: Find a way to add collections
+    public const RECOMENDATION_TYPES = ["formats", "networks", "genres"];
+
     public const URL_SEARCH = "https://services.radio-canada.ca/ott/catalog/v2/toutv/search";
 
     public const PARAMETERS_SEARCH = [
@@ -33,6 +36,13 @@ final class Config
     public const URL_SHOW_RECOMMENDATIONS = "https://services.radio-canada.ca/ott/catalog/v2/toutv/show/";
 
     public const PARAMETERS_SHOW_RECOMMENDATIONS = [
+        "device" => "web",
+        "pageSize" => 0,
+    ];
+
+    public const URL_MEDIA_RECOMMENDATIONS = "https://services.radio-canada.ca/ott/catalog/v2/toutv/category/";
+
+    public const PARAMETERS_MEDIA_RECOMMENDATIONS = [
         "device" => "web",
         "pageSize" => 0,
     ];

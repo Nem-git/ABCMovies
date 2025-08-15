@@ -114,6 +114,11 @@ final class ObjectFactory
         return new \App\Streaming\Classes\Episode();
     }
 
+    public static function createRecommendationType(): \App\Streaming\Classes\RecommendationType
+    {
+        return new \App\Streaming\Classes\RecommendationType();
+    }
+
     public static function createPythonBackendResponse(
         array $data,
     ): \App\Streaming\Helpers\PythonBackend\Classes\PythonBackendResponse {

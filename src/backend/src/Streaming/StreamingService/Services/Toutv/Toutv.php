@@ -42,8 +42,11 @@ final class Toutv extends StreamingService
 
         $results = [];
 
+        $usingNewApi =
+            isset($response["results"]) && !isset($response["result"]);
+
         // New API, but cannot return results that have less than 3 characters
-        if (isset($response["results"])) {
+        if ($usingNewApi) {
             foreach ($response["results"] as $result) {
                 $show = ObjectFactory::createShow();
 
@@ -58,10 +61,9 @@ final class Toutv extends StreamingService
                     $results[] = $show;
                 }
             }
-        }
+        } else {
+            // Old API, worse results but less strict on query length
 
-        // Old API, worse results but less strict on query length
-        if (isset($response["result"])) {
             foreach ($response["result"] as $result) {
                 $show = ObjectFactory::createShow();
 
@@ -81,12 +83,45 @@ final class Toutv extends StreamingService
         return $results;
     }
 
+    private function formatRecommendationCategory(string $url): string
+    {
+        $categoryArray = explode("/", $url);
+
+        $categoryId = "";
+
+        // Split categorie/actualite to get actualite
+        match (count($categoryArray)) {
+            2 => ($categoryId = $categoryArray[1]),
+            default => $categoryArray[0],
+        };
+
+        return $categoryId;
+    }
+
     private function parseRecommendationTypes(array $response): array
     {
         $types = [];
 
-        foreach ($response["formats"] as $format) {
+        foreach (
+            Config::RECOMENDATION_TYPES as $recommendationTypeCategoryName
+        ) {
+            foreach (
+                $response[$recommendationTypeCategoryName] as $recommendationType
+            ) {
+                $type = ObjectFactory::createRecommendationType();
+
+                $type->id = $this->formatRecommendationCategory(
+                    $recommendationType["url"],
+                );
+                $type->name = $recommendationType["title"];
+                $type->shortDescription = $response["htmlMeta"]["title"];
+                $type->fullDescription = $response["htmlMeta"]["description"];
+
+                $types[] = $type;
+            }
         }
+
+        return $types;
     }
 
     #[\Override]
@@ -101,7 +136,7 @@ final class Toutv extends StreamingService
             true,
         );
 
-        return $this->parseRecommendations($response);
+        return $this->parseRecommendationTypes($response);
     }
 
     #[\Override]
@@ -158,6 +193,68 @@ final class Toutv extends StreamingService
         }
 
         return $recommendations;
+    }
+
+    private function parseMediaRecommendations(array $response): array
+    {
+        $recommendations = [];
+
+        // I did not recognize it at first, but header recommendations suck, because
+        // the image given is not a thumbnail one, but a background one. That's
+        // why this is commented out
+
+        // if (isset($response["header"])) {
+        //     foreach ($response["header"]["items"] as $recommendation) {
+        //         $show = ObjectFactory::createShow();
+
+        //         $show->id = $recommendation["url"];
+        //         $show->title = $recommendation["title"];
+        //         $show->shortDescription = $recommendation["infoTitle"];
+        //         $show->fullDescription = $recommendation["description"];
+
+        //         $show->imageBackground =
+        //             $recommendation["images"]["background"]["url"];
+        //         $show->imageCard = $recommendation["images"]["card"]["url"];
+
+        //         $recommendations[] = $show;
+        //     }
+        // }
+
+        foreach (
+            $response["content"][0]["items"]["results"] as $recommendation
+        ) {
+            $show = ObjectFactory::createShow();
+
+            $show->id = $recommendation["url"];
+            $show->title = $recommendation["title"];
+            $show->shortDescription = $recommendation["infoTitle"];
+            $show->fullDescription = $recommendation["description"];
+
+            $show->imageBackground =
+                $recommendation["images"]["background"]["url"];
+            $show->imageCard = $recommendation["images"]["card"]["url"];
+
+            $recommendations[] = $show;
+        }
+
+        return $recommendations;
+    }
+
+    #[\Override]
+    public function retrieveMediaRecommendations(
+        string $type,
+        int $amount,
+    ): array {
+        $response = json_decode(
+            RequestHelper::get(
+                $this->getMediaRecommendationsUrl($type, $amount),
+                $this->getMediaRecommendationsParameters($type, $amount),
+                $this->getMediaRecommendationsHeaders($type, $amount),
+            ),
+            true,
+        );
+
+        return $this->parseMediaRecommendations($response);
     }
 
     #[\Override]
@@ -775,6 +872,29 @@ final class Toutv extends StreamingService
 
     private function getShowRecommendationsHeaders(
         Show $show,
+        int $amount,
+    ): array {
+        return Constants::HTTP_DEFAULT_HEADERS;
+    }
+
+    private function getMediaRecommendationsUrl(
+        string $type,
+        int $amount,
+    ): string {
+        return Config::URL_MEDIA_RECOMMENDATIONS . $type;
+    }
+
+    private function getMediaRecommendationsParameters(
+        string $type,
+        int $amount,
+    ): array {
+        $parameters = Config::PARAMETERS_MEDIA_RECOMMENDATIONS;
+        $parameters["pageSize"] = $amount;
+        return $parameters;
+    }
+
+    private function getMediaRecommendationsHeaders(
+        string $type,
         int $amount,
     ): array {
         return Constants::HTTP_DEFAULT_HEADERS;

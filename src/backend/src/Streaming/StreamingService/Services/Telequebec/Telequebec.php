@@ -110,6 +110,25 @@ final class Telequebec extends StreamingService
         return $recommendations;
     }
 
+    #[\Override]
+    public function retrieveMediaRecommendations(
+        string $type,
+        int $amount,
+    ): array {
+        return [];
+
+        // $response = json_decode(
+        //     RequestHelper::get(
+        //         $this->getMediaRecommendationsUrl($type, $amount),
+        //         $this->getMediaRecommendationsParameters($type, $amount),
+        //         $this->getMediaRecommendationsHeaders($type, $amount),
+        //     ),
+        //     true,
+        // );
+
+        // return $this->parseMediaRecommendations($response);
+    }
+
     private function parseMediaRecommendations(
         array $response,
         int $amount,
