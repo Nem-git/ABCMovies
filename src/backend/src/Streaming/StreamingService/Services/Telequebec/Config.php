@@ -61,8 +61,8 @@ final class Config
     public const DEFAULT_SEASON_TITLE = "Saison 1"; // Follows the naming convention of Telequebec
     public const DEFAULT_EPISODE_NUMBER = 1; // ''
 
-    public const TELEQUEBEC_SEARCH_URL = self::API_URL . "search/list_all";
-    public const TELEQUEBEC_PARAMETERS_SEARCH = [
+    public const SEARCH_URL = self::API_URL . "search/list_all";
+    public const PARAMETERS_SEARCH = [
         "device_layout" => "web",
         "device_type" => "web",
         "limit" => 0,
@@ -70,60 +70,60 @@ final class Config
         "q" => "",
     ];
 
-    public const TELEQUEBEC_URL_SHOW_RECOMMENDATIONS = self::ASSETS_URL;
+    public const URL_SHOW_RECOMMENDATIONS = self::ASSETS_URL;
 
-    public const TELEQUEBEC_PARAMETERS_SHOW_RECOMMENDATIONS = self::DEFAULT_PARAMETERS;
+    public const PARAMETERS_SHOW_RECOMMENDATIONS = self::DEFAULT_PARAMETERS;
 
-    public const TELEQUEBEC_URL_MOVIE_RECOMMENDATIONS =
+    public const URL_MOVIE_RECOMMENDATIONS =
         self::RECOMMENDATIONS_URL . self::MENU_OPTIONS["movie"];
 
-    public const TELEQUEBEC_PARAMETERS_MOVIE_RECOMMENDATIONS = self::DEFAULT_PARAMETERS;
+    public const PARAMETERS_MOVIE_RECOMMENDATIONS = self::DEFAULT_PARAMETERS;
 
-    public const TELEQUEBEC_URL_SERIE_RECOMMENDATIONS =
+    public const URL_SERIE_RECOMMENDATIONS =
         self::RECOMMENDATIONS_URL . self::MENU_OPTIONS["serie"];
 
-    public const TELEQUEBEC_PARAMETERS_SERIE_RECOMMENDATIONS = self::DEFAULT_PARAMETERS;
+    public const PARAMETERS_SERIE_RECOMMENDATIONS = self::DEFAULT_PARAMETERS;
 
-    public const TELEQUEBEC_URL_DOCUMENTARY_RECOMMENDATIONS =
+    public const URL_DOCUMENTARY_RECOMMENDATIONS =
         self::RECOMMENDATIONS_URL . self::MENU_OPTIONS["documentary"];
 
-    public const TELEQUEBEC_PARAMETERS_DOCUMENTARY_RECOMMENDATIONS = self::DEFAULT_PARAMETERS;
+    public const PARAMETERS_DOCUMENTARY_RECOMMENDATIONS = self::DEFAULT_PARAMETERS;
 
-    public const TELEQUEBEC_URL_SHOW_INFO = self::ASSETS_URL;
+    public const URL_SHOW_INFO = self::ASSETS_URL;
 
-    public const TELEQUEBEC_PARAMETERS_SHOW_INFO = self::DEFAULT_PARAMETERS;
+    public const PARAMETERS_SHOW_INFO = self::DEFAULT_PARAMETERS;
 
-    public const TELEQUEBEC_URL_SEASON_INFO = self::ASSETS_URL;
+    public const URL_SEASON_INFO = self::ASSETS_URL;
 
-    public const TELEQUEBEC_PARAMETERS_SEASON_INFO = self::DEFAULT_PARAMETERS;
+    public const PARAMETERS_SEASON_INFO = self::DEFAULT_PARAMETERS;
 
-    public const TELEQUEBEC_URL_SERIE_EPISODES_INFO = self::API_URL . "tvshow/";
+    public const URL_SERIE_EPISODES_INFO = self::API_URL . "tvshow/";
 
-    public const TELEQUEBEC_PARAMETERS_SERIE_EPISODES_INFO = [
+    public const PARAMETERS_SERIE_EPISODES_INFO = [
         "device_layout" => "web",
         "device_type" => "web",
         "layout_id" => 1, // Default on web is 317 but it doesn't matter
         "limit" => 9223372036854775807,
     ];
 
-    public const TELEQUEBEC_URL_EPISODE_INFO = self::ASSETS_URL;
+    public const URL_EPISODE_INFO = self::ASSETS_URL;
 
-    public const TELEQUEBEC_PARAMETERS_EPISODE_INFO = self::DEFAULT_PARAMETERS;
+    public const PARAMETERS_EPISODE_INFO = self::DEFAULT_PARAMETERS;
 
-    public const TELEQUEBEC_URL_EPISODE_STREAM_INFO = self::ASSETS_URL;
+    public const URL_EPISODE_STREAM_INFO = self::ASSETS_URL;
 
-    public const TELEQUEBEC_URL_EPISODE_VIDEO = "https://edge.api.brightcove.com/playback/v1/accounts/";
+    public const URL_EPISODE_VIDEO = "https://edge.api.brightcove.com/playback/v1/accounts/";
 
-    public const TELEQUEBEC_HEADERS_EPISODE_VIDEO = [
+    public const HEADERS_EPISODE_VIDEO = [
         "Accept" => "pk=",
     ];
 
     // Stream URL
     // self::ASSETS_URL . "28634/streams/3515?cohort=988910&device_type=web&device_layout=web"
 
-    public const TELEQUEBEC_URL_EPISODE_DOWNLOAD_INFO = self::API_URL . "";
+    public const URL_EPISODE_DOWNLOAD_INFO = self::API_URL . "";
 
-    public const TELEQUEBEC_PARAMETERS_EPISODE_DOWNLOAD_INFO = [
+    public const PARAMETERS_EPISODE_DOWNLOAD_INFO = [
         "appCode" => "toutv",
         "output" => "json",
         "tech" => "dash",

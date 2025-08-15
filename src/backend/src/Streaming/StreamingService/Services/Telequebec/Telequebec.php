@@ -21,6 +21,11 @@ final class Telequebec extends StreamingService
     public string $name = "Télé-Québec";
     public string $tag = "TLQC";
 
+    public string $shortDescription = "";
+    public string $fullDescription = "";
+    public string $imageCard = "https://telequebec.tv/img/accueil/tq-logo.svg";
+    public string $imageBackground = "https://www.telequebec.tv/img/partage20240912.jpg";
+
     //region Parsing
 
     #[\Override]
@@ -57,6 +62,12 @@ final class Telequebec extends StreamingService
         }
 
         return $results;
+    }
+
+    #[\Override]
+    public function retrieveRecommendationTypes(): array
+    {
+        return [];
     }
 
     #[\Override]
@@ -622,12 +633,12 @@ final class Telequebec extends StreamingService
 
     private function getSearchUrl(string $query, int $amount): string
     {
-        return Config::TELEQUEBEC_SEARCH_URL;
+        return Config::SEARCH_URL;
     }
 
     private function getSearchParameters(string $query, int $amount): array
     {
-        $parameters = Config::TELEQUEBEC_PARAMETERS_SEARCH;
+        $parameters = Config::PARAMETERS_SEARCH;
 
         $parameters["limit"] = $amount;
         $parameters["q"] = urlencode($query);
@@ -661,12 +672,12 @@ final class Telequebec extends StreamingService
 
     private function getMovieRecommendationsUrl(int $amount): string
     {
-        return Config::TELEQUEBEC_URL_MOVIE_RECOMMENDATIONS;
+        return Config::URL_MOVIE_RECOMMENDATIONS;
     }
 
     private function getMovieRecommendationsParameters(int $amount): array
     {
-        $parameters = Config::TELEQUEBEC_PARAMETERS_MOVIE_RECOMMENDATIONS;
+        $parameters = Config::PARAMETERS_MOVIE_RECOMMENDATIONS;
         $parameters["pageSize"] = $amount;
         return $parameters;
     }
@@ -678,7 +689,7 @@ final class Telequebec extends StreamingService
 
     private function getSerieRecommendationsUrl(int $amount): string
     {
-        return Config::TELEQUEBEC_URL_SERIE_RECOMMENDATIONS;
+        return Config::URL_SERIE_RECOMMENDATIONS;
     }
 
     private function getSerieRecommendationsParameters(int $amount): array
@@ -693,7 +704,7 @@ final class Telequebec extends StreamingService
 
     private function getDocumentaryRecommendationsUrl(int $amount): string
     {
-        return Config::TELEQUEBEC_URL_DOCUMENTARY_RECOMMENDATIONS;
+        return Config::URL_DOCUMENTARY_RECOMMENDATIONS;
     }
 
     private function getDocumentaryRecommendationsParameters(int $amount): array
@@ -708,12 +719,12 @@ final class Telequebec extends StreamingService
 
     private function getShowUrl(Show $show): string
     {
-        return Config::TELEQUEBEC_URL_SHOW_INFO . $show->id;
+        return Config::URL_SHOW_INFO . $show->id;
     }
 
     private function getShowParameters(Show $show): array
     {
-        return Config::TELEQUEBEC_PARAMETERS_SHOW_INFO;
+        return Config::PARAMETERS_SHOW_INFO;
     }
 
     private function getShowHeaders(Show $show): array
@@ -741,7 +752,7 @@ final class Telequebec extends StreamingService
         Season $season,
         Episode $episode,
     ): string {
-        return Config::TELEQUEBEC_URL_SHOW_INFO . $episode->id;
+        return Config::URL_SHOW_INFO . $episode->id;
     }
 
     private function getEpisodeParameters(
@@ -764,7 +775,7 @@ final class Telequebec extends StreamingService
         Episode $episode,
         string $streamId,
     ): string {
-        return Config::TELEQUEBEC_URL_EPISODE_STREAM_INFO .
+        return Config::URL_EPISODE_STREAM_INFO .
             $episode->id .
             "/streams/" .
             $streamId;
@@ -788,10 +799,7 @@ final class Telequebec extends StreamingService
         string $accountId,
         string $streamUrl,
     ): string {
-        return Config::TELEQUEBEC_URL_EPISODE_VIDEO .
-            $accountId .
-            "/videos/" .
-            $streamUrl;
+        return Config::URL_EPISODE_VIDEO . $accountId . "/videos/" . $streamUrl;
     }
 
     private function getEpisodeVideoParameters(): array
@@ -803,7 +811,7 @@ final class Telequebec extends StreamingService
     {
         $headers = array_merge(
             Constants::HTTP_DEFAULT_HEADERS,
-            Config::TELEQUEBEC_HEADERS_EPISODE_VIDEO,
+            Config::HEADERS_EPISODE_VIDEO,
         );
 
         $headers["Accept"] .= $policyKey;
@@ -813,7 +821,7 @@ final class Telequebec extends StreamingService
 
     private function getSerieEpisodesUrl(Show $show, Season $season): string
     {
-        return Config::TELEQUEBEC_URL_SERIE_EPISODES_INFO .
+        return Config::URL_SERIE_EPISODES_INFO .
             join("/", [$show->id, "season", $season->id, "episodes"]);
     }
 
@@ -821,7 +829,7 @@ final class Telequebec extends StreamingService
         Show $show,
         Season $season,
     ): array {
-        return Config::TELEQUEBEC_PARAMETERS_SERIE_EPISODES_INFO;
+        return Config::PARAMETERS_SERIE_EPISODES_INFO;
     }
 
     private function getSerieEpisodesHeaders(Show $show, Season $season): array

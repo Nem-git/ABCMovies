@@ -70,6 +70,10 @@ moov/trak/mdia/minf/stbl/stsd/[original_format]
 
 # ✅ TODOs
 
+## General
+
+- [ ] Switch to Go as a backend
+
 ## Docker Container
 
 - [ ] Make the Dockerfiles more Multi-Stage
@@ -86,6 +90,8 @@ moov/trak/mdia/minf/stbl/stsd/[original_format]
 - [ ] Use Slim groups for organizing API endpoints
 - [ ] Log all database access
 - [ ] Subtitles/Captions class to support external subs urls
+- [ ] Rely more on caching of requests in my Redis for faster responses
+- [ ] Switch to Postgresql, for its flexibility and plugins, that can replace Redis and act as a normal DB
 
 ### `Fairplay.php`
 
@@ -97,7 +103,6 @@ moov/trak/mdia/minf/stbl/stsd/[original_format]
 
 ### `ObjectFactory.php`
 
-- [ ] Reconsider if this belongs in `Models`
 - [ ] Research better object creation patterns in PHP
 
 ### `Toutv.php`
@@ -138,6 +143,9 @@ moov/trak/mdia/minf/stbl/stsd/[original_format]
 
 ### General
 
+- [ ] Add a recommendations page
+- [ ] Add a streaming service page that uses the recommendations available on the streaming service to show recommendations
+
 ### `ShowPage.svelte`
 
 - [ ] Improve layout: intuitive positioning of image, title, description at top
@@ -146,6 +154,11 @@ moov/trak/mdia/minf/stbl/stsd/[original_format]
 
 - [ ] Make the videoplayer page fullscreen and remove the Header and Footer. Like Toutv or Netflix
 - [ ] Create destroy functions for unmounting Video Player component
+- [ ] Use the show recommendations endpoint to recommend a couple of shows that relate to the one you're looking at
+
+### `+page.svelte` (Episode page)
+
+- [ ] Use the next episode endpoint to recommend a new episode
 
 ---
 

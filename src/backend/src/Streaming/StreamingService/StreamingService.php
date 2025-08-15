@@ -23,6 +23,22 @@ abstract class StreamingService
      * Streaming service's abreviation (EX: DSNP)
      */
     public string $tag;
+    /**
+     * Short form description of the streaming service
+     */
+    public string $shortDescription;
+    /**
+     * Long form description of the streaming service
+     */
+    public string $fullDescription;
+    /**
+     * Card image URL
+     */
+    public string $imageCard;
+    /**
+     * Background image URL
+     */
+    public string $imageBackground;
 
     //region Parsing
 
@@ -44,6 +60,7 @@ abstract class StreamingService
         Season $season,
         Episode $episode,
     ): Episode;
+    abstract public function retrieveRecommendationTypes(): array;
     abstract public function retrieveShow(Show $show): void;
     abstract public function retrieveSeason(Show $show, Season $season): void;
     abstract public function retrieveEpisode(
@@ -122,6 +139,16 @@ abstract class StreamingService
 
     //region Recommendations
 
+    //region Retrieve Recommendation types
+
+    public function getRecommendationTypes(Request $request, array $args): array
+    {
+        // I should maybe add a ?type=movies kinda parameter
+        return $this->retrieveRecommendationTypes();
+    }
+
+    //endregion
+
     //region Show
 
     public function getShowRecommendations(Request $request, array $args): array
@@ -199,7 +226,7 @@ abstract class StreamingService
 
     //endregion
 
-    //endregion
+    //region Next Recommendation
 
     public function getNextEpisodeRecommendation(
         Request $request,
@@ -241,6 +268,8 @@ abstract class StreamingService
 
         return $nextEpisode;
     }
+
+    //endregion
 
     //endregion
 
