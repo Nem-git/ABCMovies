@@ -10,16 +10,17 @@
 
     let { data }: PageProps = $props();
 
-    onMount(async () => {
-        goto(
+    let createUrl = async () => {
+        return (
             "/" +
-                [
-                    data.streamingServiceTag,
-                    data.showId,
-                    data.season.number,
-                ].join("/"),
-            { replaceState: true },
+            [data.streamingServiceTag, data.showId, data.season.number].join(
+                "/",
+            )
         );
+    };
+
+    onMount(async () => {
+        goto(await createUrl(), { replaceState: true });
     });
 </script>
 
