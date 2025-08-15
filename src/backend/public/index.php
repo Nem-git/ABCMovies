@@ -49,6 +49,21 @@ $app->get(
 //region Streaming service specific
 
 $app->get(
+    "/api/{streamingService}",
+    function (
+        Request $request,
+        Response $response,
+        array $args,
+    ) {
+        $streamingService = ObjectFactory::createStreamingService(
+            strtoupper($args["streamingService"]),
+        );
+        $response = SlimResponseHelper::response_json($streamingService, $response);
+        return $response;
+    }
+);
+
+$app->get(
     "/api/{streamingService}/search/{query}",
     function (
         Request $request,
@@ -60,6 +75,25 @@ $app->get(
         );
         $searchResults = $streamingService->getSearchResults($request, $args);
         $response = SlimResponseHelper::response_json($searchResults, $response);
+        return $response;
+    }
+);
+
+$app->get(
+    "/api/{streamingService}/recommendations",
+    function (
+        Request $request,
+        Response $response,
+        array $args,
+    ) {
+        $streamingService = ObjectFactory::createStreamingService(
+            strtoupper($args["streamingService"]),
+        );
+        $recommendations = $streamingService->getRecommendationTypes(
+            $request,
+            $args,
+        );
+        $response = SlimResponseHelper::response_json($recommendations, $response);
         return $response;
     }
 );

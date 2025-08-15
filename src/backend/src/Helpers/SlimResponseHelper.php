@@ -9,7 +9,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 final class SlimResponseHelper
 {
     public static function response_json(
-        array|\App\Streaming\Classes\Show|\App\Streaming\Classes\Season|\App\Streaming\Classes\Episode $data,
+        array|\App\Streaming\StreamingService\StreamingService|\App\Streaming\Classes\Show|\App\Streaming\Classes\Season|\App\Streaming\Classes\Episode $data,
         Response $response,
     ): Response {
         $response->getBody()->write(json_encode($data, JSON_PRETTY_PRINT));
