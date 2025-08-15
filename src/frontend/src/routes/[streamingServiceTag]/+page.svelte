@@ -1,9 +1,9 @@
 <script lang="ts">
     import type { PageProps } from "./$types";
 
+    import StreamingServiceSection from "$lib/components/StreamingServiceSection.svelte";
+
     let { data }: PageProps = $props();
 </script>
 
-<span>
-    This is the {data.streamingServiceTag} streaming service
-</span>
+<StreamingServiceSection streamingService={data.streamingService} />

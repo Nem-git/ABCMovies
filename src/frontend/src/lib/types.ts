@@ -1,5 +1,32 @@
 type AssociativeArray<T = unknown> = { [key: string]: T | undefined } | T[];
 
+export type StreamingService = {
+    /**
+     * Streaming service's name
+     */
+    name: string;
+    /**
+     * Streaming service's abreviation (EX: DSNP)
+     */
+    tag: string;
+    /**
+     * Short form description of the streaming service
+     */
+    shortDescription: string;
+    /**
+     * Long form description of the streaming service
+     */
+    fullDescription: string;
+    /**
+     * Card image URL
+     */
+    imageCard: string;
+    /**
+     * Background image URL
+     */
+    imageBackground: string;
+};
+
 export type Show = {
     /**
      * Show unique identifier (In the streaming service)

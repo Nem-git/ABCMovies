@@ -10,36 +10,33 @@ export const getSearchResultsUrl = (query: string): string => {
     return `${getApiUrl()}search/${encodeURI(query)}`;
 };
 
-// export const getStreamingService = async (
-//     streamingService: string
-// ): Promise<StreamingService> => {
-//     let url = "/" + streamingService;
-//     return request(url);
-// };
+export const getStreamingServiceUrl = (streamingServiceTag: string): string => {
+    return getApiUrl() + streamingServiceTag;
+};
 
 export const getShowUrl = (
-    streamingService: string,
+    streamingServiceTag: string,
     showId: string,
 ): string => {
-    return getApiUrl() + [streamingService, showId].join("/");
+    return getApiUrl() + [streamingServiceTag, showId].join("/");
 };
 
 export const getSeasonUrl = (
-    streamingService: string,
+    streamingServiceTag: string,
     showId: string,
     seasonNumber: number,
 ): string => {
-    return getApiUrl() + [streamingService, showId, seasonNumber].join("/");
+    return getApiUrl() + [streamingServiceTag, showId, seasonNumber].join("/");
 };
 
 export const getEpisodeUrl = (
-    streamingService: string,
+    streamingServiceTag: string,
     showId: string,
     seasonNumber: number,
     episodeNumber: number,
 ): string => {
     return (
         getApiUrl() +
-        [streamingService, showId, seasonNumber, episodeNumber].join("/")
+        [streamingServiceTag, showId, seasonNumber, episodeNumber].join("/")
     );
 };
