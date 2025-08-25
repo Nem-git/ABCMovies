@@ -11,6 +11,7 @@ services:
     ports:
       - '9000:9000'
     volumes: # Needed to fix issues with vite and optional dependencies in NPM
+      - /srv/www/vendor
       - /srv/www/node_modules
     depends_on:
       - redis
