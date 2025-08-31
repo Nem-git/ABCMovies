@@ -7,6 +7,7 @@ import (
 
 func JSONResponse(w http.ResponseWriter, content any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(content)
 }
 

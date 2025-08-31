@@ -69,6 +69,7 @@ func (w *Widevine) GetKeys(psshData string, licenseUrl string, headers map[strin
 
 	device, pssh, err := w.init(psshData)
 	if err != nil {
+		fmt.Println(err)
 		return nil, err
 	}
 
@@ -87,11 +88,13 @@ func (w *Widevine) GetKeys(psshData string, licenseUrl string, headers map[strin
 		// Or use privacy mode
 		cert, err := w.getServiceCert(licenseUrl)
 		if err != nil {
+			fmt.Println(fmt.Errorf("get service cert: %w", err))
 			return nil, fmt.Errorf("get service cert: %w", err)
 		}
 
 		challenge, parseLicense, err = cdm.GetLicenseChallenge(pssh, widevinepb.LicenseType_AUTOMATIC, true, cert)
 		if err != nil {
+			fmt.Println(fmt.Errorf("get license challenge: %w", err))
 			return nil, fmt.Errorf("get license challenge: %w", err)
 		}
 	}
@@ -99,6 +102,7 @@ func (w *Widevine) GetKeys(psshData string, licenseUrl string, headers map[strin
 	// Send challenge to license server
 	req, err := http.NewRequest(http.MethodPost, licenseUrl, io.NopCloser(bytes.NewReader(challenge)))
 	if err != nil {
+		fmt.Println(fmt.Errorf("couldn't create request: %w", err))
 		return nil, fmt.Errorf("couldn't create request: %w", err)
 	}
 
@@ -108,22 +112,26 @@ func (w *Widevine) GetKeys(psshData string, licenseUrl string, headers map[strin
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		fmt.Println(fmt.Errorf("request license: %w", err))
 		return nil, fmt.Errorf("request license: %w", err)
 	}
 	defer resp.Body.Close()
 
 	license, err := io.ReadAll(resp.Body)
 	if err != nil {
+		fmt.Println(fmt.Errorf("read resp: %w", err))
 		return nil, fmt.Errorf("read resp: %w", err)
 	}
 
 	// Parse license
 	keys, err := parseLicense(license)
 	if err != nil {
+		fmt.Println(fmt.Errorf("parse license: %w", err))
 		return nil, fmt.Errorf("parse license: %w", err)
 	}
 
 	if len(keys) == 0 {
+		fmt.Println(fmt.Errorf("no keys: %w", err))
 		return nil, fmt.Errorf("no keys: %w", err)
 	}
 
@@ -134,6 +142,8 @@ func (w *Widevine) GetKeys(psshData string, licenseUrl string, headers map[strin
 			formattedKeys = append(formattedKeys, fmt.Sprintf("%s:%s", hex.EncodeToString(key.ID), hex.EncodeToString(key.Key)))
 		}
 	}
+
+	fmt.Println("Found keys:", formattedKeys)
 
 	return formattedKeys, nil
 }
