@@ -1,8 +1,13 @@
-package gobackend
+package main
 
 import (
+	"abcmovies/models"
+	"abcmovies/utils"
+	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"abcmovies/drm"
 )
 
 type TaskServer interface {
@@ -20,7 +25,30 @@ func (ts *taskServer) getDashManifestHandler(w http.ResponseWriter, r *http.Requ
 }
 
 func (ts *taskServer) getDecryptionKeysHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "got Decryption Keys\n")
+
+	var requestData models.WidevineKeysRequest
+
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+
+	err := dec.Decode(&requestData)
+	if err != nil {
+		utils.JSONError(w, fmt.Sprintf("json data invalid: %v", err), 200)
+		return
+	}
+
+	var wvd drm.Widevine
+
+	keys, err := wvd.GetKeys(requestData.Pssh, requestData.Url, requestData.Headers)
+	if err != nil {
+		utils.JSONError(w, fmt.Sprintf("couldn't retrieve decryption keys: %v", err), 200)
+		return
+	}
+
+	data := make(map[string][]string)
+
+	data["keys"] = keys
+	utils.JSONResponse(w, data)
 }
 
 func (ts *taskServer) getPsshHandler(w http.ResponseWriter, r *http.Request) {
@@ -32,9 +60,9 @@ func main() {
 	mux := http.NewServeMux()
 	var ts TaskServer = &taskServer{}
 
-	mux.HandleFunc("GET /dash", ts.getDashManifestHandler)
-	mux.HandleFunc("GET /widevine/keys", ts.getDecryptionKeysHandler)
-	mux.HandleFunc("GET /widevine/pssh", ts.getPsshHandler)
+	mux.HandleFunc("POST /dash", ts.getDashManifestHandler)
+	mux.HandleFunc("POST /widevine/keys", ts.getDecryptionKeysHandler)
+	mux.HandleFunc("POST /widevine/pssh", ts.getPsshHandler)
 
 	http.ListenAndServe(":8090", mux)
 }
