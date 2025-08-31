@@ -127,6 +127,14 @@ final class ObjectFactory
         );
     }
 
+    public static function createGoBackendResponse(
+        array $data,
+    ): \App\Streaming\Helpers\GoBackend\Classes\GoBackendResponse {
+        return new \App\Streaming\Helpers\GoBackend\Classes\GoBackendResponse(
+            $data,
+        );
+    }
+
     public static function createPsshRetriever(
         string $type,
     ): \App\Streaming\DRMTechnology\Widevine\Classes\PsshRetriever {
