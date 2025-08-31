@@ -35,7 +35,7 @@ final class Widevine extends DRMTechnology
     {
         $this->psshRetriever = ObjectFactory::createPsshRetriever("python");
         $this->decryptionKeysRetriever = ObjectFactory::createDecryptionKeysRetriever(
-            "python",
+            "go", // python
         );
         $this->segmentDecryptor = ObjectFactory::createSegmentDecryptor(
             "shell",
@@ -123,6 +123,10 @@ final class Widevine extends DRMTechnology
                 $initMediaIdentifier,
                 $reconstructedUrl,
             );
+        }
+
+        if (is_null($initContent)) {
+            $initContent = "";
         }
 
         $decryptionKeys = $this->manifestController->getDecryptionKeys(

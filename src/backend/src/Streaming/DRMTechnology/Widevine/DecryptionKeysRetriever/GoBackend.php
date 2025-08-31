@@ -19,11 +19,11 @@ final class GoBackend extends DecryptionKeysRetriever
         array $licenseHeaders,
     ): array {
         $response = GoBackendHelper::get(
-            "decryptionKeys",
+            "widevine/keys",
             [
             "pssh" => $pssh,
-            "licenseUrl" => $licenseUrl,
-            "licenseHeaders" => $licenseHeaders,
+            "url" => $licenseUrl,
+            "headers" => $licenseHeaders,
             ]
         );
 

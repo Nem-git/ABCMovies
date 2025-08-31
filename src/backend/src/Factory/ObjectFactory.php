@@ -33,6 +33,8 @@ final class ObjectFactory
     private static array $decryptionKeysRetriever = [
         "python" =>
             \App\Streaming\DRMTechnology\Widevine\DecryptionKeysRetriever\PythonBackend::class,
+        "go" =>
+            \App\Streaming\DRMTechnology\Widevine\DecryptionKeysRetriever\GoBackend::class,
     ];
 
     private static array $manifestModifier = [
