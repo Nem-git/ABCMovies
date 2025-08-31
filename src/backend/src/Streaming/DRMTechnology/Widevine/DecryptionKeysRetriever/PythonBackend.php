@@ -22,8 +22,8 @@ final class PythonBackend extends DecryptionKeysRetriever
             "decryptionKeys",
             [
             "pssh" => $pssh,
-            "licenseUrl" => $licenseUrl,
-            "licenseHeaders" => $licenseHeaders,
+            "url" => $licenseUrl,
+            "headers" => $licenseHeaders,
             ]
         );
 
@@ -31,8 +31,6 @@ final class PythonBackend extends DecryptionKeysRetriever
             // TODO: Throw error
         }
 
-        $decryptionKeys = (array) $response->value;
-
-        return $decryptionKeys;
+        return $response->keys;
     }
 }

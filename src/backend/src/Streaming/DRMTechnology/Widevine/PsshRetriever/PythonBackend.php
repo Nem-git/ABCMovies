@@ -20,18 +20,17 @@ final class PythonBackend extends PsshRetriever
         $response = PythonBackendHelper::get(
             "pssh",
             [
-            "mpdUrl" => $mpdUrl,
-            "mpdHeaders" => $mpdHeaders,
-            "segmentHeaders" => $segmentHeaders,
+            "url" => $mpdUrl,
+            "headers" => $mpdHeaders,
+            "segheaders" => $segmentHeaders,
             ]
         );
 
         if ($response->error) {
             // TODO: Throw error
+            var_dump($response);
         }
 
-        $pssh = (string) $response->value;
-
-        return $pssh;
+        return $response->pssh;
     }
 }

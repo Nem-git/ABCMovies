@@ -7,7 +7,9 @@ namespace App\Streaming\Helpers\PythonBackend\Classes;
 final class PythonBackendResponse
 {
     public string $error;
-    public mixed $value;
+    public string $pssh;
+    public array $keys;
+    public string $content;
 
     public function __construct(array $data)
     {

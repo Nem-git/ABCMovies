@@ -17,15 +17,16 @@ final class PythonBackend extends ManifestModifier
     {
         $response = PythonBackendHelper::get(
             "manifest",
-            compact(["mpdUrl", "mpdContent"]),
+            [
+            "url" => $mpdUrl,
+            "content" => $mpdContent,
+            ]
         );
 
         if ($response->error) {
             // TODO: Throw error
         }
 
-        $modifiedManifestContent = $response->value;
-
-        return $modifiedManifestContent;
+        return $response->content;
     }
 }
