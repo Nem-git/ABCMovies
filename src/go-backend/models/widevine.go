@@ -7,8 +7,8 @@ type WidevineKeysRequest struct {
 }
 
 type WidevineKeysResponse struct {
-	Error string            `json:"error"`
-	Keys  map[string]string `json:"keys"`
+	Error string   `json:"error"`
+	Keys  []string `json:"keys"`
 }
 
 type WidevinePsshRequest struct {

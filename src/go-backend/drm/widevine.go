@@ -22,18 +22,14 @@ type WidevineInterface interface {
 type Widevine struct{}
 
 func (w *Widevine) init(encodedPssh string) (*widevine.Device, *widevine.PSSH, error) {
-	var (
-		device *widevine.Device
-		pssh   *widevine.PSSH
-		err    error
-	)
+	var device *widevine.Device
 
 	psshBytes, err := base64.RawStdEncoding.DecodeString(encodedPssh)
 
 	// Parse PSSH
-	pssh, err = widevine.NewPSSH(psshBytes)
+	pssh, err := widevine.NewPSSH(psshBytes)
 	if err != nil {
-		return &widevine.Device{}, &widevine.PSSH{}, fmt.Errorf("parse pssh: %w", err)
+		return &widevine.Device{}, &widevine.PSSH{}, fmt.Errorf("parse pssh %v: %w", encodedPssh, err)
 	}
 
 	wvd, err := utils.OpenCdmFile(config.WVD_FILENAME)

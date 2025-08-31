@@ -1,33 +1,34 @@
 package utils
 
 import (
+	"abcmovies/models"
 	"encoding/json"
 	"net/http"
+	"strconv"
 )
 
-func JSONResponse(w http.ResponseWriter, content any) {
+func JSONResponse(w http.ResponseWriter, content models.Response) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(content)
 }
 
-func JSONError(w http.ResponseWriter, err any, code int) {
+func JSONError(w http.ResponseWriter, err error, code int) {
 	w.WriteHeader(code)
-	var data = make(map[string]any)
-	data["code"] = code
-	data["message"] = err
-	JSONResponse(w, data)
+	data := models.ErrorResponse{
+		Error:   strconv.Itoa(code),
+		Message: err.Error(),
+	}
+	JSONResponse(w, models.Response(data))
 }
 
-func ParseJsonRequest(r *http.Request, model any) (any, error) {
-
+func JSONRequest[T models.Request](r *http.Request, model *T) error {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 
-	err := dec.Decode(&model)
+	err := dec.Decode(model)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return model, nil
+	return err
 }
