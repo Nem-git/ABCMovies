@@ -5,8 +5,8 @@ import base64
 import os
 import requests
 
-from src.models.models import DecryptRequest
-from src.models.models import Response
+from src.models.models import WidevineKeysRequest
+from src.models.models import WidevineKeysResponse
 from src.config.constants import WVD_PATH
 
 
@@ -16,7 +16,9 @@ class Widevine:
         self.device = Device.load(WVD_PATH)
         self.cdm = Cdm.from_device(self.device)
 
-    def get_keys(self, request: DecryptRequest, response: Response) -> list[str]:
+    def get_keys(
+        self, request: WidevineKeysRequest, response: WidevineKeysResponse
+    ) -> list[str]:
 
         try:
             """
@@ -27,7 +29,7 @@ class Widevine:
             payload = self.cdm.get_license_challenge(session_id, PSSH(request.pssh))
 
             license_response = requests.post(
-                url=request.licenseUrl, data=payload, headers=request.licenseHeaders
+                url=request.url, data=payload, headers=request.headers
             )
             license_response.raise_for_status()
 
@@ -47,7 +49,8 @@ class Widevine:
 
             if len(keys) == 0:
                 response.error = "No keys found"
+            else:
+                response.keys = keys
 
-            response.value = keys
         except Exception as e:
-            response.error = e
+            response.error = str(e)

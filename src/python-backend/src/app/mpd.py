@@ -8,8 +8,8 @@ from mpd_parser.parser import Parser
 from mpd_parser.models.composite_tags import MPD
 from uuid import uuid4
 
-from src.models.models import MpdRequest
-from src.models.models import Response
+from src.models.models import DashManifestModificationRequest
+from src.models.models import DashManifestModificationResponse
 
 
 class ManifestModifier:
@@ -20,10 +20,14 @@ class ManifestModifier:
     base_url: str
     mpd_object: Parser
 
-    def get_modified_mpd(self, request: MpdRequest, response: Response) -> str:
+    def get_modified_mpd(
+        self,
+        request: DashManifestModificationRequest,
+        response: DashManifestModificationResponse,
+    ):
         try:
-            self.mpd_url = request.mpdUrl
-            self.mpd_content = request.mpdContent
+            self.mpd_content = request.content
+            self.mpd_url = request.url
             # Sets the base url from the manifest
             self.mpd_object = Parser.from_string(self.mpd_content)
             self._set_initial_base_url()
@@ -33,14 +37,19 @@ class ManifestModifier:
             self.mpd_content = Parser.to_string(self.mpd_object)
 
         except Exception as e:
-            response.error = e.description
+            response.error = str(e)
+            response.content = ""
+            return
 
         try:
             # Apply XML modifications (cleaning up DRM, etc.)
-            response.value = self._apply_lxml_modifications(self.mpd_content)
+            self.mpd_content = self._apply_lxml_modifications(self.mpd_content)
+
+            response.content = str(self.mpd_content)
 
         except Exception as e:
-            response.error = e.msg
+            response.error = str(e)
+            response.content = ""
 
     def _set_initial_base_url(self):
         # This gives the Manifest url WITHOUT the manifest's filename
@@ -280,14 +289,14 @@ if __name__ == "__main__":
 
     for url in breaking_urls:
 
-        mpdRequest = MpdRequest()
-        response = Response()
+        mpdRequest = DashManifestModificationRequest()
+        response = DashManifestModificationResponse()
         mm = ManifestModifier()
 
         mpdContent = requests.get(url).text
 
-        mpdRequest.mpdContent = mpdContent
-        mpdRequest.mpdUrl = url
+        mpdRequest.content = mpdContent
+        mpdRequest.url = url
 
         mm.get_modified_mpd(mpdRequest, response)
 

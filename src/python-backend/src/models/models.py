@@ -1,23 +1,34 @@
 from pydantic import BaseModel
 
 
-class Response(BaseModel):
+class BasicResponse(BaseModel):
     error: str = "0"
-    value: str | list | dict = ""
 
 
-class PsshRequest(BaseModel):
-    mpdUrl: str = ""
-    mpdHeaders: dict = {}
-    segmentsHeaders: dict = {}
+class WidevinePsshRequest(BaseModel):
+    url: str = ""
+    headers: dict[str, str] = {}
+    segheaders: dict[str, str] = {}
 
 
-class DecryptRequest(BaseModel):
+class WidevinePsshResponse(BasicResponse):
     pssh: str = ""
-    licenseUrl: str = ""
-    licenseHeaders: dict[str, str] = {}
 
 
-class MpdRequest(BaseModel):
-    mpdUrl: str = ""
-    mpdContent: str = ""
+class WidevineKeysRequest(BaseModel):
+    pssh: str = ""
+    url: str = ""
+    headers: dict[str, str] = {}
+
+
+class WidevineKeysResponse(BasicResponse):
+    keys: list[str] = []
+
+
+class DashManifestModificationRequest(BaseModel):
+    url: str = ""
+    content: str = ""
+
+
+class DashManifestModificationResponse(BasicResponse):
+    content: str = ""

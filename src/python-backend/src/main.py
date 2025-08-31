@@ -1,10 +1,7 @@
 import uvicorn
 from fastapi import FastAPI
 
-from src.models.models import Response
-from src.models.models import PsshRequest
-from src.models.models import DecryptRequest
-from src.models.models import MpdRequest
+from src.models.models import *
 
 from src.app.pssh import Pssh
 from src.app.decryption import Widevine
@@ -14,24 +11,27 @@ app = FastAPI()
 
 
 @app.post("/pssh")
-def create_pssh(request: PsshRequest):
+def create_pssh(request: WidevinePsshRequest) -> WidevinePsshResponse:
     extractor = Pssh()
-    response = Response()
+    response = WidevinePsshResponse()
     extractor.get_pssh(request, response)
     return response
 
 
 @app.post("/decryptionKeys")
-def create_decryption_keys(request: DecryptRequest):
+def create_decryption_keys(request: WidevineKeysRequest) -> WidevineKeysResponse:
     retriever = Widevine()
-    response = Response()
+    response = WidevineKeysResponse()
     retriever.get_keys(request, response)
     return response
 
 
 @app.post("/manifest")
-def create_modified_manifest(request: MpdRequest):
+def create_modified_manifest(
+    request: DashManifestModificationRequest,
+) -> DashManifestModificationResponse:
     modifier = ManifestModifier()
-    response = Response()
+    response = DashManifestModificationResponse()
     modifier.get_modified_mpd(request, response)
+
     return response

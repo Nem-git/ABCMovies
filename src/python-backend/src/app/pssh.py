@@ -6,32 +6,34 @@ import xml.etree.ElementTree as ET
 import os
 import yt_dlp
 
-from src.models.models import PsshRequest
-from src.models.models import Response
+from src.models.models import WidevinePsshRequest
+from src.models.models import WidevinePsshResponse
 
 
 class Pssh:
     WIDEVINE_SYSTEM_ID: str = "EDEF8BA9-79D6-4ACE-A3C8-27DCD51D21ED"
 
-    def get_pssh(self, request: PsshRequest, response: Response) -> str | None:
+    def get_pssh(
+        self, request: WidevinePsshRequest, response: WidevinePsshResponse
+    ) -> str | None:
         """
         Extract or generate the PSSH from the MPD manifest or init segment.
         """
 
         try:
-            mpd_content: bytes = self._fetch_content(request.mpdUrl, request.mpdHeaders)
-            response.value: str = self._extract_or_generate_pssh(
-                request.mpdUrl,
+            mpd_content: bytes = self._fetch_content(request.url, request.headers)
+            response.pssh: str = self._extract_or_generate_pssh(
+                request.url,
                 mpd_content,
-                request.mpdHeaders,
-                request.segmentsHeaders,
+                request.headers,
+                request.segheaders,
             )
 
-            if not response.value:
+            if not response.pssh:
                 response.error = "Was not able to find the PSSH"
 
         except Exception as e:
-            response.error = e
+            response.error = str(e)
 
     def _fetch_content(self, url: str, headers: dict[str, str]) -> bytes:
         response = requests.get(url, headers=headers)
