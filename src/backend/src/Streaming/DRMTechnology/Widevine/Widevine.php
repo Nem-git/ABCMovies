@@ -12,7 +12,6 @@ use App\Controllers\ManifestController;
 use App\Repositories\RedisRepository;
 use App\Factory\ObjectFactory;
 use App\Streaming\Classes\Episode;
-use App\Streaming\Helpers\PythonBackend\PythonBackendHelper;
 use App\Streaming\Helpers\RequestHelper;
 
 /**
@@ -67,17 +66,11 @@ final class Widevine extends DRMTechnology
         }
 
         // Retrieve the keys instead
-        $response = PythonBackendHelper::get(
-            "pssh",
-            [
-            "mpdUrl" => $episode->url,
-            "mpdHeaders" => $episode->urlHeaders,
-            "segmentHeaders" => $episode->urlHeaders,
-            // TODO: Find a good way to store headers
-            ]
+        $this->pssh = $this->psshRetriever->getPssh(
+            $episode->url,
+            $episode->urlHeaders,
+            $episode->urlHeaders,
         );
-
-        $this->pssh = $response->value;
 
         $episode->streamingTechnology->drmTechnology->decryptionKeys = $this->decryptionKeysRetriever->getDecryptionKeys(
             $this->pssh,
