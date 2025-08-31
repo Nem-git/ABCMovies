@@ -1,4 +1,6 @@
 # CUSTOM
 *.wvd
+*.pem
+*.bin
 *.cache
 *.log
