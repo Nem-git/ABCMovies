@@ -6,6 +6,6 @@ type DashManifestModificationRequest struct {
 }
 
 type DashManifestModificationResponse struct {
-	Error string            `json:"error"`
-	Manifest  map[string]string `json:"keys"`
+	Error    string `json:"error"`
+	Manifest string `json:"content"`
 }
