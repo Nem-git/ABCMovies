@@ -20,3 +20,8 @@ cd ../../
 cd ./src/frontend/src/
 npx prettier --write .
 cd ../../../
+
+
+# Go
+gofmt ./src/go-backend/
+
