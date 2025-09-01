@@ -42,11 +42,8 @@ final class Toutv extends StreamingService
 
         $results = [];
 
-        $usingNewApi =
-            isset($response["results"]) && !isset($response["result"]);
-
         // New API, but cannot return results that have less than 3 characters
-        if ($usingNewApi) {
+        if (isset($response["results"])) {
             foreach ($response["results"] as $result) {
                 $show = ObjectFactory::createShow();
 
@@ -61,9 +58,10 @@ final class Toutv extends StreamingService
                     $results[] = $show;
                 }
             }
-        } else {
-            // Old API, worse results but less strict on query length
+        }
 
+        // Old API, worse results but less strict on query length
+        if (isset($response["result"])) {
             foreach ($response["result"] as $result) {
                 $show = ObjectFactory::createShow();
 
