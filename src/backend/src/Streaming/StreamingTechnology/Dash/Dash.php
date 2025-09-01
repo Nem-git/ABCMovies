@@ -33,7 +33,7 @@ final class Dash extends StreamingTechnology
     public function __construct()
     {
         $this->manifestModifier = ObjectFactory::createManifestModifier(
-            "python",
+            "go", // python
         );
         $this->repository = ObjectFactory::createRepository("redis");
         $this->manifestController = ObjectFactory::createManifestController(

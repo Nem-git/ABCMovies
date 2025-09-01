@@ -40,6 +40,8 @@ final class ObjectFactory
     private static array $manifestModifier = [
         "python" =>
             \App\Streaming\StreamingTechnology\Dash\ManifestModifier\PythonBackend::class,
+        "go" =>
+            \App\Streaming\StreamingTechnology\Dash\ManifestModifier\GoBackend::class,
     ];
 
     private static array $segmentDecryptor = [
