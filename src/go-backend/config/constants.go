@@ -4,10 +4,21 @@ const (
 	// Files
 	CDM_PATH string = "../../cdm/widevine"
 
+	// Widevine & Playready
+	CENC_SCHEME_ID = "MPEG:DASH:MP4PROTECTION:2011"
+
 	// Widevine
 	CLIENT_ID_FILENAME   string = "client_id.bin"
 	PRIVATE_KEY_FILENAME string = "private_key.pem"
 	WVD_FILENAME         string = "device.wvd"
+
+	WIDEVINE_UUID string = "EDEF8BA9-79D6-4ACE-A3C8-27DCD51D21ED"
+
+	WIDEVINE_PSSH_PART_1 string = "000000387073736800000000edef8ba979d64acea3c827dcd51d21ed000000181210"
+	WIDEVINE_PSSH_PART_3 string = "48e3dc959b06"
+
+	// Playready
+	PLAYREADY_UUID string = "9A04F079-9840-4286-AB92-E65BE0885F95"
 
 	// Dash
 	DASH_INIT_URL_PREFIX  string = "dash/init"

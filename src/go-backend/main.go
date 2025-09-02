@@ -34,6 +34,8 @@ func getDashManifestHandler(w http.ResponseWriter, r *http.Request) {
 	response.Error = "0"
 	response.Manifest = manifestString
 
+	fmt.Println("modified dash manifest:", requestData.Url)
+
 	utils.JSONResponse(w, response)
 }
 
@@ -62,6 +64,8 @@ func getDecryptionKeysHandler(w http.ResponseWriter, r *http.Request) {
 	response.Error = "0"
 	response.Keys = keys
 
+	fmt.Println("found decryption keys:", keys)
+
 	utils.JSONResponse(w, response)
 }
 
@@ -88,7 +92,9 @@ func getPsshHandler(w http.ResponseWriter, r *http.Request) {
 	var response models.WidevinePsshResponse
 
 	response.Error = "0"
-	response.Pssh = *pssh
+	response.Pssh = pssh
+
+	fmt.Println("found pssh:", pssh)
 
 	utils.JSONResponse(w, response)
 }

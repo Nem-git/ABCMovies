@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
+	"github.com/antchfx/xmlquery"
 	widevine "github.com/iyear/gowidevine"
 	"github.com/iyear/gowidevine/widevinepb"
 
@@ -129,8 +131,6 @@ func (w *Widevine) GetKeys(psshData string, licenseUrl string, headers map[strin
 		}
 	}
 
-	fmt.Println("Found keys:", formattedKeys)
-
 	return formattedKeys, nil
 }
 
@@ -160,12 +160,12 @@ func (w *Widevine) getServiceCert(licenseUrl string) (*widevinepb.DrmCertificate
 
 // func (w *Widevine) GetDecryptedSegment()
 
-func (w *Widevine) GetPssh(url string, headers map[string]string, segHeaders map[string]string) (*string, error) {
+func (w *Widevine) GetPssh(url string, headers map[string]string, segHeaders map[string]string) (string, error) {
 
 	// Send request to get Dash Manifest
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't create dash request: %w", err)
+		return "", fmt.Errorf("couldn't create dash request: %w", err)
 	}
 
 	for key, value := range headers {
@@ -176,32 +176,116 @@ func (w *Widevine) GetPssh(url string, headers map[string]string, segHeaders map
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("dash manifest retrieval failed: %w", err)
+		return "", fmt.Errorf("dash manifest retrieval failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	m, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading dash manifest failed: %w", err)
+	pssh, err := w.psshWithManifest(&resp.Body)
+	if err == nil {
+		return pssh, err
 	}
 
-	manifestString := string(m)
+	r, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("couldn't read manifest response body: %w", err)
+	}
 
-	// manifest, err := mpd.ReadFromString(manifestString)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("parsing dash manifest from string failed: %w", err)
-	// }
+	pssh, err = w.psshWithSegment(string(r))
 
-	// fmt.Println(manifest.BaseURL)
+	return "", nil
+}
 
-	// for period := manifest.Periods {
+func (w *Widevine) psshWithSegment(content string) (string, error) {
 
-	// }
+	return "", nil
+}
 
-	// manifestString, err = manifest.WriteToString()
-	// if err != nil {
-	// 	return nil, fmt.Errorf("parsing dash manifest to string failed: %w", err)
-	// }
+func (w *Widevine) psshWithManifest(body *io.ReadCloser) (string, error) {
 
-	return &manifestString, nil
+	doc, err := xmlquery.Parse(*body)
+	if err != nil {
+		return "", fmt.Errorf("couldn't parse xml using xpath")
+	}
+
+	nodes := xmlquery.Find(doc, "//ContentProtection")
+
+	for _, node := range nodes {
+		for range node.Attr {
+			scheme := strings.ToUpper(node.SelectAttr("schemeIdUri"))
+			switch scheme {
+
+			// Directly in ContentProtection
+			case strings.Join([]string{"URN", "UUID", config.WIDEVINE_UUID}, ":"):
+				pssh, err := w.psshContentProtection(node)
+				if err == nil {
+					return pssh, err
+				}
+
+			// Playready
+			case strings.Join([]string{"URN", "UUID", config.PLAYREADY_UUID}, ":"):
+				// split := strings.Split(scheme, ":") // urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed
+				// defaultKID = split[len(split)-1]
+
+			// Default KID
+			case strings.Join([]string{"URN", config.CENC_SCHEME_ID}, ":"):
+				pssh, err := w.psshDefaultKID(node)
+				if err == nil {
+					return pssh, err
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("couldn't find pssh from contentprotection or default kid")
+
+}
+
+func (w *Widevine) psshDefaultKID(node *xmlquery.Node) (string, error) {
+	defaultKID := node.SelectAttr("cenc:default_KID")
+
+	if defaultKID == "" {
+		return "", fmt.Errorf("couln't find kid attribute in contentprotection")
+	}
+
+	defaultKID = strings.ReplaceAll(defaultKID, "-", "")
+
+	decodedPssh := strings.Join([]string{config.WIDEVINE_PSSH_PART_1, defaultKID, config.WIDEVINE_PSSH_PART_3}, "")
+
+	hexPssh, err := hex.DecodeString(decodedPssh)
+	if err != nil {
+		return "", fmt.Errorf("couldn't convert pssh from string to hex: %w", err)
+	}
+
+	return base64.RawStdEncoding.EncodeToString(hexPssh), nil
+
+}
+
+func (w *Widevine) psshContentProtection(node *xmlquery.Node) (string, error) {
+	pssh := ""
+
+	currentChild := node.FirstChild
+	beenThroughFirstChild := false
+
+	for {
+		if currentChild.Data == "pssh" {
+			pssh = currentChild.InnerText()
+			break
+		}
+
+		if currentChild == node.FirstChild && beenThroughFirstChild {
+			break
+		} else {
+			currentChild = currentChild.NextSibling
+		}
+
+		if !beenThroughFirstChild {
+			beenThroughFirstChild = !beenThroughFirstChild
+		}
+	}
+
+	if pssh == "" {
+		return pssh, fmt.Errorf("couldn't find pssh inside of contentprotection")
+	}
+
+	return pssh, nil
 }
