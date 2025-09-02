@@ -33,7 +33,7 @@ final class Widevine extends DRMTechnology
 
     public function __construct()
     {
-        $this->psshRetriever = ObjectFactory::createPsshRetriever("python");
+        $this->psshRetriever = ObjectFactory::createPsshRetriever("go"); // python
         $this->decryptionKeysRetriever = ObjectFactory::createDecryptionKeysRetriever(
             "go", // python
         );

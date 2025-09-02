@@ -28,6 +28,8 @@ final class ObjectFactory
     private static array $psshRetriever = [
         "python" =>
             \App\Streaming\DRMTechnology\Widevine\PsshRetriever\PythonBackend::class,
+        "go" =>
+            \App\Streaming\DRMTechnology\Widevine\PsshRetriever\GoBackend::class,
     ];
 
     private static array $decryptionKeysRetriever = [

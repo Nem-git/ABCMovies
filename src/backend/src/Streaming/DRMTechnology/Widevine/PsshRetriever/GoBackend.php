@@ -5,20 +5,20 @@ declare(strict_types=1);
 namespace App\Streaming\DRMTechnology\Widevine\PsshRetriever;
 
 use App\Streaming\DRMTechnology\Widevine\Classes\PsshRetriever;
-use App\Streaming\Helpers\PythonBackend\PythonBackendHelper;
+use App\Streaming\Helpers\GoBackend\GoBackendHelper;
 
 /**
- * Using the Python API to retrieve the keys
+ * Using the Go API to retrieve the keys
  */
-final class PythonBackend extends PsshRetriever
+final class GoBackend extends PsshRetriever
 {
     public function getPssh(
         string $mpdUrl,
         array $mpdHeaders,
         array $segmentHeaders,
     ): string {
-        $response = PythonBackendHelper::get(
-            "pssh",
+        $response = GoBackendHelper::get(
+            "widevine/pssh",
             [
             "url" => $mpdUrl,
             "headers" => $mpdHeaders,
@@ -28,6 +28,7 @@ final class PythonBackend extends PsshRetriever
 
         if ($response->error) {
             // TODO: Throw error
+            var_dump($response);
         }
 
         return $response->pssh;
