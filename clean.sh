@@ -23,5 +23,5 @@ cd ../../../
 
 
 # Go
-gofmt ./src/go-backend/
+gofmt -w ./src/go-backend/
 
