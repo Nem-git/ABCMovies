@@ -7,17 +7,27 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
+	"github.com/Eyevinn/mp4ff/mp4"
 	"github.com/antchfx/xmlquery"
 	widevine "github.com/iyear/gowidevine"
 	"github.com/iyear/gowidevine/widevinepb"
+	"github.com/zencoder/go-dash/mpd"
 
 	"abcmovies/config"
 	"abcmovies/utils"
 )
 
 type Widevine struct{}
+
+type DashPlaceHolder struct {
+	number           int
+	time             int
+	bandwidth        int
+	representationId string
+}
 
 func (w *Widevine) init(encodedPssh string) (*widevine.Device, *widevine.PSSH, error) {
 	var device *widevine.Device
@@ -182,22 +192,211 @@ func (w *Widevine) GetPssh(url string, headers map[string]string, segHeaders map
 
 	pssh, err := w.psshWithManifest(&resp.Body)
 	if err == nil {
-		return pssh, err
+		return pssh, nil
 	}
 
-	r, err := io.ReadAll(resp.Body)
+	pssh, err = w.psshWithSegment(url, &resp.Body, segHeaders)
 	if err != nil {
-		return "", fmt.Errorf("couldn't read manifest response body: %w", err)
+		return "", fmt.Errorf("couldn't retrieve pssh")
 	}
 
-	pssh, err = w.psshWithSegment(string(r))
-
-	return "", nil
+	return pssh, nil
 }
 
-func (w *Widevine) psshWithSegment(content string) (string, error) {
+func (w *Widevine) psshWithSegment(url string, body *io.ReadCloser, segHeaders map[string]string) (string, error) {
 
-	return "", nil
+	content, err := io.ReadAll(*body)
+	if err != nil {
+		return "", fmt.Errorf("couldn't read request body: %w", err)
+	}
+
+	url, err = w.readWithGoDash(url, string(content))
+	if err != nil {
+		return "", fmt.Errorf("couldn't get segment url using dash manifest: %w", err)
+	}
+
+	// Send request to get Segment content
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return "", fmt.Errorf("couldn't create segment request: %w", err)
+	}
+
+	for key, value := range segHeaders {
+		if key != "" {
+			req.Header.Set(key, value)
+		}
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("segment retrieval failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	parsed, err := mp4.DecodeFile(resp.Body)
+	if err != nil || parsed == nil {
+		return "", fmt.Errorf("couldn't parse segment body: %w", err)
+	}
+
+	if parsed.Moov == nil {
+		return "", fmt.Errorf("couldn't find moov atom in mp4")
+	}
+
+	if parsed.Moov.Pssh == nil {
+		return "", fmt.Errorf("couldn't find pssh atom in mp4")
+	}
+	if parsed.Moov.Pssh == nil {
+		return "", fmt.Errorf("couldn't find pssh atom in mp4")
+	}
+	if parsed.Moov.Pssh.Data == nil {
+		return "", fmt.Errorf("couldn't find pssh atom in mp4")
+	}
+	if len(parsed.Moov.Pssh.Data) == 0 {
+		return "", fmt.Errorf("couldn't find pssh atom in mp4")
+	}
+
+	for _, p := range parsed.Moov.Psshs {
+
+		buf := new(bytes.Buffer)
+
+		err = p.Encode(buf)
+		if err != nil {
+			continue
+		}
+
+		pssh := base64.RawStdEncoding.EncodeToString(buf.Bytes())
+
+		// Guessed the numbers, I just don't want playready PSSH's
+		// which can be thousands of characters
+		if len(pssh) > config.WIDEVINE_PSSH_MIN_LEN && len(pssh) < config.WIDEVINE_PSSH_MAX_LEN {
+			return pssh, nil
+		}
+	}
+
+	return "", fmt.Errorf("couldn't find pssh inside of segment")
+}
+
+func (d *Widevine) readWithGoDash(url string, content string) (string, error) {
+
+	var err error
+
+	manifest, err := mpd.ReadFromString(content)
+	if err != nil {
+		return "", fmt.Errorf("parsing dash manifest from string failed: %w", err)
+	}
+
+	baseUrl, err := utils.JoinUrls(url, manifest.BaseURL) // Joins mpd and baseurl urls
+	if err != nil {
+		return "", fmt.Errorf("couldn't join urls: %w", err)
+	}
+
+	if manifest.Periods == nil {
+		return "", fmt.Errorf("no periods found in dash manifest")
+	}
+
+	for _, period := range manifest.Periods {
+
+		periodUrl, err := utils.JoinUrls(baseUrl, period.BaseURL)
+		if err != nil {
+			return "", fmt.Errorf("failed to join manifest and period urls: %w", err)
+		}
+
+		if period.AdaptationSets == nil {
+			continue
+		}
+
+		for _, adaptationSet := range period.AdaptationSets {
+
+			// At least I think representations cannot be in segment templates...
+			if adaptationSet.Representations == nil {
+				continue
+			}
+
+			if adaptationSet.SegmentTemplate != nil {
+
+				// Don't rename it because I make sure to not mix values between representations
+				urlWithPlaceHolders, segmentTemplaceDashPlaceHolders, err := d.segmentPathWithGoDash(adaptationSet.SegmentTemplate, periodUrl)
+				if err != nil {
+					continue
+				}
+
+				for _, representation := range adaptationSet.Representations {
+					dashPlaceHolder := d.representationWithGoDash(representation, segmentTemplaceDashPlaceHolders)
+					return d.replaceDashUrlPlaceholders(urlWithPlaceHolders, dashPlaceHolder), nil
+				}
+
+			} else {
+				for _, representation := range adaptationSet.Representations {
+
+					// That would be stupid..
+					if representation.SegmentTemplate == nil {
+						continue
+					}
+
+					urlWithPlaceHolders, dashPlaceHolder, err := d.segmentPathWithGoDash(representation.SegmentTemplate, periodUrl)
+					if err != nil {
+						continue
+					}
+
+					dashPlaceHolder = d.representationWithGoDash(representation, dashPlaceHolder)
+					return d.replaceDashUrlPlaceholders(urlWithPlaceHolders, dashPlaceHolder), nil
+				}
+			}
+
+		}
+	}
+
+	return url, nil
+}
+
+func (w *Widevine) segmentPathWithGoDash(segmentTemplate *mpd.SegmentTemplate, url string) (string, DashPlaceHolder, error) {
+
+	if segmentTemplate == nil {
+		return "", DashPlaceHolder{}, fmt.Errorf("segment template is nil")
+	}
+
+	segmentUrl := ""
+
+	if segmentTemplate.Initialization != nil {
+		segmentUrl = *segmentTemplate.Initialization
+	} else if segmentTemplate.Media != nil {
+		segmentUrl = *segmentTemplate.Media
+	} else {
+		return "", DashPlaceHolder{}, fmt.Errorf("no init or media url found in segment template")
+	}
+
+	joinedUrl, err := utils.JoinUrls(url, segmentUrl)
+	if err != nil {
+		return "", DashPlaceHolder{}, fmt.Errorf("couldn't join period and segment url: %w", err)
+	}
+
+	var dashPlaceHolder DashPlaceHolder
+
+	if segmentTemplate.StartNumber != nil {
+		dashPlaceHolder.number = int(*segmentTemplate.StartNumber)
+	}
+	if segmentTemplate.PresentationTimeOffset != nil {
+		dashPlaceHolder.time = int(*segmentTemplate.PresentationTimeOffset)
+	}
+
+	return joinedUrl, dashPlaceHolder, nil
+}
+
+func (w *Widevine) representationWithGoDash(representation *mpd.Representation, dashPlaceHolder DashPlaceHolder) DashPlaceHolder {
+	dashPlaceHolder.bandwidth = int(*representation.Bandwidth)
+	dashPlaceHolder.representationId = *representation.ID
+
+	return dashPlaceHolder
+}
+
+func (w *Widevine) replaceDashUrlPlaceholders(url string, dashPlaceHolder DashPlaceHolder) string {
+
+	url = strings.ReplaceAll(url, "$Number$", strconv.Itoa(dashPlaceHolder.number))
+	url = strings.ReplaceAll(url, "$Time$", strconv.Itoa(dashPlaceHolder.time))
+	url = strings.ReplaceAll(url, "$Bandwidth$", strconv.Itoa(dashPlaceHolder.bandwidth))
+	url = strings.ReplaceAll(url, "$RepresentationID$", dashPlaceHolder.representationId)
+
+	return url
 }
 
 func (w *Widevine) psshWithManifest(body *io.ReadCloser) (string, error) {
