@@ -76,7 +76,9 @@ moov/trak/mdia/minf/stbl/stsd/[original_format]
 
 ## Docker Container
 
-- [ ] Make the Dockerfiles more Multi-Stage
+- [ ] Try to create multiple networks
+- [ ] Set an error_log in phpini
+- [ ] Set php.ini using $PHP_INI_DIR
 
 ## 🐘 PHP Backend
 

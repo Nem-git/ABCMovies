@@ -2,12 +2,15 @@ services:
   frontend:
     build:
       context: src/frontend
-      dockerfile: Dockerfile-prod
+      dockerfile: Dockerfile
+      target: frontend-prod
   backend:
     build:
       context: src/backend
-      dockerfile: Dockerfile-prod
+      dockerfile: Dockerfile
+      target: backend-prod
   python_backend:
     build:
       context: src/python-backend
-      dockerfile: Dockerfile-prod
+      dockerfile: Dockerfile
+      target: python-backend-prod

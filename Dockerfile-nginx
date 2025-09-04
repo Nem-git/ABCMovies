@@ -1,7 +1,0 @@
-FROM nginx:alpine-slim
-
-WORKDIR /srv/www
-
-COPY ./nginx.conf /etc/nginx/conf.d/default.conf
-
-COPY ./src/backend/ ./

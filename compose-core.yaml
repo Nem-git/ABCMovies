@@ -42,7 +42,8 @@ services:
     container_name: nginx
     build:
       context: .
-      dockerfile: Dockerfile-nginx
+      dockerfile: Dockerfile
+      target: nginx-base
     ports:
       - '8080:80'
     depends_on:
