@@ -11,12 +11,9 @@ import (
 )
 
 func getDashManifestHandler(w http.ResponseWriter, r *http.Request) {
-	var requestData models.DashManifestModificationRequest
 
-	err := utils.JSONRequest(r, &requestData)
-	if err != nil {
-		fmt.Println(fmt.Errorf("json data invalid: %w", err))
-		utils.JSONError(w, fmt.Errorf("json data invalid: %w", err), http.StatusNotAcceptable)
+	requestData, ok := utils.BindJSONOrErr[models.DashManifestModificationRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -31,7 +28,6 @@ func getDashManifestHandler(w http.ResponseWriter, r *http.Request) {
 
 	var response models.DashManifestModificationResponse
 
-	response.Error = "0"
 	response.Manifest = manifestString
 
 	fmt.Println("modified dash manifest:", requestData.Url)
@@ -39,14 +35,10 @@ func getDashManifestHandler(w http.ResponseWriter, r *http.Request) {
 	utils.JSONResponse(w, response)
 }
 
-func getDecryptionKeysHandler(w http.ResponseWriter, r *http.Request) {
+func getWidevineDecryptionKeysHandler(w http.ResponseWriter, r *http.Request) {
 
-	var requestData models.WidevineKeysRequest
-
-	err := utils.JSONRequest(r, &requestData)
-	if err != nil {
-		fmt.Println(fmt.Errorf("json data invalid: %w", err))
-		utils.JSONError(w, fmt.Errorf("json data invalid: %w", err), http.StatusNotAcceptable)
+	requestData, ok := utils.BindJSONOrErr[models.WidevineKeysRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -61,7 +53,6 @@ func getDecryptionKeysHandler(w http.ResponseWriter, r *http.Request) {
 
 	var response models.WidevineKeysResponse
 
-	response.Error = "0"
 	response.Keys = keys
 
 	fmt.Println("found decryption keys:", keys)
@@ -69,14 +60,10 @@ func getDecryptionKeysHandler(w http.ResponseWriter, r *http.Request) {
 	utils.JSONResponse(w, response)
 }
 
-func getPsshHandler(w http.ResponseWriter, r *http.Request) {
+func getWidevinePsshHandler(w http.ResponseWriter, r *http.Request) {
 
-	var requestData models.WidevinePsshRequest
-
-	err := utils.JSONRequest(r, &requestData)
-	if err != nil {
-		fmt.Println(fmt.Errorf("json data invalid: %w", err))
-		utils.JSONError(w, fmt.Errorf("json data invalid: %w", err), http.StatusNotAcceptable)
+	requestData, ok := utils.BindJSONOrErr[models.WidevinePsshRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -91,10 +78,35 @@ func getPsshHandler(w http.ResponseWriter, r *http.Request) {
 
 	var response models.WidevinePsshResponse
 
-	response.Error = "0"
 	response.Pssh = pssh
 
 	fmt.Println("found pssh:", pssh)
+
+	utils.JSONResponse(w, response)
+}
+
+func getWidevineRemovalHandler(w http.ResponseWriter, r *http.Request) {
+
+	requestData, ok := utils.BindJSONOrErr[models.WidevineRemovalRequest](w, r)
+	if !ok {
+		return
+	}
+
+	var wvd drm.Widevine
+
+	segment, err := wvd.GetDecryptedSegment(requestData.Init, requestData.Segment, requestData.Keys, requestData.IsInit)
+
+	if err != nil {
+		fmt.Println(fmt.Errorf("couldn't remove drm from segment: %w", err))
+		utils.JSONError(w, fmt.Errorf("couldn't remove drm from segment: %w", err), http.StatusNotAcceptable)
+		return
+	}
+
+	var response models.WidevineRemovalResponse
+
+	response.Segment = segment
+
+	fmt.Println("removed drm from segment:", segment)
 
 	utils.JSONResponse(w, response)
 }
@@ -104,8 +116,9 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /dash/manifest", getDashManifestHandler)
-	mux.HandleFunc("POST /widevine/keys", getDecryptionKeysHandler)
-	mux.HandleFunc("POST /widevine/pssh", getPsshHandler)
+	mux.HandleFunc("POST /widevine/keys", getWidevineDecryptionKeysHandler)
+	mux.HandleFunc("POST /widevine/pssh", getWidevinePsshHandler)
+	mux.HandleFunc("POST /widevine/remove", getWidevineRemovalHandler)
 
 	http.ListenAndServe(":8090", mux)
 }

@@ -3,9 +3,25 @@ package utils
 import (
 	"abcmovies/models"
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 )
+
+func BindJSONOrErr[T any](w http.ResponseWriter, r *http.Request) (T, bool) {
+	var t T
+	err := JSONRequest(r, &t)
+
+	if err != nil {
+		err = fmt.Errorf("json data body invalid: %w", err)
+		log.Println(err)
+		JSONError(w, err, http.StatusBadRequest)
+		return *new(T), false
+	}
+
+	return t, true
+}
 
 func JSONResponse(w http.ResponseWriter, content models.Response) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

@@ -1,23 +1,32 @@
 package models
 
 type WidevineKeysRequest struct {
+	Headers map[string]string `json:"headers"`
 	Pssh    string            `json:"pssh"`
 	Url     string            `json:"url"`
-	Headers map[string]string `json:"headers"`
 }
 
 type WidevineKeysResponse struct {
-	Error string   `json:"error"`
-	Keys  []string `json:"keys"`
+	Keys []string `json:"keys"`
 }
 
 type WidevinePsshRequest struct {
-	Url        string            `json:"url"`
 	Headers    map[string]string `json:"headers"`
-	SegHeaders map[string]string `json:"segheaders"`
+	SegHeaders map[string]string `json:"segHeaders"`
+	Url        string            `json:"url"`
 }
 
 type WidevinePsshResponse struct {
-	Error string `json:"error"`
-	Pssh  string `json:"pssh"`
+	Pssh string `json:"pssh"`
+}
+
+type WidevineRemovalRequest struct {
+	Init    string   `json:"init"`
+	IsInit  bool     `json:"isInit"`
+	Keys    []string `json:"keys"`
+	Segment string   `json:"segment"`
+}
+
+type WidevineRemovalResponse struct {
+	Segment string `json:"segment"`
 }

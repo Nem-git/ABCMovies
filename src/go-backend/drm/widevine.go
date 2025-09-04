@@ -6,10 +6,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/Eyevinn/mp4ff/bits"
 	"github.com/Eyevinn/mp4ff/mp4"
 	"github.com/antchfx/xmlquery"
 	widevine "github.com/iyear/gowidevine"
@@ -29,10 +29,76 @@ type DashPlaceHolder struct {
 	representationId string
 }
 
+func (w *Widevine) GetDecryptedSegment(initStr string, segmentStr string, keys []string, isInit bool) (string, error) {
+
+	if initStr == "" {
+		return "", fmt.Errorf("no init segment provided")
+	}
+	if segmentStr == "" && !isInit {
+		return "", fmt.Errorf("no media segment provided")
+	}
+
+	initByte, err := base64.RawStdEncoding.DecodeString(initStr)
+	if err != nil {
+		return "", fmt.Errorf("couldn't decode init: %w", err)
+	}
+
+	sr := bits.NewFixedSliceReader(initByte)
+
+	inputFile, err := mp4.DecodeFileSR(sr)
+	if err != nil {
+		return "", fmt.Errorf("couldn't parse init: %w", err)
+	}
+
+	init := inputFile.Init
+	if inputFile.Init == nil {
+		return "", fmt.Errorf("couldn't transform init to mp4.Init")
+	}
+
+	if isInit {
+		di, err := mp4.DecryptInit(init)
+		if err != nil {
+			return "", fmt.Errorf("couldn't clean init: %w", err)
+		}
+	} else {
+
+		mp4.DecryptSegment()
+		// 	segment, err := base64.RawStdEncoding.DecodeString(segmentStr)
+		// if err != nil {
+		// 	return "", fmt.Errorf("couldn't decode segment: %w", err)
+		// }
+		// sr = bits.NewFixedSliceReader(segment)
+		// s, err := mp4.DecodeFileSR(sr)
+		// if err != nil {
+		// 	return "", fmt.Errorf("couldn't parse segment: %w", err)
+		// }
+		// merged, err := w.mergeSegments(i, s)
+		// if err != nil {
+		// 	return "", fmt.Errorf("couldn't merge segments: %w", err)
+		// }
+
+	}
+
+	return "", nil
+}
+
+func (w *Widevine) mergeSegments(init *mp4.File, segment *mp4.File) (*mp4.File, error) {
+
+	// mp4.MediaSegment
+	// mp4.InitSegment
+	// mp4.DecryptInit()
+
+	return nil, nil
+
+}
+
 func (w *Widevine) init(encodedPssh string) (*widevine.Device, *widevine.PSSH, error) {
 	var device *widevine.Device
 
 	psshBytes, err := base64.RawStdEncoding.DecodeString(encodedPssh)
+	if err != nil {
+		return &widevine.Device{}, &widevine.PSSH{}, fmt.Errorf("base64 decoding pssh %v: %w", psshBytes, err)
+	}
 
 	// Parse PSSH
 	pssh, err := widevine.NewPSSH(psshBytes)
@@ -101,24 +167,12 @@ func (w *Widevine) GetKeys(psshData string, licenseUrl string, headers map[strin
 	}
 
 	// Send challenge to license server
-	req, err := http.NewRequest(http.MethodPost, licenseUrl, io.NopCloser(bytes.NewReader(challenge)))
+	body, err := utils.Post(licenseUrl, headers, challenge)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't create request: %w", err)
+		return nil, fmt.Errorf("couldn't make license request: %w", err)
 	}
 
-	for key, value := range headers {
-		if key != "" {
-			req.Header.Set(key, value)
-		}
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request license: %w", err)
-	}
-	defer resp.Body.Close()
-
-	license, err := io.ReadAll(resp.Body)
+	license, err := io.ReadAll(body)
 	if err != nil {
 		return nil, fmt.Errorf("read resp: %w", err)
 	}
@@ -145,17 +199,13 @@ func (w *Widevine) GetKeys(psshData string, licenseUrl string, headers map[strin
 }
 
 func (w *Widevine) getServiceCert(licenseUrl string) (*widevinepb.DrmCertificate, error) {
-	req, err := http.NewRequest(http.MethodPost, licenseUrl, io.NopCloser(bytes.NewReader(widevine.ServiceCertificateRequest)))
-	if err != nil {
-		return nil, fmt.Errorf("couldn't create service cert request: %w", err)
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error while making service cert response: %w", err)
-	}
-	defer resp.Body.Close()
 
-	serviceCert, err := io.ReadAll(resp.Body)
+	body, err := utils.Post(licenseUrl, nil, widevine.ServiceCertificateRequest)
+	if err != nil {
+		return nil, fmt.Errorf("error while making service cert request: %w", err)
+	}
+
+	serviceCert, err := io.ReadAll(body)
 	if err != nil {
 		return nil, fmt.Errorf("error while reading service cert response: %w", err)
 	}
@@ -168,34 +218,17 @@ func (w *Widevine) getServiceCert(licenseUrl string) (*widevinepb.DrmCertificate
 	return cert, nil
 }
 
-// func (w *Widevine) GetDecryptedSegment()
-
 func (w *Widevine) GetPssh(url string, headers map[string]string, segHeaders map[string]string) (string, error) {
 
 	// Send request to get Dash Manifest
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return "", fmt.Errorf("couldn't create dash request: %w", err)
-	}
+	body, err := utils.Get(url, nil, headers)
 
-	for key, value := range headers {
-		if key != "" {
-			req.Header.Set(key, value)
-		}
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("dash manifest retrieval failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	pssh, err := w.psshWithManifest(&resp.Body)
+	pssh, err := w.psshWithManifest(body)
 	if err == nil {
 		return pssh, nil
 	}
 
-	pssh, err = w.psshWithSegment(url, &resp.Body, segHeaders)
+	pssh, err = w.psshWithSegment(url, body, segHeaders)
 	if err != nil {
 		return "", fmt.Errorf("couldn't retrieve pssh")
 	}
@@ -203,9 +236,9 @@ func (w *Widevine) GetPssh(url string, headers map[string]string, segHeaders map
 	return pssh, nil
 }
 
-func (w *Widevine) psshWithSegment(url string, body *io.ReadCloser, segHeaders map[string]string) (string, error) {
+func (w *Widevine) psshWithSegment(url string, b io.ReadCloser, segHeaders map[string]string) (string, error) {
 
-	content, err := io.ReadAll(*body)
+	content, err := io.ReadAll(b)
 	if err != nil {
 		return "", fmt.Errorf("couldn't read request body: %w", err)
 	}
@@ -216,64 +249,66 @@ func (w *Widevine) psshWithSegment(url string, body *io.ReadCloser, segHeaders m
 	}
 
 	// Send request to get Segment content
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	body, err := utils.Get(url, nil, segHeaders)
 	if err != nil {
-		return "", fmt.Errorf("couldn't create segment request: %w", err)
+		return "", fmt.Errorf("couldn't make segment request: %w", err)
 	}
 
-	for key, value := range segHeaders {
-		if key != "" {
-			req.Header.Set(key, value)
-		}
-	}
-
-	resp, err := http.DefaultClient.Do(req)
+	dataBytes, err := io.ReadAll(body)
 	if err != nil {
-		return "", fmt.Errorf("segment retrieval failed: %w", err)
+		return "", fmt.Errorf("couldn't parse segment body: %w", err)
 	}
-	defer resp.Body.Close()
 
-	parsed, err := mp4.DecodeFile(resp.Body)
+	sr := bits.NewFixedSliceReader(dataBytes)
+
+	parsed, err := mp4.DecodeFileSR(sr)
 	if err != nil || parsed == nil {
 		return "", fmt.Errorf("couldn't parse segment body: %w", err)
 	}
 
-	if parsed.Moov == nil {
-		return "", fmt.Errorf("couldn't find moov atom in mp4")
-	}
+	if parsed.Init != nil {
 
-	if parsed.Moov.Pssh == nil {
-		return "", fmt.Errorf("couldn't find pssh atom in mp4")
-	}
-	if parsed.Moov.Pssh == nil {
-		return "", fmt.Errorf("couldn't find pssh atom in mp4")
-	}
-	if parsed.Moov.Pssh.Data == nil {
-		return "", fmt.Errorf("couldn't find pssh atom in mp4")
-	}
-	if len(parsed.Moov.Pssh.Data) == 0 {
-		return "", fmt.Errorf("couldn't find pssh atom in mp4")
-	}
+		decryptInfo, err := mp4.DecryptInit(parsed.Init)
+		if err == nil {
+			if decryptInfo.Psshs != nil {
+				for _, pssh := range decryptInfo.Psshs {
+					buf := new(bytes.Buffer)
 
-	for _, p := range parsed.Moov.Psshs {
+					err = pssh.Encode(buf)
+					if err != nil {
+						continue
+					}
 
-		buf := new(bytes.Buffer)
-
-		err = p.Encode(buf)
-		if err != nil {
-			continue
-		}
-
-		pssh := base64.RawStdEncoding.EncodeToString(buf.Bytes())
-
-		// Guessed the numbers, I just don't want playready PSSH's
-		// which can be thousands of characters
-		if len(pssh) > config.WIDEVINE_PSSH_MIN_LEN && len(pssh) < config.WIDEVINE_PSSH_MAX_LEN {
-			return pssh, nil
+					return base64.RawStdEncoding.EncodeToString(buf.Bytes()), nil
+				}
+			}
 		}
 	}
 
-	return "", fmt.Errorf("couldn't find pssh inside of segment")
+	if parsed.Segments != nil {
+		if parsed.Moov == nil {
+			return "", fmt.Errorf("couldn't find moov atom in mp4")
+		}
+		if parsed.Moov.Psshs == nil {
+			return "", fmt.Errorf("couldn't find pssh atom in mp4")
+		}
+
+		for _, pssh := range parsed.Moov.Psshs {
+			if pssh.SystemID.Equal(mp4.UUID(mp4.UUIDWidevine)) {
+
+				buf := new(bytes.Buffer)
+
+				err = pssh.Encode(buf)
+				if err != nil {
+					continue
+				}
+
+				return base64.RawStdEncoding.EncodeToString(buf.Bytes()), nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no init or segment found")
 }
 
 func (d *Widevine) readWithGoDash(url string, content string) (string, error) {
@@ -399,9 +434,9 @@ func (w *Widevine) replaceDashUrlPlaceholders(url string, dashPlaceHolder DashPl
 	return url
 }
 
-func (w *Widevine) psshWithManifest(body *io.ReadCloser) (string, error) {
+func (w *Widevine) psshWithManifest(body io.ReadCloser) (string, error) {
 
-	doc, err := xmlquery.Parse(*body)
+	doc, err := xmlquery.Parse(body)
 	if err != nil {
 		return "", fmt.Errorf("couldn't parse xml using xpath")
 	}
@@ -419,11 +454,6 @@ func (w *Widevine) psshWithManifest(body *io.ReadCloser) (string, error) {
 				if err == nil {
 					return pssh, err
 				}
-
-			// Playready
-			case strings.Join([]string{"URN", "UUID", config.PLAYREADY_UUID}, ":"):
-				// split := strings.Split(scheme, ":") // urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed
-				// defaultKID = split[len(split)-1]
 
 			// Default KID
 			case strings.Join([]string{"URN", config.CENC_SCHEME_ID}, ":"):
