@@ -55,31 +55,47 @@ func (w *Widevine) GetDecryptedSegment(initStr string, segmentStr string, keys [
 		return "", fmt.Errorf("couldn't transform init to mp4.Init")
 	}
 
-	if isInit {
-		di, err := mp4.DecryptInit(init)
-		if err != nil {
-			return "", fmt.Errorf("couldn't clean init: %w", err)
-		}
-	} else {
-
-		mp4.DecryptSegment()
-		// 	segment, err := base64.RawStdEncoding.DecodeString(segmentStr)
-		// if err != nil {
-		// 	return "", fmt.Errorf("couldn't decode segment: %w", err)
-		// }
-		// sr = bits.NewFixedSliceReader(segment)
-		// s, err := mp4.DecodeFileSR(sr)
-		// if err != nil {
-		// 	return "", fmt.Errorf("couldn't parse segment: %w", err)
-		// }
-		// merged, err := w.mergeSegments(i, s)
-		// if err != nil {
-		// 	return "", fmt.Errorf("couldn't merge segments: %w", err)
-		// }
-
+	di, err := mp4.DecryptInit(init)
+	if err != nil {
+		return "", fmt.Errorf("couldn't clean init: %w", err)
 	}
 
-	return "", nil
+	if isInit {
+		sw := bits.NewFixedSliceWriter(int(init.Size()))
+		encodedInit := base64.RawStdEncoding.EncodeToString(sw.Bytes())
+		return encodedInit, nil
+	} else {
+
+		segmentByte, err := base64.RawStdEncoding.DecodeString(segmentStr)
+		if err != nil {
+			return "", fmt.Errorf("couldn't decode segment: %w", err)
+		}
+
+		sr := bits.NewFixedSliceReader(segmentByte)
+
+		segmentFile, err := mp4.DecodeFileSR(sr)
+		if err != nil {
+			return "", fmt.Errorf("couldn't parse init: %w", err)
+		}
+
+		segments := segmentFile.Segments
+
+		file := mp4.NewFile()
+
+		for _, segment := range segments {
+			for _, k := range keys {
+				key, err := mp4.UnpackKey(k)
+				if err != nil {
+					mp4.DecryptSegment(segment, di, key)
+					file.AddMediaSegment(segment)
+				}
+			}
+		}
+
+		sw := bits.NewFixedSliceWriter(int(file.Size()))
+		encodedMedia := base64.RawStdEncoding.EncodeToString(sw.Bytes())
+		return encodedMedia, nil
+	}
 }
 
 func (w *Widevine) mergeSegments(init *mp4.File, segment *mp4.File) (*mp4.File, error) {
@@ -222,6 +238,9 @@ func (w *Widevine) GetPssh(url string, headers map[string]string, segHeaders map
 
 	// Send request to get Dash Manifest
 	body, err := utils.Get(url, nil, headers)
+	if err != nil {
+		return "", fmt.Errorf("couldn't retrieve body: %w", err)
+	}
 
 	pssh, err := w.psshWithManifest(body)
 	if err == nil {
@@ -312,8 +331,6 @@ func (w *Widevine) psshWithSegment(url string, b io.ReadCloser, segHeaders map[s
 }
 
 func (d *Widevine) readWithGoDash(url string, content string) (string, error) {
-
-	var err error
 
 	manifest, err := mpd.ReadFromString(content)
 	if err != nil {

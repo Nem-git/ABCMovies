@@ -104,6 +104,7 @@ func getWidevineRemovalHandler(w http.ResponseWriter, r *http.Request) {
 
 	var response models.WidevineRemovalResponse
 
+	response.Init = requestData.Init
 	response.Segment = segment
 
 	fmt.Println("removed drm from segment:", segment)

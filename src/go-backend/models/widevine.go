@@ -28,5 +28,6 @@ type WidevineRemovalRequest struct {
 }
 
 type WidevineRemovalResponse struct {
+	Init    string `json:"init"`
 	Segment string `json:"segment"`
 }
