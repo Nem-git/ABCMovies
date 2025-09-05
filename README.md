@@ -27,7 +27,11 @@ Some files contain environment-specific paths or credentials that you'll need to
 **Edit these files:**
 
 - **Docker**
-  - `compose-core.yaml`
+  - `.env`
+```TOUTV_EMAIL=
+TOUTV_PASSWORD=
+DB_PW=
+```
 - **PHP**
   - `src/backend/src/Config/Constants.php`
 - **Python**
