@@ -16,8 +16,8 @@ import (
 	"github.com/iyear/gowidevine/widevinepb"
 	"github.com/zencoder/go-dash/mpd"
 
-	"abcmovies/config"
-	"abcmovies/utils"
+	"github.com/nem-git/abcmovies/config"
+	"github.com/nem-git/abcmovies/utils"
 )
 
 type Widevine struct{}

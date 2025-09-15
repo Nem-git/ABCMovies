@@ -94,6 +94,8 @@ moov/trak/mdia/minf/stbl/stsd/[original_format]
 - [ ] Subtitles/Captions class to support external subs urls
 - [ ] Rely more on caching of requests in my Redis for faster responses
 - [ ] Switch to Postgresql, for its flexibility and plugins, that can replace Redis and act as a normal DB
+- [ ] Save the modified manifest to the Redis
+
 
 ### `Fairplay.php`
 
@@ -147,6 +149,7 @@ moov/trak/mdia/minf/stbl/stsd/[original_format]
 
 - [ ] Add a recommendations page
 - [ ] Add a streaming service page that uses the recommendations available on the streaming service to show recommendations
+- [ ] Implement svelte-virtual-list for lazily loading content
 
 ### `ShowPage.svelte`
 

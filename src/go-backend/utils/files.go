@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"abcmovies/config"
+	"github.com/nem-git/abcmovies/config"
 )
 
 func OpenCdmFile(filePath string) (*os.File, error) {

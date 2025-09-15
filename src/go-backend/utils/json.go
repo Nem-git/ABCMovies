@@ -1,12 +1,13 @@
 package utils
 
 import (
-	"abcmovies/models"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strconv"
+
+	"github.com/nem-git/abcmovies/models"
 )
 
 func BindJSONOrErr[T any](w http.ResponseWriter, r *http.Request) (T, bool) {

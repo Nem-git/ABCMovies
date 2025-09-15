@@ -1,13 +1,19 @@
 package main
 
 import (
-	"abcmovies/models"
-	"abcmovies/utils"
+	"log"
+
+	"github.com/nem-git/abcmovies/models"
+
 	"fmt"
 	"net/http"
 
-	"abcmovies/drm"
-	"abcmovies/streaming"
+	"github.com/nem-git/abcmovies/internal/handlers"
+
+	"github.com/nem-git/abcmovies/drm"
+	"github.com/nem-git/abcmovies/streaming"
+
+	"github.com/nem-git/abcmovies/utils"
 )
 
 func getDashManifestHandler(w http.ResponseWriter, r *http.Request) {
@@ -114,12 +120,15 @@ func getWidevineRemovalHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /dash/manifest", getDashManifestHandler)
-	mux.HandleFunc("POST /widevine/keys", getWidevineDecryptionKeysHandler)
-	mux.HandleFunc("POST /widevine/pssh", getWidevinePsshHandler)
-	mux.HandleFunc("POST /widevine/remove", getWidevineRemovalHandler)
+	handlers.Handler(mux)
 
-	http.ListenAndServe(":8090", mux)
+	log.Println("Welcome to ABCMovies' Go API!")
+
+	if err := http.ListenAndServe(":8090", mux); err != nil {
+		log.Println(err)
+	}
 }
