@@ -1,4 +1,4 @@
-package drm
+package widevine
 
 import (
 	"bytes"
@@ -17,25 +17,13 @@ import (
 	"github.com/zencoder/go-dash/mpd"
 
 	"github.com/nem-git/abcmovies/config"
-	"github.com/nem-git/abcmovies/utils"
+	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-type Widevine struct{}
-
-type DashPlaceHolder struct {
-	number           int
-	time             int
-	bandwidth        int
-	representationId string
-}
-
-func (w *Widevine) GetDecryptedSegment(initStr string, segmentStr string, keys []string, isInit bool) (string, error) {
+func GetDecryptedSegment(initStr string, segmentStr string, keys []string) (string, error) {
 
 	if initStr == "" {
 		return "", fmt.Errorf("no init segment provided")
-	}
-	if segmentStr == "" && !isInit {
-		return "", fmt.Errorf("no media segment provided")
 	}
 
 	initByte, err := base64.RawStdEncoding.DecodeString(initStr)
@@ -60,10 +48,11 @@ func (w *Widevine) GetDecryptedSegment(initStr string, segmentStr string, keys [
 		return "", fmt.Errorf("couldn't clean init: %w", err)
 	}
 
-	if isInit {
+	if segmentStr == "" {
 		sw := bits.NewFixedSliceWriter(int(init.Size()))
 		encodedInit := base64.RawStdEncoding.EncodeToString(sw.Bytes())
 		return encodedInit, nil
+
 	} else {
 
 		segmentByte, err := base64.RawStdEncoding.DecodeString(segmentStr)
@@ -98,7 +87,7 @@ func (w *Widevine) GetDecryptedSegment(initStr string, segmentStr string, keys [
 	}
 }
 
-func (w *Widevine) mergeSegments(init *mp4.File, segment *mp4.File) (*mp4.File, error) {
+func mergeSegments(init *mp4.File, segment *mp4.File) (*mp4.File, error) {
 
 	// mp4.MediaSegment
 	// mp4.InitSegment
@@ -108,7 +97,7 @@ func (w *Widevine) mergeSegments(init *mp4.File, segment *mp4.File) (*mp4.File, 
 
 }
 
-func (w *Widevine) init(encodedPssh string) (*widevine.Device, *widevine.PSSH, error) {
+func initSegment(encodedPssh string) (*widevine.Device, *widevine.PSSH, error) {
 	var device *widevine.Device
 
 	psshBytes, err := base64.RawStdEncoding.DecodeString(encodedPssh)
@@ -151,9 +140,9 @@ func (w *Widevine) init(encodedPssh string) (*widevine.Device, *widevine.PSSH, e
 	return device, pssh, nil
 }
 
-func (w *Widevine) GetKeys(psshData string, licenseUrl string, headers map[string]string) ([]string, error) {
+func GetKeys(psshData string, licenseUrl string, headers map[string]string) ([]string, error) {
 
-	device, pssh, err := w.init(psshData)
+	device, pssh, err := initSegment(psshData)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +160,7 @@ func (w *Widevine) GetKeys(psshData string, licenseUrl string, headers map[strin
 	if err != nil {
 
 		// Or use privacy mode
-		cert, err := w.getServiceCert(licenseUrl)
+		cert, err := getServiceCert(licenseUrl)
 		if err != nil {
 			return nil, fmt.Errorf("get service cert: %w", err)
 		}
@@ -214,7 +203,7 @@ func (w *Widevine) GetKeys(psshData string, licenseUrl string, headers map[strin
 	return formattedKeys, nil
 }
 
-func (w *Widevine) getServiceCert(licenseUrl string) (*widevinepb.DrmCertificate, error) {
+func getServiceCert(licenseUrl string) (*widevinepb.DrmCertificate, error) {
 
 	body, err := utils.Post(licenseUrl, nil, widevine.ServiceCertificateRequest)
 	if err != nil {
@@ -234,7 +223,7 @@ func (w *Widevine) getServiceCert(licenseUrl string) (*widevinepb.DrmCertificate
 	return cert, nil
 }
 
-func (w *Widevine) GetPssh(url string, headers map[string]string, segHeaders map[string]string) (string, error) {
+func GetPssh(url string, headers map[string]string, segHeaders map[string]string) (string, error) {
 
 	// Send request to get Dash Manifest
 	body, err := utils.Get(url, nil, headers)
@@ -242,12 +231,12 @@ func (w *Widevine) GetPssh(url string, headers map[string]string, segHeaders map
 		return "", fmt.Errorf("couldn't retrieve body: %w", err)
 	}
 
-	pssh, err := w.psshWithManifest(body)
+	pssh, err := psshWithManifest(body)
 	if err == nil {
 		return pssh, nil
 	}
 
-	pssh, err = w.psshWithSegment(url, body, segHeaders)
+	pssh, err = psshWithSegment(url, body, segHeaders)
 	if err != nil {
 		return "", fmt.Errorf("couldn't retrieve pssh")
 	}
@@ -255,14 +244,14 @@ func (w *Widevine) GetPssh(url string, headers map[string]string, segHeaders map
 	return pssh, nil
 }
 
-func (w *Widevine) psshWithSegment(url string, b io.ReadCloser, segHeaders map[string]string) (string, error) {
+func psshWithSegment(url string, b io.ReadCloser, segHeaders map[string]string) (string, error) {
 
 	content, err := io.ReadAll(b)
 	if err != nil {
 		return "", fmt.Errorf("couldn't read request body: %w", err)
 	}
 
-	url, err = w.readWithGoDash(url, string(content))
+	url, err = readWithGoDash(url, string(content))
 	if err != nil {
 		return "", fmt.Errorf("couldn't get segment url using dash manifest: %w", err)
 	}
@@ -330,7 +319,14 @@ func (w *Widevine) psshWithSegment(url string, b io.ReadCloser, segHeaders map[s
 	return "", fmt.Errorf("no init or segment found")
 }
 
-func (d *Widevine) readWithGoDash(url string, content string) (string, error) {
+type DashPlaceHolder struct {
+	number           int
+	time             int
+	bandwidth        int
+	representationId string
+}
+
+func readWithGoDash(url string, content string) (string, error) {
 
 	manifest, err := mpd.ReadFromString(content)
 	if err != nil {
@@ -367,14 +363,14 @@ func (d *Widevine) readWithGoDash(url string, content string) (string, error) {
 			if adaptationSet.SegmentTemplate != nil {
 
 				// Don't rename it because I make sure to not mix values between representations
-				urlWithPlaceHolders, segmentTemplaceDashPlaceHolders, err := d.segmentPathWithGoDash(adaptationSet.SegmentTemplate, periodUrl)
+				urlWithPlaceHolders, segmentTemplaceDashPlaceHolders, err := segmentPathWithGoDash(adaptationSet.SegmentTemplate, periodUrl)
 				if err != nil {
 					continue
 				}
 
 				for _, representation := range adaptationSet.Representations {
-					dashPlaceHolder := d.representationWithGoDash(representation, segmentTemplaceDashPlaceHolders)
-					return d.replaceDashUrlPlaceholders(urlWithPlaceHolders, dashPlaceHolder), nil
+					dashPlaceHolder := representationWithGoDash(representation, segmentTemplaceDashPlaceHolders)
+					return replaceDashUrlPlaceholders(urlWithPlaceHolders, dashPlaceHolder), nil
 				}
 
 			} else {
@@ -385,13 +381,13 @@ func (d *Widevine) readWithGoDash(url string, content string) (string, error) {
 						continue
 					}
 
-					urlWithPlaceHolders, dashPlaceHolder, err := d.segmentPathWithGoDash(representation.SegmentTemplate, periodUrl)
+					urlWithPlaceHolders, dashPlaceHolder, err := segmentPathWithGoDash(representation.SegmentTemplate, periodUrl)
 					if err != nil {
 						continue
 					}
 
-					dashPlaceHolder = d.representationWithGoDash(representation, dashPlaceHolder)
-					return d.replaceDashUrlPlaceholders(urlWithPlaceHolders, dashPlaceHolder), nil
+					dashPlaceHolder = representationWithGoDash(representation, dashPlaceHolder)
+					return replaceDashUrlPlaceholders(urlWithPlaceHolders, dashPlaceHolder), nil
 				}
 			}
 
@@ -401,7 +397,7 @@ func (d *Widevine) readWithGoDash(url string, content string) (string, error) {
 	return url, nil
 }
 
-func (w *Widevine) segmentPathWithGoDash(segmentTemplate *mpd.SegmentTemplate, url string) (string, DashPlaceHolder, error) {
+func segmentPathWithGoDash(segmentTemplate *mpd.SegmentTemplate, url string) (string, DashPlaceHolder, error) {
 
 	if segmentTemplate == nil {
 		return "", DashPlaceHolder{}, fmt.Errorf("segment template is nil")
@@ -434,14 +430,14 @@ func (w *Widevine) segmentPathWithGoDash(segmentTemplate *mpd.SegmentTemplate, u
 	return joinedUrl, dashPlaceHolder, nil
 }
 
-func (w *Widevine) representationWithGoDash(representation *mpd.Representation, dashPlaceHolder DashPlaceHolder) DashPlaceHolder {
+func representationWithGoDash(representation *mpd.Representation, dashPlaceHolder DashPlaceHolder) DashPlaceHolder {
 	dashPlaceHolder.bandwidth = int(*representation.Bandwidth)
 	dashPlaceHolder.representationId = *representation.ID
 
 	return dashPlaceHolder
 }
 
-func (w *Widevine) replaceDashUrlPlaceholders(url string, dashPlaceHolder DashPlaceHolder) string {
+func replaceDashUrlPlaceholders(url string, dashPlaceHolder DashPlaceHolder) string {
 
 	url = strings.ReplaceAll(url, "$Number$", strconv.Itoa(dashPlaceHolder.number))
 	url = strings.ReplaceAll(url, "$Time$", strconv.Itoa(dashPlaceHolder.time))
@@ -451,7 +447,7 @@ func (w *Widevine) replaceDashUrlPlaceholders(url string, dashPlaceHolder DashPl
 	return url
 }
 
-func (w *Widevine) psshWithManifest(body io.ReadCloser) (string, error) {
+func psshWithManifest(body io.ReadCloser) (string, error) {
 
 	doc, err := xmlquery.Parse(body)
 	if err != nil {
@@ -467,14 +463,14 @@ func (w *Widevine) psshWithManifest(body io.ReadCloser) (string, error) {
 
 			// Directly in ContentProtection
 			case strings.Join([]string{"URN", "UUID", config.WIDEVINE_UUID}, ":"):
-				pssh, err := w.psshContentProtection(node)
+				pssh, err := psshContentProtection(node)
 				if err == nil {
 					return pssh, err
 				}
 
 			// Default KID
 			case strings.Join([]string{"URN", config.CENC_SCHEME_ID}, ":"):
-				pssh, err := w.psshDefaultKID(node)
+				pssh, err := psshDefaultKID(node)
 				if err == nil {
 					return pssh, err
 				}
@@ -486,7 +482,7 @@ func (w *Widevine) psshWithManifest(body io.ReadCloser) (string, error) {
 
 }
 
-func (w *Widevine) psshDefaultKID(node *xmlquery.Node) (string, error) {
+func psshDefaultKID(node *xmlquery.Node) (string, error) {
 	defaultKID := node.SelectAttr("cenc:default_KID")
 
 	if defaultKID == "" {
@@ -506,7 +502,7 @@ func (w *Widevine) psshDefaultKID(node *xmlquery.Node) (string, error) {
 
 }
 
-func (w *Widevine) psshContentProtection(node *xmlquery.Node) (string, error) {
+func psshContentProtection(node *xmlquery.Node) (string, error) {
 	pssh := ""
 
 	currentChild := node.FirstChild

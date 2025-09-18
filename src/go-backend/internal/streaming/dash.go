@@ -9,34 +9,35 @@ import (
 	"github.com/zencoder/go-dash/mpd"
 
 	"github.com/nem-git/abcmovies/config"
-	"github.com/nem-git/abcmovies/utils"
+	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-type Dash struct{}
-
-func (d *Dash) GetModifiedManifest(url string, content string) (string, error) {
-	content, err := d.modifyWithGoDash(url, content)
+func GetManifest(url string, content string) (string, error) {
+	content, err := modifyWithGoDash(url, content)
 	if err != nil {
 		return "", fmt.Errorf("couldn't modify dash manifest using go-dash: %w", err)
 	}
 
-	content, err = d.modifyWithXPath(content)
+	content, err = modifyWithXPath(content)
 	if err != nil {
 		return "", fmt.Errorf("couldn't modify dash manifest using xpath: %w", err)
 	}
 
-	content = d.modifyWithRegex(content)
+	content = modifyWithRegex(content)
 
 	return content, nil
 }
 
-func (d *Dash) modifyWithGoDash(url string, content string) (string, error) {
+func modifyWithGoDash(url string, content string) (string, error) {
 	manifest, err := mpd.ReadFromString(content)
 	if err != nil {
 		return "", fmt.Errorf("parsing dash manifest from string failed: %w", err)
 	}
 
 	baseUrl, err := utils.JoinUrls(url, manifest.BaseURL) // Joins mpd and baseurl urls
+	if err != nil {
+		return "", fmt.Errorf("couldn't join manifest url with it's base url: %w", err)
+	}
 
 	for _, period := range manifest.Periods {
 		periodUrl, err := utils.JoinUrls(baseUrl, period.BaseURL)
@@ -45,13 +46,13 @@ func (d *Dash) modifyWithGoDash(url string, content string) (string, error) {
 		}
 
 		for _, adaptationSet := range period.AdaptationSets {
-			err := d.modifySegmentTemplate(adaptationSet.SegmentTemplate, periodUrl)
+			err := modifySegmentTemplate(adaptationSet.SegmentTemplate, periodUrl)
 			if err != nil {
 				return "", fmt.Errorf("couldn't modify segment template in adaptation set urls: %w", err)
 			}
 
 			for _, representation := range adaptationSet.Representations {
-				err := d.modifySegmentTemplate(representation.SegmentTemplate, periodUrl)
+				err := modifySegmentTemplate(representation.SegmentTemplate, periodUrl)
 				if err != nil {
 					return "", fmt.Errorf("couldn't modify segment template in representation urls: %w", err)
 				}
@@ -67,21 +68,21 @@ func (d *Dash) modifyWithGoDash(url string, content string) (string, error) {
 	return content, nil
 }
 
-func (d *Dash) modifyWithXPath(content string) (string, error) {
+func modifyWithXPath(content string) (string, error) {
 
 	doc, err := xmlquery.Parse(strings.NewReader(content))
 	if err != nil {
 		return "", fmt.Errorf("couldn't parse xml using xpath")
 	}
 
-	d.removeNodes(doc, "//BaseURL")
-	d.removeNodes(doc, "//ContentProtection")
-	d.removeNodes(doc, "//EventStream")
+	removeNodes(doc, "//BaseURL")
+	removeNodes(doc, "//ContentProtection")
+	removeNodes(doc, "//EventStream")
 
 	return doc.OutputXMLWithOptions(), nil
 }
 
-func (d *Dash) removeNodes(doc *xmlquery.Node, exp string) {
+func removeNodes(doc *xmlquery.Node, exp string) {
 	nodes := xmlquery.Find(doc, exp)
 
 	for _, node := range nodes {
@@ -89,21 +90,21 @@ func (d *Dash) removeNodes(doc *xmlquery.Node, exp string) {
 	}
 }
 
-func (d *Dash) modifyWithRegex(content string) string {
+func modifyWithRegex(content string) string {
 
 	for _, re := range []string{config.RE_DASH_MANIFEST_CENC, config.RE_DASH_MANIFEST_PLAYREADY} {
-		content = d.removeWithRegex(content, re)
+		content = removeWithRegex(content, re)
 	}
 
 	return content
 }
 
-func (d *Dash) removeWithRegex(content string, re string) string {
+func removeWithRegex(content string, re string) string {
 	r := regexp.MustCompilePOSIX(re)
 	return r.ReplaceAllString(content, "")
 }
 
-func (d *Dash) modifySegmentTemplate(segmentTemplate *mpd.SegmentTemplate, periodUrl string) error {
+func modifySegmentTemplate(segmentTemplate *mpd.SegmentTemplate, periodUrl string) error {
 
 	var err error // Because Initialization and Media are pointers
 
@@ -111,13 +112,13 @@ func (d *Dash) modifySegmentTemplate(segmentTemplate *mpd.SegmentTemplate, perio
 		if segmentTemplate.Initialization != nil {
 			id := utils.GetUniqueId()
 
-			*segmentTemplate.Initialization, err = d.modifySegmentUrl(*segmentTemplate.Initialization, periodUrl, config.DASH_INIT_URL_PREFIX, id)
+			*segmentTemplate.Initialization, err = modifySegmentUrl(*segmentTemplate.Initialization, periodUrl, config.DASH_INIT_URL_PREFIX, id)
 			if err != nil {
 				return fmt.Errorf("couldn't modify segment initialization url: %w", err)
 			}
 
 			if segmentTemplate.Media != nil {
-				*segmentTemplate.Media, err = d.modifySegmentUrl(*segmentTemplate.Media, periodUrl, config.DASH_MEDIA_URL_PREFIX, id)
+				*segmentTemplate.Media, err = modifySegmentUrl(*segmentTemplate.Media, periodUrl, config.DASH_MEDIA_URL_PREFIX, id)
 				if err != nil {
 					return fmt.Errorf("couldn't modify segment initialization url: %w", err)
 				}
@@ -125,7 +126,7 @@ func (d *Dash) modifySegmentTemplate(segmentTemplate *mpd.SegmentTemplate, perio
 				return fmt.Errorf("init found but no media segment")
 			}
 		} else if segmentTemplate.Media != nil {
-			*segmentTemplate.Media, err = d.modifySegmentUrl(*segmentTemplate.Media, periodUrl, config.DASH_MEDIA_URL_PREFIX)
+			*segmentTemplate.Media, err = modifySegmentUrl(*segmentTemplate.Media, periodUrl, config.DASH_MEDIA_URL_PREFIX)
 			if err != nil {
 				return fmt.Errorf("couldn't modify segment initialization url: %w", err)
 			}
@@ -137,7 +138,7 @@ func (d *Dash) modifySegmentTemplate(segmentTemplate *mpd.SegmentTemplate, perio
 	return nil
 }
 
-func (d *Dash) modifySegmentUrl(segmentUrl string, periodUrl string, prefix string, id ...string) (string, error) {
+func modifySegmentUrl(segmentUrl string, periodUrl string, prefix string, id ...string) (string, error) {
 
 	strId := ""
 	if id != nil {

@@ -13,6 +13,6 @@ func Handler(mux *http.ServeMux) {
 	mux.Handle("/api/drm/widevine/", WidevineHandler())
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		api.RequestErrorHandler(w, errors.New("endpoint does not exist"))
+		api.BadRequestErrorHandler(w, errors.New("endpoint does not exist"))
 	})
 }
