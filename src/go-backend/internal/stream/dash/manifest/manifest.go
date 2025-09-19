@@ -1,4 +1,4 @@
-package dash
+package manifest
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ import (
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func GetManifest(url string, content string) (string, error) {
+func Get(url string, content string) (string, error) {
 	content, err := modifyWithGoDash(url, content)
 	if err != nil {
 		return "", fmt.Errorf("couldn't modify dash manifest using go-dash: %w", err)

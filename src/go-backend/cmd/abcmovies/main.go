@@ -17,6 +17,7 @@ func main() {
 	handlers.Handler(mux)
 
 	log.Println("Welcome to ABCMovies' Go API!")
+	log.Println("http://localhost:8090/api/")
 
 	if err := http.ListenAndServe(":8090", mux); err != nil {
 		log.Println(err)

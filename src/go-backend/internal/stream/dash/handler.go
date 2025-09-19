@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/nem-git/abcmovies/internal/api"
+	"github.com/nem-git/abcmovies/internal/stream/dash/manifest"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
@@ -30,7 +31,7 @@ func Handler() http.Handler {
 			return
 		}
 
-		content, err := GetManifest(model.Url, model.Content)
+		content, err := manifest.Get(model.Url, model.Content)
 		if err != nil {
 			api.InternalErrorHandler(w, err)
 			return

@@ -5,6 +5,9 @@ import (
 	"net/http"
 
 	"github.com/nem-git/abcmovies/internal/api"
+	"github.com/nem-git/abcmovies/internal/drm/widevine/keys"
+	"github.com/nem-git/abcmovies/internal/drm/widevine/pssh"
+	"github.com/nem-git/abcmovies/internal/drm/widevine/segment"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
@@ -33,7 +36,7 @@ func Handler() http.Handler {
 			return
 		}
 
-		keys, err := GetKeys(model.Pssh, model.License, model.Headers)
+		keys, err := keys.Get(model.Pssh, model.License, model.Headers)
 		if err != nil {
 			api.InternalErrorHandler(w, err)
 			return
@@ -66,7 +69,7 @@ func Handler() http.Handler {
 			return
 		}
 
-		pssh, err := GetPssh(model.Url, model.Headers, model.SegHeaders)
+		pssh, err := pssh.Get(model.Url, model.Headers, model.SegHeaders)
 		if err != nil {
 			api.InternalErrorHandler(w, err)
 			return
@@ -99,7 +102,7 @@ func Handler() http.Handler {
 			return
 		}
 
-		segment, err := GetDecryptedSegment(model.InitStr, model.SegmentStr, model.Keys)
+		segment, err := segment.Get(model.InitStr, model.SegmentStr, model.Keys)
 		if err != nil {
 			api.InternalErrorHandler(w, err)
 			return
