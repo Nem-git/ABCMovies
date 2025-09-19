@@ -1,15 +1,14 @@
-package handlers
+package widevine
 
 import (
 	"fmt"
 	"net/http"
 
 	"github.com/nem-git/abcmovies/api"
-	"github.com/nem-git/abcmovies/internal/drm/widevine"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func WidevineHandler() http.Handler {
+func Handler() http.Handler {
 
 	mux := http.NewServeMux()
 
@@ -34,7 +33,7 @@ func WidevineHandler() http.Handler {
 			return
 		}
 
-		keys, err := widevine.GetKeys(model.Pssh, model.License, model.Headers)
+		keys, err := GetKeys(model.Pssh, model.License, model.Headers)
 		if err != nil {
 			api.InternalErrorHandler(w, err)
 			return
@@ -67,7 +66,7 @@ func WidevineHandler() http.Handler {
 			return
 		}
 
-		pssh, err := widevine.GetPssh(model.Url, model.Headers, model.SegHeaders)
+		pssh, err := GetPssh(model.Url, model.Headers, model.SegHeaders)
 		if err != nil {
 			api.InternalErrorHandler(w, err)
 			return
@@ -100,7 +99,7 @@ func WidevineHandler() http.Handler {
 			return
 		}
 
-		segment, err := widevine.GetDecryptedSegment(model.InitStr, model.SegmentStr, model.Keys)
+		segment, err := GetDecryptedSegment(model.InitStr, model.SegmentStr, model.Keys)
 		if err != nil {
 			api.InternalErrorHandler(w, err)
 			return

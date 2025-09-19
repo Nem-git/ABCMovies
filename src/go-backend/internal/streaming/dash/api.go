@@ -1,4 +1,4 @@
-package api
+package dash
 
 // Dash Manifest Request
 type DashManifestRequest struct {

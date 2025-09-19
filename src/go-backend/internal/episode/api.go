@@ -1,4 +1,4 @@
-package api
+package episode
 
 // Episode Number
 type EpisodeSlugs struct {

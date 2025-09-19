@@ -1,4 +1,4 @@
-package api
+package service
 
 // Streaming Service Tag
 type StreamingServiceSlugs struct {
