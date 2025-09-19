@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/nem-git/abcmovies/api"
+	"github.com/nem-git/abcmovies/internal/api"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
@@ -13,7 +13,7 @@ func Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /keys", func(w http.ResponseWriter, r *http.Request) {
-		model := &api.WidevineKeysRequest{}
+		model := &WidevineKeysRequest{}
 
 		if err := utils.BindJSON(r, model); err != nil {
 			api.BadRequestErrorHandler(w, err)
@@ -39,14 +39,14 @@ func Handler() http.Handler {
 			return
 		}
 
-		response := api.WidevineKeysResponse{
+		response := WidevineKeysResponse{
 			Keys: keys,
 		}
 
 		utils.JSONResponse(w, response)
 	})
 	mux.HandleFunc("POST /pssh", func(w http.ResponseWriter, r *http.Request) {
-		model := &api.WidevinePsshRequest{}
+		model := &WidevinePsshRequest{}
 
 		if err := utils.BindJSON(r, model); err != nil {
 			api.BadRequestErrorHandler(w, err)
@@ -72,14 +72,14 @@ func Handler() http.Handler {
 			return
 		}
 
-		response := api.WidevinePsshResponse{
+		response := WidevinePsshResponse{
 			Pssh: pssh,
 		}
 
 		utils.JSONResponse(w, response)
 	})
 	mux.HandleFunc("POST /remove", func(w http.ResponseWriter, r *http.Request) {
-		model := &api.WidevineSegmentRequest{}
+		model := &WidevineSegmentRequest{}
 
 		if err := utils.BindJSON(r, model); err != nil {
 			api.BadRequestErrorHandler(w, err)
@@ -105,7 +105,7 @@ func Handler() http.Handler {
 			return
 		}
 
-		response := api.WidevineSegmentResponse{
+		response := WidevineSegmentResponse{
 			Segment: segment,
 		}
 

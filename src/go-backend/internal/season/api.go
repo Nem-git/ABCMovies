@@ -4,8 +4,9 @@ import (
 	"github.com/nem-git/abcmovies/internal/episode"
 )
 
-// Season Number
-type SeasonSlugs struct {
+type SeasonRequest struct {
+	ServiceTag   string
+	ShowID       string
 	SeasonNumber int
 }
 
@@ -22,4 +23,12 @@ type SeasonResponse struct {
 	FirstAirDate       string                    `json:"firstAirDate"`
 	AvailabilityStatus string                    `json:"availabilityStatus"`
 	Episodes           []episode.EpisodeResponse `json:"episodes"`
+}
+
+func SeasonRequestHandler(serviceTag string, showID string, number int) SeasonRequest {
+	return SeasonRequest{
+		ServiceTag:   serviceTag,
+		ShowID:       showID,
+		SeasonNumber: number,
+	}
 }

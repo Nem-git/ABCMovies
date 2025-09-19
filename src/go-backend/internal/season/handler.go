@@ -1,26 +1,34 @@
 package season
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
+
+	"github.com/nem-git/abcmovies/internal/api"
+	"github.com/nem-git/abcmovies/internal/utils"
 )
 
 func Handler() http.Handler {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /{seasonID}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/services/{serviceTag}/{showID}/{seasonNumber}", func(w http.ResponseWriter, r *http.Request) {
 
-		// content, err := GetManifest(model.Url, model.Content)
-		// if err != nil {
-		// 	api.InternalErrorHandler(w, err)
-		// 	return
-		// }
+		stringNumber := r.PathValue("seasonNumber")
+		n, err := strconv.Atoi(stringNumber)
+		if err != nil {
+			api.BadRequestErrorHandler(w, fmt.Errorf("season number needs to be an integer"))
+			return
+		}
 
-		// response := DashManifestResponse{
-		// 	Content: content,
-		// }
+		request := SeasonRequestHandler(r.PathValue("serviceTag"), r.PathValue("showID"), n)
 
-		// utils.JSONResponse(w, response)
+		response := SeasonResponse{
+			Number: request.SeasonNumber,
+		}
+
+		utils.JSONResponse(w, response)
 	})
 
 	return mux

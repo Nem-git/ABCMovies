@@ -1,12 +1,12 @@
 package service
 
-// Streaming Service Tag
-type StreamingServiceSlugs struct {
-	StreamingServiceTag string
+// Request Slug
+type ServiceRequest struct {
+	ServiceTag string
 }
 
-// Streaming Service Response
-type StreamingServiceResponse struct {
+// Service Response
+type ServiceResponse struct {
 	BackdropUrl        string   `json:"backdropUrl"`
 	Id                 string   `json:"id"`
 	Name               string   `json:"name"`
@@ -18,4 +18,10 @@ type StreamingServiceResponse struct {
 	HomePage           string   `json:"homePage"`
 	OriginCountry      string   `json:"originCountry"`
 	AvailabilityStatus string   `json:"availabilityStatus"`
+}
+
+func ServiceRequestHandler(tag string) ServiceRequest {
+	return ServiceRequest{
+		ServiceTag: tag,
+	}
 }

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/nem-git/abcmovies/api"
+	"github.com/nem-git/abcmovies/internal/api"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 

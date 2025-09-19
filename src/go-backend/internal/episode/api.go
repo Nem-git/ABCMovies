@@ -1,7 +1,9 @@
 package episode
 
-// Episode Number
-type EpisodeSlugs struct {
+type EpisodeRequest struct {
+	ServiceTag    string
+	ShowID        string
+	SeasonNumber  int
 	EpisodeNumber int
 }
 
@@ -69,4 +71,13 @@ type NextEpisodeResponse struct {
 
 	ShowID       string `json:"showID"`
 	SeasonNumber int    `json:"seasonNumber"`
+}
+
+func EpisodeRequestHandler(serviceTag string, showID string, seasonNumber int, number int) EpisodeRequest {
+	return EpisodeRequest{
+		ServiceTag:    serviceTag,
+		ShowID:        showID,
+		SeasonNumber:  seasonNumber,
+		EpisodeNumber: number,
+	}
 }

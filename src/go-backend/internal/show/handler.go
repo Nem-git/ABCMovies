@@ -2,25 +2,24 @@ package show
 
 import (
 	"net/http"
+
+	"github.com/nem-git/abcmovies/internal/utils"
 )
 
 func Handler() http.Handler {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /{showID}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/services/{serviceTag}/{showID}", func(w http.ResponseWriter, r *http.Request) {
 
-		// content, err := GetManifest(model.Url, model.Content)
-		// if err != nil {
-		// 	api.InternalErrorHandler(w, err)
-		// 	return
-		// }
+		request := ShowRequestHandler(r.PathValue("serviceTag"), r.PathValue("showID"))
 
-		// response := DashManifestResponse{
-		// 	Content: content,
-		// }
+		response := ShowResponse{
+			Name: request.ServiceTag,
+			ID:   request.ShowID,
+		}
 
-		// utils.JSONResponse(w, response)
+		utils.JSONResponse(w, response)
 	})
 
 	return mux

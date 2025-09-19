@@ -5,8 +5,9 @@ import (
 )
 
 // Show ID
-type ShowSlugs struct {
-	ShowID string
+type ShowRequest struct {
+	ServiceTag string
+	ShowID     string
 }
 
 type Genre struct {
@@ -18,7 +19,7 @@ type Genre struct {
 type ShowResponse struct {
 	Adult                bool                    `json:"adult"`
 	BackdropUrl          string                  `json:"backdropUrl"`
-	Id                   string                  `json:"id"`
+	ID                   string                  `json:"id"`
 	SeasonCount          string                  `json:"seasonCount"`
 	Name                 string                  `json:"name"`
 	OriginalName         string                  `json:"originalName"`
@@ -34,4 +35,11 @@ type ShowResponse struct {
 	OriginCountry        string                  `json:"originCountry"`
 	AvailabilityStatus   string                  `json:"availabilityStatus"`
 	Seasons              []season.SeasonResponse `json:"seasons"`
+}
+
+func ShowRequestHandler(serviceTag string, id string) ShowRequest {
+	return ShowRequest{
+		ServiceTag: serviceTag,
+		ShowID:     id,
+	}
 }

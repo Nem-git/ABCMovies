@@ -2,26 +2,33 @@ package service
 
 import (
 	"net/http"
+
+	"github.com/nem-git/abcmovies/internal/utils"
 )
 
 func Handler() http.Handler {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /service", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/services", func(w http.ResponseWriter, r *http.Request) {
 
-		// content, err := GetManifest(model.Url, model.Content)
-		// if err != nil {
-		// 	api.InternalErrorHandler(w, err)
-		// 	return
-		// }
+		response := ServiceResponse{
+			Name: "/api/services",
+		}
 
-		// response := DashManifestResponse{
-		// 	Content: content,
-		// }
-
-		// utils.JSONResponse(w, response)
+		utils.JSONResponse(w, response)
 	})
 
-	return http.StripPrefix("/api/", mux)
+	mux.HandleFunc("GET /api/services/{serviceTag}", func(w http.ResponseWriter, r *http.Request) {
+
+		request := ServiceRequestHandler(r.PathValue("serviceTag"))
+
+		response := ServiceResponse{
+			Id: request.ServiceTag,
+		}
+
+		utils.JSONResponse(w, response)
+	})
+
+	return mux
 }
