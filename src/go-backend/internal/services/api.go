@@ -1,4 +1,4 @@
-package service
+package services
 
 // Request Slug
 type ServiceRequest struct {

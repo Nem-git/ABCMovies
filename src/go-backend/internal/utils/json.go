@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/nem-git/abcmovies/models"
+	"github.com/nem-git/abcmovies/internal/models"
 )
 
 func BindJSONOrErr[T any](w http.ResponseWriter, r *http.Request) (T, bool) {

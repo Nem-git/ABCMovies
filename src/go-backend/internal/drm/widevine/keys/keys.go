@@ -9,7 +9,7 @@ import (
 	widevine "github.com/iyear/gowidevine"
 	"github.com/iyear/gowidevine/widevinepb"
 
-	"github.com/nem-git/abcmovies/config"
+	"github.com/nem-git/abcmovies/internal/config"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 

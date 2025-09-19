@@ -14,7 +14,7 @@ import (
 	"github.com/antchfx/xmlquery"
 	"github.com/zencoder/go-dash/mpd"
 
-	"github.com/nem-git/abcmovies/config"
+	"github.com/nem-git/abcmovies/internal/config"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
