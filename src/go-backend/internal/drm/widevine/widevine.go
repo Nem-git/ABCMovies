@@ -26,7 +26,7 @@ func GetDecryptedSegment(initStr string, segmentStr string, keys []string) (stri
 		return "", fmt.Errorf("no init segment provided")
 	}
 
-	initByte, err := base64.RawStdEncoding.DecodeString(initStr)
+	initByte, err := base64.StdEncoding.DecodeString(initStr)
 	if err != nil {
 		return "", fmt.Errorf("couldn't decode init: %w", err)
 	}
@@ -50,12 +50,12 @@ func GetDecryptedSegment(initStr string, segmentStr string, keys []string) (stri
 
 	if segmentStr == "" {
 		sw := bits.NewFixedSliceWriter(int(init.Size()))
-		encodedInit := base64.RawStdEncoding.EncodeToString(sw.Bytes())
+		encodedInit := base64.StdEncoding.EncodeToString(sw.Bytes())
 		return encodedInit, nil
 
 	} else {
 
-		segmentByte, err := base64.RawStdEncoding.DecodeString(segmentStr)
+		segmentByte, err := base64.StdEncoding.DecodeString(segmentStr)
 		if err != nil {
 			return "", fmt.Errorf("couldn't decode segment: %w", err)
 		}
@@ -82,7 +82,7 @@ func GetDecryptedSegment(initStr string, segmentStr string, keys []string) (stri
 		}
 
 		sw := bits.NewFixedSliceWriter(int(file.Size()))
-		encodedMedia := base64.RawStdEncoding.EncodeToString(sw.Bytes())
+		encodedMedia := base64.StdEncoding.EncodeToString(sw.Bytes())
 		return encodedMedia, nil
 	}
 }
@@ -100,7 +100,7 @@ func mergeSegments(init *mp4.File, segment *mp4.File) (*mp4.File, error) {
 func initSegment(encodedPssh string) (*widevine.Device, *widevine.PSSH, error) {
 	var device *widevine.Device
 
-	psshBytes, err := base64.RawStdEncoding.DecodeString(encodedPssh)
+	psshBytes, err := base64.StdEncoding.DecodeString(encodedPssh)
 	if err != nil {
 		return &widevine.Device{}, &widevine.PSSH{}, fmt.Errorf("base64 decoding pssh %v: %w", psshBytes, err)
 	}
@@ -287,7 +287,7 @@ func psshWithSegment(url string, b io.ReadCloser, segHeaders map[string]string) 
 						continue
 					}
 
-					return base64.RawStdEncoding.EncodeToString(buf.Bytes()), nil
+					return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 				}
 			}
 		}
@@ -311,7 +311,7 @@ func psshWithSegment(url string, b io.ReadCloser, segHeaders map[string]string) 
 					continue
 				}
 
-				return base64.RawStdEncoding.EncodeToString(buf.Bytes()), nil
+				return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 			}
 		}
 	}
@@ -498,7 +498,7 @@ func psshDefaultKID(node *xmlquery.Node) (string, error) {
 		return "", fmt.Errorf("couldn't convert pssh from string to hex: %w", err)
 	}
 
-	return base64.RawStdEncoding.EncodeToString(hexPssh), nil
+	return base64.StdEncoding.EncodeToString(hexPssh), nil
 
 }
 
