@@ -16,14 +16,14 @@ final class GoBackend extends ManifestModifier
     public function getModifiedMpd(string $mpdUrl, string $mpdContent): string
     {
         $response = GoBackendHelper::get(
-            "dash/manifest",
+            "stream/dash/manifest",
             [
             "url" => $mpdUrl,
             "content" => $mpdContent,
             ]
         );
 
-        if ($response->error) {
+        if (isset($response->error)) {
             // TODO: Throw error
         }
 

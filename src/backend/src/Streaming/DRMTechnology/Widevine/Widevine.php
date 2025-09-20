@@ -38,7 +38,7 @@ final class Widevine extends DRMTechnology
             "go", // python
         );
         $this->segmentDecryptor = ObjectFactory::createSegmentDecryptor(
-            "shell",
+            "go", // shell
         );
         $this->repository = ObjectFactory::createRepository("redis");
         $this->manifestController = ObjectFactory::createManifestController(
@@ -87,14 +87,18 @@ final class Widevine extends DRMTechnology
     private function getInitSegment(
         string $initMediaIdentifier,
         string $reconstructedUrl,
+        array $decryptionKeys = [],
     ): string|null {
         $initContent = RequestHelper::get($reconstructedUrl);
 
-        // // Cleaned from unneeded atoms using bento4
-        // $initContent = $this->segmentDecryptor->getDecryptedSegment(
-        //     $initContent,
-        //     $initContent,
-        // );
+        // Was commented because basically useless when you have no control on the atoms,
+        // like when using Shell (mp4decrypt)
+        // Cleaned from unneeded atoms using bento4
+        $initContent = $this->segmentDecryptor->getDecryptedSegment(
+            "",
+            $initContent,
+            $decryptionKeys,
+        );
 
         $this->manifestController->addInitContent(
             $initMediaIdentifier,
@@ -111,6 +115,16 @@ final class Widevine extends DRMTechnology
         string $reconstructedUrl,
         bool $isInit = false,
     ): string {
+
+        $decryptionKeys = $this->manifestController->getDecryptionKeys(
+            $episodeStreamingDrmTechnologyIdentifier,
+        );
+
+        if (!$decryptionKeys) {
+            // TODO: Throw error here
+            return "";
+        }
+
         $initContent = $this->manifestController->getInitContent(
             $initMediaIdentifier,
         );
@@ -122,20 +136,12 @@ final class Widevine extends DRMTechnology
             return $this->getInitSegment(
                 $initMediaIdentifier,
                 $reconstructedUrl,
+                $decryptionKeys,
             );
         }
 
         if (is_null($initContent)) {
             $initContent = "";
-        }
-
-        $decryptionKeys = $this->manifestController->getDecryptionKeys(
-            $episodeStreamingDrmTechnologyIdentifier,
-        );
-
-        if (!$decryptionKeys) {
-            // TODO: Throw error here
-            return "";
         }
 
         // TODO: Add headers

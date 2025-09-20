@@ -173,7 +173,7 @@ final class RequestHelper
         // Add data to the request body
         match ($contentType) {
             "application/json" => ($options += [
-                CURLOPT_POSTFIELDS => json_encode($data, JSON_FORCE_OBJECT),
+                CURLOPT_POSTFIELDS => json_encode($data), // , JSON_FORCE_OBJECT
             ]),
             "application/x-www-form-urlencoded" => ($options += [
                 CURLOPT_POSTFIELDS => self::format_parameters($data, false),

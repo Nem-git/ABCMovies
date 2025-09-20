@@ -53,6 +53,8 @@ final class ObjectFactory
             \App\Streaming\DRMTechnology\Widevine\SegmentDecryptor\PHP::class,
         "shell" =>
             \App\Streaming\DRMTechnology\Widevine\SegmentDecryptor\Shell::class,
+        "go" => 
+            \App\Streaming\DRMTechnology\Widevine\SegmentDecryptor\GoBackend::class,
     ];
 
     private static array $repository = [

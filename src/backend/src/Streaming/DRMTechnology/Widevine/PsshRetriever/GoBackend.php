@@ -18,7 +18,7 @@ final class GoBackend extends PsshRetriever
         array $segmentHeaders,
     ): string {
         $response = GoBackendHelper::get(
-            "widevine/pssh",
+            "drm/widevine/pssh",
             [
             "url" => $mpdUrl,
             "headers" => $mpdHeaders,
@@ -26,7 +26,7 @@ final class GoBackend extends PsshRetriever
             ]
         );
 
-        if ($response->error) {
+        if (isset($response->error)) {
             // TODO: Throw error
             var_dump($response);
         }

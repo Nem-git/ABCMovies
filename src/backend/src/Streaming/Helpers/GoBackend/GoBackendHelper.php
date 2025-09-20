@@ -12,6 +12,7 @@ final class GoBackendHelper
 {
     public static function get(string $endpoint, array $data): GoBackendResponse
     {
+        // echo $_ENV["GO_BACKEND_URL"] . $endpoint;
         $response = json_decode(
             RequestHelper::post(
                 $_ENV["GO_BACKEND_URL"] . $endpoint,

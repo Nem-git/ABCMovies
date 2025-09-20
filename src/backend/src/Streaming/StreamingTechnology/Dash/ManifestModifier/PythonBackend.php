@@ -23,7 +23,7 @@ final class PythonBackend extends ManifestModifier
             ]
         );
 
-        if ($response->error) {
+        if (isset($response->error)) {
             // TODO: Throw error
         }
 

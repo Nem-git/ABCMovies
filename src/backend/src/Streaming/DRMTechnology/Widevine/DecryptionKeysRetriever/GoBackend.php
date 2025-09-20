@@ -19,7 +19,7 @@ final class GoBackend extends DecryptionKeysRetriever
         array $licenseHeaders,
     ): array {
         $response = GoBackendHelper::get(
-            "widevine/keys",
+            "drm/widevine/keys",
             [
             "pssh" => $pssh,
             "url" => $licenseUrl,
@@ -27,7 +27,7 @@ final class GoBackend extends DecryptionKeysRetriever
             ]
         );
 
-        if ($response->error) {
+        if (isset($response->error)) {
             // TODO: Throw error
         }
 
