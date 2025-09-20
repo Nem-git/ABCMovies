@@ -22,7 +22,7 @@ func Handler() http.Handler {
 			return
 		}
 
-		if model.Url == "" {
+		if model.URL == "" {
 			api.BadRequestErrorHandler(w, fmt.Errorf("missing parameter: url"))
 			return
 		}
@@ -31,7 +31,7 @@ func Handler() http.Handler {
 			return
 		}
 
-		content, err := manifest.Get(model.Url, model.Content)
+		content, err := manifest.Get(model.URL, model.Content)
 		if err != nil {
 			api.InternalErrorHandler(w, err)
 			return

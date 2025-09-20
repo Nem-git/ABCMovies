@@ -6,7 +6,7 @@ type WidevineKeysRequest struct {
 	Pssh string `json:"pssh"`
 
 	// License Server URL
-	License string `json:"media"`
+	URL string `json:"url"`
 
 	// License Request Headers
 	Headers map[string]string `json:"headers"`
@@ -21,7 +21,7 @@ type WidevineKeysResponse struct {
 // Widevine Pssh Request
 type WidevinePsshRequest struct {
 	// URL
-	Url string `json:"url"`
+	URL string `json:"url"`
 
 	// Headers
 	Headers map[string]string `json:"headers"`

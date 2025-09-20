@@ -56,6 +56,8 @@ var protectedManifests = []string{
 
 	"https://cbcrcott-aws-toutv.akamaized.net/out/v1/e71b9f2ee8684145982294c54e2311ed/97c7a58d11d84ea78801a32f293d0a21/27f2eb30c8fb43f99ba46fee14ce2d37/index-multi-drm.mpd?pckgrp=bd19b98e3f6f49156464835f3aa1e8bb&ewid=83314&filter=3000&EIA608ClosedCaptions=true&lang=fr",
 	"https://cbcrcott-aws-toutv.akamaized.net/out/v1/e71b9f2ee8684145982294c54e2311ed/97c7a58d11d84ea78801a32f293d0a21/27f2eb30c8fb43f99ba46fee14ce2d37/index-multi-drm.mpd?pckgrp=bd19b98e3f6f49156464835f3aa1e8bb&ewid=83314&filter=7000&EIA608ClosedCaptions=true&lang=fr",
+
+	"https://u4.video.9c9media.com/video/v1/1341249/dash/widevine/zbest-01000110/manifest.mpd",
 }
 
 // Here, the manifests are invalid, so supposed to break
@@ -86,6 +88,7 @@ func TestProtectedManifests(t *testing.T) {
 		if err != nil {
 			t.Errorf(`Get(%v, nil, nil) = %q, %v`, url, err, pssh)
 		}
+		t.Errorf(`Get(%v, nil, nil) = %q, %v`, url, err, pssh)
 	}
 }
 

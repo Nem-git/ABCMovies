@@ -41,9 +41,5 @@ func BindJSON[T any](r *http.Request, model *T) error {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 
-	if err := dec.Decode(model); err != nil {
-		return err
-	}
-
-	return nil
+	return dec.Decode(model)
 }

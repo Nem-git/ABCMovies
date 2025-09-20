@@ -3,6 +3,8 @@ package segment
 import (
 	"encoding/base64"
 	"fmt"
+	"log"
+	"strings"
 
 	"github.com/Eyevinn/mp4ff/bits"
 	"github.com/Eyevinn/mp4ff/mp4"
@@ -38,11 +40,13 @@ func Get(initStr string, segmentStr string, keys []string) (string, error) {
 
 	if segmentStr == "" {
 		sw := bits.NewFixedSliceWriter(int(init.Size()))
+		if err = init.EncodeSW(sw); err != nil {
+			return "", fmt.Errorf("couldn't write init to sw: %w", err)
+		}
+
 		encodedInit := base64.StdEncoding.EncodeToString(sw.Bytes())
 		return encodedInit, nil
-
 	} else {
-
 		segmentByte, err := base64.StdEncoding.DecodeString(segmentStr)
 		if err != nil {
 			return "", fmt.Errorf("couldn't decode segment: %w", err)
@@ -50,26 +54,48 @@ func Get(initStr string, segmentStr string, keys []string) (string, error) {
 
 		sr := bits.NewFixedSliceReader(segmentByte)
 
-		segmentFile, err := mp4.DecodeFileSR(sr)
+		file, err := mp4.DecodeFileSR(sr)
 		if err != nil {
 			return "", fmt.Errorf("couldn't parse init: %w", err)
 		}
 
-		segments := segmentFile.Segments
+		for _, segment := range file.Segments {
 
-		file := mp4.NewFile()
+			log.Println(segment.Size())
 
-		for _, segment := range segments {
 			for _, k := range keys {
+
+				split := strings.Split(k, ":")
+				if len(split) < 2 {
+					log.Println("couldn't split key:", k)
+					continue
+				}
+				k = split[1]
+
 				key, err := mp4.UnpackKey(k)
 				if err != nil {
-					mp4.DecryptSegment(segment, di, key)
-					file.AddMediaSegment(segment)
+					log.Println("couldn't unpack key")
+					continue
 				}
+
+				if err := mp4.DecryptSegment(segment, di, key); err != nil {
+					log.Println("couldn't decrypt segment")
+					continue
+				}
+
+				log.Println("KEY:", di)
 			}
+
+			log.Println(segment.Size())
 		}
 
+		log.Println("SEGMENT:")
+
 		sw := bits.NewFixedSliceWriter(int(file.Size()))
+		if err = file.EncodeSW(sw); err != nil {
+			return "", fmt.Errorf("couldn't write segment to sw: %w", err)
+		}
+
 		encodedMedia := base64.StdEncoding.EncodeToString(sw.Bytes())
 		return encodedMedia, nil
 	}

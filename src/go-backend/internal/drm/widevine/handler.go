@@ -2,6 +2,7 @@ package widevine
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/nem-git/abcmovies/internal/api"
@@ -27,8 +28,8 @@ func Handler() http.Handler {
 			api.BadRequestErrorHandler(w, fmt.Errorf("missing parameter: pssh"))
 			return
 		}
-		if model.License == "" {
-			api.BadRequestErrorHandler(w, fmt.Errorf("missing parameter: license"))
+		if model.URL == "" {
+			api.BadRequestErrorHandler(w, fmt.Errorf("missing parameter: url"))
 			return
 		}
 		if model.Headers == nil {
@@ -36,7 +37,9 @@ func Handler() http.Handler {
 			return
 		}
 
-		keys, err := keys.Get(model.Pssh, model.License, model.Headers)
+		log.Println(*model)
+
+		keys, err := keys.Get(model.Pssh, model.URL, model.Headers)
 		if err != nil {
 			api.InternalErrorHandler(w, err)
 			return
@@ -56,7 +59,7 @@ func Handler() http.Handler {
 			return
 		}
 
-		if model.Url == "" {
+		if model.URL == "" {
 			api.BadRequestErrorHandler(w, fmt.Errorf("missing parameter: url"))
 			return
 		}
@@ -69,7 +72,7 @@ func Handler() http.Handler {
 			return
 		}
 
-		pssh, err := pssh.Get(model.Url, model.Headers, model.SegHeaders)
+		pssh, err := pssh.Get(model.URL, model.Headers, model.SegHeaders)
 		if err != nil {
 			api.InternalErrorHandler(w, err)
 			return
@@ -90,15 +93,14 @@ func Handler() http.Handler {
 		}
 
 		if model.InitStr == "" {
-			api.BadRequestErrorHandler(w, fmt.Errorf("missing parameter: url"))
+			api.BadRequestErrorHandler(w, fmt.Errorf("missing parameter: init"))
 			return
 		}
 		if model.SegmentStr == "" {
-			api.BadRequestErrorHandler(w, fmt.Errorf("missing parameter: headers"))
-			return
+			log.Println("THIS IS A INIT:")
 		}
 		if model.Keys == nil {
-			api.BadRequestErrorHandler(w, fmt.Errorf("missing parameter: segHeaders"))
+			api.BadRequestErrorHandler(w, fmt.Errorf("missing parameter: keys"))
 			return
 		}
 
@@ -107,6 +109,13 @@ func Handler() http.Handler {
 			api.InternalErrorHandler(w, err)
 			return
 		}
+
+		//log.Println(segment)
+
+		// err = os.WriteFile("f.mp4", []byte(segment), 0644)
+		// if err != nil {
+		// 	panic(err)
+		// }
 
 		response := WidevineSegmentResponse{
 			Segment: segment,

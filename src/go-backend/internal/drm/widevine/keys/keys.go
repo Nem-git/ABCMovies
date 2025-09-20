@@ -23,13 +23,8 @@ func Get(psshData string, licenseUrl string, headers map[string]string) ([]strin
 	// Create CDM
 	cdm := widevine.NewCDM(device)
 
-	var (
-		challenge    []byte
-		parseLicense func(b []byte) ([]*widevine.Key, error)
-	)
-
 	// Get license challenge
-	challenge, parseLicense, err = cdm.GetLicenseChallenge(pssh, widevinepb.LicenseType_AUTOMATIC, false)
+	challenge, parseLicense, err := cdm.GetLicenseChallenge(pssh, widevinepb.LicenseType_AUTOMATIC, false)
 	if err != nil {
 
 		// Or use privacy mode
