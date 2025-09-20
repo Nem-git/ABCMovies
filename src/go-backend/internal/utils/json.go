@@ -2,7 +2,7 @@ package utils
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -14,7 +14,7 @@ func BindJSONOrErr[T any](w http.ResponseWriter, r *http.Request) (T, bool) {
 	var t T
 
 	if err := BindJSON(r, &t); err != nil {
-		err = fmt.Errorf("json data body invalid: %w", err)
+		err = errors.New("json data body invalid")
 		log.Println(err)
 		JSONError(w, err, http.StatusBadRequest)
 		return *new(T), false

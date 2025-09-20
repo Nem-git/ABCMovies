@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"fmt"
+	"errors"
 	"net/url"
 	"strings"
 )
@@ -10,17 +10,17 @@ func JoinUrls(urls ...string) (string, error) {
 	joined := ""
 
 	if len(urls) == 0 {
-		return "", fmt.Errorf("no urls given to join")
+		return "", errors.New("no urls given to join")
 	}
 
 	for _, u := range urls {
 		joinedUrlPath, err := url.Parse(joined)
 		if err != nil {
-			return "", fmt.Errorf("couldn't join urls provided: %w", err)
+			return "", errors.New("couldn't join urls provided")
 		}
 		urlPath, err := url.Parse(u)
 		if err != nil {
-			return "", fmt.Errorf("couldn't join urls provided: %w", err)
+			return "", errors.New("couldn't join urls provided")
 		}
 		joined = joinedUrlPath.ResolveReference(urlPath).String()
 	}
@@ -37,7 +37,7 @@ func CreateCustomUrl(fullUrl string, prefix string, id ...string) (string, error
 
 	uPath, err := url.Parse(fullUrl)
 	if err != nil {
-		return "", fmt.Errorf("could't parse url: %w", err)
+		return "", errors.New("could't parse url")
 	}
 
 	newUrl := strings.Join([]string{uPath.Scheme, uPath.Host}, "/") + uPath.Path // Because it contains the first /

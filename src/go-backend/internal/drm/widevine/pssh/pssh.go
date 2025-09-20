@@ -25,6 +25,7 @@ func Get(url string, headers map[string]string, segHeaders map[string]string) (s
 	if err != nil {
 		return "", fmt.Errorf("couldn't retrieve body: %w", err)
 	}
+	defer body.Close()
 
 	pssh, err := psshWithManifest(body)
 	if err == nil {
@@ -56,6 +57,7 @@ func psshWithSegment(url string, b io.ReadCloser, segHeaders map[string]string) 
 	if err != nil {
 		return "", fmt.Errorf("couldn't make segment request: %w", err)
 	}
+	defer body.Close()
 
 	dataBytes, err := io.ReadAll(body)
 	if err != nil {

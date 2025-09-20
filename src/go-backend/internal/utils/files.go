@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -8,7 +9,11 @@ import (
 )
 
 func OpenCdmFile(filePath string) (*os.File, error) {
-	path := filepath.Join(config.CDM_PATH, filePath)
+	abs, err := filepath.Abs(config.CDM_PATH)
+	if err != nil {
+		return nil, errors.New("couldn't change cdm path to absolute")
+	}
+	path := filepath.Join(abs, filePath)
 	return os.Open(path)
 }
 
@@ -21,6 +26,10 @@ func GetFile(filePath string) ([]byte, error) {
 }
 
 func GetCdmFile(filePath string) ([]byte, error) {
-	path := filepath.Join(config.CDM_PATH, filePath)
+	abs, err := filepath.Abs(config.CDM_PATH)
+	if err != nil {
+		return nil, errors.New("couldn't change cdm path to absolute")
+	}
+	path := filepath.Join(abs, filePath)
 	return GetFile(path)
 }

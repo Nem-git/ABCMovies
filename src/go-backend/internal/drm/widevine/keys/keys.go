@@ -49,6 +49,7 @@ func Get(psshData string, licenseUrl string, headers map[string]string) ([]strin
 	if err != nil {
 		return nil, fmt.Errorf("couldn't make license request: %w", err)
 	}
+	defer body.Close()
 
 	license, err := io.ReadAll(body)
 	if err != nil {
@@ -82,6 +83,7 @@ func getServiceCert(licenseUrl string) (*widevinepb.DrmCertificate, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error while making service cert request: %w", err)
 	}
+	defer body.Close()
 
 	serviceCert, err := io.ReadAll(body)
 	if err != nil {

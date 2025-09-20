@@ -2,7 +2,7 @@ package utils
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -12,7 +12,7 @@ func Get(u string, params map[string]string, headers map[string]string) (io.Read
 
 	parsed, err := url.Parse(u)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't parse url: %w", err)
+		return nil, errors.New("couldn't parse url")
 	}
 
 	p := FormatParams(params)
@@ -27,7 +27,7 @@ func Get(u string, params map[string]string, headers map[string]string) (io.Read
 
 	body, err := Request(u, headers, nil, http.MethodGet)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't make the request: %w", err)
+		return nil, errors.New("couldn't make the request")
 	}
 
 	return body, nil
@@ -37,7 +37,7 @@ func Post(u string, headers map[string]string, data []byte) (io.ReadCloser, erro
 
 	body, err := Request(u, headers, data, http.MethodPost)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't make the request: %w", err)
+		return nil, errors.New("couldn't make the request")
 	}
 
 	return body, nil
@@ -48,7 +48,7 @@ func Request(u string, headers map[string]string, data []byte, method string) (i
 	// Send request to get Segment content
 	req, err := http.NewRequest(method, u, nil)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't create request: %w", err)
+		return nil, errors.New("couldn't create request")
 	}
 
 	if method != http.MethodGet {
@@ -63,9 +63,8 @@ func Request(u string, headers map[string]string, data []byte, method string) (i
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+		return nil, errors.New("request failed")
 	}
-	defer resp.Body.Close()
 
 	return resp.Body, nil
 }
@@ -73,6 +72,10 @@ func Request(u string, headers map[string]string, data []byte, method string) (i
 func FormatParams(params map[string]string) string {
 
 	req := http.Request{}
+	if req.URL == nil {
+		return ""
+	}
+
 	query := req.URL.Query()
 
 	for k, v := range params {
