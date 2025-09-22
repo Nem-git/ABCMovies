@@ -17,7 +17,7 @@ func Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /keys", func(w http.ResponseWriter, r *http.Request) {
-		model := &WidevineKeysRequest{}
+		model := &KeysRequest{}
 
 		if err := utils.BindJSON(r, model); err != nil {
 			api.BadRequestErrorHandler(w, err)
@@ -45,14 +45,14 @@ func Handler() http.Handler {
 			return
 		}
 
-		response := WidevineKeysResponse{
+		response := KeysResponse{
 			Keys: keys,
 		}
 
 		utils.JSONResponse(w, response)
 	})
 	mux.HandleFunc("POST /pssh", func(w http.ResponseWriter, r *http.Request) {
-		model := &WidevinePsshRequest{}
+		model := &PsshRequest{}
 
 		if err := utils.BindJSON(r, model); err != nil {
 			api.BadRequestErrorHandler(w, err)
@@ -78,33 +78,30 @@ func Handler() http.Handler {
 			return
 		}
 
-		response := WidevinePsshResponse{
+		response := PsshResponse{
 			Pssh: pssh,
 		}
 
 		utils.JSONResponse(w, response)
 	})
 	mux.HandleFunc("POST /remove", func(w http.ResponseWriter, r *http.Request) {
-		model := &WidevineSegmentRequest{}
+		model := &SegmentRequest{}
 
 		if err := utils.BindJSON(r, model); err != nil {
 			api.BadRequestErrorHandler(w, err)
 			return
 		}
 
-		if model.InitStr == "" {
-			api.BadRequestErrorHandler(w, fmt.Errorf("missing parameter: init"))
-			return
-		}
 		if model.SegmentStr == "" {
-			log.Println("THIS IS A INIT:")
+			api.BadRequestErrorHandler(w, fmt.Errorf("missing parameter: segment"))
+			return
 		}
 		if model.Keys == nil {
 			api.BadRequestErrorHandler(w, fmt.Errorf("missing parameter: keys"))
 			return
 		}
 
-		segment, err := segment.Get(model.InitStr, model.SegmentStr, model.Keys)
+		segment, err := segment.Get(model.InitStr, model.SegmentStr, model.Keys, model.IsInit)
 		if err != nil {
 			api.InternalErrorHandler(w, err)
 			return
@@ -117,7 +114,7 @@ func Handler() http.Handler {
 		// 	panic(err)
 		// }
 
-		response := WidevineSegmentResponse{
+		response := SegmentResponse{
 			Segment: segment,
 		}
 

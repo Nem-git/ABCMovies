@@ -35,7 +35,7 @@ var (
 		writeError(w, err.Error(), http.StatusBadRequest)
 	}
 	InternalErrorHandler = func(w http.ResponseWriter, err error) {
-		writeError(w, "an unexpected error occurred", http.StatusInternalServerError)
+		writeError(w, err.Error(), http.StatusInternalServerError) // "an unexpected error occurred"
 	}
 	UnauthorizedErrorHandler = func(w http.ResponseWriter, err error) {
 		writeError(w, err.Error(), http.StatusUnauthorized)

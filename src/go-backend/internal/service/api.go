@@ -1,4 +1,4 @@
-package services
+package service
 
 // Request Slug
 type ServiceRequest struct {
@@ -20,7 +20,7 @@ type ServiceResponse struct {
 	AvailabilityStatus string   `json:"availabilityStatus"`
 }
 
-func ServiceRequestHandler(tag string) ServiceRequest {
+func RequestHandler(tag string) ServiceRequest {
 	return ServiceRequest{
 		ServiceTag: tag,
 	}

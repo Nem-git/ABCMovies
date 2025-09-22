@@ -1,7 +1,7 @@
 package widevine
 
 // Widevine Keys Request
-type WidevineKeysRequest struct {
+type KeysRequest struct {
 	// PSSH Data
 	Pssh string `json:"pssh"`
 
@@ -13,13 +13,13 @@ type WidevineKeysRequest struct {
 }
 
 // Widevine Keys Response
-type WidevineKeysResponse struct {
+type KeysResponse struct {
 	// Widevine Keys
 	Keys []string `json:"keys"`
 }
 
 // Widevine Pssh Request
-type WidevinePsshRequest struct {
+type PsshRequest struct {
 	// URL
 	URL string `json:"url"`
 
@@ -31,13 +31,13 @@ type WidevinePsshRequest struct {
 }
 
 // Widevine Pssh Response
-type WidevinePsshResponse struct {
+type PsshResponse struct {
 	// Widevine Pssh
 	Pssh string `json:"pssh"`
 }
 
 // Widevine Segment Request
-type WidevineSegmentRequest struct {
+type SegmentRequest struct {
 	// Init Data
 	InitStr string `json:"init"`
 
@@ -46,10 +46,13 @@ type WidevineSegmentRequest struct {
 
 	// Decryption Keys
 	Keys []string `json:"keys"`
+
+	// If Segment To Decrypt Is Init
+	IsInit bool `json:"isInit"`
 }
 
 // Widevine Segment Response
-type WidevineSegmentResponse struct {
+type SegmentResponse struct {
 	// Decrypted Segment
 	Segment string `json:"segment"`
 }

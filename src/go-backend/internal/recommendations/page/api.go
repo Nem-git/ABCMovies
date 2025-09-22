@@ -5,7 +5,7 @@ import (
 )
 
 // Page ID
-type PageSlugs struct {
+type PageRequest struct {
 	PageID string
 }
 
