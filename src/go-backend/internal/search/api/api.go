@@ -1,7 +1,7 @@
-package search
+package api
 
 import (
-	"github.com/nem-git/abcmovies/internal/show"
+	"github.com/nem-git/abcmovies/internal/show/api"
 )
 
 type SearchRequest struct {
@@ -10,9 +10,9 @@ type SearchRequest struct {
 
 // Search Response
 type SearchResponse struct {
-	Query     string              `json:"query"`
-	ShowCount int                 `json:"showCount"`
-	Shows     []show.ShowResponse `json:"shows"`
+	Query     string             `json:"query"`
+	ShowCount int                `json:"showCount"`
+	Shows     []api.ShowResponse `json:"shows"`
 }
 
 func RequestHandler(query string) SearchRequest {

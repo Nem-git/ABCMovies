@@ -1,4 +1,4 @@
-package episode
+package api
 
 type EpisodeRequest struct {
 	ServiceTag    string

@@ -3,16 +3,18 @@ package service
 import (
 	"net/http"
 
+	"github.com/nem-git/abcmovies/internal/plugin"
+	"github.com/nem-git/abcmovies/internal/service/api"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func Handler() http.Handler {
+func Handler(pi *plugin.PluginInterface) http.Handler {
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/service", func(w http.ResponseWriter, r *http.Request) {
 
-		response := ServiceResponse{
+		response := api.ServiceResponse{
 			Name: "/api/service",
 		}
 
@@ -21,9 +23,9 @@ func Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/service/{tag}", func(w http.ResponseWriter, r *http.Request) {
 
-		request := RequestHandler(r.PathValue("tag"))
+		request := api.RequestHandler(r.PathValue("tag"))
 
-		response := ServiceResponse{
+		response := api.ServiceResponse{
 			Id: request.ServiceTag,
 		}
 

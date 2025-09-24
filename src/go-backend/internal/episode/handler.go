@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/nem-git/abcmovies/internal/api"
+	episodeApi "github.com/nem-git/abcmovies/internal/episode/api"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
@@ -29,9 +30,9 @@ func Handler() http.Handler {
 			return
 		}
 
-		request := EpisodeRequestHandler(r.PathValue("serviceTag"), r.PathValue("showID"), sn, n)
+		request := episodeApi.EpisodeRequestHandler(r.PathValue("serviceTag"), r.PathValue("showID"), sn, n)
 
-		response := EpisodeResponse{
+		response := episodeApi.EpisodeResponse{
 			Number: request.EpisodeNumber,
 		}
 

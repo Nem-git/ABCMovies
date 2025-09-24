@@ -3,6 +3,7 @@ package search
 import (
 	"net/http"
 
+	"github.com/nem-git/abcmovies/internal/search/api"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
@@ -14,7 +15,7 @@ func Handler() http.Handler {
 
 		queryStr := r.PathValue("query")
 
-		response := SearchResponse{
+		response := api.SearchResponse{
 			Query: queryStr,
 		}
 

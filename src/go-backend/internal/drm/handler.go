@@ -1,4 +1,4 @@
-package stream
+package drm
 
 import (
 	"net/http"

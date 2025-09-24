@@ -3,6 +3,7 @@ package show
 import (
 	"net/http"
 
+	"github.com/nem-git/abcmovies/internal/show/api"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
@@ -12,9 +13,9 @@ func Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/services/{serviceTag}/{showID}", func(w http.ResponseWriter, r *http.Request) {
 
-		request := ShowRequestHandler(r.PathValue("serviceTag"), r.PathValue("showID"))
+		request := api.ShowRequestHandler(r.PathValue("serviceTag"), r.PathValue("showID"))
 
-		response := ShowResponse{
+		response := api.ShowResponse{
 			Name: request.ServiceTag,
 			ID:   request.ShowID,
 		}

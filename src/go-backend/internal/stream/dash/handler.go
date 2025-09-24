@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/nem-git/abcmovies/internal/api"
+	dashApi "github.com/nem-git/abcmovies/internal/stream/dash/api"
 	"github.com/nem-git/abcmovies/internal/stream/dash/manifest"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
@@ -15,7 +16,7 @@ func Handler() http.Handler {
 
 	mux.HandleFunc("POST /manifest", func(w http.ResponseWriter, r *http.Request) {
 
-		model := &DashManifestRequest{}
+		model := &dashApi.DashManifestRequest{}
 
 		if err := utils.BindJSON(r, model); err != nil {
 			api.BadRequestErrorHandler(w, fmt.Errorf("invalid json body"))
@@ -37,7 +38,7 @@ func Handler() http.Handler {
 			return
 		}
 
-		response := DashManifestResponse{
+		response := dashApi.DashManifestResponse{
 			Content: content,
 		}
 

@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/nem-git/abcmovies/internal/api"
+	seasonApi "github.com/nem-git/abcmovies/internal/season/api"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
@@ -22,9 +23,9 @@ func Handler() http.Handler {
 			return
 		}
 
-		request := SeasonRequestHandler(r.PathValue("serviceTag"), r.PathValue("showID"), n)
+		request := seasonApi.SeasonRequestHandler(r.PathValue("serviceTag"), r.PathValue("showID"), n)
 
-		response := SeasonResponse{
+		response := seasonApi.SeasonResponse{
 			Number: request.SeasonNumber,
 		}
 

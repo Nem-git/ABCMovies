@@ -1,27 +1,27 @@
 package plugin
 
 import (
-	"github.com/nem-git/abcmovies/internal/episode"
-	"github.com/nem-git/abcmovies/internal/recommendations/category"
-	"github.com/nem-git/abcmovies/internal/search"
-	"github.com/nem-git/abcmovies/internal/season"
-	"github.com/nem-git/abcmovies/internal/service"
-	"github.com/nem-git/abcmovies/internal/show"
-	"github.com/nem-git/abcmovies/internal/stream"
+	episodeApi "github.com/nem-git/abcmovies/internal/episode/api"
+	categoryApi "github.com/nem-git/abcmovies/internal/recommendations/category/api"
+	searchApi "github.com/nem-git/abcmovies/internal/search/api"
+	seasonApi "github.com/nem-git/abcmovies/internal/season/api"
+	serviceApi "github.com/nem-git/abcmovies/internal/service/api"
+	showApi "github.com/nem-git/abcmovies/internal/show/api"
+	streamApi "github.com/nem-git/abcmovies/internal/stream/api"
 )
 
 type PluginInterface interface {
-	GetService(req service.ServiceRequest, res *service.ServiceResponse)
-	GetShow(req show.ShowRequest, res *show.ShowResponse)
-	GetSeason(req season.SeasonRequest, res *season.SeasonResponse)
-	GetEpisode(req episode.EpisodeRequest, res *episode.EpisodeResponse)
+	GetService(req serviceApi.ServiceRequest, res *serviceApi.ServiceResponse)
+	GetShow(req showApi.ShowRequest, res *showApi.ShowResponse)
+	GetSeason(req seasonApi.SeasonRequest, res *seasonApi.SeasonResponse)
+	GetEpisode(req episodeApi.EpisodeRequest, res *episodeApi.EpisodeResponse)
 
-	GetNextEpisode(req episode.EpisodeRequest, res *episode.NextEpisodeResponse)
+	GetNextEpisode(req episodeApi.EpisodeRequest, res *episodeApi.NextEpisodeResponse)
 
-	GetStream(req stream.StreamRequest, res *stream.StreamResponse)
+	GetStream(req streamApi.StreamRequest, res *streamApi.StreamResponse)
 
-	GetSearch(req search.SearchRequest, res *search.SearchResponse)
+	GetSearch(req searchApi.SearchRequest, res *searchApi.SearchResponse)
 
-	GetCategory(req category.CategoryRequest, res *category.CategoryResponse)
-	GetCategories(req category.CategoriesRequest, res *category.CategoriesResponse)
+	GetCategory(req categoryApi.CategoryRequest, res *categoryApi.CategoryResponse)
+	GetCategories(req categoryApi.CategoriesRequest, res *categoryApi.CategoriesResponse)
 }

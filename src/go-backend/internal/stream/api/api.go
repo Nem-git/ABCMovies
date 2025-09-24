@@ -1,4 +1,4 @@
-package stream
+package api
 
 // Request Slug
 type StreamRequest struct {

@@ -4,6 +4,8 @@ const (
 	// Files
 	CDM_PATH string = "bin/widevine" // tests: "../../../../bin/widevine"
 
+	PLUGINS_PATH string = "build/plugins/"
+
 	// Widevine & Playready
 	CENC_SCHEME_ID = "MPEG:DASH:MP4PROTECTION:2011"
 
