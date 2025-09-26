@@ -7,10 +7,11 @@ import (
 
 	"github.com/nem-git/abcmovies/internal/api"
 	episodeApi "github.com/nem-git/abcmovies/internal/episode/api"
+	"github.com/nem-git/abcmovies/internal/plugin"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func Handler() http.Handler {
+func Handler(pis []*plugin.PluginInterface) http.Handler {
 
 	mux := http.NewServeMux()
 

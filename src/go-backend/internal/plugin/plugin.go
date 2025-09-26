@@ -11,6 +11,8 @@ import (
 )
 
 type PluginInterface interface {
+	GetServiceSlug() string
+
 	GetService(req serviceApi.ServiceRequest, res *serviceApi.ServiceResponse)
 	GetShow(req showApi.ShowRequest, res *showApi.ShowResponse)
 	GetSeason(req seasonApi.SeasonRequest, res *seasonApi.SeasonResponse)

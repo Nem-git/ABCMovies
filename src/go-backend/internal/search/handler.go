@@ -3,11 +3,12 @@ package search
 import (
 	"net/http"
 
+	"github.com/nem-git/abcmovies/internal/plugin"
 	"github.com/nem-git/abcmovies/internal/search/api"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func Handler() http.Handler {
+func Handler(pis []*plugin.PluginInterface) http.Handler {
 
 	mux := http.NewServeMux()
 

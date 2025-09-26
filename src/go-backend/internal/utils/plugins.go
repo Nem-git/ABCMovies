@@ -6,10 +6,28 @@ import (
 	"log"
 	"path/filepath"
 	"plugin"
+	"strings"
 
 	"github.com/nem-git/abcmovies/internal/config"
 	iPlugin "github.com/nem-git/abcmovies/internal/plugin"
 )
+
+func GetPluginBySlug(slug string, plugins []*iPlugin.PluginInterface) (*iPlugin.PluginInterface, error) {
+
+	var plugin *iPlugin.PluginInterface
+
+	for _, p := range plugins {
+		if slug == strings.ToLower((*p).GetServiceSlug()) {
+			plugin = p
+		}
+	}
+
+	if plugin == nil {
+		return nil, fmt.Errorf("no plugin found matching the slug")
+	}
+
+	return plugin, nil
+}
 
 func GetPluginInterface(name string, p *plugin.Plugin) (*iPlugin.PluginInterface, error) {
 

@@ -2,9 +2,11 @@ package category
 
 import (
 	"net/http"
+
+	"github.com/nem-git/abcmovies/internal/plugin"
 )
 
-func Handler() http.Handler {
+func Handler(pis []*plugin.PluginInterface) http.Handler {
 
 	mux := http.NewServeMux()
 

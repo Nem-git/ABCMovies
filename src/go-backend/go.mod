@@ -1,6 +1,6 @@
 module github.com/nem-git/abcmovies
 
-go 1.24.3
+go 1.25.1
 
 require (
 	github.com/Eyevinn/mp4ff v0.50.0

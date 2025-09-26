@@ -6,11 +6,12 @@ import (
 	"strconv"
 
 	"github.com/nem-git/abcmovies/internal/api"
+	"github.com/nem-git/abcmovies/internal/plugin"
 	seasonApi "github.com/nem-git/abcmovies/internal/season/api"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func Handler() http.Handler {
+func Handler(pis []*plugin.PluginInterface) http.Handler {
 
 	mux := http.NewServeMux()
 
