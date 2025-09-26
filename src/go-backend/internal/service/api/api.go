@@ -8,7 +8,7 @@ type ServiceRequest struct {
 // Service Response
 type ServiceResponse struct {
 	BackdropUrl        string   `json:"backdropUrl"`
-	Id                 string   `json:"id"`
+	ID                 string   `json:"id"`
 	Name               string   `json:"name"`
 	OriginalName       string   `json:"originalName"`
 	Overview           string   `json:"overview"`
