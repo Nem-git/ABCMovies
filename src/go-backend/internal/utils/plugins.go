@@ -17,7 +17,7 @@ func GetPluginBySlug(slug string, plugins []*iPlugin.PluginInterface) (*iPlugin.
 	var plugin *iPlugin.PluginInterface
 
 	for _, p := range plugins {
-		if slug == strings.ToLower((*p).GetServiceSlug()) {
+		if strings.EqualFold(slug, (*p).GetServiceSlug()) {
 			plugin = p
 		}
 	}
@@ -62,6 +62,7 @@ func OpenPlugins() []*plugin.Plugin {
 			return err
 		}
 		if !d.IsDir() {
+			log.Println("found plugin file:", s)
 			paths = append(paths, s)
 		}
 		return nil
@@ -74,6 +75,8 @@ func OpenPlugins() []*plugin.Plugin {
 		if err == nil {
 			log.Println("loaded plugin:", path)
 			plugins = append(plugins, p)
+		} else {
+			log.Println("error loading plugin:", path)
 		}
 	}
 

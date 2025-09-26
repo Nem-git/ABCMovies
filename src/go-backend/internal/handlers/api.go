@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/nem-git/abcmovies/internal/drm"
@@ -24,11 +25,27 @@ func Handler(mux *http.ServeMux) {
 	for _, p := range availablePlugins {
 		pluginInstance, err := utils.GetPluginInterface("Plugin", p)
 		if err == nil {
+			log.Println("got instance of plugin:", *p)
 			pis = append(pis, pluginInstance)
+		} else {
+			log.Println("error getting instance of plugin:", *p, err)
 		}
 	}
 
+	// Global endpoints depending on plugins
+
+	mux.Handle("/api/search/{query}", search.Handler(pis))
+
+	mux.Handle("/api/service", service.Handler(pis))
+
+	// Global endpoints
+
+	mux.Handle("/api/drm/", drm.Handler())
+
+	mux.Handle("/api/stream/", stream.Handler())
+
 	// Plugin implementations
+
 	mux.Handle("/api/service/{serviceTag}", service.Handler(pis))
 
 	mux.Handle("/api/service/{serviceTag}/{showID}", show.Handler(pis))
@@ -43,13 +60,4 @@ func Handler(mux *http.ServeMux) {
 
 	mux.Handle("/api/service/{serviceTag}/category", category.Handler(pis))
 	mux.Handle("/api/service/{serviceTag}/category/{categoryID}", category.Handler(pis))
-
-	// Global endpoints
-
-	mux.Handle("/api/service", service.Handler(pis))
-
-	mux.Handle("/api/stream/", stream.Handler())
-
-	mux.Handle("/api/drm/", drm.Handler())
-
 }
