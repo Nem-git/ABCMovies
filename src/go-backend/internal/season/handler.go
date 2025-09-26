@@ -15,22 +15,31 @@ func Handler(pis []*plugin.PluginInterface) http.Handler {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /api/services/{serviceTag}/{showID}/{seasonNumber}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/service/{serviceTag}/{showID}/{seasonNumber}", func(w http.ResponseWriter, r *http.Request) {
 
-		stringNumber := r.PathValue("seasonNumber")
-		n, err := strconv.Atoi(stringNumber)
+		tag := r.PathValue("serviceTag")
+		showID := r.PathValue("showID")
+		seasonNumberStr := r.PathValue("seasonNumber")
+
+		seasonNumber, err := strconv.Atoi(seasonNumberStr)
 		if err != nil {
 			api.BadRequestErrorHandler(w, fmt.Errorf("season number needs to be an integer"))
 			return
 		}
 
-		request := seasonApi.SeasonRequestHandler(r.PathValue("serviceTag"), r.PathValue("showID"), n)
-
-		response := seasonApi.SeasonResponse{
-			Number: request.SeasonNumber,
+		pi, err := utils.GetPluginBySlug(tag, pis)
+		if err != nil {
+			api.BadRequestErrorHandler(w, err)
+			return
 		}
 
-		utils.JSONResponse(w, response)
+		request := seasonApi.SeasonRequestHandler(tag, showID, seasonNumber)
+
+		response := &seasonApi.SeasonResponse{}
+
+		(*pi).GetSeason(request, response)
+
+		utils.JSONResponse(w, *response)
 	})
 
 	return mux

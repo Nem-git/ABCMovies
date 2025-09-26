@@ -21,8 +21,13 @@ func Handler(pis []*plugin.PluginInterface) http.Handler {
 		response := &searchApi.SearchResponse{}
 
 		for _, pi := range pis {
+			res := &searchApi.SearchResponse{}
 			(*pi).GetSearch(request, response)
+			response.Shows = append(response.Shows, res.Shows...)
 		}
+
+		response.Query = query
+		response.ShowCount = len(response.Shows)
 
 		utils.JSONResponse(w, *response)
 	})
@@ -43,6 +48,9 @@ func Handler(pis []*plugin.PluginInterface) http.Handler {
 		response := &searchApi.SearchResponse{}
 
 		(*pi).GetSearch(request, response)
+
+		response.Query = query
+		response.ShowCount = len(response.Shows)
 
 		utils.JSONResponse(w, *response)
 	})

@@ -3,8 +3,9 @@ package show
 import (
 	"net/http"
 
+	"github.com/nem-git/abcmovies/internal/api"
 	"github.com/nem-git/abcmovies/internal/plugin"
-	"github.com/nem-git/abcmovies/internal/show/api"
+	showApi "github.com/nem-git/abcmovies/internal/show/api"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
@@ -12,16 +13,24 @@ func Handler(pis []*plugin.PluginInterface) http.Handler {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /api/services/{serviceTag}/{showID}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/service/{serviceTag}/{showID}", func(w http.ResponseWriter, r *http.Request) {
 
-		request := api.ShowRequestHandler(r.PathValue("serviceTag"), r.PathValue("showID"))
+		tag := r.PathValue("serviceTag")
+		showID := r.PathValue("showID")
 
-		response := api.ShowResponse{
-			Name: request.ServiceTag,
-			ID:   request.ShowID,
+		pi, err := utils.GetPluginBySlug(tag, pis)
+		if err != nil {
+			api.BadRequestErrorHandler(w, err)
+			return
 		}
 
-		utils.JSONResponse(w, response)
+		request := showApi.ShowRequestHandler(tag, showID)
+
+		response := &showApi.ShowResponse{}
+
+		(*pi).GetShow(request, response)
+
+		utils.JSONResponse(w, *response)
 	})
 
 	return mux
