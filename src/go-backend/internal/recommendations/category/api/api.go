@@ -28,3 +28,9 @@ type CategoryResponse struct {
 	PosterUrl   string             `json:"posterUrl"`
 	Shows       []api.ShowResponse `json:"shows"`
 }
+
+func CategoryRequestHandler(id string) CategoryRequest {
+	return CategoryRequest{
+		ID: id,
+	}
+}

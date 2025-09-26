@@ -2,46 +2,43 @@ package page
 
 import (
 	"net/http"
+
+	"github.com/nem-git/abcmovies/internal/plugin"
+	"github.com/nem-git/abcmovies/internal/recommendations/page/api"
+	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func Handler() http.Handler {
+func Handler(pis []*plugin.PluginInterface) http.Handler {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /pages", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/page", func(w http.ResponseWriter, r *http.Request) {
 
-		// content, err := GetManifest(model.Url, model.Content)
-		// if err != nil {
-		// 	api.InternalErrorHandler(w, err)
-		// 	return
+		_ = &api.PagesRequest{}
+		var response api.PagesResponse
+
+		// for _, pi := range pis {
+		// 	res := &api.PageResponse{}
+		// 	response = append(response, res)
 		// }
 
-		// response := DashManifestResponse{
-		// 	Content: content,
-		// }
-
-		// utils.JSONResponse(w, response)
+		utils.JSONResponse(w, response)
 	})
 
-	mux.HandleFunc("GET /pages/{pageID}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/page/{pageID}", func(w http.ResponseWriter, r *http.Request) {
 
 		pageID := r.PathValue("pageID")
-		if pageID == "" {
 
-		}
+		_ = api.PageRequestHandler(pageID)
+		response := &api.PageResponse{}
 
-		// content, err := GetManifest(model.Url, model.Content)
-		// if err != nil {
-		// 	api.InternalErrorHandler(w, err)
-		// 	return
+		// for _, pi := range pis {
+		// 	res := &api.PageResponse{}
+		// 	response = append(response, res)
 		// }
 
-		// response := DashManifestResponse{
-		// 	Content: content,
-		// }
-
-		// utils.JSONResponse(w, response)
+		utils.JSONResponse(w, *response)
 	})
 
-	return http.StripPrefix("/api/", mux)
+	return mux
 }

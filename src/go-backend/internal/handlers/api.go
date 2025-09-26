@@ -8,6 +8,7 @@ import (
 	"github.com/nem-git/abcmovies/internal/episode"
 	"github.com/nem-git/abcmovies/internal/plugin"
 	"github.com/nem-git/abcmovies/internal/recommendations/category"
+	"github.com/nem-git/abcmovies/internal/recommendations/page"
 	"github.com/nem-git/abcmovies/internal/search"
 	"github.com/nem-git/abcmovies/internal/season"
 	"github.com/nem-git/abcmovies/internal/service"
@@ -33,6 +34,12 @@ func Handler(mux *http.ServeMux) {
 	}
 
 	// Global endpoints depending on plugins
+
+	mux.Handle("/api/page", page.Handler(pis))
+	mux.Handle("/api/page/{pageID}", page.Handler(pis))
+
+	mux.Handle("/api/category", category.Handler(pis))
+	mux.Handle("/api/category/{categoryID}", category.Handler(pis))
 
 	mux.Handle("/api/search/{query}", search.Handler(pis))
 
