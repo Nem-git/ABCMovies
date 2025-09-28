@@ -19,7 +19,7 @@ func Handler(pis []*plugin.PluginInterface) http.Handler {
 
 		for _, pi := range pis {
 			res := &api.CategoriesResponse{}
-			(*pi).GetCategories(request, res)
+			_ = (*pi).GetCategories(request, res) // err
 			response.Categories = append(response.Categories, res.Categories...)
 		}
 
@@ -37,7 +37,7 @@ func Handler(pis []*plugin.PluginInterface) http.Handler {
 
 		for _, pi := range pis {
 			res := &api.CategoryResponse{}
-			(*pi).GetCategory(request, res)
+			_ = (*pi).GetCategory(request, res) // err
 			response.Shows = append(response.Shows, res.Shows...)
 		}
 

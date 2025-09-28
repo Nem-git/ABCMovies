@@ -3,19 +3,20 @@ package utils
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 )
 
-func Get(u string, params map[string]string, headers map[string]string) (io.ReadCloser, error) {
+func Get(u string, params map[string]any, headers map[string]string) (io.ReadCloser, error) {
 
 	parsed, err := url.Parse(u)
 	if err != nil {
 		return nil, errors.New("couldn't parse url")
 	}
 
-	p := FormatParams(params)
+	p := FormatParams(u, params)
 
 	if parsed.RawQuery != "" {
 		if p != "" {
@@ -69,9 +70,13 @@ func Request(u string, headers map[string]string, data []byte, method string) (i
 	return resp.Body, nil
 }
 
-func FormatParams(params map[string]string) string {
+func FormatParams(u string, params map[string]any) string {
 
-	req := http.Request{}
+	req, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		return ""
+	}
+
 	if req.URL == nil {
 		return ""
 	}
@@ -79,7 +84,7 @@ func FormatParams(params map[string]string) string {
 	query := req.URL.Query()
 
 	for k, v := range params {
-		query.Add(k, v)
+		query.Add(k, fmt.Sprintf("%v", v))
 	}
 
 	return query.Encode()

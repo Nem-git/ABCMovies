@@ -37,7 +37,10 @@ func Handler(pis []*plugin.PluginInterface) http.Handler {
 
 		response := &seasonApi.SeasonResponse{}
 
-		(*pi).GetSeason(request, response)
+		if err := (*pi).GetSeason(request, response); err != nil {
+			api.BadRequestErrorHandler(w, err)
+			return
+		}
 
 		utils.JSONResponse(w, *response)
 	})

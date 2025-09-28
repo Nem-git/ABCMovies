@@ -110,7 +110,7 @@ func modifySegmentTemplate(segmentTemplate *mpd.SegmentTemplate, periodUrl strin
 
 	if segmentTemplate != nil {
 		if segmentTemplate.Initialization != nil {
-			id := utils.GetUniqueId()
+			id := utils.GetUniqueID()
 
 			*segmentTemplate.Initialization, err = modifySegmentUrl(*segmentTemplate.Initialization, periodUrl, config.DASH_INIT_URL_PREFIX, id)
 			if err != nil {
@@ -140,9 +140,9 @@ func modifySegmentTemplate(segmentTemplate *mpd.SegmentTemplate, periodUrl strin
 
 func modifySegmentUrl(segmentUrl string, periodUrl string, prefix string, id ...string) (string, error) {
 
-	strId := ""
+	strID := ""
 	if id != nil {
-		strId = id[0]
+		strID = id[0]
 	}
 
 	mergedUrl, err := utils.JoinUrls(periodUrl, segmentUrl)
@@ -150,7 +150,7 @@ func modifySegmentUrl(segmentUrl string, periodUrl string, prefix string, id ...
 		return "", fmt.Errorf("couldn't join segment and period url: %w", err)
 	}
 
-	formattedUrl, err := utils.CreateCustomUrl(mergedUrl, prefix, strId)
+	formattedUrl, err := utils.CreateCustomUrl(mergedUrl, prefix, strID)
 	if err != nil {
 		return "", fmt.Errorf("couldn't create the custom url: %w", err)
 	}

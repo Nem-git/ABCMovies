@@ -28,7 +28,10 @@ func Handler(pis []*plugin.PluginInterface) http.Handler {
 
 		response := &showApi.ShowResponse{}
 
-		(*pi).GetShow(request, response)
+		if err := (*pi).GetShow(request, response); err != nil {
+			api.BadRequestErrorHandler(w, err)
+			return
+		}
 
 		utils.JSONResponse(w, *response)
 	})

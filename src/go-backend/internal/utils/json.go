@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
 
@@ -29,6 +30,13 @@ func JSONResponse(w http.ResponseWriter, r any) {
 
 func BindJSON[T any](r *http.Request, model *T) error {
 	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+
+	return dec.Decode(model)
+}
+
+func BindJSONReadCloser[T any](r io.ReadCloser, model *T) error {
+	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
 
 	return dec.Decode(model)

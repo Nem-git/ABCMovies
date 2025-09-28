@@ -1,6 +1,8 @@
 package api
 
 import (
+	"time"
+
 	"github.com/nem-git/abcmovies/internal/season/api"
 )
 
@@ -18,20 +20,20 @@ type Genre struct {
 // Show Response
 type ShowResponse struct {
 	Adult                bool                 `json:"adult"`
-	BackdropUrl          string               `json:"backdropUrl"`
+	BackdropURL          string               `json:"backdropURL"`
 	ID                   string               `json:"id"`
 	SeasonCount          string               `json:"seasonCount"`
 	Name                 string               `json:"name"`
 	OriginalName         string               `json:"originalName"`
 	Overview             string               `json:"overview"`
-	PosterUrl            string               `json:"posterUrl"`
+	PosterURL            string               `json:"posterURL"`
 	MediaType            string               `json:"mediaType"`
 	OriginalLanguage     string               `json:"originalLanguage"`
 	OriginalLanguageCode string               `json:"originalLanguageCode"`
 	Genres               []Genre              `json:"genres"`
 	Cast                 []string             `json:"cast"`
 	Directors            []string             `json:"directors"`
-	FirstAirDate         string               `json:"firstAirDate"`
+	FirstAirDate         time.Time            `json:"firstAirDate"`
 	OriginCountry        string               `json:"originCountry"`
 	AvailabilityStatus   string               `json:"availabilityStatus"`
 	Seasons              []api.SeasonResponse `json:"seasons"`

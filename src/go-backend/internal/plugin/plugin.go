@@ -13,17 +13,17 @@ import (
 type PluginInterface interface {
 	GetServiceSlug() string
 
-	GetService(req serviceApi.ServiceRequest, res *serviceApi.ServiceResponse)
-	GetShow(req showApi.ShowRequest, res *showApi.ShowResponse)
-	GetSeason(req seasonApi.SeasonRequest, res *seasonApi.SeasonResponse)
-	GetEpisode(req episodeApi.EpisodeRequest, res *episodeApi.EpisodeResponse)
+	GetService(req serviceApi.ServiceRequest, res *serviceApi.ServiceResponse) error
+	GetShow(req showApi.ShowRequest, res *showApi.ShowResponse) error
+	GetSeason(req seasonApi.SeasonRequest, res *seasonApi.SeasonResponse) error
+	GetEpisode(req episodeApi.EpisodeRequest, res *episodeApi.EpisodeResponse) error
 
-	GetNextEpisode(req episodeApi.EpisodeRequest, res *episodeApi.NextEpisodeResponse)
+	GetNextEpisode(req episodeApi.EpisodeRequest, res *episodeApi.NextEpisodeResponse) error
 
-	GetStream(req streamApi.StreamRequest, res *streamApi.StreamResponse)
+	GetStream(req streamApi.StreamRequest, res *streamApi.StreamResponse) error
 
-	GetSearch(req searchApi.SearchRequest, res *searchApi.SearchResponse)
+	GetSearch(req searchApi.SearchRequest, res *searchApi.SearchResponse) error
 
-	GetCategory(req categoryApi.CategoryRequest, res *categoryApi.CategoryResponse)
-	GetCategories(req categoryApi.CategoriesRequest, res *categoryApi.CategoriesResponse)
+	GetCategory(req categoryApi.CategoryRequest, res *categoryApi.CategoryResponse) error
+	GetCategories(req categoryApi.CategoriesRequest, res *categoryApi.CategoriesResponse) error
 }
