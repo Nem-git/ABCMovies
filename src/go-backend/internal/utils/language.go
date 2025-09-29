@@ -15,7 +15,7 @@ func LanguageNameToEnglish(name string) (string, error) {
 	}
 
 	caser := cases.Title(t)
-	return caser.String(t.String()), nil
+	return caser.String(display.English.Languages().Name(t)), nil
 }
 
 func LanguageNameToNative(name string) (string, error) {
