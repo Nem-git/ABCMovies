@@ -19,24 +19,24 @@ type Genre struct {
 
 // Show Response
 type ShowResponse struct {
-	Adult                bool                 `json:"adult"`
-	BackdropURL          string               `json:"backdropURL"`
-	ID                   string               `json:"id"`
-	SeasonCount          string               `json:"seasonCount"`
-	Name                 string               `json:"name"`
-	OriginalName         string               `json:"originalName"`
-	Overview             string               `json:"overview"`
-	PosterURL            string               `json:"posterURL"`
-	MediaType            string               `json:"mediaType"`
-	OriginalLanguage     string               `json:"originalLanguage"`
-	OriginalLanguageCode string               `json:"originalLanguageCode"`
-	Genres               []Genre              `json:"genres"`
-	Cast                 []string             `json:"cast"`
-	Directors            []string             `json:"directors"`
-	FirstAirDate         time.Time            `json:"firstAirDate"`
-	OriginCountry        string               `json:"originCountry"`
-	AvailabilityStatus   string               `json:"availabilityStatus"`
-	Seasons              []api.SeasonResponse `json:"seasons"`
+	Adult                bool                  `json:"adult"`
+	BackdropURL          string                `json:"backdropURL"`
+	ID                   string                `json:"id"`
+	SeasonCount          int                   `json:"seasonCount"`
+	Name                 string                `json:"name"`
+	OriginalName         string                `json:"originalName"`
+	Overview             string                `json:"overview"`
+	PosterURL            string                `json:"posterURL"`
+	MediaType            string                `json:"mediaType"`
+	OriginalLanguage     string                `json:"originalLanguage"`
+	OriginalLanguageCode string                `json:"originalLanguageCode"`
+	Genres               *[]Genre              `json:"genres"`
+	Cast                 []string              `json:"cast"`
+	Directors            []string              `json:"directors"`
+	FirstAirDate         time.Time             `json:"firstAirDate"`
+	OriginCountry        string                `json:"originCountry"`
+	AvailabilityStatus   string                `json:"availabilityStatus"`
+	Seasons              *[]api.SeasonResponse `json:"seasons"`
 }
 
 func ShowRequestHandler(serviceTag string, id string) ShowRequest {
