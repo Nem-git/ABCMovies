@@ -14,7 +14,6 @@ type SeasonRequest struct {
 
 // Season Response
 type SeasonResponse struct {
-	Adult              bool                          `json:"adult"`
 	BackdropUrl        string                        `json:"backdropUrl"`
 	Number             int                           `json:"number"`
 	EpisodeCount       int                           `json:"episodeCount"`

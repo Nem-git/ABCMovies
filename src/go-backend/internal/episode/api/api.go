@@ -44,7 +44,6 @@ type CuePoint struct {
 // Episode Response
 type EpisodeResponse struct {
 	Streams              *[]Stream     `json:"streams"`
-	Adult                bool          `json:"adult"`
 	BackdropUrl          string        `json:"backdropUrl"`
 	Number               int           `json:"number"`
 	Name                 string        `json:"name"`
