@@ -43,27 +43,27 @@ type CuePoint struct {
 
 // Episode Response
 type EpisodeResponse struct {
-	Streams              *[]Stream     `json:"streams"`
-	BackdropUrl          string        `json:"backdropUrl"`
-	Number               int           `json:"number"`
-	Name                 string        `json:"name"`
+	Streams              *[]Stream     `json:"streams"` ///
+	BackdropUrl          string        `json:"backdropUrl"` ///
+	Number               int           `json:"number"` // ///
+	Name                 string        `json:"name"` // ///
 	OriginalName         string        `json:"originalName"`
-	Overview             string        `json:"overview"`
-	PosterUrl            string        `json:"posterUrl"`
-	MediaType            string        `json:"mediaType"`
+	Overview             string        `json:"overview"` ///
+	PosterUrl            string        `json:"posterUrl"` ///
+	MediaType            string        `json:"mediaType"` //
 	OriginalLanguage     string        `json:"originalLanguage"`
 	OriginalLanguageCode string        `json:"originalLanguageCode"`
-	CompletionTime       float64       `json:"completionTime"`
+	CompletionTime       float64       `json:"completionTime"` // ///
 	Cast                 []string      `json:"cast"`
 	Directors            []string      `json:"directors"`
-	FirstAirDate         time.Time     `json:"firstAirDate"`
-	OriginCountry        string        `json:"originCountry"`
-	AvailabilityStatus   string        `json:"availabilityStatus"`
+	FirstAirDate         time.Time     `json:"firstAirDate"` //
+	OriginCountry        string        `json:"originCountry"` ///
+	AvailabilityStatus   string        `json:"availabilityStatus"` // ///
 	Described            bool          `json:"described"`
-	VideoTracks          *[]VideoTrack `json:"videoTracks"`
-	AudioTracks          *[]AudioTrack `json:"audioTracks"`
-	TextTracks           *[]TextTrack  `json:"textTracks"`
-	CuePoints            *[]CuePoint   `json:"cuePoints"`
+	VideoTracks          *[]VideoTrack `json:"videoTracks"` ////
+	AudioTracks          *[]AudioTrack `json:"audioTracks"` ////
+	TextTracks           *[]TextTrack  `json:"textTracks"` /// ////
+	CuePoints            *[]CuePoint   `json:"cuePoints"` /// ////
 }
 
 // Next Episode Response

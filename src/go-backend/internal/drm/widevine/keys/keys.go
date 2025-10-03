@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"net/http"
 
 	widevine "github.com/iyear/gowidevine"
 	"github.com/iyear/gowidevine/widevinepb"
@@ -49,6 +50,12 @@ func Get(psshData string, licenseUrl string, headers map[string]string) ([]strin
 	license, err := io.ReadAll(body)
 	if err != nil {
 		return nil, fmt.Errorf("read resp: %w", err)
+	}
+
+	mimeType := http.DetectContentType(license)
+
+	if mimeType != "application/octet-stream" {
+		return nil, fmt.Errorf("license response was not a binary file: %v", mimeType)
 	}
 
 	// Parse license

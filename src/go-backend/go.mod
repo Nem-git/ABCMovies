@@ -14,6 +14,7 @@ require (
 	github.com/antchfx/xpath v1.3.3 // indirect
 	github.com/chmike/cmac-go v1.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
+	github.com/stretchr/testify v1.11.1 // indirect
 	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/text v0.29.0 // indirect
 	google.golang.org/protobuf v1.36.2 // indirect

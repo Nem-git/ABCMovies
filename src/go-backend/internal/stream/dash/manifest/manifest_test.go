@@ -5,9 +5,10 @@ import (
 	"testing"
 
 	"github.com/nem-git/abcmovies/internal/utils"
+	"github.com/stretchr/testify/require"
 )
 
-var normalManifests = []string{
+var nominalManifests = []string{
 	"https://github.com/emarsden/dash-mpd-rs/raw/refs/heads/main/tests/fixtures/ad-insertion-testcase1.mpd",
 	"https://github.com/emarsden/dash-mpd-rs/raw/refs/heads/main/tests/fixtures/ad-insertion-testcase6-av1.mpd",
 	"https://github.com/emarsden/dash-mpd-rs/raw/refs/heads/main/tests/fixtures/ad-insertion-testcase6-av2.mpd",
@@ -49,9 +50,7 @@ var normalManifests = []string{
 	"https://media.axprod.net/TestVectors/v7-Clear/Manifest_1080p.mpd",
 	"https://cmafref.akamaized.net/cmaf/live-ull/2006350/akambr/out.mpd",
 	"https://github.com/emarsden/dash-mpd-rs/raw/refs/heads/main/tests/fixtures/mediapackage.xml",
-}
 
-var protectedManifests = []string{
 	"https://github.com/emarsden/dash-mpd-rs/raw/refs/heads/main/tests/fixtures/a2d-tv.mpd",
 	"https://github.com/emarsden/dash-mpd-rs/raw/refs/heads/main/tests/fixtures/orange.xml",
 
@@ -76,65 +75,50 @@ var breakingManifests = []string{
 	"https://github.com/emarsden/dash-mpd-rs/raw/refs/heads/main/tests/fixtures/incomplete.mpd", // incomplete
 }
 
-func TestNormalManifests(t *testing.T) {
-	for _, url := range normalManifests {
+/*
+Level: Unit
+Strategy: Exploring strategy
+Characteristic: Functional
+*/
+func TestCleanDashManifestFromDRMAndModifyURLs(t *testing.T) {
+	for _, url := range nominalManifests {
 		// Send request to get Dash Manifest
 		body, err := utils.Get(url, nil, nil)
-		if err != nil {
-			t.Errorf(`utils.Get(url, nil, nil) = %q, %v`, url, err)
-		}
+		require.Nil(t, err, "couldn't retrieve body in dash manifest request")
 		defer body.Close()
 
 		b, err := io.ReadAll(body)
-		if err != nil {
-			t.Errorf(`io.ReadAll(body) = %q, %v`, url, err)
-		}
+		require.Nil(t, err, "couldn't read body in dash manifest request")
 
 		mpd, err := Get(url, string(b))
-		if err != nil {
-			t.Errorf(`Get(%v, string(body)) = %q, %v`, url, mpd, err)
-		}
+
+		require.Nil(t, err, err)
+		require.NotEqual(t, "", mpd, "modified dash manifest is empty")
+		require.NotContains(t, "ContentProtection", mpd)
+		require.NotContains(t, "BaseURL", mpd)
+		require.NotContains(t, "EventStream", mpd)
+		require.NotContains(t, "cenc", mpd)
+		require.NotContains(t, "playready", mpd)
 	}
 }
 
-func TestProtectedManifests(t *testing.T) {
-	for _, url := range protectedManifests {
-		// Send request to get Dash Manifest
-		body, err := utils.Get(url, nil, nil)
-		if err != nil {
-			t.Errorf(`utils.Get(url, nil, nil) = %q, %v`, url, err)
-		}
-		defer body.Close()
-
-		b, err := io.ReadAll(body)
-		if err != nil {
-			t.Errorf(`io.ReadAll(body) = %q, %v`, url, err)
-		}
-
-		mpd, err := Get(url, string(b))
-		if err != nil {
-			t.Errorf(`Get(%v, string(body)) = %q, %v`, url, mpd, err)
-		}
-	}
-}
-
-func TestBreakingManifests(t *testing.T) {
+/*
+Level: Unit
+Strategy: Exploring strategy
+Characteristic: Functional
+*/
+func TestFailToCleanDRMAndModifyURLsInBrokenManifests(t *testing.T) {
 	for _, url := range breakingManifests {
 		// Send request to get Dash Manifest
 		body, err := utils.Get(url, nil, nil)
-		if err != nil {
-			t.Errorf(`utils.Get(url, nil, nil) = %q, %v`, url, err)
-		}
+		require.Nil(t, err, "couldn't retrieve body in broken dash manifest request")
 		defer body.Close()
 
 		b, err := io.ReadAll(body)
-		if err != nil {
-			t.Errorf(`io.ReadAll(body) = %q, %v`, url, err)
-		}
+		require.Nil(t, err, "couldn't read body in broken dash manifest request")
 
-		_, err = Get(url, string(b))
-		if err == nil {
-			t.Errorf(`Get(%v, string(body)) = %q`, url, err)
-		}
+		mpd, err := Get(url, string(b))
+		require.Error(t, err, "broken manifest did not fail")
+		require.Empty(t, mpd, "broken manifest not empty")
 	}
 }

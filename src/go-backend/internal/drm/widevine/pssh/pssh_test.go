@@ -2,9 +2,11 @@ package pssh
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-var normalManifests = []string{
+var nominalManifests = []string{
 	"https://github.com/emarsden/dash-mpd-rs/raw/refs/heads/main/tests/fixtures/ad-insertion-testcase1.mpd",
 	"https://github.com/emarsden/dash-mpd-rs/raw/refs/heads/main/tests/fixtures/ad-insertion-testcase6-av1.mpd",
 	"https://github.com/emarsden/dash-mpd-rs/raw/refs/heads/main/tests/fixtures/ad-insertion-testcase6-av2.mpd",
@@ -47,7 +49,8 @@ var normalManifests = []string{
 	"https://github.com/emarsden/dash-mpd-rs/raw/refs/heads/main/tests/fixtures/mediapackage.xml",
 }
 
-var protectedManifests = []string{
+// DRM protected manifests
+var drmProtectedNominalManifests = []string{
 	"https://github.com/emarsden/dash-mpd-rs/raw/refs/heads/main/tests/fixtures/a2d-tv.mpd",
 	"https://github.com/emarsden/dash-mpd-rs/raw/refs/heads/main/tests/fixtures/orange.xml",
 	"https://a38avoddashs3ww-a.akamaihd.net/ondemand/iad_2/8e91/f2f2/ec5a/430f-bd7a-0779f4a0189d/685cda75-609c-41c1-86bb-688f4cdb5521_corrected.mpd",
@@ -73,30 +76,44 @@ var breakingManifests = []string{
 	"https://github.com/emarsden/dash-mpd-rs/raw/refs/heads/main/tests/fixtures/incomplete.mpd", // incomplete
 }
 
-func TestNormalManifests(t *testing.T) {
-	for _, url := range normalManifests {
+/*
+Level: Unit
+Strategy: Exploring strategy
+Characteristic: Functional
+*/
+func TestPSSHNotFoundInDashStreamsWithoutDRM(t *testing.T) {
+	for _, url := range nominalManifests {
 		pssh, err := Get(url, nil, nil)
-		if err == nil {
-			t.Errorf(`Get(%v, nil, nil) = %q, %v`, url, err, pssh)
-		}
+
+		require.Error(t, err, "non drm dash manifests did not give an error while retrieving pssh")
+		require.Empty(t, pssh, "non drm dash manifests gave a pssh")
 	}
 }
 
-func TestProtectedManifests(t *testing.T) {
-	for _, url := range protectedManifests {
+/*
+Level: Unit
+Strategy: Exploring strategy
+Characteristic: Functional
+*/
+func TestPSSHFoundInDashStreamsWithDRM(t *testing.T) {
+	for _, url := range drmProtectedNominalManifests {
 		pssh, err := Get(url, nil, nil)
-		if err != nil {
-			t.Errorf(`Get(%v, nil, nil) = %q, %v`, url, err, pssh)
-		}
-		t.Errorf(`Get(%v, nil, nil) = %q, %v`, url, err, pssh)
+
+		require.Nil(t, err, err)
+		require.NotEmpty(t, pssh, "drm dash manifests did not give a pssh")
 	}
 }
 
-func TestBreakingManifests(t *testing.T) {
+/*
+Level: Unit
+Strategy: Exploring strategy
+Characteristic: Functional
+*/
+func TestPSSHNotFoundInBrokenDashManifest(t *testing.T) {
 	for _, url := range breakingManifests {
 		pssh, err := Get(url, nil, nil)
-		if err == nil {
-			t.Errorf(`Get(%v, nil, nil) = %q, %v`, url, err, pssh)
-		}
+
+		require.Error(t, err, "broken dash manifests did not give an error while retrieving pssh")
+		require.Empty(t, pssh, "broken dash manifests gave a pssh")
 	}
 }
