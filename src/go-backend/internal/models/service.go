@@ -17,6 +17,6 @@ type Service struct {
 
 // Services Response
 type Services struct {
-	ServiceCount int       `json:"serviceCount"`
-	Services     []Service `json:"services"`
+	ServiceCount int        `json:"serviceCount"`
+	Services     []*Service `json:"services"`
 }

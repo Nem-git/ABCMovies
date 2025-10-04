@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/nem-git/abcmovies/internal/api"
@@ -16,6 +15,8 @@ type ServiceHandler struct {
 
 func (h *ServiceHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
+	model := &models.Service{}
+
 	p, err := utils.GetPluginContextValue[plugin.IPlugin](r)
 	if err != nil {
 		api.BadRequestErrorHandler(w, err)
@@ -24,25 +25,24 @@ func (h *ServiceHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	req, err := utils.GetRequestContextValue[requests.ServiceRequest](r)
 	if err != nil {
-		log.Printf("THING THING 2")
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
 
-	service := &models.Service{}
-
-	if err := (*p).GetService(*req, service); err != nil {
+	if err := (*p).GetService(*req, model); err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
 
-	utils.JSONResponse(w, *service)
+	utils.JSONResponse(w, model)
 }
 
 type ServicesHandler struct {
 }
 
 func (h *ServicesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	model := &models.Services{}
 
 	plugins, err := utils.GetPluginsContextValue[[]*plugin.IPlugin](r)
 	if err != nil {
@@ -56,17 +56,22 @@ func (h *ServicesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	services := &models.Services{}
-
 	for _, p := range *plugins {
-		service := &models.Service{}
-		if err := (*p).GetService(requests.ServiceRequest{}, service); err != nil {
+
+		sr := requests.ServiceRequest{
+			ServiceTag: (*p).GetServiceID(),
+		}
+		m := &models.Service{}
+
+		if err := (*p).GetService(sr, m); err != nil {
 			api.BadRequestErrorHandler(w, err)
 			return
 		}
 
-		services.Services = append(services.Services, *service)
+		model.Services = append(model.Services, m)
 	}
 
-	utils.JSONResponse(w, services)
+	model.ServiceCount = len(model.Services)
+
+	utils.JSONResponse(w, model)
 }

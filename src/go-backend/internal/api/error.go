@@ -9,10 +9,10 @@ import (
 // Error Response
 type Error struct {
 	// Error code
-	Code int
+	Code int `json:"code"`
 
 	// Error message
-	Message string
+	Message string `json:"message"`
 }
 
 func writeError(w http.ResponseWriter, message string, code int) {

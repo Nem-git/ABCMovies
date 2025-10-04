@@ -5,7 +5,7 @@ import (
 
 	"net/http"
 
-	"github.com/nem-git/abcmovies/internal/handlers"
+	"github.com/nem-git/abcmovies/internal/routes"
 )
 
 func main() {
@@ -14,7 +14,7 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	handlers.Handler(mux)
+	routes.Handler(mux)
 
 	log.Println("Welcome to ABCMovies' Go API!")
 	log.Println("http://localhost:8090/api/")

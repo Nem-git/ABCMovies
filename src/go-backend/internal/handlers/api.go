@@ -59,6 +59,14 @@ func Handler(mux *http.ServeMux) {
 	),
 	)
 
+	mux.Handle("/api/service/{serviceTag}/{showID}", middleware.PluginMiddleware(
+		middleware.RequestsParsingMiddleware(
+			&ShowHandler{},
+			&requests.ShowRequest{},
+		), plugins,
+	),
+	)
+
 	// mux.Handle("/api/service/{serviceTag}/{showID}", show.Handler(pis))
 
 	// mux.Handle("/api/service/{serviceTag}/{showID}/{seasonNumber}", season.Handler(pis))

@@ -1,15 +1,15 @@
 package config
 
 const (
-	PAGE_SLUG = "pageID"
+	PAGE_SLUG string = "pageID"
 
-	CATEGORY_SLUG = "categoryID"
+	CATEGORY_SLUG string = "categoryID"
 
-	SEARCH_SLUG = "query"
+	SEARCH_SLUG string = "query"
 
-	SERVICE_SLUG = "serviceTag"
-	SHOW_SLUG    = "showID"
-	SEASON_SLUG  = "seasonNumber"
-	EPISODE_SLUG = "episodeNumber"
-	STREAM_SLUG  = "streamID"
+	SERVICE_SLUG string = "serviceTag"
+	SHOW_SLUG    string = "showID"
+	SEASON_SLUG  string = "seasonNumber"
+	EPISODE_SLUG string = "episodeNumber"
+	STREAM_SLUG  string = "streamID"
 )

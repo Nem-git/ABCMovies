@@ -11,6 +11,23 @@ import (
 	"github.com/nem-git/abcmovies/internal/config"
 )
 
+func Load(plugins *[]*IPlugin) error {
+
+	availablePlugins := OpenPlugins()
+
+	for _, p := range availablePlugins {
+		pluginInstance, err := GetInterface("Plugin", p)
+		if err == nil {
+			*plugins = append(*plugins, pluginInstance)
+		} else {
+			log.Println("error getting instance of plugin:", *p, err)
+			return err
+		}
+	}
+
+	return nil
+}
+
 func GetByID(name string, plugins []*IPlugin) (*IPlugin, error) {
 
 	var plugin *IPlugin

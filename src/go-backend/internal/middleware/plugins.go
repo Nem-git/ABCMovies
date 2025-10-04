@@ -16,6 +16,7 @@ func PluginMiddleware(next http.Handler, plugins []*plugin.IPlugin) http.Handler
 		serviceRequest := &requests.ServiceRequest{}
 		if err := serviceRequest.Map(r); err != nil {
 			api.BadRequestErrorHandler(w, err)
+			return
 		}
 
 		// Get services' matching plugin
