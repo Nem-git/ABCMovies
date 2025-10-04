@@ -12,11 +12,6 @@ type ShowRequest struct {
 	ShowID     string
 }
 
-type Genre struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-}
-
 // Show Response
 type ShowResponse struct {
 	Adult                bool                  `json:"adult"`
@@ -37,6 +32,11 @@ type ShowResponse struct {
 	OriginCountry        string                `json:"originCountry"`
 	AvailabilityStatus   string                `json:"availabilityStatus"`
 	Seasons              *[]api.SeasonResponse `json:"seasons"`
+}
+
+type Genre struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 func ShowRequestHandler(serviceTag string, id string) ShowRequest {

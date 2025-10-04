@@ -80,7 +80,9 @@ var wrongData = []struct {
 		"AAAAVHBzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7QAAADQIARIQS1wsIy3vDgJa68dVktqRoRoJYmVsbG1lZGlhIhNmZi1jNTQzMmIwZC0xMzM0Mjky", // random stuff
 		"https://cwip-shaka-proxy.appspot.com/no_auth",
 		nil,
-		[]string{},
+		[]string{
+			"1:2",
+		},
 	},
 }
 

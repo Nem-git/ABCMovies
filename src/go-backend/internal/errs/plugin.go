@@ -1,8 +1,6 @@
-package api
+package errs
 
-import (
-	"errors"
-)
+import "errors"
 
 var (
 	// Show errors

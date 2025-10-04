@@ -1,4 +1,4 @@
-package utils
+package plugin
 
 import (
 	"fmt"
@@ -9,34 +9,33 @@ import (
 	"strings"
 
 	"github.com/nem-git/abcmovies/internal/config"
-	iPlugin "github.com/nem-git/abcmovies/internal/plugin"
 )
 
-func GetPluginBySlug(slug string, plugins []*iPlugin.PluginInterface) (*iPlugin.PluginInterface, error) {
+func GetByID(name string, plugins []*IPlugin) (*IPlugin, error) {
 
-	var plugin *iPlugin.PluginInterface
+	var plugin *IPlugin
 
 	for _, p := range plugins {
-		if strings.EqualFold(slug, (*p).GetServiceSlug()) {
+		if strings.EqualFold(name, (*p).GetServiceID()) {
 			plugin = p
 		}
 	}
 
 	if plugin == nil {
-		return nil, fmt.Errorf("no plugin found matching the slug")
+		return nil, fmt.Errorf("no plugin found matching the id")
 	}
 
 	return plugin, nil
 }
 
-func GetPluginInterface(name string, p *plugin.Plugin) (*iPlugin.PluginInterface, error) {
+func GetInterface(name string, p *plugin.Plugin) (*IPlugin, error) {
 
 	symbol, err := p.Lookup(name)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't find method %v in plugin", name)
 	}
 
-	pluginInstance, ok := symbol.(iPlugin.PluginInterface)
+	pluginInstance, ok := symbol.(IPlugin)
 	if !ok {
 		return nil, fmt.Errorf("couldn't run function: %v", name)
 	}
