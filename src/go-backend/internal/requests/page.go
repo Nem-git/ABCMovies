@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/nem-git/abcmovies/internal/config"
+	"github.com/nem-git/abcmovies/internal/errs"
 )
 
 type PageRequest struct {
@@ -22,7 +23,7 @@ func (r *PageRequest) Map(req *http.Request) error {
 
 func (r *PageRequest) Validate() error {
 	if r.PageID == "" {
-		return ErrEmptyPageID
+		return errs.ErrEmptyPageID
 	}
 
 	return nil

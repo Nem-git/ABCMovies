@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/nem-git/abcmovies/internal/config"
+	"github.com/nem-git/abcmovies/internal/errs"
 )
 
 type ShowRequest struct {
@@ -25,11 +26,11 @@ func (r *ShowRequest) Map(req *http.Request) error {
 
 func (r *ShowRequest) Validate() error {
 	if r.ServiceTag == "" {
-		return ErrEmptyServiceTag
+		return errs.ErrEmptyServiceTag
 	}
 
 	if r.ShowID == "" {
-		return ErrEmptyShowID
+		return errs.ErrEmptyShowID
 	}
 
 	return nil

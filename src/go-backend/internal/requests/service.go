@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/nem-git/abcmovies/internal/config"
+	"github.com/nem-git/abcmovies/internal/errs"
 )
 
 type ServiceRequest struct {
@@ -23,7 +24,7 @@ func (r *ServiceRequest) Map(req *http.Request) error {
 
 func (r *ServiceRequest) Validate() error {
 	if r.ServiceTag == "" {
-		return ErrEmptyServiceTag
+		return errs.ErrEmptyServiceTag
 	}
 
 	// TODO: Add verification of validity of tag

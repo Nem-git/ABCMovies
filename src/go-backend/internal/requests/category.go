@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/nem-git/abcmovies/internal/config"
+	"github.com/nem-git/abcmovies/internal/errs"
 )
 
 type CategoryRequest struct {
@@ -23,7 +24,7 @@ func (r *CategoryRequest) Map(req *http.Request) error {
 
 func (r *CategoryRequest) Validate() error {
 	if r.CategoryID == "" {
-		return ErrEmptyCategoryID
+		return errs.ErrEmptyCategoryID
 	}
 
 	return nil

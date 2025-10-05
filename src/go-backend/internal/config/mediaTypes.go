@@ -1,10 +1,10 @@
 package config
 
 const (
-	MEDIA_DOCUMENTARY = "documentary"
-	MEDIA_EVENT       = "event"
-	MEDIA_MOVIE       = "movie"
-	MEDIA_SERIE       = "serie"
-	MEDIA_SPORT       = "sport"
-	MEDIA_TV          = "tv"
+	MEDIA_DOCUMENTARY string = "documentary"
+	MEDIA_EVENT       string = "event"
+	MEDIA_MOVIE       string = "movie"
+	MEDIA_SERIE       string = "serie"
+	MEDIA_SPORT       string = "sport"
+	MEDIA_TV          string = "tv"
 )

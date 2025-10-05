@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/nem-git/abcmovies/internal/config"
+	"github.com/nem-git/abcmovies/internal/errs"
 )
 
 type EpisodeRequest struct {
@@ -19,12 +20,12 @@ func (r *EpisodeRequest) Map(req *http.Request) error {
 	r.ShowID = req.PathValue(config.SHOW_SLUG)
 
 	var err error
-	if r.SeasonNumber, err = strconv.Atoi(config.SEASON_SLUG); err != nil {
-		return ErrInvalidSeasonNumber
+	if r.SeasonNumber, err = strconv.Atoi(req.PathValue(config.SEASON_SLUG)); err != nil {
+		return errs.ErrInvalidSeasonNumber
 	}
 
-	if r.EpisodeNumber, err = strconv.Atoi(config.EPISODE_SLUG); err != nil {
-		return ErrInvalidEpisodeNumber
+	if r.EpisodeNumber, err = strconv.Atoi(req.PathValue(config.EPISODE_SLUG)); err != nil {
+		return errs.ErrInvalidEpisodeNumber
 	}
 
 	if err = r.Validate(); err != nil {
@@ -36,19 +37,19 @@ func (r *EpisodeRequest) Map(req *http.Request) error {
 
 func (r *EpisodeRequest) Validate() error {
 	if r.ServiceTag == "" {
-		return ErrEmptyServiceTag
+		return errs.ErrEmptyServiceTag
 	}
 
 	if r.ShowID == "" {
-		return ErrEmptyShowID
+		return errs.ErrEmptyShowID
 	}
 
 	if r.SeasonNumber < 1 {
-		return ErrInvalidSeasonNumber
+		return errs.ErrInvalidSeasonNumber
 	}
 
 	if r.EpisodeNumber < 1 {
-		return ErrInvalidEpisodeNumber
+		return errs.ErrInvalidEpisodeNumber
 	}
 
 	return nil

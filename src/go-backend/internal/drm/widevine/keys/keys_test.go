@@ -53,15 +53,7 @@ var wrongData = []struct {
 	keys    []string
 }{
 	{
-		"AAAAV3Bzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7QAAADcIARIQ62dqu8s0Xpa7z2FmMPGj2hoNd2lkZXZpbmVfdGVzdCIQZmtqM2xqYVNkZmFsa3IzajIA",
-		"https://cwip-shaka-proxy.appspot.com/no_auth",
-		nil,
-		[]string{
-			"ccbf5fb4c2965be7aa130ffb3ba9fd73:9cc0c92044cb1d69433f5f5839a159df",
-		},
-	},
-	{
-		"AAAAV3Bzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7QAAADcIARIQ62dqu8s0Xpa7z2FmMPGj2hoNd2lkZXZpbmVfdGVzdCIQZmtqM2xqYVNkZmFsa3IzajIA",
+		"AAAAVHBzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7QAAADcIARIQ62dqu8sASD0Xpa7z2FmMPGj2hoNd2lDASkZXZpbmVfdGVzdCIQZmtqM2xqYVNkZmFsaADS3IzajIA",
 		"https://cwip-shaka-proxy.appspot.com/no_auth",
 		nil,
 		[]string{},
@@ -70,19 +62,13 @@ var wrongData = []struct {
 		"AAAAVHBzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7QAAADQIARIQS1wsIy3vDgJa68dVktqRoRoJYmVsbG1lZGlhIhNmZi1jNTQzMmIwZC0xMzM0Mjky",
 		"https://license.9c9media.ca/playready",
 		nil,
-		[]string{
-			"4b5c2c232def0e025aebc75592da91a1:b975cb999ef82c2617230f8a36b53047",
-			"cf03357caeb21472ae071266f4f6f2ed:70feca835ddb8b3742c3340ceb7fa78b",
-			"a06c0be58a414b36115b0fc47902ed2c:c52e7a34050d9217e0f7a21d34a9a0be",
-		},
+		[]string{},
 	},
 	{
-		"AAAAVHBzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7QAAADQIARIQS1wsIy3vDgJa68dVktqRoRoJYmVsbG1lZGlhIhNmZi1jNTQzMmIwZC0xMzM0Mjky", // random stuff
+		"AAAAVHBzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7QAAADQIARIQSASD1wsIy3vDgJa68dVkASDtqRoRoJYmVsbG1lZGlhIhASDNmZi1jNTQzMmIwZC0xMASDzM0Mjky", // random stuff
 		"https://cwip-shaka-proxy.appspot.com/no_auth",
 		nil,
-		[]string{
-			"1:2",
-		},
+		[]string{},
 	},
 }
 

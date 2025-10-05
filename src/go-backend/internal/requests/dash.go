@@ -3,6 +3,7 @@ package requests
 import (
 	"net/http"
 
+	"github.com/nem-git/abcmovies/internal/errs"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
@@ -25,11 +26,11 @@ func (r *DashManifestRequest) Map(req *http.Request) error {
 
 func (r *DashManifestRequest) Validate() error {
 	if r.URL == "" {
-		return ErrEmptyDashManifestURL
+		return errs.ErrEmptyDashManifestURL
 	}
 
 	if r.Content == "" {
-		return ErrEmptyDashManifestContent
+		return errs.ErrEmptyDashManifestContent
 	}
 
 	return nil

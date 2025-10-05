@@ -13,7 +13,7 @@ func Handler(mux *http.ServeMux) {
 	var plugins []*plugin.IPlugin
 
 	if err := plugin.Load(&plugins); err != nil {
-		mux.HandleFunc("*", func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc("", func(w http.ResponseWriter, r *http.Request) {
 			api.BadRequestErrorHandler(w, err)
 		})
 		return

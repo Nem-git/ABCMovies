@@ -11,12 +11,13 @@ import (
 	"github.com/iyear/gowidevine/widevinepb"
 
 	"github.com/nem-git/abcmovies/internal/config"
+	"github.com/nem-git/abcmovies/internal/errs"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func Get(psshData string, licenseUrl string, headers map[string]string) ([]string, error) {
+func Get(encodedPssh string, url string, headers map[string]string) ([]string, error) {
 
-	device, pssh, err := initSegment(psshData)
+	device, pssh, err := decode(encodedPssh)
 	if err != nil {
 		return nil, err
 	}
@@ -29,43 +30,43 @@ func Get(psshData string, licenseUrl string, headers map[string]string) ([]strin
 	if err != nil {
 
 		// Or use privacy mode
-		cert, err := getServiceCert(licenseUrl)
+		cert, err := getServiceCert(url)
 		if err != nil {
-			return nil, fmt.Errorf("get service cert: %w", err)
+			return nil, errs.ErrWidevineLicenseServiceCertificate
 		}
 
 		challenge, parseLicense, err = cdm.GetLicenseChallenge(pssh, widevinepb.LicenseType_AUTOMATIC, true, cert)
 		if err != nil {
-			return nil, fmt.Errorf("get license challenge: %w", err)
+			return nil, errs.ErrWidevineLicenseChallenge
 		}
 	}
 
 	// Send challenge to license server
-	body, err := utils.Post(licenseUrl, headers, challenge)
+	body, err := utils.Post(url, headers, challenge)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't make license request: %w", err)
+		return nil, errs.ErrWidevineLicenseRequest
 	}
 	defer body.Close()
 
 	license, err := io.ReadAll(body)
 	if err != nil {
-		return nil, fmt.Errorf("read resp: %w", err)
+		return nil, errs.ErrWidevineLicenseResponseBody
 	}
 
 	mimeType := http.DetectContentType(license)
 
 	if mimeType != "application/octet-stream" {
-		return nil, fmt.Errorf("license response was not a binary file: %v", mimeType)
+		return nil, errs.ErrWidevineLicenseResponseWrongMime
 	}
 
 	// Parse license
 	keys, err := parseLicense(license)
 	if err != nil {
-		return nil, fmt.Errorf("parse license: %w", err)
+		return nil, errs.ErrWidevineLicenseResponseToLicense
 	}
 
 	if len(keys) == 0 {
-		return nil, fmt.Errorf("no keys: %w", err)
+		return nil, errs.ErrWidevineLicenseResponseKeys
 	}
 
 	var formattedKeys []string
@@ -76,6 +77,10 @@ func Get(psshData string, licenseUrl string, headers map[string]string) ([]strin
 		}
 	}
 
+	if len(formattedKeys) == 0 {
+		return nil, errs.ErrWidevineLicenseResponseKeys
+	}
+
 	return formattedKeys, nil
 }
 
@@ -83,35 +88,35 @@ func getServiceCert(licenseUrl string) (*widevinepb.DrmCertificate, error) {
 
 	body, err := utils.Post(licenseUrl, nil, widevine.ServiceCertificateRequest)
 	if err != nil {
-		return nil, fmt.Errorf("error while making service cert request: %w", err)
+		return nil, errs.ErrWidevineLicenseServiceCertificateRequest
 	}
 	defer body.Close()
 
 	serviceCert, err := io.ReadAll(body)
 	if err != nil {
-		return nil, fmt.Errorf("error while reading service cert response: %w", err)
+		return nil, errs.ErrWidevineLicenseServiceCertificateRequestBody
 	}
 
 	cert, err := widevine.ParseServiceCert(serviceCert)
 	if err != nil {
-		return nil, fmt.Errorf("parsing service cert failed: %w", err)
+		return nil, errs.ErrWidevineLicenseServiceCertificateParsing
 	}
 
 	return cert, nil
 }
 
-func initSegment(encodedPssh string) (*widevine.Device, *widevine.PSSH, error) {
+func decode(encodedPSSH string) (*widevine.Device, *widevine.PSSH, error) {
 	var device *widevine.Device
 
-	psshBytes, err := base64.StdEncoding.DecodeString(encodedPssh)
+	psshBytes, err := base64.StdEncoding.DecodeString(encodedPSSH)
 	if err != nil {
-		return &widevine.Device{}, &widevine.PSSH{}, fmt.Errorf("base64 decoding pssh %v: %w", psshBytes, err)
+		return &widevine.Device{}, &widevine.PSSH{}, errs.ErrWidevineDecodePSSH
 	}
 
 	// Parse PSSH
 	pssh, err := widevine.NewPSSH(psshBytes)
 	if err != nil {
-		return &widevine.Device{}, &widevine.PSSH{}, fmt.Errorf("parse pssh %v: %w", encodedPssh, err)
+		return &widevine.Device{}, &widevine.PSSH{}, errs.ErrWidevineParsePSSH
 	}
 
 	wvd, err := utils.OpenCdmFile(config.WVD_FILENAME)
@@ -122,21 +127,21 @@ func initSegment(encodedPssh string) (*widevine.Device, *widevine.PSSH, error) {
 		)
 	}
 	if err != nil {
-		clientId, err := utils.GetCdmFile(config.CLIENT_ID_FILENAME)
+		clientID, err := utils.GetCdmFile(config.CLIENT_ID_FILENAME)
 		if err != nil {
-			return &widevine.Device{}, &widevine.PSSH{}, fmt.Errorf("getting client ID: %w", err)
+			return &widevine.Device{}, &widevine.PSSH{}, errs.ErrWidevineOpeningClientIDFile
 		}
 
 		privateKey, err := utils.GetCdmFile(config.PRIVATE_KEY_FILENAME)
 		if err != nil {
-			return &widevine.Device{}, &widevine.PSSH{}, fmt.Errorf("getting private key: %w", err)
+			return &widevine.Device{}, &widevine.PSSH{}, errs.ErrWidevineOpeningPrivateKeyFile
 		}
 
 		device, err = widevine.NewDevice(
-			widevine.FromRaw(clientId, privateKey),
+			widevine.FromRaw(clientID, privateKey),
 		)
 		if err != nil {
-			return &widevine.Device{}, &widevine.PSSH{}, fmt.Errorf("create device: %w", err)
+			return &widevine.Device{}, &widevine.PSSH{}, errs.ErrWidevineCreatingDevice
 		}
 	}
 

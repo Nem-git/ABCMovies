@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/nem-git/abcmovies/internal/config"
+	"github.com/nem-git/abcmovies/internal/errs"
 )
 
 type SearchRequest struct {
@@ -22,7 +23,7 @@ func (r *SearchRequest) Map(req *http.Request) error {
 
 func (r *SearchRequest) Validate() error {
 	if r.Query == "" {
-		return ErrEmptySearchQuery
+		return errs.ErrEmptySearchQuery
 	}
 
 	return nil

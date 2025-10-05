@@ -8,5 +8,5 @@ const (
 
 	// Widevine & Playready
 
-	CENC_SCHEME_ID = "MPEG:DASH:MP4PROTECTION:2011"
+	CENC_SCHEME_ID string = "MPEG:DASH:MP4PROTECTION:2011"
 )

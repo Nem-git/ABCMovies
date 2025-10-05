@@ -3,6 +3,7 @@ package requests
 import (
 	"net/http"
 
+	"github.com/nem-git/abcmovies/internal/errs"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
@@ -26,11 +27,11 @@ func (r *WidevineKeysRequest) Map(req *http.Request) error {
 
 func (r *WidevineKeysRequest) Validate() error {
 	if r.PSSH == "" {
-		return ErrInvalidWidevinePSSH
+		return errs.ErrEmptyWidevinePSSH
 	}
 
 	if r.URL == "" {
-		return ErrEmptyWidevineLicenseURL
+		return errs.ErrEmptyWidevineLicenseURL
 	}
 
 	return nil
@@ -56,7 +57,7 @@ func (r *WidevinePSSHRequest) Map(req *http.Request) error {
 
 func (r *WidevinePSSHRequest) Validate() error {
 	if r.URL == "" {
-		return ErrEmptyWidevinePlaylistURL
+		return errs.ErrEmptyWidevinePlaylistURL
 	}
 
 	return nil
@@ -66,6 +67,7 @@ type WidevineSegmentRequest struct {
 	InitStr    string   `json:"init"`
 	SegmentStr string   `json:"segment"`
 	Keys       []string `json:"keys"`
+	WantInit   bool     `json:"wantInit"`
 }
 
 func (r *WidevineSegmentRequest) Map(req *http.Request) error {
@@ -81,8 +83,12 @@ func (r *WidevineSegmentRequest) Map(req *http.Request) error {
 }
 
 func (r *WidevineSegmentRequest) Validate() error {
+	if r.Keys == nil {
+		return errs.ErrEmptyWidevineKeys
+	}
+
 	if len(r.Keys) == 0 {
-		return ErrEmptyKeysWidevine
+		return errs.ErrEmptyWidevineKeys
 	}
 
 	return nil

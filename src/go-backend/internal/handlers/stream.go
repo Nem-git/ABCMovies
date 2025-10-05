@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/nem-git/abcmovies/internal/api"
+	"github.com/nem-git/abcmovies/internal/config"
 	"github.com/nem-git/abcmovies/internal/models"
 	"github.com/nem-git/abcmovies/internal/plugin"
 	"github.com/nem-git/abcmovies/internal/requests"
@@ -34,5 +35,7 @@ func (h *StreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.JSONResponse(w, model)
+	// TODO: Figure out the right content-type
+
+	utils.ByteResponse(w, *model, config.DASH_CONTENT_TYPE)
 }
