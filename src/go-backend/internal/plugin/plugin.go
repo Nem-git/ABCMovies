@@ -9,16 +9,16 @@ type IPlugin interface {
 	GetServiceID() string
 
 	GetService(requests.ServiceRequest, *models.Service) error
-	GetShow(req requests.ShowRequest, res *models.Show) error
-	GetSeason(req requests.SeasonRequest, res *models.Season) error
-	GetEpisode(req requests.EpisodeRequest, res *models.Episode) error
+	GetShow(requests.ShowRequest, *models.Show) error
+	GetSeason(requests.SeasonRequest, *models.Season) error
+	GetEpisode(requests.EpisodeRequest, *models.Episode) error
 
-	GetNextEpisode(req requests.EpisodeRequest, res *models.NextEpisode) error
+	GetNextEpisode(requests.EpisodeRequest, *models.NextEpisode) error
 
-	GetStream(req requests.StreamRequest, res *models.Stream) error
+	GetStream(requests.StreamRequest, *models.Stream) error
 
-	GetSearch(req requests.SearchRequest, res *models.Search) error
+	GetSearch(requests.SearchRequest, *models.Search) error
 
-	GetCategory(req requests.CategoryRequest, res *models.Category) error
-	GetCategories(req requests.CategoriesRequest, res *models.Categories) error
+	GetCategory(requests.CategoryRequest, *models.Category) error
+	GetCategories(requests.CategoriesRequest, *models.Categories) error
 }
