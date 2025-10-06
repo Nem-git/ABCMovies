@@ -40,7 +40,8 @@ func (r *SeasonRequest) Validate() error {
 		return errs.ErrEmptyShowID
 	}
 
-	if r.SeasonNumber < 1 {
+	// fuck people who do that!
+	if r.SeasonNumber < 0 {
 		return errs.ErrInvalidSeasonNumber
 	}
 

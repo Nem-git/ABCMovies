@@ -21,11 +21,11 @@ func (r *StreamRequest) Map(req *http.Request) error {
 	r.ShowID = req.PathValue(config.SHOW_SLUG)
 
 	var err error
-	if r.SeasonNumber, err = strconv.Atoi(config.SEASON_SLUG); err != nil {
+	if r.SeasonNumber, err = strconv.Atoi(req.PathValue(config.SEASON_SLUG)); err != nil {
 		return errs.ErrInvalidSeasonNumber
 	}
 
-	if r.EpisodeNumber, err = strconv.Atoi(config.EPISODE_SLUG); err != nil {
+	if r.EpisodeNumber, err = strconv.Atoi(req.PathValue(config.EPISODE_SLUG)); err != nil {
 		return errs.ErrInvalidEpisodeNumber
 	}
 
@@ -47,11 +47,11 @@ func (r *StreamRequest) Validate() error {
 		return errs.ErrEmptyShowID
 	}
 
-	if r.SeasonNumber < 1 {
+	if r.SeasonNumber < 0 {
 		return errs.ErrInvalidSeasonNumber
 	}
 
-	if r.EpisodeNumber < 1 {
+	if r.EpisodeNumber < 0 {
 		return errs.ErrInvalidEpisodeNumber
 	}
 

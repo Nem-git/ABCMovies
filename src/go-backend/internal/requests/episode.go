@@ -44,11 +44,11 @@ func (r *EpisodeRequest) Validate() error {
 		return errs.ErrEmptyShowID
 	}
 
-	if r.SeasonNumber < 1 {
+	if r.SeasonNumber < 0 {
 		return errs.ErrInvalidSeasonNumber
 	}
 
-	if r.EpisodeNumber < 1 {
+	if r.EpisodeNumber < 0 {
 		return errs.ErrInvalidEpisodeNumber
 	}
 
