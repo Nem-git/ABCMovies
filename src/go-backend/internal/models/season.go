@@ -6,13 +6,13 @@ import (
 
 // Season Response
 type Season struct {
-	BackdropUrl        string     `json:"backdropUrl"`
+	BackdropURL        string     `json:"backdropURL"`
 	Number             int        `json:"number"`
 	EpisodeCount       int        `json:"episodeCount"`
 	Name               string     `json:"name"`
 	OriginalName       string     `json:"originalName"`
 	Overview           string     `json:"overview"`
-	PosterUrl          string     `json:"posterUrl"`
+	PosterURL          string     `json:"posterURL"`
 	FirstAirDate       time.Time  `json:"firstAirDate"`
 	AvailabilityStatus string     `json:"availabilityStatus"`
 	Episodes           *[]Episode `json:"episodes"`

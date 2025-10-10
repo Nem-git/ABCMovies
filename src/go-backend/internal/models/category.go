@@ -2,11 +2,11 @@ package models
 
 // Category Response
 type Category struct {
-	BackdropUrl string  `json:"backdropUrl"`
+	BackdropURL string  `json:"backdropURL"`
 	ID          string  `json:"id"`
 	Name        string  `json:"name"`
 	Overview    string  `json:"overview"`
-	PosterUrl   string  `json:"posterUrl"`
+	PosterURL   string  `json:"posterURL"`
 	Shows       []*Show `json:"shows"`
 }
 

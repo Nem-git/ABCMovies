@@ -21,11 +21,10 @@ type EpisodeAudioTrack struct {
 }
 
 type EpisodeTextTrack struct {
-	Type         string `json:"type"`
-	Code         string `json:"code"`
-	Name         string `json:"name"`
-	OriginalName string `json:"originalName"`
-	TrackUrl     string `json:"trackUrl"`
+	Type     string `json:"type"`
+	Name     string `json:"name"`
+	Language string `json:"language"`
+	TrackURL string `json:"trackURL"`
 }
 
 type EpisodeCuePoint struct {
@@ -37,12 +36,12 @@ type EpisodeCuePoint struct {
 // Episode Response
 type Episode struct {
 	Streams            *[]EpisodeStream     `json:"streams"`     ///
-	BackdropUrl        string               `json:"backdropUrl"` ///
+	BackdropURL        string               `json:"backdropURL"` ///
 	Number             int                  `json:"number"`      // ///
 	Name               string               `json:"name"`        // ///
 	OriginalName       string               `json:"originalName"`
 	Overview           string               `json:"overview"`  ///
-	PosterUrl          string               `json:"posterUrl"` ///
+	PosterURL          string               `json:"posterURL"` ///
 	MediaType          string               `json:"mediaType"` //
 	OriginalLanguage   string               `json:"originalLanguage"`
 	Length             float64              `json:"length"` // ///

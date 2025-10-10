@@ -2,12 +2,12 @@ package models
 
 // Service Response
 type Service struct {
-	BackdropUrl        string   `json:"backdropUrl"`
+	BackdropURL        string   `json:"backdropURL"`
 	ID                 string   `json:"id"`
 	Name               string   `json:"name"`
 	OriginalName       string   `json:"originalName"`
 	Overview           string   `json:"overview"`
-	PosterUrl          string   `json:"posterUrl"`
+	PosterURL          string   `json:"posterURL"`
 	MediaTypes         []string `json:"mediaTypes"`
 	OriginalLanguage   string   `json:"originalLanguage"`
 	HomePage           string   `json:"homePage"`
