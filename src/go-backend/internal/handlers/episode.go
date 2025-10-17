@@ -36,3 +36,30 @@ func (h *EpisodeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	utils.JSONResponse(w, model)
 }
+
+type NextEpisodeHandler struct {
+}
+
+func (h *NextEpisodeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	model := &models.NextEpisode{}
+
+	p, err := utils.GetPluginContextValue[plugin.IPlugin](r)
+	if err != nil {
+		api.BadRequestErrorHandler(w, err)
+		return
+	}
+
+	req, err := utils.GetRequestContextValue[requests.EpisodeRequest](r)
+	if err != nil {
+		api.BadRequestErrorHandler(w, err)
+		return
+	}
+
+	if err := (*p).GetNextEpisode(*req, model); err != nil {
+		api.BadRequestErrorHandler(w, err)
+		return
+	}
+
+	utils.JSONResponse(w, model)
+}

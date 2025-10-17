@@ -59,8 +59,8 @@ type Episode struct {
 
 // Next Episode Response
 type NextEpisode struct {
-	Episode
-
 	ShowID       string `json:"showID"`
 	SeasonNumber int    `json:"seasonNumber"`
+
+	Episode
 }

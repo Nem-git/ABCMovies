@@ -11,11 +11,11 @@ import (
 func RouteShow() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.Handle("/service/{serviceTag}/{showID}", middleware.RequestsParsingMiddleware(
+	mux.Handle("/{serviceTag}/{showID}", middleware.RequestsParsingMiddleware(
 		&handlers.ShowHandler{},
 		&requests.ShowRequest{},
 	),
 	)
 
-	return http.StripPrefix("/api", mux)
+	return http.StripPrefix("/api/service", mux)
 }

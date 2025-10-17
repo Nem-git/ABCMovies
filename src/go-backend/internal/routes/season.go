@@ -11,11 +11,11 @@ import (
 func RouteSeason() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.Handle("/service/{serviceTag}/{showID}/{seasonNumber}", middleware.RequestsParsingMiddleware(
+	mux.Handle("/{serviceTag}/{showID}/{seasonNumber}", middleware.RequestsParsingMiddleware(
 		&handlers.SeasonHandler{},
 		&requests.SeasonRequest{},
 	),
 	)
 
-	return http.StripPrefix("/api", mux)
+	return http.StripPrefix("/api/service", mux)
 }

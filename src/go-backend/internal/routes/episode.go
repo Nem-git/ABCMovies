@@ -11,11 +11,17 @@ import (
 func RouteEpisode() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.Handle("/service/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}", middleware.RequestsParsingMiddleware(
+	mux.Handle("/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}", middleware.RequestsParsingMiddleware(
 		&handlers.EpisodeHandler{},
 		&requests.EpisodeRequest{},
 	),
 	)
 
-	return http.StripPrefix("/api", mux)
+	mux.Handle("/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}/next", middleware.RequestsParsingMiddleware(
+		&handlers.NextEpisodeHandler{},
+		&requests.EpisodeRequest{},
+	),
+	)
+
+	return http.StripPrefix("/api/service", mux)
 }

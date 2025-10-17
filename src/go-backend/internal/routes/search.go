@@ -11,11 +11,11 @@ import (
 func RouteSearch() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.Handle("/search/{query}", middleware.RequestsParsingMiddleware(
+	mux.Handle("/{query}", middleware.RequestsParsingMiddleware(
 		&handlers.SearchHandler{},
 		&requests.SearchRequest{},
 	),
 	)
 
-	return http.StripPrefix("/api", mux)
+	return http.StripPrefix("/api/search", mux)
 }

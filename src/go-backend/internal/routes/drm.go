@@ -11,11 +11,11 @@ import (
 func RouteDRM() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.Handle("/drm/{drmID}", middleware.RequestsParsingMiddleware(
+	mux.Handle("/{drmID}", middleware.RequestsParsingMiddleware(
 		&handlers.StreamHandler{},
 		&requests.StreamRequest{},
 	),
 	)
 
-	return http.StripPrefix("/api", mux)
+	return http.StripPrefix("/api/drm", mux)
 }
