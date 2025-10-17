@@ -8,7 +8,7 @@ type EpisodeStream struct {
 }
 
 type EpisodeVideoTrack struct {
-	Quality string `json:"quality"`
+	Name    string `json:"name"`
 	Height  int    `json:"height"`
 	Width   int    `json:"width"`
 	Bitrate int    `json:"bitrate"`
