@@ -48,11 +48,11 @@ func CreateCustomURL(fullURL string, prefix string, id ...string) (string, error
 	newURL := strings.Join([]string{uPath.Scheme, uPath.Host}, "/") + uPath.Path // Because it contains the first /
 
 	if len(uPath.RawQuery) > 0 {
-		newURL += "?" + uPath.RawQuery
+		newURL += "?" + uPath.Query().Encode()
 	}
 
 	if len(uPath.RawFragment) > 0 {
-		newURL += "#" + uPath.RawFragment
+		newURL += "#" + uPath.EscapedFragment()
 	}
 
 	// Until now, the url looks like this: http/domain.com/thing?wow=a#3
@@ -61,6 +61,29 @@ func CreateCustomURL(fullURL string, prefix string, id ...string) (string, error
 	newURL = strings.Join([]string{prefix, strID, newURL}, "/")
 
 	return newURL, nil
+}
+
+/*
+streamURL looks like: http/example.com/video.mp4
+returns: http://example.com/video.mp4, or error
+*/
+func ParseStreamURL(streamURL string) (string, error) {
+
+	split := strings.Split(streamURL, "/")
+
+	// because of http/domain/video
+	if len(split) < 3 {
+		return "", errs.ErrInvalidURL
+	}
+
+	newURL := split[0] + "://" + strings.Join(split[1:], "/")
+
+	uPath, err := url.Parse(newURL)
+	if err != nil {
+		return "", errs.ErrInvalidURL
+	}
+
+	return uPath.String(), nil
 }
 
 func CreateStreamURL(serviceTag string, showID string, seasonNumber int, episodeNumber int, streamType string) (string, error) {

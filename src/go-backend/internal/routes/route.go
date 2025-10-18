@@ -28,7 +28,7 @@ func Handler(mux *http.ServeMux) {
 	mux.Handle("/api/service/{serviceTag}/{showID}/{seasonNumber}", middleware.PluginMiddleware(RouteSeason(), plugins))
 	mux.Handle("/api/service/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}", middleware.PluginMiddleware(RouteEpisode(), plugins))
 	mux.Handle("/api/service/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}/next", middleware.PluginMiddleware(RouteEpisode(), plugins))
-	mux.Handle("/api/service/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}/{streamID}", middleware.PluginMiddleware(RouteStream(), plugins))
+	mux.Handle("/api/service/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}/{streamType}/", middleware.PluginMiddleware(RouteStream(), plugins))
 
 	mux.Handle("/api/service/{serviceTag}/category", middleware.PluginMiddleware(RouteCategory(), plugins))
 	mux.Handle("/api/service/{serviceTag}/category/{categoryID}", middleware.PluginMiddleware(RouteCategory(), plugins))

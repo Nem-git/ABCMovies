@@ -4,6 +4,6 @@ const (
 
 	// Dash
 
-	DASH_INIT_URL_PREFIX  string = "dash/init"
-	DASH_MEDIA_URL_PREFIX string = "dash/media"
+	DASH_INIT_URL_PREFIX  string = "init"
+	DASH_MEDIA_URL_PREFIX string = "media"
 )

@@ -3,6 +3,8 @@ package errs
 import "errors"
 
 var (
+	ErrInvalidStream = errors.New("invalid stream")
+
 	// Dash
 
 	// Manifest

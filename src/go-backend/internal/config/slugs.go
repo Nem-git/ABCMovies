@@ -7,9 +7,11 @@ const (
 
 	SEARCH_SLUG string = "query"
 
-	SERVICE_SLUG string = "serviceTag"
-	SHOW_SLUG    string = "showID"
-	SEASON_SLUG  string = "seasonNumber"
-	EPISODE_SLUG string = "episodeNumber"
-	STREAM_SLUG  string = "streamID"
+	SERVICE_SLUG          string = "serviceTag"
+	SHOW_SLUG             string = "showID"
+	SEASON_SLUG           string = "seasonNumber"
+	EPISODE_SLUG          string = "episodeNumber"
+	STREAM_SLUG           string = "streamType"
+	STREAM_FILE_NAME_SLUG string = "streamFileName"
+	STREAM_URL_SLUG       string = "streamURL"
 )
