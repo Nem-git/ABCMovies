@@ -34,13 +34,13 @@ func modifyWithGoDash(url string, content string) (string, error) {
 		return "", fmt.Errorf("parsing dash manifest from string failed: %w", err)
 	}
 
-	baseUrl, err := utils.JoinUrls(url, manifest.BaseURL) // Joins mpd and baseurl urls
+	baseUrl, err := utils.JoinURLs(url, manifest.BaseURL) // Joins mpd and baseurl urls
 	if err != nil {
 		return "", fmt.Errorf("couldn't join manifest url with it's base url: %w", err)
 	}
 
 	for _, period := range manifest.Periods {
-		periodUrl, err := utils.JoinUrls(baseUrl, period.BaseURL)
+		periodUrl, err := utils.JoinURLs(baseUrl, period.BaseURL)
 		if err != nil {
 			return "", fmt.Errorf("failed to join manifest and period urls: %w", err)
 		}
@@ -145,12 +145,12 @@ func modifySegmentUrl(segmentUrl string, periodUrl string, prefix string, id ...
 		strID = id[0]
 	}
 
-	mergedUrl, err := utils.JoinUrls(periodUrl, segmentUrl)
+	mergedUrl, err := utils.JoinURLs(periodUrl, segmentUrl)
 	if err != nil {
 		return "", fmt.Errorf("couldn't join segment and period url: %w", err)
 	}
 
-	formattedUrl, err := utils.CreateCustomUrl(mergedUrl, prefix, strID)
+	formattedUrl, err := utils.CreateCustomURL(mergedUrl, prefix, strID)
 	if err != nil {
 		return "", fmt.Errorf("couldn't create the custom url: %w", err)
 	}

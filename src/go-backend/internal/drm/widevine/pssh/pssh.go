@@ -123,7 +123,7 @@ func readWithGoDash(url string, content string) (string, error) {
 		return "", fmt.Errorf("parsing dash manifest from string failed: %w", err)
 	}
 
-	baseUrl, err := utils.JoinUrls(url, manifest.BaseURL) // Joins mpd and baseurl urls
+	baseUrl, err := utils.JoinURLs(url, manifest.BaseURL) // Joins mpd and baseurl urls
 	if err != nil {
 		return "", fmt.Errorf("couldn't join urls: %w", err)
 	}
@@ -134,7 +134,7 @@ func readWithGoDash(url string, content string) (string, error) {
 
 	for _, period := range manifest.Periods {
 
-		periodUrl, err := utils.JoinUrls(baseUrl, period.BaseURL)
+		periodUrl, err := utils.JoinURLs(baseUrl, period.BaseURL)
 		if err != nil {
 			return "", fmt.Errorf("failed to join manifest and period urls: %w", err)
 		}
@@ -295,7 +295,7 @@ func segmentPathWithGoDash(segmentTemplate *mpd.SegmentTemplate, url string) (st
 		return "", DashPlaceHolder{}, fmt.Errorf("no init or media url found in segment template")
 	}
 
-	joinedUrl, err := utils.JoinUrls(url, segmentUrl)
+	joinedUrl, err := utils.JoinURLs(url, segmentUrl)
 	if err != nil {
 		return "", DashPlaceHolder{}, fmt.Errorf("couldn't join period and segment url: %w", err)
 	}

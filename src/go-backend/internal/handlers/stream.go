@@ -30,12 +30,14 @@ func (h *StreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := (*p).GetStream(*req, model); err != nil {
+	contentType, err := (*p).GetStream(*req, model)
+	if err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
+	if contentType == "" {
+		contentType = config.MP4_CONTENT_TYPE
+	}
 
-	// TODO: Figure out the right content-type
-
-	utils.ByteResponse(w, *model, config.DASH_CONTENT_TYPE)
+	utils.ByteResponse(w, *model, contentType)
 }

@@ -15,7 +15,7 @@ type IPlugin interface {
 
 	GetNextEpisode(requests.EpisodeRequest, *models.NextEpisode) error
 
-	GetStream(requests.StreamRequest, *models.Stream) error
+	GetStream(requests.StreamRequest, *models.Stream) (string, error)
 
 	GetSearch(requests.SearchRequest, *models.Search) error
 
