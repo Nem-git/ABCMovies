@@ -73,7 +73,7 @@ func (h *PagesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 	model.Pages = append(model.Pages, m)
 	// }
 
-	model.PageCount = len(*model.Pages)
+	model.PageCount = len(model.Pages)
 
 	utils.JSONResponse(w, model)
 }

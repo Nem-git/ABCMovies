@@ -15,5 +15,5 @@ type Season struct {
 	PosterURL          string     `json:"posterURL"`
 	FirstAirDate       time.Time  `json:"firstAirDate"`
 	AvailabilityStatus string     `json:"availabilityStatus"`
-	Episodes           *[]Episode `json:"episodes"`
+	Episodes           []Episode `json:"episodes"`
 }

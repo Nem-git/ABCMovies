@@ -68,10 +68,10 @@ func (h *CategoriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		*model.Categories = append(*model.Categories, *m)
+		model.Categories = append(model.Categories, *m)
 	}
 
-	model.CategoryCount = len(*model.Categories)
+	model.CategoryCount = len(model.Categories)
 
 	utils.JSONResponse(w, model)
 }

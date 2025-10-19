@@ -51,10 +51,10 @@ type Episode struct {
 	OriginCountry      string               `json:"originCountry"`      ///
 	AvailabilityStatus string               `json:"availabilityStatus"` // ///
 	Described          bool                 `json:"described"`
-	VideoTracks        *[]EpisodeVideoTrack `json:"videoTracks"` ////
-	AudioTracks        *[]EpisodeAudioTrack `json:"audioTracks"` ////
-	TextTracks         *[]EpisodeTextTrack  `json:"textTracks"`  /// ////
-	CuePoints          *[]EpisodeCuePoint   `json:"cuePoints"`   /// ////
+	VideoTracks        []EpisodeVideoTrack `json:"videoTracks"` ////
+	AudioTracks        []EpisodeAudioTrack `json:"audioTracks"` ////
+	TextTracks         []EpisodeTextTrack  `json:"textTracks"`  /// ////
+	CuePoints          []EpisodeCuePoint   `json:"cuePoints"`   /// ////
 }
 
 // Next Episode Response

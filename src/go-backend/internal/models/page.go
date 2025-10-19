@@ -7,11 +7,11 @@ type Page struct {
 	Name        string      `json:"name"`
 	Overview    string      `json:"overview"`
 	PosterURL   string      `json:"posterURL"`
-	Categories  *[]Category `json:"categories"`
+	Categories  []Category `json:"categories"`
 }
 
 // Pages Response
 type Pages struct {
 	PageCount int     `json:"pageCount"`
-	Pages     *[]Page `json:"pages"`
+	Pages     []Page `json:"pages"`
 }

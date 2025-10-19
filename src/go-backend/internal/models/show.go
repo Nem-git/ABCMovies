@@ -16,13 +16,13 @@ type Show struct {
 	PosterURL          string       `json:"posterURL"`
 	MediaType          string       `json:"mediaType"`
 	OriginalLanguage   string       `json:"originalLanguage"`
-	Genres             *[]ShowGenre `json:"genres"`
+	Genres             []ShowGenre `json:"genres"`
 	Cast               []string     `json:"cast"`
 	Directors          []string     `json:"directors"`
 	FirstAirDate       time.Time    `json:"firstAirDate"`
 	OriginCountry      string       `json:"originCountry"`
 	AvailabilityStatus string       `json:"availabilityStatus"`
-	Seasons            *[]Season    `json:"seasons"`
+	Seasons            []Season    `json:"seasons"`
 }
 
 type ShowGenre struct {

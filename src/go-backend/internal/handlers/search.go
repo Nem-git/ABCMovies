@@ -43,16 +43,12 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if m.Shows != nil {
-			if model.Shows == nil {
-				model.Shows = m.Shows
-			} else {
-				*model.Shows = append(*model.Shows, *m.Shows...)
-			}
+			model.Shows = append(model.Shows, m.Shows...)
 		}
 	}
 
 	if model.Shows != nil {
-		model.ShowCount = len(*model.Shows)
+		model.ShowCount = len(model.Shows)
 	}
 
 	utils.JSONResponse(w, &model)

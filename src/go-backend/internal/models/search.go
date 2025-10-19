@@ -4,7 +4,7 @@ package models
 type Search struct {
 	Query     string          `json:"query"`
 	ShowCount int             `json:"showCount"`
-	Shows     *[]SearchResult `json:"shows"`
+	Shows     []SearchResult `json:"shows"`
 }
 
 type SearchResult struct {
