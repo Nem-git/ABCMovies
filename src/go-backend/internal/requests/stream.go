@@ -18,6 +18,9 @@ type StreamRequest struct {
 	StreamType     string
 	StreamFileName string
 	StreamURL      string
+
+	StreamMediaType string
+	StreamID        string
 }
 
 func (r *StreamRequest) Map(req *http.Request) error {
@@ -58,6 +61,9 @@ func (r *StreamRequest) Map(req *http.Request) error {
 			r.StreamURL = uPath.String() + "?" + queryParams.Encode()
 		}
 	}
+
+	r.StreamMediaType = req.PathValue(config.STREAM_MEDIA_TYPE_SLUG)
+	r.StreamID = req.PathValue(config.STREAM_ID_SLUG)
 
 	if err := r.Validate(); err != nil {
 		return err

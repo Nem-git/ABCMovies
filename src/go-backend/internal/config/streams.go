@@ -7,7 +7,7 @@ const (
 	STREAM_SMOOTH_TYPE string = "smooth"
 
 	STREAM_DASH_FILE_NAME   string = "manifest.mpd"
-	STREAM_HLS_FILE_NAME    string = "playlist.m3u"
+	STREAM_HLS_FILE_NAME    string = "master.m3u"
 	STREAM_MP4_FILE_NAME    string = "video.mp4"
 	STREAM_SMOOTH_FILE_NAME string = "Manifest"
 )

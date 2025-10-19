@@ -14,4 +14,8 @@ const (
 	STREAM_SLUG           string = "streamType"
 	STREAM_FILE_NAME_SLUG string = "streamFileName"
 	STREAM_URL_SLUG       string = "streamURL"
+
+	// Dash
+	STREAM_MEDIA_TYPE_SLUG string = "streamMediaType"
+	STREAM_ID_SLUG         string = "streamID"
 )

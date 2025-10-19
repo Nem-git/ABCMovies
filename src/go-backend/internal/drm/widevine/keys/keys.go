@@ -15,9 +15,9 @@ import (
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func Get(encodedPssh string, url string, headers map[string]string) ([]string, error) {
+func Get(encodedPSSH string, url string, headers map[string]string) ([]string, error) {
 
-	device, pssh, err := decode(encodedPssh)
+	device, pssh, err := decode(encodedPSSH)
 	if err != nil {
 		return nil, err
 	}

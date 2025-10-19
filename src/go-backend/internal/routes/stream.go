@@ -23,14 +23,8 @@ func RouteStream() http.Handler {
 	),
 	)
 
-	// Widevine
-	mux.Handle("/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}/{streamType}/init/{streamURL...}", middleware.RequestsParsingMiddleware(
-		&handlers.StreamHandler{},
-		&requests.StreamRequest{},
-	),
-	)
-
-	mux.Handle("/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}/{streamType}/media/{streamURL...}", middleware.RequestsParsingMiddleware(
+	// Dash
+	mux.Handle("/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}/{streamType}/{streamMediaType}/{streamID}/{streamURL...}", middleware.RequestsParsingMiddleware(
 		&handlers.StreamHandler{},
 		&requests.StreamRequest{},
 	),
