@@ -68,10 +68,16 @@ func (h *ServicesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		model.Services = append(model.Services, m)
+		if model.Services == nil {
+			*model.Services = []models.Service{*m}
+		} else {
+			*model.Services = append(*model.Services, *m)
+		}
 	}
 
-	model.ServiceCount = len(model.Services)
+	if model.Services != nil {
+		model.ServiceCount = len(*model.Services)
+	}
 
 	utils.JSONResponse(w, model)
 }

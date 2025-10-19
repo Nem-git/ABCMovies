@@ -15,9 +15,7 @@ type SearchHandler struct {
 
 func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	model := &models.Search{}
-
-	p, err := utils.GetPluginContextValue[plugin.IPlugin](r)
+	plugins, err := utils.GetPluginsContextValue[[]*plugin.IPlugin](r)
 	if err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
@@ -29,10 +27,33 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := (*p).GetSearch(*req, model); err != nil {
-		api.BadRequestErrorHandler(w, err)
-		return
+	model := models.Search{
+		Query: req.Query,
 	}
 
-	utils.JSONResponse(w, model)
+	for _, p := range *plugins {
+
+		m := models.Search{
+			Query: req.Query,
+		}
+
+		if err := (*p).GetSearch(*req, &m); err != nil {
+			api.BadRequestErrorHandler(w, err)
+			return
+		}
+
+		if m.Shows != nil {
+			if model.Shows == nil {
+				model.Shows = m.Shows
+			} else {
+				*model.Shows = append(*model.Shows, *m.Shows...)
+			}
+		}
+	}
+
+	if model.Shows != nil {
+		model.ShowCount = len(*model.Shows)
+	}
+
+	utils.JSONResponse(w, &model)
 }

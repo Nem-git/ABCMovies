@@ -7,11 +7,11 @@ type Category struct {
 	Name        string  `json:"name"`
 	Overview    string  `json:"overview"`
 	PosterURL   string  `json:"posterURL"`
-	Shows       []*Show `json:"shows"`
+	Shows       *[]Show `json:"shows"`
 }
 
 // Categories Response
 type Categories struct {
 	CategoryCount int         `json:"categoryCount"`
-	Categories    []*Category `json:"categories"`
+	Categories    *[]Category `json:"categories"`
 }
