@@ -11,17 +11,23 @@ import (
 func RouteCategory() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.Handle("/{serviceTag}/category", middleware.RequestsParsingMiddleware(
+	mux.Handle("/category", middleware.RequestsParsingMiddleware(
 		&handlers.CategoriesHandler{},
-		&requests.CategoriesRequest{},
+		&requests.ServiceRequest{},
 	),
 	)
 
-	mux.Handle("/{serviceTag}/category/{categoryID}", middleware.RequestsParsingMiddleware(
+	mux.Handle("/service/{serviceTag}/category", middleware.RequestsParsingMiddleware(
+		&handlers.CategoriesHandler{},
+		&requests.ServiceRequest{},
+	),
+	)
+
+	mux.Handle("/service/{serviceTag}/category/{categoryID}", middleware.RequestsParsingMiddleware(
 		&handlers.CategoryHandler{},
 		&requests.CategoryRequest{},
 	),
 	)
 
-	return http.StripPrefix("/api/service", mux)
+	return http.StripPrefix("/api", mux)
 }

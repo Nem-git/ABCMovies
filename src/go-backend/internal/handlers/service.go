@@ -6,7 +6,6 @@ import (
 	"github.com/nem-git/abcmovies/internal/api"
 	"github.com/nem-git/abcmovies/internal/models"
 	"github.com/nem-git/abcmovies/internal/plugin"
-	"github.com/nem-git/abcmovies/internal/requests"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
@@ -15,21 +14,15 @@ type ServiceHandler struct {
 
 func (h *ServiceHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	model := &models.Service{}
-
 	p, err := utils.GetPluginContextValue[plugin.IPlugin](r)
 	if err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
 
-	req, err := utils.GetRequestContextValue[requests.ServiceRequest](r)
-	if err != nil {
-		api.BadRequestErrorHandler(w, err)
-		return
-	}
+	model := &models.Service{}
 
-	if err := (*p).GetService(*req, model); err != nil {
+	if err := (*p).GetService(model); err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
@@ -42,28 +35,19 @@ type ServicesHandler struct {
 
 func (h *ServicesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	model := &models.Services{}
-
 	plugins, err := utils.GetPluginsContextValue[[]*plugin.IPlugin](r)
 	if err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
 
-	_, err = utils.GetRequestContextValue[requests.ServicesRequest](r)
-	if err != nil {
-		api.BadRequestErrorHandler(w, err)
-		return
-	}
+	model := &models.Services{}
 
 	for _, p := range *plugins {
 
-		sr := requests.ServiceRequest{
-			ServiceTag: (*p).GetServiceID(),
-		}
 		m := &models.Service{}
 
-		if err := (*p).GetService(sr, m); err != nil {
+		if err := (*p).GetService(m); err != nil {
 			api.BadRequestErrorHandler(w, err)
 			return
 		}

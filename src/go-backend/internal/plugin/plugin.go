@@ -8,7 +8,7 @@ import (
 type IPlugin interface {
 	GetServiceID() string
 
-	GetService(requests.ServiceRequest, *models.Service) error
+	GetService(*models.Service) error
 	GetShow(requests.ShowRequest, *models.Show) error
 	GetSeason(requests.SeasonRequest, *models.Season) error
 	GetEpisode(requests.EpisodeRequest, *models.Episode) error
@@ -20,5 +20,5 @@ type IPlugin interface {
 	GetSearch(requests.SearchRequest, *models.Search) error
 
 	GetCategory(requests.CategoryRequest, *models.Category) error
-	GetCategories(requests.CategoriesRequest, *models.Categories) error
+	GetCategories(*models.Categories) error
 }

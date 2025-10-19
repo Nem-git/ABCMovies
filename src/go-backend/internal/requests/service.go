@@ -31,14 +31,3 @@ func (r *ServiceRequest) Validate() error {
 
 	return nil
 }
-
-type ServicesRequest struct {
-}
-
-func (r *ServicesRequest) Map(req *http.Request) error {
-	return nil
-}
-
-func (r *ServicesRequest) Validate() error {
-	return nil
-}

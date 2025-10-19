@@ -11,11 +11,7 @@ import (
 func RouteService() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.Handle("/service", middleware.RequestsParsingMiddleware(
-		&handlers.ServicesHandler{},
-		&requests.ServicesRequest{},
-	),
-	)
+	mux.Handle("/service", &handlers.ServicesHandler{})
 
 	mux.Handle("/service/{serviceTag}", middleware.RequestsParsingMiddleware(
 		&handlers.ServiceHandler{},

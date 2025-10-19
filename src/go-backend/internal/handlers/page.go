@@ -52,12 +52,6 @@ func (h *PagesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = utils.GetRequestContextValue[requests.PageRequest](r)
-	if err != nil {
-		api.BadRequestErrorHandler(w, err)
-		return
-	}
-
 	// for _, p := range *plugins {
 
 	// 	sr := requests.PageRequest{

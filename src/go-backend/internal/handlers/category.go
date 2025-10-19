@@ -42,36 +42,53 @@ type CategoriesHandler struct {
 
 func (h *CategoriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
+	p, err := utils.GetPluginContextValue[plugin.IPlugin](r)
+	if err != nil {
+		api.BadRequestErrorHandler(w, err)
+		return
+	}
+
 	model := &models.Categories{}
 
-	plugins, err := utils.GetPluginsContextValue[[]*plugin.IPlugin](r)
-	if err != nil {
+	if err := (*p).GetCategories(model); err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
 
-	req, err := utils.GetRequestContextValue[requests.CategoryRequest](r)
-	if err != nil {
-		api.BadRequestErrorHandler(w, err)
-		return
+	if model.Categories != nil {
+		model.CategoryCount = len(model.Categories)
 	}
-
-	for _, p := range *plugins {
-
-		sr := requests.CategoryRequest{
-			CategoryID: req.CategoryID,
-		}
-		m := &models.Category{}
-
-		if err := (*p).GetCategory(sr, m); err != nil {
-			api.BadRequestErrorHandler(w, err)
-			return
-		}
-
-		model.Categories = append(model.Categories, *m)
-	}
-
-	model.CategoryCount = len(model.Categories)
 
 	utils.JSONResponse(w, model)
 }
+
+// func (h *CategoriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+// 	log.Println(r.Context())
+
+// 	plugins, err := utils.GetPluginsContextValue[[]*plugin.IPlugin](r)
+// 	if err != nil {
+// 		api.BadRequestErrorHandler(w, err)
+// 		return
+// 	}
+
+// 	model := &models.Categories{}
+
+// 	for _, p := range *plugins {
+
+// 		m := &models.Categories{}
+
+// 		if err := (*p).GetCategories(m); err != nil {
+// 			api.BadRequestErrorHandler(w, err)
+// 			return
+// 		}
+
+// 		model.Categories = append(model.Categories, m.Categories...)
+// 	}
+
+// 	if model.Categories != nil {
+// 		model.CategoryCount = len(model.Categories)
+// 	}
+
+// 	utils.JSONResponse(w, model)
+// }

@@ -11,11 +11,7 @@ import (
 func RoutePage() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.Handle("/page", middleware.RequestsParsingMiddleware(
-		&handlers.PagesHandler{},
-		&requests.PagesRequest{},
-	),
-	)
+	mux.Handle("/page", &handlers.PagesHandler{})
 
 	mux.Handle("/page/{pageID}", middleware.RequestsParsingMiddleware(
 		&handlers.PageHandler{},

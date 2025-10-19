@@ -37,6 +37,8 @@ func Handler(mux *http.ServeMux) {
 
 	mux.Handle("/api/search/", middleware.PluginsMiddleware(RouteSearch(), plugins))
 
+	mux.Handle("/api/category", middleware.PluginsMiddleware(RouteCategory(), plugins))
+
 	mux.Handle("/api/page", middleware.PluginsMiddleware(RoutePage(), plugins))
 	mux.Handle("/api/page/{pageID}", middleware.PluginsMiddleware(RoutePage(), plugins))
 

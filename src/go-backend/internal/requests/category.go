@@ -8,11 +8,13 @@ import (
 )
 
 type CategoryRequest struct {
+	ServiceTag string
 	CategoryID string
 }
 
 func (r *CategoryRequest) Map(req *http.Request) error {
 
+	r.ServiceTag = req.PathValue(config.SERVICE_SLUG)
 	r.CategoryID = req.PathValue(config.CATEGORY_SLUG)
 
 	if err := r.Validate(); err != nil {
@@ -23,20 +25,13 @@ func (r *CategoryRequest) Map(req *http.Request) error {
 }
 
 func (r *CategoryRequest) Validate() error {
+	if r.ServiceTag == "" {
+		return errs.ErrEmptyServiceTag
+	}
+
 	if r.CategoryID == "" {
 		return errs.ErrEmptyCategoryID
 	}
 
-	return nil
-}
-
-type CategoriesRequest struct {
-}
-
-func (r *CategoriesRequest) Map(req *http.Request) error {
-	return nil
-}
-
-func (r *CategoriesRequest) Validate() error {
 	return nil
 }
