@@ -4,35 +4,57 @@ import (
 	"net/http"
 
 	"github.com/nem-git/abcmovies/internal/api"
+	"github.com/nem-git/abcmovies/internal/config"
+	"github.com/nem-git/abcmovies/internal/errs"
 	"github.com/nem-git/abcmovies/internal/models"
 	"github.com/nem-git/abcmovies/internal/plugin"
-	"github.com/nem-git/abcmovies/internal/requests"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
 type ShowHandler struct {
+	Plugins []plugin.IPlugin
+
+	Request  models.ShowRequest
+	Response models.Show
 }
 
 func (h *ShowHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	model := &models.Show{}
-
-	p, err := utils.GetPluginContextValue[plugin.IPlugin](r)
+	p, err := h.GetPlugin()
 	if err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
 
-	req, err := utils.GetRequestContextValue[requests.ShowRequest](r)
+	if err := (*p).GetShow(h.Request, &h.Response); err != nil {
+		api.BadRequestErrorHandler(w, err)
+		return
+	}
+
+	utils.JSONResponse(w, h.Response)
+}
+
+func (h *ShowHandler) MapRequest(r *http.Request) error {
+
+	h.Request.ServiceTag = r.PathValue(config.SERVICE_SLUG)
+	h.Request.ShowID = r.PathValue(config.SHOW_SLUG)
+
+	if h.Request.ServiceTag == "" {
+		return errs.ErrEmptyServiceTag
+	}
+
+	if h.Request.ShowID == "" {
+		return errs.ErrEmptyShowID
+	}
+
+	return nil
+}
+
+func (h *ShowHandler) GetPlugin() (*plugin.IPlugin, error) {
+	p, err := plugin.GetByID(h.Request.ServiceTag, h.Plugins)
 	if err != nil {
-		api.BadRequestErrorHandler(w, err)
-		return
+		return nil, err
 	}
 
-	if err := (*p).GetShow(*req, model); err != nil {
-		api.BadRequestErrorHandler(w, err)
-		return
-	}
-
-	utils.JSONResponse(w, model)
+	return &p, nil
 }

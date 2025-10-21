@@ -11,41 +11,37 @@ import (
 	"github.com/nem-git/abcmovies/internal/config"
 )
 
-func Load(plugins *[]*IPlugin) error {
+func Load() (*[]IPlugin, error) {
+
+	var plugins []IPlugin
 
 	availablePlugins := OpenPlugins()
 
 	for _, p := range availablePlugins {
 		pluginInstance, err := GetInterface("Plugin", p)
 		if err == nil {
-			*plugins = append(*plugins, pluginInstance)
+			plugins = append(plugins, pluginInstance)
 		} else {
-			log.Println("error getting instance of plugin:", *p, err)
-			return err
+			log.Println("error getting instance of plugin:", p, err)
+			return nil, err
 		}
 	}
 
-	return nil
+	return &plugins, nil
 }
 
-func GetByID(name string, plugins []*IPlugin) (*IPlugin, error) {
-
-	var plugin *IPlugin
+func GetByID(name string, plugins []IPlugin) (IPlugin, error) {
 
 	for _, p := range plugins {
-		if strings.EqualFold(name, (*p).GetServiceID()) {
-			plugin = p
+		if strings.EqualFold(name, (p).GetServiceID()) {
+			return p, nil
 		}
 	}
 
-	if plugin == nil {
-		return nil, fmt.Errorf("no plugin found matching the id")
-	}
-
-	return plugin, nil
+	return nil, fmt.Errorf("no plugin found matching the id")
 }
 
-func GetInterface(name string, p *plugin.Plugin) (*IPlugin, error) {
+func GetInterface(name string, p plugin.Plugin) (IPlugin, error) {
 
 	symbol, err := p.Lookup(name)
 	if err != nil {
@@ -57,7 +53,7 @@ func GetInterface(name string, p *plugin.Plugin) (*IPlugin, error) {
 		return nil, fmt.Errorf("couldn't run function: %v", name)
 	}
 
-	return &pluginInstance, nil
+	return pluginInstance, nil
 }
 
 func OpenPlugin(path string) (*plugin.Plugin, error) {
@@ -69,7 +65,7 @@ func OpenPlugin(path string) (*plugin.Plugin, error) {
 	return p, nil
 }
 
-func OpenPlugins() []*plugin.Plugin {
+func OpenPlugins() []plugin.Plugin {
 
 	var paths []string
 
@@ -84,13 +80,13 @@ func OpenPlugins() []*plugin.Plugin {
 		return nil
 	})
 
-	var plugins []*plugin.Plugin
+	var plugins []plugin.Plugin
 
 	for _, path := range paths {
 		p, err := OpenPlugin(path)
 		if err == nil {
 			log.Println("loaded plugin:", path)
-			plugins = append(plugins, p)
+			plugins = append(plugins, *p)
 		} else {
 			log.Println("error loading plugin:", path)
 		}

@@ -4,91 +4,129 @@ import (
 	"net/http"
 
 	"github.com/nem-git/abcmovies/internal/api"
+	"github.com/nem-git/abcmovies/internal/config"
+	"github.com/nem-git/abcmovies/internal/errs"
 	"github.com/nem-git/abcmovies/internal/models"
 	"github.com/nem-git/abcmovies/internal/plugin"
-	"github.com/nem-git/abcmovies/internal/requests"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
 type CategoryHandler struct {
+	Plugins []plugin.IPlugin
+
+	Request  models.CategoryRequest
+	Response models.Category
 }
 
 func (h *CategoryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	model := &models.Category{}
-
-	p, err := utils.GetPluginContextValue[plugin.IPlugin](r)
+	p, err := h.GetPlugin()
 	if err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
 
-	req, err := utils.GetRequestContextValue[requests.CategoryRequest](r)
-	if err != nil {
+	if err := (*p).GetCategory(h.Request, &h.Response); err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
 
-	if err := (*p).GetCategory(*req, model); err != nil {
-		api.BadRequestErrorHandler(w, err)
-		return
-	}
-
-	utils.JSONResponse(w, model)
+	utils.JSONResponse(w, h.Response)
 }
 
+func (h *CategoryHandler) MapRequest(r *http.Request) error {
+
+	h.Request.ServiceTag = r.PathValue(config.SERVICE_SLUG)
+	h.Request.CategoryID = r.PathValue(config.CATEGORY_SLUG)
+
+	if h.Request.ServiceTag == "" {
+		return errs.ErrEmptyServiceTag
+	}
+
+	if h.Request.CategoryID == "" {
+		return errs.ErrEmptyCategoryID
+	}
+
+	return nil
+}
+
+func (h *CategoryHandler) GetPlugin() (*plugin.IPlugin, error) {
+	p, err := plugin.GetByID(h.Request.ServiceTag, h.Plugins)
+	if err != nil {
+		return nil, err
+	}
+
+	return &p, nil
+}
+
+// /categories/{service}
+
+type ServiceCategoriesHandler struct {
+	Plugins []plugin.IPlugin
+
+	Request  models.ServiceCategoriesRequest
+	Response models.Categories
+}
+
+func (h *ServiceCategoriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	p, err := h.GetPlugin()
+	if err != nil {
+		api.BadRequestErrorHandler(w, err)
+		return
+	}
+
+	if err := (*p).GetCategories(&h.Response); err != nil {
+		api.BadRequestErrorHandler(w, err)
+		return
+	}
+
+	utils.JSONResponse(w, h.Response)
+}
+
+func (h *ServiceCategoriesHandler) MapRequest(r *http.Request) error {
+
+	h.Request.ServiceTag = r.PathValue(config.SERVICE_SLUG)
+
+	if h.Request.ServiceTag == "" {
+		return errs.ErrEmptyServiceTag
+	}
+
+	return nil
+}
+
+func (h *ServiceCategoriesHandler) GetPlugin() (*plugin.IPlugin, error) {
+	p, err := plugin.GetByID(h.Request.ServiceTag, h.Plugins)
+	if err != nil {
+		return nil, err
+	}
+
+	return &p, nil
+}
+
+// /categories
+
 type CategoriesHandler struct {
+	Plugins []plugin.IPlugin
+
+	Response models.Categories
 }
 
 func (h *CategoriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	p, err := utils.GetPluginContextValue[plugin.IPlugin](r)
-	if err != nil {
-		api.BadRequestErrorHandler(w, err)
-		return
+	for _, p := range h.Plugins {
+
+		m := &models.Categories{}
+
+		if err := p.GetCategories(m); err != nil {
+			api.BadRequestErrorHandler(w, err)
+			return
+		}
+
+		h.Response.Categories = append(h.Response.Categories, m.Categories...)
 	}
 
-	model := &models.Categories{}
+	h.Response.CategoryCount = len(h.Response.Categories)
 
-	if err := (*p).GetCategories(model); err != nil {
-		api.BadRequestErrorHandler(w, err)
-		return
-	}
-
-	if model.Categories != nil {
-		model.CategoryCount = len(model.Categories)
-	}
-
-	utils.JSONResponse(w, model)
+	utils.JSONResponse(w, h.Response)
 }
-
-// func (h *CategoriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-
-// 	log.Println(r.Context())
-
-// 	plugins, err := utils.GetPluginsContextValue[[]*plugin.IPlugin](r)
-// 	if err != nil {
-// 		api.BadRequestErrorHandler(w, err)
-// 		return
-// 	}
-
-// 	model := &models.Categories{}
-
-// 	for _, p := range *plugins {
-
-// 		m := &models.Categories{}
-
-// 		if err := (*p).GetCategories(m); err != nil {
-// 			api.BadRequestErrorHandler(w, err)
-// 			return
-// 		}
-
-// 		model.Categories = append(model.Categories, m.Categories...)
-// 	}
-
-// 	if model.Categories != nil {
-// 		model.CategoryCount = len(model.Categories)
-// 	}
-
-// 	utils.JSONResponse(w, model)
-// }

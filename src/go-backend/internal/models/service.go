@@ -1,5 +1,10 @@
 package models
 
+// URL params
+type ServiceRequest struct {
+	ServiceTag string
+}
+
 // Service Response
 type Service struct {
 	BackdropURL        string   `json:"backdropURL"`

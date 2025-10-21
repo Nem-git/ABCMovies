@@ -4,64 +4,81 @@ import (
 	"net/http"
 
 	"github.com/nem-git/abcmovies/internal/api"
+	"github.com/nem-git/abcmovies/internal/config"
+	"github.com/nem-git/abcmovies/internal/errs"
 	"github.com/nem-git/abcmovies/internal/models"
 	"github.com/nem-git/abcmovies/internal/plugin"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
 type ServiceHandler struct {
+	Plugins []plugin.IPlugin
+
+	Request  models.ServiceRequest
+	Response models.Service
 }
 
 func (h *ServiceHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	p, err := utils.GetPluginContextValue[plugin.IPlugin](r)
+	p, err := h.GetPlugin()
 	if err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
 
-	model := &models.Service{}
-
-	if err := (*p).GetService(model); err != nil {
+	if err := (*p).GetService(&h.Response); err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
 
-	utils.JSONResponse(w, model)
+	utils.JSONResponse(w, h.Response)
+}
+
+func (h *ServiceHandler) MapRequest(r *http.Request) error {
+
+	h.Request.ServiceTag = r.PathValue(config.SERVICE_SLUG)
+
+	if h.Request.ServiceTag == "" {
+		return errs.ErrEmptyServiceTag
+	}
+
+	// TODO: Add verification of validity of tag
+
+	return nil
+}
+
+func (h *ServiceHandler) GetPlugin() (*plugin.IPlugin, error) {
+	p, err := plugin.GetByID(h.Request.ServiceTag, h.Plugins)
+	if err != nil {
+		return nil, err
+	}
+
+	return &p, nil
 }
 
 type ServicesHandler struct {
+	Plugins []plugin.IPlugin
+
+	Response models.Services
 }
 
 func (h *ServicesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	plugins, err := utils.GetPluginsContextValue[[]*plugin.IPlugin](r)
-	if err != nil {
-		api.BadRequestErrorHandler(w, err)
-		return
-	}
-
-	model := &models.Services{}
-
-	for _, p := range *plugins {
+	for _, p := range h.Plugins {
 
 		m := &models.Service{}
 
-		if err := (*p).GetService(m); err != nil {
+		if err := p.GetService(m); err != nil {
 			api.BadRequestErrorHandler(w, err)
 			return
 		}
 
-		if model.Services == nil {
-			model.Services = []models.Service{*m}
-		} else {
-			model.Services = append(model.Services, *m)
-		}
+		h.Response.Services = append(h.Response.Services, *m)
 	}
 
-	if model.Services != nil {
-		model.ServiceCount = len(model.Services)
+	if h.Response.Services != nil {
+		h.Response.ServiceCount = len(h.Response.Services)
 	}
 
-	utils.JSONResponse(w, model)
+	utils.JSONResponse(w, h.Response)
 }

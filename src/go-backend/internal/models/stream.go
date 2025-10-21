@@ -1,4 +1,18 @@
 package models
 
+// URL params
+type StreamRequest struct {
+	ServiceTag     string
+	ShowID         string
+	SeasonNumber   int
+	EpisodeNumber  int
+	StreamType     string
+	StreamFileName string
+	StreamURL      string
+
+	StreamMediaType string
+	StreamID        string
+}
+
 // Stream Response
 type Stream []byte

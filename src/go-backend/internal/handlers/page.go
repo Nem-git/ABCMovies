@@ -1,73 +1,39 @@
 package handlers
 
-import (
-	"net/http"
+// import (
+// 	"net/http"
 
-	"github.com/nem-git/abcmovies/internal/api"
-	"github.com/nem-git/abcmovies/internal/models"
-	"github.com/nem-git/abcmovies/internal/plugin"
-	"github.com/nem-git/abcmovies/internal/requests"
-	"github.com/nem-git/abcmovies/internal/utils"
-)
+// 	"github.com/nem-git/abcmovies/internal/api"
+// 	"github.com/nem-git/abcmovies/internal/models"
+// 	"github.com/nem-git/abcmovies/internal/plugin"
+// 	"github.com/nem-git/abcmovies/internal/utils"
+// )
 
-// TODO: Add pages
+// type PageHandler struct {
+// 	Request  models.PageRequest
+// 	Response models.Page
+// }
 
-type PageHandler struct {
-}
+// func (h *PageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-func (h *PageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// 	_, err := utils.GetPluginContextValue[plugin.IPlugin](r)
+// 	if err != nil {
+// 		api.BadRequestErrorHandler(w, err)
+// 		return
+// 	}
 
-	model := &models.Page{}
+// 	utils.JSONResponse(w, h.Response)
+// }
 
-	_, err := utils.GetPluginContextValue[plugin.IPlugin](r)
-	if err != nil {
-		api.BadRequestErrorHandler(w, err)
-		return
-	}
+// func (h *PageHandler) Map(r *http.Request) error {
 
-	_, err = utils.GetRequestContextValue[requests.PageRequest](r)
-	if err != nil {
-		api.BadRequestErrorHandler(w, err)
-		return
-	}
+// 	return nil
+// }
 
-	// if err := (*p).GetCategories(*req, model); err != nil {
-	// 	api.BadRequestErrorHandler(w, err)
-	// 	return
-	// }
+// func (h *PageHandler) GetRequest() any {
+// 	return h.Request
+// }
 
-	utils.JSONResponse(w, model)
-}
-
-type PagesHandler struct {
-}
-
-func (h *PagesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-
-	model := &models.Pages{}
-
-	_, err := utils.GetPluginsContextValue[[]*plugin.IPlugin](r)
-	if err != nil {
-		api.BadRequestErrorHandler(w, err)
-		return
-	}
-
-	// for _, p := range *plugins {
-
-	// 	sr := requests.PageRequest{
-	// 		PageID: req.PageID,
-	// 	}
-	// 	m := &models.Page{}
-
-	// 	if err := (*p).GetPage(sr, m); err != nil {
-	// 		api.BadRequestErrorHandler(w, err)
-	// 		return
-	// 	}
-
-	// 	model.Pages = append(model.Pages, m)
-	// }
-
-	model.PageCount = len(model.Pages)
-
-	utils.JSONResponse(w, model)
-}
+// func (h *PageHandler) GetResponse() any {
+// 	return h.Response
+// }

@@ -4,18 +4,18 @@ import (
 	"net/http"
 
 	"github.com/nem-git/abcmovies/internal/api"
-	"github.com/nem-git/abcmovies/internal/requests"
+	"github.com/nem-git/abcmovies/internal/handlers"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func RequestsParsingMiddleware(next http.Handler, request requests.IRequest) http.Handler {
+func RequestsParsingMiddleware(next handlers.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := request.Map(r); err != nil {
+		if err := next.MapRequest(r); err != nil {
 			api.BadRequestErrorHandler(w, err)
 			return
 		}
 
-		r = utils.SetRequestContextValue(r, request)
+		r = utils.SetRequestContextValue(r, next)
 
 		next.ServeHTTP(w, r)
 	})

@@ -4,52 +4,52 @@ import (
 	"net/http"
 
 	"github.com/nem-git/abcmovies/internal/api"
+	"github.com/nem-git/abcmovies/internal/config"
+	"github.com/nem-git/abcmovies/internal/errs"
 	"github.com/nem-git/abcmovies/internal/models"
 	"github.com/nem-git/abcmovies/internal/plugin"
-	"github.com/nem-git/abcmovies/internal/requests"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
 type SearchHandler struct {
+	Plugins []plugin.IPlugin
+
+	Request  models.SearchRequest
+	Response models.Search
 }
 
 func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	plugins, err := utils.GetPluginsContextValue[[]*plugin.IPlugin](r)
-	if err != nil {
-		api.BadRequestErrorHandler(w, err)
-		return
-	}
-
-	req, err := utils.GetRequestContextValue[requests.SearchRequest](r)
-	if err != nil {
-		api.BadRequestErrorHandler(w, err)
-		return
-	}
-
-	model := models.Search{
-		Query: req.Query,
-	}
-
-	for _, p := range *plugins {
+	for _, p := range h.Plugins {
 
 		m := models.Search{
-			Query: req.Query,
+			Query: h.Request.Query,
 		}
 
-		if err := (*p).GetSearch(*req, &m); err != nil {
+		if err := p.GetSearch(h.Request, &m); err != nil {
 			api.BadRequestErrorHandler(w, err)
 			return
 		}
 
 		if m.Shows != nil {
-			model.Shows = append(model.Shows, m.Shows...)
+			h.Response.Shows = append(h.Response.Shows, m.Shows...)
 		}
 	}
 
-	if model.Shows != nil {
-		model.ShowCount = len(model.Shows)
+	if h.Response.Shows != nil {
+		h.Response.ShowCount = len(h.Response.Shows)
 	}
 
-	utils.JSONResponse(w, &model)
+	utils.JSONResponse(w, h.Response)
+}
+
+func (h *SearchHandler) MapRequest(r *http.Request) error {
+
+	h.Request.Query = r.PathValue(config.SEARCH_SLUG)
+
+	if h.Request.Query == "" {
+		return errs.ErrEmptySearchQuery
+	}
+
+	return nil
 }
