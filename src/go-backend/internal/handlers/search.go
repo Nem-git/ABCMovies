@@ -11,14 +11,19 @@ import (
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
+func NewSearchHandler(plugins []plugin.IPlugin) *SearchHandler {
+	return &SearchHandler{Plugins: plugins}
+}
+
 type SearchHandler struct {
 	Plugins []plugin.IPlugin
 
-	Request  models.SearchRequest
-	Response models.Search
+	Request models.SearchRequest
 }
 
 func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	response := models.Search{}
 
 	for _, p := range h.Plugins {
 
@@ -32,15 +37,15 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if m.Shows != nil {
-			h.Response.Shows = append(h.Response.Shows, m.Shows...)
+			response.Shows = append(response.Shows, m.Shows...)
 		}
 	}
 
-	if h.Response.Shows != nil {
-		h.Response.ShowCount = len(h.Response.Shows)
+	if response.Shows != nil {
+		response.ShowCount = len(response.Shows)
 	}
 
-	utils.JSONResponse(w, h.Response)
+	utils.JSONResponse(w, response)
 }
 
 func (h *SearchHandler) MapRequest(r *http.Request) error {

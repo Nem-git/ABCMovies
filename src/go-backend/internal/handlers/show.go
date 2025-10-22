@@ -11,6 +11,10 @@ import (
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
+func NewShowHandler(plugins []plugin.IPlugin) *ShowHandler {
+	return &ShowHandler{Plugins: plugins}
+}
+
 type ShowHandler struct {
 	Plugins []plugin.IPlugin
 
@@ -20,18 +24,20 @@ type ShowHandler struct {
 
 func (h *ShowHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
+	response := models.Show{}
+
 	p, err := h.GetPlugin()
 	if err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
 
-	if err := (*p).GetShow(h.Request, &h.Response); err != nil {
+	if err := (*p).GetShow(h.Request, &response); err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
 
-	utils.JSONResponse(w, h.Response)
+	utils.JSONResponse(w, response)
 }
 
 func (h *ShowHandler) MapRequest(r *http.Request) error {

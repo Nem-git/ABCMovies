@@ -11,7 +11,7 @@ import (
 	"github.com/nem-git/abcmovies/internal/config"
 )
 
-func Load() (*[]IPlugin, error) {
+func Load() ([]IPlugin, error) {
 
 	var plugins []IPlugin
 
@@ -27,7 +27,7 @@ func Load() (*[]IPlugin, error) {
 		}
 	}
 
-	return &plugins, nil
+	return plugins, nil
 }
 
 func GetByID(name string, plugins []IPlugin) (IPlugin, error) {

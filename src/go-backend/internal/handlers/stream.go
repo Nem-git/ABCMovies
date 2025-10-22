@@ -13,14 +13,19 @@ import (
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
+func NewStreamHandler(plugins []plugin.IPlugin) *StreamHandler {
+	return &StreamHandler{Plugins: plugins}
+}
+
 type StreamHandler struct {
 	Plugins []plugin.IPlugin
 
-	Request  models.StreamRequest
-	Response models.Stream
+	Request models.StreamRequest
 }
 
 func (h *StreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	response := models.Stream{}
 
 	p, err := h.GetPlugin()
 	if err != nil {
@@ -28,7 +33,7 @@ func (h *StreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentType, err := (*p).GetStream(h.Request, &h.Response)
+	contentType, err := (*p).GetStream(h.Request, &response)
 	if err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
@@ -38,7 +43,7 @@ func (h *StreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		contentType = config.MP4_CONTENT_TYPE
 	}
 
-	utils.ByteResponse(w, h.Response, contentType)
+	utils.ByteResponse(w, response, contentType)
 }
 
 func (h *StreamHandler) MapRequest(r *http.Request) error {

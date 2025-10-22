@@ -12,14 +12,19 @@ import (
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
+func NewSeasonHandler(plugins []plugin.IPlugin) *SeasonHandler {
+	return &SeasonHandler{Plugins: plugins}
+}
+
 type SeasonHandler struct {
 	Plugins []plugin.IPlugin
 
 	Request  models.SeasonRequest
-	Response models.Season
 }
 
 func (h *SeasonHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	response := models.Season{}
 
 	p, err := h.GetPlugin()
 	if err != nil {
@@ -27,12 +32,12 @@ func (h *SeasonHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := (*p).GetSeason(h.Request, &h.Response); err != nil {
+	if err := (*p).GetSeason(h.Request, &response); err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
 
-	utils.JSONResponse(w, h.Response)
+	utils.JSONResponse(w, response)
 }
 
 func (h *SeasonHandler) MapRequest(r *http.Request) error {

@@ -12,14 +12,19 @@ import (
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
+func NewEpisodeHandler(plugins []plugin.IPlugin) *EpisodeHandler {
+	return &EpisodeHandler{Plugins: plugins}
+}
+
 type EpisodeHandler struct {
 	Plugins []plugin.IPlugin
 
-	Request  models.EpisodeRequest
-	Response models.Episode
+	Request models.EpisodeRequest
 }
 
 func (h *EpisodeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	response := models.Episode{}
 
 	p, err := h.GetPlugin()
 	if err != nil {
@@ -27,12 +32,12 @@ func (h *EpisodeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := (*p).GetEpisode(h.Request, &h.Response); err != nil {
+	if err := (*p).GetEpisode(h.Request, &response); err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
 
-	utils.JSONResponse(w, h.Response)
+	utils.JSONResponse(w, response)
 }
 
 func (h *EpisodeHandler) MapRequest(r *http.Request) error {
@@ -77,14 +82,19 @@ func (h *EpisodeHandler) GetPlugin() (*plugin.IPlugin, error) {
 	return &p, nil
 }
 
+func NewNextEpisodeHandler(plugins []plugin.IPlugin) *NextEpisodeHandler {
+	return &NextEpisodeHandler{Plugins: plugins}
+}
+
 type NextEpisodeHandler struct {
 	Plugins []plugin.IPlugin
 
-	Request  models.EpisodeRequest
-	Response models.NextEpisode
+	Request models.EpisodeRequest
 }
 
 func (h *NextEpisodeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	response := models.NextEpisode{}
 
 	p, err := h.GetPlugin()
 	if err != nil {
@@ -92,12 +102,12 @@ func (h *NextEpisodeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := (*p).GetNextEpisode(h.Request, &h.Response); err != nil {
+	if err := (*p).GetNextEpisode(h.Request, &response); err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
 
-	utils.JSONResponse(w, h.Response)
+	utils.JSONResponse(w, response)
 }
 
 func (h *NextEpisodeHandler) MapRequest(r *http.Request) error {

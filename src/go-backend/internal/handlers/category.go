@@ -11,14 +11,19 @@ import (
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
+func NewCategoryHandler(plugins []plugin.IPlugin) *CategoryHandler {
+	return &CategoryHandler{Plugins: plugins}
+}
+
 type CategoryHandler struct {
 	Plugins []plugin.IPlugin
 
-	Request  models.CategoryRequest
-	Response models.Category
+	Request models.CategoryRequest
 }
 
 func (h *CategoryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	response := models.Category{}
 
 	p, err := h.GetPlugin()
 	if err != nil {
@@ -26,12 +31,12 @@ func (h *CategoryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := (*p).GetCategory(h.Request, &h.Response); err != nil {
+	if err := (*p).GetCategory(h.Request, &response); err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
 
-	utils.JSONResponse(w, h.Response)
+	utils.JSONResponse(w, response)
 }
 
 func (h *CategoryHandler) MapRequest(r *http.Request) error {
@@ -61,14 +66,19 @@ func (h *CategoryHandler) GetPlugin() (*plugin.IPlugin, error) {
 
 // /categories/{service}
 
+func NewServiceCategoryHandler(plugins []plugin.IPlugin) *ServiceCategoriesHandler {
+	return &ServiceCategoriesHandler{Plugins: plugins}
+}
+
 type ServiceCategoriesHandler struct {
 	Plugins []plugin.IPlugin
 
-	Request  models.ServiceCategoriesRequest
-	Response models.Categories
+	Request models.ServiceCategoriesRequest
 }
 
 func (h *ServiceCategoriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	response := models.Categories{}
 
 	p, err := h.GetPlugin()
 	if err != nil {
@@ -76,12 +86,12 @@ func (h *ServiceCategoriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := (*p).GetCategories(&h.Response); err != nil {
+	if err := (*p).GetCategories(&response); err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
 
-	utils.JSONResponse(w, h.Response)
+	utils.JSONResponse(w, response)
 }
 
 func (h *ServiceCategoriesHandler) MapRequest(r *http.Request) error {
@@ -106,13 +116,17 @@ func (h *ServiceCategoriesHandler) GetPlugin() (*plugin.IPlugin, error) {
 
 // /categories
 
+func NewCategoriesHandler(plugins []plugin.IPlugin) *CategoriesHandler {
+	return &CategoriesHandler{Plugins: plugins}
+}
+
 type CategoriesHandler struct {
 	Plugins []plugin.IPlugin
-
-	Response models.Categories
 }
 
 func (h *CategoriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	response := models.Categories{}
 
 	for _, p := range h.Plugins {
 
@@ -123,10 +137,21 @@ func (h *CategoriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		h.Response.Categories = append(h.Response.Categories, m.Categories...)
+		// Adds tag
+
+		tag := p.GetServiceID()
+
+		categories := []models.Category{}
+
+		for _, c := range m.Categories {
+			c.ServiceTag = tag
+			categories = append(categories, c)
+		}
+
+		response.Categories = append(response.Categories, categories...)
 	}
 
-	h.Response.CategoryCount = len(h.Response.Categories)
+	response.CategoryCount = len(response.Categories)
 
-	utils.JSONResponse(w, h.Response)
+	utils.JSONResponse(w, &response)
 }

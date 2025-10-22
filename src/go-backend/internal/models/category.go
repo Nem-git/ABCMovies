@@ -18,6 +18,7 @@ type Category struct {
 	Overview    string `json:"overview"`
 	PosterURL   string `json:"posterURL"`
 	Shows       []Show `json:"shows"`
+	ServiceTag  string `json:"serviceTag,omitempty"`
 }
 
 // Categories Response

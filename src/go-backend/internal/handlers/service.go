@@ -11,14 +11,19 @@ import (
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
+func NewServiceHandler(plugins []plugin.IPlugin) *ServiceHandler {
+	return &ServiceHandler{Plugins: plugins}
+}
+
 type ServiceHandler struct {
 	Plugins []plugin.IPlugin
 
-	Request  models.ServiceRequest
-	Response models.Service
+	Request models.ServiceRequest
 }
 
 func (h *ServiceHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	response := models.Service{}
 
 	p, err := h.GetPlugin()
 	if err != nil {
@@ -26,12 +31,12 @@ func (h *ServiceHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := (*p).GetService(&h.Response); err != nil {
+	if err := (*p).GetService(&response); err != nil {
 		api.BadRequestErrorHandler(w, err)
 		return
 	}
 
-	utils.JSONResponse(w, h.Response)
+	utils.JSONResponse(w, response)
 }
 
 func (h *ServiceHandler) MapRequest(r *http.Request) error {
@@ -56,13 +61,17 @@ func (h *ServiceHandler) GetPlugin() (*plugin.IPlugin, error) {
 	return &p, nil
 }
 
+func NewServicesHandler(plugins []plugin.IPlugin) *ServicesHandler {
+	return &ServicesHandler{Plugins: plugins}
+}
+
 type ServicesHandler struct {
 	Plugins []plugin.IPlugin
-
-	Response models.Services
 }
 
 func (h *ServicesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	response := models.Services{}
 
 	for _, p := range h.Plugins {
 
@@ -73,12 +82,12 @@ func (h *ServicesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		h.Response.Services = append(h.Response.Services, *m)
+		response.Services = append(response.Services, *m)
 	}
 
-	if h.Response.Services != nil {
-		h.Response.ServiceCount = len(h.Response.Services)
+	if response.Services != nil {
+		response.ServiceCount = len(response.Services)
 	}
 
-	utils.JSONResponse(w, h.Response)
+	utils.JSONResponse(w, response)
 }
