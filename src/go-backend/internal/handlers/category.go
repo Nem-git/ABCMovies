@@ -11,12 +11,12 @@ import (
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func NewCategoryHandler(plugins []plugin.IPlugin) *CategoryHandler {
+func NewCategoryHandler(plugins []plugin.Plugin) *CategoryHandler {
 	return &CategoryHandler{Plugins: plugins}
 }
 
 type CategoryHandler struct {
-	Plugins []plugin.IPlugin
+	Plugins []plugin.Plugin
 
 	Request models.CategoryRequest
 }
@@ -55,7 +55,7 @@ func (h *CategoryHandler) MapRequest(r *http.Request) error {
 	return nil
 }
 
-func (h *CategoryHandler) GetPlugin() (*plugin.IPlugin, error) {
+func (h *CategoryHandler) GetPlugin() (*plugin.Plugin, error) {
 	p, err := plugin.GetByID(h.Request.ServiceTag, h.Plugins)
 	if err != nil {
 		return nil, err
@@ -66,12 +66,12 @@ func (h *CategoryHandler) GetPlugin() (*plugin.IPlugin, error) {
 
 // /categories/{service}
 
-func NewServiceCategoryHandler(plugins []plugin.IPlugin) *ServiceCategoriesHandler {
+func NewServiceCategoryHandler(plugins []plugin.Plugin) *ServiceCategoriesHandler {
 	return &ServiceCategoriesHandler{Plugins: plugins}
 }
 
 type ServiceCategoriesHandler struct {
-	Plugins []plugin.IPlugin
+	Plugins []plugin.Plugin
 
 	Request models.ServiceCategoriesRequest
 }
@@ -105,7 +105,7 @@ func (h *ServiceCategoriesHandler) MapRequest(r *http.Request) error {
 	return nil
 }
 
-func (h *ServiceCategoriesHandler) GetPlugin() (*plugin.IPlugin, error) {
+func (h *ServiceCategoriesHandler) GetPlugin() (*plugin.Plugin, error) {
 	p, err := plugin.GetByID(h.Request.ServiceTag, h.Plugins)
 	if err != nil {
 		return nil, err
@@ -116,12 +116,12 @@ func (h *ServiceCategoriesHandler) GetPlugin() (*plugin.IPlugin, error) {
 
 // /categories
 
-func NewCategoriesHandler(plugins []plugin.IPlugin) *CategoriesHandler {
+func NewCategoriesHandler(plugins []plugin.Plugin) *CategoriesHandler {
 	return &CategoriesHandler{Plugins: plugins}
 }
 
 type CategoriesHandler struct {
-	Plugins []plugin.IPlugin
+	Plugins []plugin.Plugin
 }
 
 func (h *CategoriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

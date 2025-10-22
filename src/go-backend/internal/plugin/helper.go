@@ -11,9 +11,9 @@ import (
 	"github.com/nem-git/abcmovies/internal/config"
 )
 
-func Load() ([]IPlugin, error) {
+func Load() ([]Plugin, error) {
 
-	var plugins []IPlugin
+	var plugins []Plugin
 
 	availablePlugins := OpenPlugins()
 
@@ -30,7 +30,7 @@ func Load() ([]IPlugin, error) {
 	return plugins, nil
 }
 
-func GetByID(name string, plugins []IPlugin) (IPlugin, error) {
+func GetByID(name string, plugins []Plugin) (Plugin, error) {
 
 	for _, p := range plugins {
 		if strings.EqualFold(name, (p).GetServiceID()) {
@@ -41,14 +41,14 @@ func GetByID(name string, plugins []IPlugin) (IPlugin, error) {
 	return nil, fmt.Errorf("no plugin found matching the id")
 }
 
-func GetInterface(name string, p plugin.Plugin) (IPlugin, error) {
+func GetInterface(name string, p plugin.Plugin) (Plugin, error) {
 
 	symbol, err := p.Lookup(name)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't find method %v in plugin", name)
 	}
 
-	pluginInstance, ok := symbol.(IPlugin)
+	pluginInstance, ok := symbol.(Plugin)
 	if !ok {
 		return nil, fmt.Errorf("couldn't run function: %v", name)
 	}

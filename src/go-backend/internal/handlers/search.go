@@ -11,12 +11,12 @@ import (
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func NewSearchHandler(plugins []plugin.IPlugin) *SearchHandler {
+func NewSearchHandler(plugins []plugin.Plugin) *SearchHandler {
 	return &SearchHandler{Plugins: plugins}
 }
 
 type SearchHandler struct {
-	Plugins []plugin.IPlugin
+	Plugins []plugin.Plugin
 
 	Request models.SearchRequest
 }

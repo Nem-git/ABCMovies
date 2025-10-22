@@ -12,12 +12,12 @@ import (
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func NewSeasonHandler(plugins []plugin.IPlugin) *SeasonHandler {
+func NewSeasonHandler(plugins []plugin.Plugin) *SeasonHandler {
 	return &SeasonHandler{Plugins: plugins}
 }
 
 type SeasonHandler struct {
-	Plugins []plugin.IPlugin
+	Plugins []plugin.Plugin
 
 	Request  models.SeasonRequest
 }
@@ -66,7 +66,7 @@ func (h *SeasonHandler) MapRequest(r *http.Request) error {
 	return nil
 }
 
-func (h *SeasonHandler) GetPlugin() (*plugin.IPlugin, error) {
+func (h *SeasonHandler) GetPlugin() (*plugin.Plugin, error) {
 	p, err := plugin.GetByID(h.Request.ServiceTag, h.Plugins)
 	if err != nil {
 		return nil, err

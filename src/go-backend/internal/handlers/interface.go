@@ -12,7 +12,7 @@ type Handler interface {
 }
 
 type PluginHandler interface {
-	GetPlugin() (*plugin.IPlugin, error)
+	GetPlugin() (*plugin.Plugin, error)
 
 	Handler
 }

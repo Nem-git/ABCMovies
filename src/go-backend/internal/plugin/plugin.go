@@ -4,7 +4,7 @@ import (
 	"github.com/nem-git/abcmovies/internal/models"
 )
 
-type IPlugin interface {
+type Plugin interface {
 	GetServiceID() string
 
 	GetService(*models.Service) error

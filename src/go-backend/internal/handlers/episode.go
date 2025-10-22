@@ -12,12 +12,12 @@ import (
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func NewEpisodeHandler(plugins []plugin.IPlugin) *EpisodeHandler {
+func NewEpisodeHandler(plugins []plugin.Plugin) *EpisodeHandler {
 	return &EpisodeHandler{Plugins: plugins}
 }
 
 type EpisodeHandler struct {
-	Plugins []plugin.IPlugin
+	Plugins []plugin.Plugin
 
 	Request models.EpisodeRequest
 }
@@ -73,7 +73,7 @@ func (h *EpisodeHandler) MapRequest(r *http.Request) error {
 	return nil
 }
 
-func (h *EpisodeHandler) GetPlugin() (*plugin.IPlugin, error) {
+func (h *EpisodeHandler) GetPlugin() (*plugin.Plugin, error) {
 	p, err := plugin.GetByID(h.Request.ServiceTag, h.Plugins)
 	if err != nil {
 		return nil, err
@@ -82,12 +82,12 @@ func (h *EpisodeHandler) GetPlugin() (*plugin.IPlugin, error) {
 	return &p, nil
 }
 
-func NewNextEpisodeHandler(plugins []plugin.IPlugin) *NextEpisodeHandler {
+func NewNextEpisodeHandler(plugins []plugin.Plugin) *NextEpisodeHandler {
 	return &NextEpisodeHandler{Plugins: plugins}
 }
 
 type NextEpisodeHandler struct {
-	Plugins []plugin.IPlugin
+	Plugins []plugin.Plugin
 
 	Request models.EpisodeRequest
 }
@@ -143,7 +143,7 @@ func (h *NextEpisodeHandler) MapRequest(r *http.Request) error {
 	return nil
 }
 
-func (h *NextEpisodeHandler) GetPlugin() (*plugin.IPlugin, error) {
+func (h *NextEpisodeHandler) GetPlugin() (*plugin.Plugin, error) {
 	p, err := plugin.GetByID(h.Request.ServiceTag, h.Plugins)
 	if err != nil {
 		return nil, err

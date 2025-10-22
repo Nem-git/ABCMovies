@@ -13,12 +13,12 @@ import (
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func NewStreamHandler(plugins []plugin.IPlugin) *StreamHandler {
+func NewStreamHandler(plugins []plugin.Plugin) *StreamHandler {
 	return &StreamHandler{Plugins: plugins}
 }
 
 type StreamHandler struct {
-	Plugins []plugin.IPlugin
+	Plugins []plugin.Plugin
 
 	Request models.StreamRequest
 }
@@ -123,7 +123,7 @@ func (h *StreamHandler) MapRequest(r *http.Request) error {
 	return nil
 }
 
-func (h *StreamHandler) GetPlugin() (*plugin.IPlugin, error) {
+func (h *StreamHandler) GetPlugin() (*plugin.Plugin, error) {
 	p, err := plugin.GetByID(h.Request.ServiceTag, h.Plugins)
 	if err != nil {
 		return nil, err

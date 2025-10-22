@@ -11,12 +11,12 @@ import (
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func NewShowHandler(plugins []plugin.IPlugin) *ShowHandler {
+func NewShowHandler(plugins []plugin.Plugin) *ShowHandler {
 	return &ShowHandler{Plugins: plugins}
 }
 
 type ShowHandler struct {
-	Plugins []plugin.IPlugin
+	Plugins []plugin.Plugin
 
 	Request  models.ShowRequest
 	Response models.Show
@@ -56,7 +56,7 @@ func (h *ShowHandler) MapRequest(r *http.Request) error {
 	return nil
 }
 
-func (h *ShowHandler) GetPlugin() (*plugin.IPlugin, error) {
+func (h *ShowHandler) GetPlugin() (*plugin.Plugin, error) {
 	p, err := plugin.GetByID(h.Request.ServiceTag, h.Plugins)
 	if err != nil {
 		return nil, err
