@@ -5,6 +5,13 @@ type SearchRequest struct {
 	Query string
 }
 
+// URL params
+type ServiceSearchRequest struct {
+	SearchRequest
+
+	ServiceTag string
+}
+
 // Search Response
 type Search struct {
 	Query     string         `json:"query"`
@@ -15,5 +22,5 @@ type Search struct {
 type SearchResult struct {
 	Show
 
-	ServiceTag string `json:"serviceTag"`
+	ServiceTag string `json:"serviceTag,omitempty"`
 }

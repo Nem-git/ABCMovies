@@ -36,6 +36,63 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		tag := p.GetServiceID()
+
+		results := []models.SearchResult{}
+
+		for _, s := range m.Shows {
+			s.ServiceTag = tag
+			results = append(results, s)
+		}
+
+		if m.Shows != nil {
+			response.Shows = append(response.Shows, results...)
+		}
+	}
+
+	if response.Shows != nil {
+		response.ShowCount = len(response.Shows)
+	}
+
+	utils.JSONResponse(w, response)
+}
+
+func (h *SearchHandler) MapRequest(r *http.Request) error {
+
+	h.Request.Query = r.PathValue(config.SEARCH_SLUG)
+
+	if h.Request.Query == "" {
+		return errs.ErrEmptySearchQuery
+	}
+
+	return nil
+}
+
+func NewServiceSearchHandler(plugins []plugin.Plugin) *ServiceSearchHandler {
+	return &ServiceSearchHandler{Plugins: plugins}
+}
+
+type ServiceSearchHandler struct {
+	Plugins []plugin.Plugin
+
+	Request models.ServiceSearchRequest
+}
+
+func (h *ServiceSearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	response := models.Search{}
+
+	for _, p := range h.Plugins {
+
+		m := models.Search{
+			Query: h.Request.Query,
+		}
+
+		if err := p.GetSearch(h.Request.SearchRequest, &m); err != nil {
+			api.BadRequestErrorHandler(w, err)
+			return
+		}
+
 		if m.Shows != nil {
 			response.Shows = append(response.Shows, m.Shows...)
 		}
@@ -48,7 +105,13 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	utils.JSONResponse(w, response)
 }
 
-func (h *SearchHandler) MapRequest(r *http.Request) error {
+func (h *ServiceSearchHandler) MapRequest(r *http.Request) error {
+
+	h.Request.ServiceTag = r.PathValue(config.SERVICE_SLUG)
+
+	if h.Request.ServiceTag == "" {
+		return errs.ErrEmptyServiceTag
+	}
 
 	h.Request.Query = r.PathValue(config.SEARCH_SLUG)
 

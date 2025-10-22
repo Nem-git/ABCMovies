@@ -28,14 +28,12 @@ func Handler(mux *http.ServeMux) {
 	mux.Handle("/api/service/{serviceTag}/{showID}/{seasonNumber}", middleware.RequestsParsingMiddleware(handlers.NewSeasonHandler(plugins)))
 	mux.Handle("/api/service/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}", middleware.RequestsParsingMiddleware(handlers.NewEpisodeHandler(plugins)))
 	mux.Handle("/api/service/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}/next", middleware.RequestsParsingMiddleware(handlers.NewNextEpisodeHandler(plugins)))
-	// mux.Handle("/api/service/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}/{streamType}/", middleware.RequestsParsingMiddleware(&handlers.StreamHandler{Plugins: plugins}))
-
-	// mux.Handle("/api/service/{serviceTag}/category", middleware.PluginMiddleware(RouteCategory(), plugins))
-	// mux.Handle("/api/service/{serviceTag}/category/{categoryID}", middleware.PluginMiddleware(RouteCategory(), plugins))
+	mux.Handle("/api/service/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}/{streamType}/", middleware.RequestsParsingMiddleware(handlers.NewStreamHandler(plugins)))
 
 	// // General routes that also need plugins
 
 	mux.Handle("/api/search/{query}", middleware.RequestsParsingMiddleware(handlers.NewSearchHandler(plugins)))
+	mux.Handle("/api/search/{serviceTag}/{query}", middleware.RequestsParsingMiddleware(handlers.NewServiceSearchHandler(plugins)))
 
 	mux.Handle("/api/category", handlers.NewCategoriesHandler(plugins))
 	mux.Handle("/api/category/{serviceTag}", middleware.RequestsParsingMiddleware(handlers.NewServiceCategoryHandler(plugins)))
