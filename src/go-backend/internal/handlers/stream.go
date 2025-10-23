@@ -39,7 +39,7 @@ func (h *StreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if contentType != "" {
+	if contentType == "" {
 		contentType = config.MP4_CONTENT_TYPE
 	}
 
@@ -64,6 +64,11 @@ func (h *StreamHandler) MapRequest(r *http.Request) error {
 
 	h.Request.StreamFileName = r.PathValue(config.STREAM_FILE_NAME_SLUG)
 
+	h.Request.StreamMediaType = r.PathValue(config.STREAM_MEDIA_TYPE_SLUG)
+
+	// Dash
+	h.Request.StreamID = r.PathValue(config.STREAM_ID_SLUG)
+
 	streamURL := r.PathValue(config.STREAM_URL_SLUG)
 
 	parsedURL, err := utils.ParseStreamURL(streamURL)
@@ -85,9 +90,6 @@ func (h *StreamHandler) MapRequest(r *http.Request) error {
 			h.Request.StreamURL = uPath.String() + "?" + queryParams.Encode()
 		}
 	}
-
-	h.Request.StreamMediaType = r.PathValue(config.STREAM_MEDIA_TYPE_SLUG)
-	h.Request.StreamID = r.PathValue(config.STREAM_ID_SLUG)
 
 	if h.Request.ServiceTag == "" {
 		return errs.ErrEmptyServiceTag

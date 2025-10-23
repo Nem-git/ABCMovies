@@ -14,7 +14,7 @@ func Handler(mux *http.ServeMux) {
 	plugins, err := plugin.Load()
 	if err != nil {
 		mux.HandleFunc("", func(w http.ResponseWriter, r *http.Request) {
-			api.BadRequestErrorHandler(w, err)
+			api.InternalErrorHandler(w, err)
 		})
 		return
 	}
@@ -28,7 +28,11 @@ func Handler(mux *http.ServeMux) {
 	mux.Handle("/api/service/{serviceTag}/{showID}/{seasonNumber}", middleware.RequestsParsingMiddleware(handlers.NewSeasonHandler(plugins)))
 	mux.Handle("/api/service/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}", middleware.RequestsParsingMiddleware(handlers.NewEpisodeHandler(plugins)))
 	mux.Handle("/api/service/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}/next", middleware.RequestsParsingMiddleware(handlers.NewNextEpisodeHandler(plugins)))
-	mux.Handle("/api/service/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}/{streamType}/", middleware.RequestsParsingMiddleware(handlers.NewStreamHandler(plugins)))
+	mux.Handle("/api/service/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}/{streamType}/{streamFileName}", middleware.RequestsParsingMiddleware(handlers.NewStreamHandler(plugins)))
+	mux.Handle("/api/service/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}/{streamType}/{streamURL...}", middleware.RequestsParsingMiddleware(handlers.NewStreamHandler(plugins)))
+
+	// Dash
+	mux.Handle("/api/service/{serviceTag}/{showID}/{seasonNumber}/{episodeNumber}/{streamType}/{streamMediaType}/{streamID}/{streamURL...}", middleware.RequestsParsingMiddleware(handlers.NewStreamHandler(plugins)))
 
 	// // General routes that also need plugins
 

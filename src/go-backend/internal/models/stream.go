@@ -10,6 +10,8 @@ type StreamRequest struct {
 	StreamFileName string
 	StreamURL      string
 
+	// Dash
+
 	StreamMediaType string
 	StreamID        string
 }
