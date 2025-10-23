@@ -1,0 +1,27 @@
+package model
+
+// URL params
+type ServiceRequest struct {
+	ServiceTag string
+}
+
+// Service Response
+type Service struct {
+	BackdropURL        string   `json:"backdropURL"`
+	ID                 string   `json:"id"`
+	Name               string   `json:"name"`
+	OriginalName       string   `json:"originalName"`
+	Overview           string   `json:"overview"`
+	PosterURL          string   `json:"posterURL"`
+	MediaTypes         []string `json:"mediaTypes"`
+	OriginalLanguage   string   `json:"originalLanguage"`
+	HomePage           string   `json:"homePage"`
+	OriginCountry      string   `json:"originCountry"`
+	AvailabilityStatus string   `json:"availabilityStatus"`
+}
+
+// Services Response
+type Services struct {
+	ServiceCount int       `json:"serviceCount"`
+	Services     []Service `json:"services"`
+}

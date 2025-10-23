@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/nem-git/abcmovies/internal/api"
+	"github.com/nem-git/abcmovies/internal/http/api"
 )
 
 func BindJSONOrErr[T any](w http.ResponseWriter, r *http.Request) (T, bool) {

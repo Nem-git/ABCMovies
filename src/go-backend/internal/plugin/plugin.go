@@ -1,23 +1,21 @@
 package plugin
 
-import (
-	"github.com/nem-git/abcmovies/internal/models"
-)
+import "github.com/nem-git/abcmovies/internal/http/model"
 
 type Plugin interface {
 	GetServiceID() string
 
-	GetService(*models.Service) error
-	GetShow(models.ShowRequest, *models.Show) error
-	GetSeason(models.SeasonRequest, *models.Season) error
-	GetEpisode(models.EpisodeRequest, *models.Episode) error
+	GetService(*model.Service) error
+	GetShow(model.ShowRequest, *model.Show) error
+	GetSeason(model.SeasonRequest, *model.Season) error
+	GetEpisode(model.EpisodeRequest, *model.Episode) error
 
-	GetNextEpisode(models.EpisodeRequest, *models.NextEpisode) error
+	GetNextEpisode(model.EpisodeRequest, *model.NextEpisode) error
 
-	GetStream(models.StreamRequest, *models.Stream) (string, error)
+	GetStream(model.StreamRequest, *model.Stream) (string, error)
 
-	GetSearch(models.SearchRequest, *models.Search) error
+	GetSearch(model.SearchRequest, *model.Search) error
 
-	GetCategory(models.CategoryRequest, *models.Category) error
-	GetCategories(*models.Categories) error
+	GetCategory(model.CategoryRequest, *model.Category) error
+	GetCategories(*model.Categories) error
 }
