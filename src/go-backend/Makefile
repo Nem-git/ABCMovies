@@ -9,7 +9,7 @@ CMD_DIR := cmd/abcmovies
 
 BINARY_NAME=abcmovies.out
 
-all: build build-plugins
+all: tidy fmt build build-plugins
 
 fmt:
 	$(GO) fmt ./...
@@ -19,8 +19,8 @@ tidy:
 
 build:
 	@mkdir -p $(BUILD_DIR)
-	@echo "Building main.go..."
-	$(GOBUILD) -o $(BUILD_DIR) $(CMD_DIR)/main.go
+	@echo "Building ${BINARY_NAME}"
+	$(GOBUILD) -o $(BUILD_DIR)/${BINARY_NAME} $(CMD_DIR)/main.go
 
 build-plugins:
 	@mkdir -p $(BUILD_DIR)/plugins

@@ -2,4 +2,4 @@
 
 rm -fr build/
 make
-./build/main
+./build/abcmovies.out
