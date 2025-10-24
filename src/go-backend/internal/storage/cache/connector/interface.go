@@ -9,7 +9,6 @@ type ConnectionDetails struct {
 }
 
 type CacheConnector interface {
-	Setup(details ConnectionDetails) error
 	Create(key string) error
 	FetchSingle(key string) (string, error)
 	FetchCollection(key string) ([]string, error)

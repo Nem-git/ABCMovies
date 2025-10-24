@@ -15,10 +15,21 @@ import (
 	"github.com/zencoder/go-dash/mpd"
 
 	"github.com/nem-git/abcmovies/internal/config"
+	"github.com/nem-git/abcmovies/internal/storage/cache/controller/widevine"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func Get(url string, headers map[string]string, segHeaders map[string]string) (string, error) {
+func Get(url string, headers map[string]string, segHeaders map[string]string, controller *widevine.PSSHController) (string, error) {
+
+	// Try to retrieve it in the db
+	if controller != nil {
+		pssh, err := (*controller).ReadSingle(url)
+		if err != nil {
+			return "", err
+		}
+
+		return pssh, nil
+	}
 
 	// Send request to get Dash Manifest
 	body, err := utils.Get(url, nil, headers)

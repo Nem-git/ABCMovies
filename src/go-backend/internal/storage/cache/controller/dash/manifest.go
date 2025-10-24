@@ -1,21 +1,22 @@
 package dash
 
 import (
-	"github.com/nem-git/abcmovies/internal/storage/cache/repository"
+	"github.com/nem-git/abcmovies/internal/storage/cache/repository/dash"
 )
 
-type ManifestController struct {
-	repo repository.CacheRepository
+func NewManifestController(repo *dash.ManifestRepository) *ManifestController {
+	c := new(ManifestController)
+	c.repo = repo
+	return c
 }
 
-func (c *ManifestController) Setup(repo repository.CacheRepository) error {
-	c.repo = repo
-
-	return nil
+type ManifestController struct {
+	repo *dash.ManifestRepository
 }
 
 func (c *ManifestController) Create(key string, value any) error {
-	if err := c.repo.Create(key, value); err != nil {
+
+	if err := (*c.repo).Create(key, value); err != nil {
 		return err
 	}
 
@@ -24,7 +25,7 @@ func (c *ManifestController) Create(key string, value any) error {
 
 func (c *ManifestController) ReadSingle(key string) (string, error) {
 
-	value, err := c.repo.ReadSingle(key)
+	value, err := (*c.repo).ReadSingle(key)
 
 	if err != nil {
 		return "", err
@@ -35,7 +36,7 @@ func (c *ManifestController) ReadSingle(key string) (string, error) {
 
 func (c *ManifestController) ReadCollection(key string) ([]string, error) {
 
-	value, err := c.repo.ReadCollection(key)
+	value, err := (*c.repo).ReadCollection(key)
 
 	if err != nil {
 		return nil, err
@@ -46,7 +47,7 @@ func (c *ManifestController) ReadCollection(key string) ([]string, error) {
 
 func (c *ManifestController) Update(key string, value any) error {
 
-	if err := c.repo.Update(key, value); err != nil {
+	if err := (*c.repo).Update(key, value); err != nil {
 		return err
 	}
 
@@ -55,7 +56,7 @@ func (c *ManifestController) Update(key string, value any) error {
 
 func (c *ManifestController) Delete(key string) error {
 
-	if err := c.repo.Delete(key); err != nil {
+	if err := (*c.repo).Delete(key); err != nil {
 		return err
 	}
 

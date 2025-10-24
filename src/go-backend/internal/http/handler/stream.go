@@ -10,6 +10,9 @@ import (
 	"github.com/nem-git/abcmovies/internal/http/api"
 	"github.com/nem-git/abcmovies/internal/http/model"
 	"github.com/nem-git/abcmovies/internal/plugin"
+	"github.com/nem-git/abcmovies/internal/storage/cache/connector"
+	dashController "github.com/nem-git/abcmovies/internal/storage/cache/controller/dash"
+	dashRepo "github.com/nem-git/abcmovies/internal/storage/cache/repository/dash"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
@@ -24,6 +27,46 @@ type StreamHandler struct {
 }
 
 func (h *StreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	if h.Request.StreamType == config.STREAM_DASH_TYPE {
+
+		if h.Request.StreamFileName != "" {
+
+			conn := connector.NewRedisConnector(connector.ConnectionDetails{
+				Address:  config.TEMP_REDIS_ADDRESS,
+				User:     config.TEMP_REDIS_USER,
+				Password: config.TEMP_REDIS_PASSWORD,
+				DB:       config.TEMP_REDIS_DB,
+			})
+			repo := dashRepo.NewManifestRepository(conn)
+			controller := dashController.NewManifestController(repo)
+
+			segment, err := controller.ReadSingle()
+			if err != nil {
+				return nil, err
+			}
+
+			return []byte(segment), nil
+
+		}
+
+		segment, err := (*h.Request.Controller).ReadSingle(id)
+		if err != nil {
+			return nil, err
+		}
+
+		return []byte(segment), nil
+	}
+
+	// Try to retrieve it in the db
+	if controller != nil {
+		segment, err := (*controller).ReadSingle(id)
+		if err != nil {
+			return nil, err
+		}
+
+		return []byte(segment), nil
+	}
 
 	response := model.Stream{}
 

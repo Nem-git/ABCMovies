@@ -6,9 +6,20 @@ import (
 	"strings"
 
 	"github.com/Eyevinn/mp4ff/mp4"
+	"github.com/nem-git/abcmovies/internal/storage/cache/controller/widevine"
 )
 
-func Get(initByte []byte, segmentByte []byte, keys []string, wantInit bool) ([]byte, error) {
+func Get(initByte []byte, segmentByte []byte, keys []string, id string, wantInit bool, controller *widevine.SegmentController) ([]byte, error) {
+
+	// Try to retrieve it in the db
+	if controller != nil {
+		segment, err := (*controller).ReadSingle(id)
+		if err != nil {
+			return nil, err
+		}
+
+		return []byte(segment), nil
+	}
 
 	initMP4, err := decodeByteSegment(initByte)
 	if err != nil {

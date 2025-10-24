@@ -1,11 +1,6 @@
 package repository
 
-import "github.com/nem-git/abcmovies/internal/storage/cache/connector"
-
 type CacheRepository interface {
-
-	// Sets the database in the repo
-	Setup(conn connector.CacheConnector) error
 
 	// Puts an object in the db
 	Create(key string, value any) error

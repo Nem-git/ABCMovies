@@ -8,18 +8,14 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type RedisConnector struct {
-	conn    *redis.Client
-	context context.Context
-}
-
-func (c *RedisConnector) Setup(details ConnectionDetails) error {
+func NewRedisConnector(details ConnectionDetails) *RedisConnector {
+	c := new(RedisConnector)
 
 	ctx := context.TODO()
 
 	db, err := strconv.Atoi(details.DB)
 	if err != nil {
-		return err
+		return nil
 	}
 
 	c.conn = redis.NewClient(&redis.Options{
@@ -31,9 +27,18 @@ func (c *RedisConnector) Setup(details ConnectionDetails) error {
 
 	_, err = c.conn.Ping(ctx).Result()
 	if err != nil {
-		return err
+		return nil
 	}
 
+	return c
+}
+
+type RedisConnector struct {
+	conn    *redis.Client
+	context context.Context
+}
+
+func (c *RedisConnector) Create(key string) error {
 	return nil
 }
 
@@ -65,4 +70,12 @@ func (c *RedisConnector) FetchCollection(key string) ([]string, error) {
 	}
 
 	return v, nil
+}
+
+func (c *RedisConnector) Update(key string, value any) error {
+	return nil
+}
+
+func (c *RedisConnector) Delete(key string) error {
+	return nil
 }

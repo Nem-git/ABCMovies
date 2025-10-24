@@ -12,10 +12,21 @@ import (
 
 	"github.com/nem-git/abcmovies/internal/config"
 	"github.com/nem-git/abcmovies/internal/errs"
+	"github.com/nem-git/abcmovies/internal/storage/cache/controller"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func Get(encodedPSSH string, url string, headers map[string]string) ([]string, error) {
+func Get(encodedPSSH string, url string, headers map[string]string, controller *controller.CacheController) ([]string, error) {
+
+	// Try to retrieve it in the db
+	if controller != nil {
+		keys, err := (*controller).ReadCollection(encodedPSSH)
+		if err != nil {
+			return nil, err
+		}
+
+		return keys, nil
+	}
 
 	device, pssh, err := decode(encodedPSSH)
 	if err != nil {
