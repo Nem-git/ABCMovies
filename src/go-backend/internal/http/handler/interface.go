@@ -7,8 +7,8 @@ import (
 )
 
 type Handler interface {
-	ServeHTTP(w http.ResponseWriter, r *http.Request)
-	MapRequest(req *http.Request) error
+	ServeHTTP(http.ResponseWriter, *http.Request)
+	MapRequest(*http.Request) error
 }
 
 type PluginHandler interface {
