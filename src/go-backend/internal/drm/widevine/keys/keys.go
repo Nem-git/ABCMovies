@@ -125,8 +125,8 @@ func connectToDB() controller.CacheController {
 		Password: config.TEMP_REDIS_PASSWORD,
 		DB:       config.TEMP_REDIS_DB,
 	})
-	repo := widevineRepo.NewSegmentRepository(conn)
-	controller := widevineController.NewSegmentController(repo)
+	repo := widevineRepo.NewKeysRepository(conn)
+	controller := widevineController.NewKeysController(repo)
 
 	return controller
 }

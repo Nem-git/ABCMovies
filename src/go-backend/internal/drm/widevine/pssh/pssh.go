@@ -47,11 +47,11 @@ func Get(manifestURL string, licenseHeaders map[string]string, segHeaders map[st
 		return "", fmt.Errorf("couldn't retrieve pssh")
 	}
 
-	if err := saveUsingDB(dbID, pssh); err != nil {
+	if err := SaveUsingDB(dbID, pssh); err != nil {
+		log.Println(pssh, err)
 		return "", err
 	}
 
-	pssh, err = GetUsingDB(dbID)
 	log.Println(pssh, err)
 
 	return pssh, nil
@@ -300,7 +300,7 @@ func GetUsingDB(dbID string) (string, error) {
 	return pssh, nil
 }
 
-func saveUsingDB(dbID string, value string) error {
+func SaveUsingDB(dbID string, value string) error {
 	controller := connectToDB()
 
 	if err := controller.Create(dbID, value); err != nil {

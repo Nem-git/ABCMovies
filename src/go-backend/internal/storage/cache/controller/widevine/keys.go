@@ -5,7 +5,7 @@ import (
 	"github.com/nem-git/abcmovies/internal/storage/cache/repository/widevine"
 )
 
-func NewManifestController(repo *widevine.KeysRepository) *KeysController {
+func NewKeysController(repo *widevine.KeysRepository) *KeysController {
 	c := new(KeysController)
 	c.repo = repo
 	return c

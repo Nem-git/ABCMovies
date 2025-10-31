@@ -15,9 +15,11 @@ import (
 
 func Get(initByte []byte, segmentByte []byte, keys []string, wantInit bool, dbID string) ([]byte, error) {
 
-	segment, err := GetUsingDB(dbID)
-	if err == nil {
-		return segment, nil
+	if wantInit {
+		segment, err := GetUsingDB(dbID)
+		if err == nil {
+			return segment, nil
+		}
 	}
 
 	initMP4, err := decodeByteSegment(initByte)
@@ -40,6 +42,8 @@ func Get(initByte []byte, segmentByte []byte, keys []string, wantInit bool, dbID
 	// 	return nil, fmt.Errorf("file not fragmented")
 	// }
 
+	encryptedInit := *init
+
 	decryptInfo, err := mp4.DecryptInit(init)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't clean init: %w", err)
@@ -47,10 +51,19 @@ func Get(initByte []byte, segmentByte []byte, keys []string, wantInit bool, dbID
 
 	// Return decrypted init
 	if wantInit {
+		encodedInit, err := encodeBase64Init(&encryptedInit)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := SaveUsingDB(dbID, encodedInit); err != nil {
+			return nil, err
+		}
+
 		return encodeByteInit(init)
 	}
 
-	segmentMP4.Init = init
+	// segmentMP4.Init = init
 
 	// Decrypt segment
 	for _, k := range keys {
@@ -76,16 +89,7 @@ func Get(initByte []byte, segmentByte []byte, keys []string, wantInit bool, dbID
 		}
 	}
 
-	encodedSegment, err := encodeByteSegment(segmentMP4)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := saveUsingDB(dbID, string(encodedSegment)); err != nil {
-		return nil, err
-	}
-
-	return encodedSegment, nil
+	return encodeByteSegment(segmentMP4)
 }
 
 func GetUsingDB(dbID string) ([]byte, error) {
@@ -96,10 +100,10 @@ func GetUsingDB(dbID string) ([]byte, error) {
 		return nil, err
 	}
 
-	return []byte(segment), nil
+	return decodeBase64SegmentToByte(segment)
 }
 
-func saveUsingDB(dbID string, content string) error {
+func SaveUsingDB(dbID string, content string) error {
 	controller := connectToDB()
 
 	if err := controller.Create(dbID, content); err != nil {

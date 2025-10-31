@@ -48,14 +48,12 @@ func (h *StreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				utils.ByteResponse(w, []byte(m), config.DASH_CONTENT_TYPE)
 				return
 			}
-
-			// log.Println(m, err)
 		}
 
-		if h.Request.IsMedia && h.Request.Media.Dash.Type == config.DASH_INIT_URL_PREFIX {
-			init, err := segment.Get(nil, nil, nil, true, h.Request.Media.Dash.ID)
+		if h.Request.Media.Dash.Type == config.DASH_INIT_URL_PREFIX {
+			init, err := segment.GetUsingDB(h.Request.Media.Dash.ID)
 			if err == nil {
-				utils.ByteResponse(w, []byte(init), config.DASH_CONTENT_TYPE)
+				utils.ByteResponse(w, init, config.DASH_CONTENT_TYPE)
 				return
 			}
 		}

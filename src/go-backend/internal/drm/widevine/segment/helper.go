@@ -39,11 +39,19 @@ func decodeByteSegment(segment []byte) (*mp4.File, error) {
 	return segmentMP4, nil
 }
 
-func decodeBase64Segment(segment string) (*mp4.File, error) {
-
+func decodeBase64SegmentToByte(segment string) ([]byte, error) {
 	segmentByte, err := base64.StdEncoding.DecodeString(segment)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't base64 decode segment")
+	}
+	return segmentByte, nil
+}
+
+func decodeBase64Segment(segment string) (*mp4.File, error) {
+
+	segmentByte, err := decodeBase64SegmentToByte(segment)
+	if err != nil {
+		return nil, err
 	}
 
 	segmentMP4, err := decodeByteSegment(segmentByte)
