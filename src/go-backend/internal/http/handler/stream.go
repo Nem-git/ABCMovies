@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/nem-git/abcmovies/internal/config"
+	"github.com/nem-git/abcmovies/internal/drm/widevine/segment"
 	"github.com/nem-git/abcmovies/internal/errs"
 	"github.com/nem-git/abcmovies/internal/http/api"
 	"github.com/nem-git/abcmovies/internal/http/model"
@@ -28,10 +29,9 @@ type StreamHandler struct {
 
 func (h *StreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	if h.Request.StreamType == config.STREAM_DASH_TYPE {
-
-		if h.Request.StreamFileName != "" {
-
+	switch h.Request.StreamType {
+	case config.STREAM_DASH_TYPE:
+		if h.Request.IsPlaylist {
 			conn := connector.NewRedisConnector(connector.ConnectionDetails{
 				Address:  config.TEMP_REDIS_ADDRESS,
 				User:     config.TEMP_REDIS_USER,
@@ -41,31 +41,24 @@ func (h *StreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			repo := dashRepo.NewManifestRepository(conn)
 			controller := dashController.NewManifestController(repo)
 
-			segment, err := controller.ReadSingle()
-			if err != nil {
-				return nil, err
+			dbID := utils.GetUniqueStreamPlaylistID(h.Request)
+
+			m, err := controller.ReadSingle(dbID)
+			if err == nil {
+				utils.ByteResponse(w, []byte(m), config.DASH_CONTENT_TYPE)
+				return
 			}
 
-			return []byte(segment), nil
-
+			// log.Println(m, err)
 		}
 
-		segment, err := (*h.Request.Controller).ReadSingle(id)
-		if err != nil {
-			return nil, err
+		if h.Request.IsMedia && h.Request.Media.Dash.Type == config.DASH_INIT_URL_PREFIX {
+			init, err := segment.Get(nil, nil, nil, true, h.Request.Media.Dash.ID)
+			if err == nil {
+				utils.ByteResponse(w, []byte(init), config.DASH_CONTENT_TYPE)
+				return
+			}
 		}
-
-		return []byte(segment), nil
-	}
-
-	// Try to retrieve it in the db
-	if controller != nil {
-		segment, err := (*controller).ReadSingle(id)
-		if err != nil {
-			return nil, err
-		}
-
-		return []byte(segment), nil
 	}
 
 	response := model.Stream{}
@@ -105,17 +98,16 @@ func (h *StreamHandler) MapRequest(r *http.Request) error {
 
 	h.Request.StreamType = r.PathValue(config.STREAM_SLUG)
 
-	h.Request.StreamFileName = r.PathValue(config.STREAM_FILE_NAME_SLUG)
-
-	h.Request.StreamMediaType = r.PathValue(config.STREAM_MEDIA_TYPE_SLUG)
-
-	// Dash
-	h.Request.StreamID = r.PathValue(config.STREAM_ID_SLUG)
+	h.Request.Playlist.FileName = r.PathValue(config.STREAM_FILE_NAME_SLUG)
+	if h.Request.Playlist.FileName != "" {
+		h.Request.IsPlaylist = true
+	}
 
 	streamURL := r.PathValue(config.STREAM_URL_SLUG)
+	if streamURL != "" {
+		h.Request.IsMedia = true
 
-	parsedURL, err := utils.ParseStreamURL(streamURL)
-	if h.Request.StreamFileName == "" {
+		parsedURL, err := utils.ParseStreamURL(streamURL)
 		if err != nil {
 			return err
 		}
@@ -128,11 +120,16 @@ func (h *StreamHandler) MapRequest(r *http.Request) error {
 		// Add request query params to stream URL
 		queryParams := r.URL.Query()
 		if len(queryParams) == 0 {
-			h.Request.StreamURL = uPath.String()
+			h.Request.Media.URL = uPath.String()
 		} else {
-			h.Request.StreamURL = uPath.String() + "?" + queryParams.Encode()
+			h.Request.Media.URL = uPath.String() + "?" + queryParams.Encode()
 		}
 	}
+
+	// Dash
+	h.Request.Media.Dash.Type = r.PathValue(config.STREAM_MEDIA_TYPE_SLUG)
+
+	h.Request.Media.Dash.ID = r.PathValue(config.STREAM_ID_SLUG)
 
 	if h.Request.ServiceTag == "" {
 		return errs.ErrEmptyServiceTag
@@ -150,20 +147,24 @@ func (h *StreamHandler) MapRequest(r *http.Request) error {
 		return errs.ErrInvalidEpisodeNumber
 	}
 
-	if h.Request.StreamFileName != "" {
-		if config.STREAM_TYPE_TO_FILE_NAME[h.Request.StreamType] != h.Request.StreamFileName {
+	if h.Request.Playlist.FileName != "" {
+		// Verify if ex: manifest.mpd is indeed dash's playlist file name
+		if config.STREAM_TYPE_TO_FILE_NAME[h.Request.StreamType] != h.Request.Playlist.FileName {
 			return errs.ErrInvalidStream
 		}
 	} else {
-		if h.Request.StreamURL == "" {
+		if h.Request.Media.URL == "" {
 			return errs.ErrInvalidURL
 		}
 
-		_, err := url.Parse(h.Request.StreamURL)
+		_, err := url.Parse(h.Request.Media.URL)
 		if err != nil {
 			return errs.ErrInvalidURL
 		}
 	}
+
+	// Dash
+	// TODO: Add DASH
 
 	return nil
 }

@@ -90,7 +90,7 @@ func TestCleanDashManifestFromDRMAndModifyURLs(t *testing.T) {
 		b, err := io.ReadAll(body)
 		require.Nil(t, err, "couldn't read body in dash manifest request")
 
-		mpd, err := Get(url, string(b))
+		mpd, err := Get(url, string(b), "")
 
 		require.Nil(t, err, err)
 		require.NotEqual(t, "", mpd, "modified dash manifest is empty")
@@ -117,7 +117,7 @@ func TestFailToCleanDRMAndModifyURLsInBrokenManifests(t *testing.T) {
 		b, err := io.ReadAll(body)
 		require.Nil(t, err, "couldn't read body in broken dash manifest request")
 
-		mpd, err := Get(url, string(b))
+		mpd, err := Get(url, string(b), "")
 		require.Error(t, err, "broken manifest did not fail")
 		require.Empty(t, mpd, "broken manifest not empty")
 	}

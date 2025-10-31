@@ -12,19 +12,17 @@ import (
 
 	"github.com/nem-git/abcmovies/internal/config"
 	"github.com/nem-git/abcmovies/internal/errs"
+	"github.com/nem-git/abcmovies/internal/storage/cache/connector"
 	"github.com/nem-git/abcmovies/internal/storage/cache/controller"
+	widevineController "github.com/nem-git/abcmovies/internal/storage/cache/controller/widevine"
+	widevineRepo "github.com/nem-git/abcmovies/internal/storage/cache/repository/widevine"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func Get(encodedPSSH string, url string, headers map[string]string, controller *controller.CacheController) ([]string, error) {
+func Get(encodedPSSH string, url string, headers map[string]string, dbID string) ([]string, error) {
 
-	// Try to retrieve it in the db
-	if controller != nil {
-		keys, err := (*controller).ReadCollection(encodedPSSH)
-		if err != nil {
-			return nil, err
-		}
-
+	keys, err := GetUsingDB(dbID)
+	if err == nil {
 		return keys, nil
 	}
 
@@ -71,18 +69,18 @@ func Get(encodedPSSH string, url string, headers map[string]string, controller *
 	}
 
 	// Parse license
-	keys, err := parseLicense(license)
+	k, err := parseLicense(license)
 	if err != nil {
 		return nil, errs.ErrWidevineLicenseResponseToLicense
 	}
 
-	if len(keys) == 0 {
+	if len(k) == 0 {
 		return nil, errs.ErrWidevineLicenseResponseKeys
 	}
 
 	var formattedKeys []string
 
-	for _, key := range keys {
+	for _, key := range k {
 		if key.Type == widevinepb.License_KeyContainer_CONTENT {
 			formattedKeys = append(formattedKeys, fmt.Sprintf("%s:%s", hex.EncodeToString(key.ID), hex.EncodeToString(key.Key)))
 		}
@@ -92,7 +90,45 @@ func Get(encodedPSSH string, url string, headers map[string]string, controller *
 		return nil, errs.ErrWidevineLicenseResponseKeys
 	}
 
+	if err := saveUsingDB(dbID, formattedKeys); err != nil {
+		return nil, err
+	}
+
 	return formattedKeys, nil
+}
+
+func GetUsingDB(dbID string) ([]string, error) {
+	controller := connectToDB()
+
+	keys, err := controller.ReadCollection(dbID)
+	if err != nil {
+		return nil, err
+	}
+
+	return keys, nil
+}
+
+func saveUsingDB(dbID string, content []string) error {
+	controller := connectToDB()
+
+	if err := controller.Create(dbID, content); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func connectToDB() controller.CacheController {
+	conn := connector.NewRedisConnector(connector.ConnectionDetails{
+		Address:  config.TEMP_REDIS_ADDRESS,
+		User:     config.TEMP_REDIS_USER,
+		Password: config.TEMP_REDIS_PASSWORD,
+		DB:       config.TEMP_REDIS_DB,
+	})
+	repo := widevineRepo.NewSegmentRepository(conn)
+	controller := widevineController.NewSegmentController(repo)
+
+	return controller
 }
 
 func getServiceCert(licenseUrl string) (*widevinepb.DrmCertificate, error) {

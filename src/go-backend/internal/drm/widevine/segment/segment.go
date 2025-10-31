@@ -6,19 +6,18 @@ import (
 	"strings"
 
 	"github.com/Eyevinn/mp4ff/mp4"
-	"github.com/nem-git/abcmovies/internal/storage/cache/controller/widevine"
+	"github.com/nem-git/abcmovies/internal/config"
+	"github.com/nem-git/abcmovies/internal/storage/cache/connector"
+	"github.com/nem-git/abcmovies/internal/storage/cache/controller"
+	widevineController "github.com/nem-git/abcmovies/internal/storage/cache/controller/widevine"
+	widevineRepo "github.com/nem-git/abcmovies/internal/storage/cache/repository/widevine"
 )
 
-func Get(initByte []byte, segmentByte []byte, keys []string, id string, wantInit bool, controller *widevine.SegmentController) ([]byte, error) {
+func Get(initByte []byte, segmentByte []byte, keys []string, wantInit bool, dbID string) ([]byte, error) {
 
-	// Try to retrieve it in the db
-	if controller != nil {
-		segment, err := (*controller).ReadSingle(id)
-		if err != nil {
-			return nil, err
-		}
-
-		return []byte(segment), nil
+	segment, err := GetUsingDB(dbID)
+	if err == nil {
+		return segment, nil
 	}
 
 	initMP4, err := decodeByteSegment(initByte)
@@ -77,5 +76,48 @@ func Get(initByte []byte, segmentByte []byte, keys []string, id string, wantInit
 		}
 	}
 
-	return encodeByteSegment(segmentMP4)
+	encodedSegment, err := encodeByteSegment(segmentMP4)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := saveUsingDB(dbID, string(encodedSegment)); err != nil {
+		return nil, err
+	}
+
+	return encodedSegment, nil
+}
+
+func GetUsingDB(dbID string) ([]byte, error) {
+	controller := connectToDB()
+
+	segment, err := controller.ReadSingle(dbID)
+	if err != nil {
+		return nil, err
+	}
+
+	return []byte(segment), nil
+}
+
+func saveUsingDB(dbID string, content string) error {
+	controller := connectToDB()
+
+	if err := controller.Create(dbID, content); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func connectToDB() controller.CacheController {
+	conn := connector.NewRedisConnector(connector.ConnectionDetails{
+		Address:  config.TEMP_REDIS_ADDRESS,
+		User:     config.TEMP_REDIS_USER,
+		Password: config.TEMP_REDIS_PASSWORD,
+		DB:       config.TEMP_REDIS_DB,
+	})
+	repo := widevineRepo.NewSegmentRepository(conn)
+	controller := widevineController.NewSegmentController(repo)
+
+	return controller
 }

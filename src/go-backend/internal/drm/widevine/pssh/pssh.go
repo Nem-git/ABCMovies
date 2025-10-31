@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"log"
 	"strconv"
 	"strings"
 
@@ -15,38 +16,43 @@ import (
 	"github.com/zencoder/go-dash/mpd"
 
 	"github.com/nem-git/abcmovies/internal/config"
-	"github.com/nem-git/abcmovies/internal/storage/cache/controller/widevine"
+	"github.com/nem-git/abcmovies/internal/storage/cache/connector"
+	"github.com/nem-git/abcmovies/internal/storage/cache/controller"
+	widevineController "github.com/nem-git/abcmovies/internal/storage/cache/controller/widevine"
+	widevineRepo "github.com/nem-git/abcmovies/internal/storage/cache/repository/widevine"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func Get(url string, headers map[string]string, segHeaders map[string]string, controller *widevine.PSSHController) (string, error) {
+func Get(manifestURL string, licenseHeaders map[string]string, segHeaders map[string]string, dbID string) (string, error) {
 
-	// Try to retrieve it in the db
-	if controller != nil {
-		pssh, err := (*controller).ReadSingle(url)
-		if err != nil {
-			return "", err
-		}
-
+	pssh, err := GetUsingDB(dbID)
+	if err == nil {
 		return pssh, nil
 	}
 
 	// Send request to get Dash Manifest
-	body, err := utils.Get(url, nil, headers)
+	body, err := utils.Get(manifestURL, nil, licenseHeaders)
 	if err != nil {
 		return "", fmt.Errorf("couldn't retrieve body: %w", err)
 	}
 	defer body.Close()
 
-	pssh, err := psshWithManifest(body)
+	pssh, err = psshWithManifest(body)
 	if err == nil {
 		return pssh, nil
 	}
 
-	pssh, err = psshWithSegment(url, body, segHeaders)
+	pssh, err = psshWithSegment(manifestURL, body, segHeaders)
 	if err != nil {
 		return "", fmt.Errorf("couldn't retrieve pssh")
 	}
+
+	if err := saveUsingDB(dbID, pssh); err != nil {
+		return "", err
+	}
+
+	pssh, err = GetUsingDB(dbID)
+	log.Println(pssh, err)
 
 	return pssh, nil
 }
@@ -281,6 +287,40 @@ func psshContentProtection(node *xmlquery.Node) (string, error) {
 	}
 
 	return pssh, nil
+}
+
+func GetUsingDB(dbID string) (string, error) {
+	controller := connectToDB()
+
+	pssh, err := controller.ReadSingle(dbID)
+	if err != nil {
+		return "", err
+	}
+
+	return pssh, nil
+}
+
+func saveUsingDB(dbID string, value string) error {
+	controller := connectToDB()
+
+	if err := controller.Create(dbID, value); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func connectToDB() controller.CacheController {
+	conn := connector.NewRedisConnector(connector.ConnectionDetails{
+		Address:  config.TEMP_REDIS_ADDRESS,
+		User:     config.TEMP_REDIS_USER,
+		Password: config.TEMP_REDIS_PASSWORD,
+		DB:       config.TEMP_REDIS_DB,
+	})
+	repo := widevineRepo.NewPSSHRepository(conn)
+	controller := widevineController.NewPSSHController(repo)
+
+	return controller
 }
 
 type DashPlaceHolder struct {

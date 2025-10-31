@@ -17,7 +17,7 @@ type KeysRepository struct {
 // Puts an object in the db
 func (r *KeysRepository) Create(key string, value any) error {
 
-	if err := r.conn.Create(key); err != nil {
+	if err := r.conn.Create(key, value); err != nil {
 		return err
 	}
 

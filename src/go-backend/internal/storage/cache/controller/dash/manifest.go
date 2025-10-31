@@ -26,7 +26,6 @@ func (c *ManifestController) Create(key string, value any) error {
 func (c *ManifestController) ReadSingle(key string) (string, error) {
 
 	value, err := (*c.repo).ReadSingle(key)
-
 	if err != nil {
 		return "", err
 	}

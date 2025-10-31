@@ -2,18 +2,32 @@ package model
 
 // URL params
 type StreamRequest struct {
-	ServiceTag     string
-	ShowID         string
-	SeasonNumber   int
-	EpisodeNumber  int
-	StreamType     string
-	StreamFileName string
-	StreamURL      string
+	ServiceTag    string
+	ShowID        string
+	SeasonNumber  int
+	EpisodeNumber int
+	StreamType    string
 
-	// Dash
+	IsPlaylist bool
+	IsMedia    bool
 
-	StreamMediaType string
-	StreamID        string
+	Playlist StreamPlaylist
+	Media    StreamMedia
+}
+
+type StreamPlaylist struct {
+	FileName string
+}
+
+type StreamMedia struct {
+	URL string
+
+	Dash StreamDashMedia
+}
+
+type StreamDashMedia struct {
+	ID   string
+	Type string
 }
 
 // Stream Response

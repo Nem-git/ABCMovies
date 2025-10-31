@@ -9,11 +9,20 @@ import (
 	"github.com/zencoder/go-dash/mpd"
 
 	"github.com/nem-git/abcmovies/internal/config"
+	"github.com/nem-git/abcmovies/internal/storage/cache/connector"
+	dashController "github.com/nem-git/abcmovies/internal/storage/cache/controller/dash"
+	dashRepo "github.com/nem-git/abcmovies/internal/storage/cache/repository/dash"
 	"github.com/nem-git/abcmovies/internal/utils"
 )
 
-func Get(url string, content string) (string, error) {
-	content, err := modifyWithGoDash(url, content)
+func Get(url string, content string, dbID string) (string, error) {
+
+	man, err := GetUsingDB(dbID)
+	if err == nil {
+		return man, nil
+	}
+
+	content, err = modifyWithGoDash(url, content)
 	if err != nil {
 		return "", fmt.Errorf("couldn't modify dash manifest using go-dash: %w", err)
 	}
@@ -24,6 +33,10 @@ func Get(url string, content string) (string, error) {
 	}
 
 	content = modifyWithRegex(content)
+
+	if err := SaveUsingDB(dbID, content); err != nil {
+		return "", err
+	}
 
 	return content, nil
 }
@@ -156,4 +169,39 @@ func modifySegmentUrl(segmentUrl string, periodUrl string, prefix string, id ...
 	}
 
 	return formattedUrl, nil
+}
+
+func GetUsingDB(dbID string) (string, error) {
+	conn := connector.NewRedisConnector(connector.ConnectionDetails{
+		Address:  config.TEMP_REDIS_ADDRESS,
+		User:     config.TEMP_REDIS_USER,
+		Password: config.TEMP_REDIS_PASSWORD,
+		DB:       config.TEMP_REDIS_DB,
+	})
+	repo := dashRepo.NewManifestRepository(conn)
+	controller := dashController.NewManifestController(repo)
+
+	manifest, err := controller.ReadSingle(dbID)
+	if err != nil {
+		return "", err
+	}
+
+	return manifest, nil
+}
+
+func SaveUsingDB(dbID string, content string) error {
+	conn := connector.NewRedisConnector(connector.ConnectionDetails{
+		Address:  config.TEMP_REDIS_ADDRESS,
+		User:     config.TEMP_REDIS_USER,
+		Password: config.TEMP_REDIS_PASSWORD,
+		DB:       config.TEMP_REDIS_DB,
+	})
+	repo := dashRepo.NewManifestRepository(conn)
+	controller := dashController.NewManifestController(repo)
+
+	if err := controller.Create(dbID, content); err != nil {
+		return err
+	}
+
+	return nil
 }

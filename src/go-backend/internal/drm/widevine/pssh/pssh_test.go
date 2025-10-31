@@ -83,7 +83,7 @@ Characteristic: Functional
 */
 func TestPSSHNotFoundInDashStreamsWithoutDRM(t *testing.T) {
 	for _, url := range nominalManifests {
-		pssh, err := Get(url, nil, nil)
+		pssh, err := Get(url, nil, nil, "")
 
 		require.Error(t, err, "non drm dash manifests did not give an error while retrieving pssh")
 		require.Empty(t, pssh, "non drm dash manifests gave a pssh")
@@ -97,7 +97,7 @@ Characteristic: Functional
 */
 func TestPSSHFoundInDashStreamsWithDRM(t *testing.T) {
 	for _, url := range drmProtectedNominalManifests {
-		pssh, err := Get(url, nil, nil)
+		pssh, err := Get(url, nil, nil, "")
 
 		require.Nil(t, err, err)
 		require.NotEmpty(t, pssh, "drm dash manifests did not give a pssh")
@@ -111,7 +111,7 @@ Characteristic: Functional
 */
 func TestPSSHNotFoundInBrokenDashManifest(t *testing.T) {
 	for _, url := range breakingManifests {
-		pssh, err := Get(url, nil, nil)
+		pssh, err := Get(url, nil, nil, "")
 
 		require.Error(t, err, "broken dash manifests did not give an error while retrieving pssh")
 		require.Empty(t, pssh, "broken dash manifests gave a pssh")

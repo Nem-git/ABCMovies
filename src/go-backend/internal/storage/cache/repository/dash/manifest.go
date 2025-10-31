@@ -1,6 +1,8 @@
 package dash
 
-import "github.com/nem-git/abcmovies/internal/storage/cache/connector"
+import (
+	"github.com/nem-git/abcmovies/internal/storage/cache/connector"
+)
 
 func NewManifestRepository(conn connector.CacheConnector) *ManifestRepository {
 	c := new(ManifestRepository)
@@ -15,7 +17,7 @@ type ManifestRepository struct {
 // Puts an object in the db
 func (r *ManifestRepository) Create(key string, value any) error {
 
-	if err := r.conn.Create(key); err != nil {
+	if err := r.conn.Create(key, value); err != nil {
 		return err
 	}
 

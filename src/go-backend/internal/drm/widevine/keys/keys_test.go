@@ -79,7 +79,7 @@ Characteristic: Functional
 */
 func TestGetWidevineDecryptionKeys(t *testing.T) {
 	for _, d := range nominalData {
-		keys, err := Get(d.pssh, d.url, d.headers)
+		keys, err := Get(d.pssh, d.url, d.headers, "")
 
 		require.Nil(t, err, err)
 		require.NotEmpty(t, keys, "no widevine decryption keys generated")
@@ -94,7 +94,7 @@ Characteristic: Functional
 */
 func TestGetWidevineDecryptionKeysWithWrongInformations(t *testing.T) {
 	for _, d := range wrongData {
-		keys, err := Get(d.pssh, d.url, d.headers)
+		keys, err := Get(d.pssh, d.url, d.headers, "")
 
 		require.Error(t, err, "widevine decryption keys not returning error with bad data entry")
 		require.Nil(t, keys, "widevine decryption keys returning keys with bad data entry")
