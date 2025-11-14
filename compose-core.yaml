@@ -29,7 +29,7 @@ services:
   #     - TEMP_DIR=/tmp/
   #     - "PHP_BACKEND_URL=http://localhost:8080/api/" # External
   #     - "PYTHON_BACKEND_URL=http://python_backend:8000/" # Internal
-  #     - "GO_BACKEND_URL=http://host.docker.internal:8090/api/" # External # TODO: FIXME: Put Go in container host.docker.internal host.containers.internal
+  #     - "GO_BACKEND_URL=http://host.docker.internal:8090/api/" # External
   #   env_file:
   #     - .env
   #   networks:
