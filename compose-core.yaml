@@ -2,54 +2,63 @@ services:
   frontend:
     container_name: frontend
     ports:
-      - '8001:8001'
+      - "8002:8001"
     volumes: # Needed to fix issues with vite and optional dependencies in NPM
       - /srv/www/node_modules
       - /srv/www/.svelte-kit
     depends_on:
-      - backend
+      # - backend # backend
+      - go_backend
     networks:
       - nginx-adjacent
 
-  backend:
-    container_name: backend
-    ports:
-      - '9000:9000'
-    volumes: # Needed to fix issues with vite and optional dependencies in NPM
-      - /srv/www/vendor
-      - /srv/www/node_modules
-    depends_on:
-      - redis
-      - python_backend
-    environment:
-      - DB_HOST=redis # Internal
-      - DB_PORT=6379 # Internal
-      - DB_ID=0
-      - TEMP_DIR=/tmp/
-      - 'PHP_BACKEND_URL=http://localhost:8080/api/' # External
-      - 'PYTHON_BACKEND_URL=http://python_backend:8000/' # Internal
-      - 'GO_BACKEND_URL=http://host.containers.internal:8090/' # External # TODO: FIXME: Put Go in container
-    env_file:
-      - .env
-    networks:
-      - nginx-adjacent
-      - python-adjacent
-      - redis-adjacent
+  # backend:
+  #   container_name: backend # backend
+  #   ports:
+  #     - "9000:9000"
+  #   volumes: # Needed to fix issues with vite and optional dependencies in NPM
+  #     - /srv/www/vendor
+  #     - /srv/www/node_modules
+  #   depends_on:
+  #     - redis
+  #     - python_backend
+  #   environment:
+  #     - DB_HOST=redis # Internal
+  #     - DB_PORT=6379 # Internal
+  #     - DB_ID=0
+  #     - TEMP_DIR=/tmp/
+  #     - "PHP_BACKEND_URL=http://localhost:8080/api/" # External
+  #     - "PYTHON_BACKEND_URL=http://python_backend:8000/" # Internal
+  #     - "GO_BACKEND_URL=http://host.docker.internal:8090/api/" # External # TODO: FIXME: Put Go in container host.docker.internal host.containers.internal
+  #   env_file:
+  #     - .env
+  #   networks:
+  #     - nginx-adjacent
+  #     - python-adjacent
+  #     - redis-adjacent
 
   python_backend:
     container_name: python_backend
     ports:
-      - '8000:8000'
+      - "8008:8000"
     networks:
       - python-adjacent
 
+  go_backend:
+    container_name: go_backend
+    ports:
+      - "8090:8090"
+    networks:
+      - nginx-adjacent
+      - redis-adjacent
+
   redis:
     container_name: redis
-    image: 'redis:alpine'
+    image: "redis:alpine"
     ports:
-      - '6379:6379'
+      - "6380:6379" # 6379
     networks:
-      - redis-adjacent
+      - nginx-adjacent
 
   nginx:
     container_name: nginx
@@ -58,13 +67,12 @@ services:
       dockerfile: Dockerfile
       target: nginx-base
     ports:
-      - '8080:80'
+      - "8080:80"
     depends_on:
       - frontend
-      - backend
+      # - backend # backend
     networks:
-    - nginx-adjacent
-
+      - nginx-adjacent
 
 networks:
   nginx-adjacent:

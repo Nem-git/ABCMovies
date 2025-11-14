@@ -4,11 +4,16 @@ services:
       context: src/frontend
       dockerfile: Dockerfile
       target: frontend-prod
-  backend:
+  # backend:
+  #   build:
+  #     context: src/backend
+  #     dockerfile: Dockerfile
+  #     target: backend-prod
+  go_backend:
     build:
-      context: src/backend
+      context: src/go-backend
       dockerfile: Dockerfile
-      target: backend-prod
+      target: go-backend-prod
   python_backend:
     build:
       context: src/python-backend
