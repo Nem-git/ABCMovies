@@ -12,7 +12,7 @@ type EpisodeRequest struct {
 
 // Episode Response
 type Episode struct {
-	Streams            *[]EpisodeStream    `json:"streams"`
+	Streams            []EpisodeStream     `json:"streams"`
 	BackdropURL        string              `json:"backdropURL"`
 	Number             int                 `json:"number"`
 	Name               string              `json:"name"`

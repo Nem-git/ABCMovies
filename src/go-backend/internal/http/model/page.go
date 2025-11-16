@@ -1,5 +1,10 @@
 package model
 
+// Page Request
+type PageRequest struct {
+	PageID string
+}
+
 // Page Response
 type Page struct {
 	BackdropURL string     `json:"backdropURL"`

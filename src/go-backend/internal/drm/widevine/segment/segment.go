@@ -13,6 +13,7 @@ import (
 	widevineRepo "github.com/nem-git/abcmovies/internal/storage/cache/repository/widevine"
 )
 
+// TODO: Fix the decryption
 func Get(initByte []byte, segmentByte []byte, keys []string, wantInit bool, dbID string) ([]byte, error) {
 
 	if wantInit {

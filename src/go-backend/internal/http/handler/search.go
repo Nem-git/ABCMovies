@@ -23,7 +23,9 @@ type SearchHandler struct {
 
 func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	response := model.Search{}
+	response := model.Search{
+		Query: h.Request.Query,
+	}
 
 	for _, p := range h.Plugins {
 
@@ -80,7 +82,9 @@ type ServiceSearchHandler struct {
 
 func (h *ServiceSearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	response := model.Search{}
+	response := model.Search{
+		Query: h.Request.Query,
+	}
 
 	for _, p := range h.Plugins {
 
