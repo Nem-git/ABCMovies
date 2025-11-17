@@ -7,10 +7,8 @@
     console.log(data);
 </script>
 
-<div class="flex flex-col items-center">
-    <SearchBar search={data.search} />
+<SearchBar search={data.search} />
 
-    <div
-        class="grid grid-cols-[repeat(auto-fill,minmax(325px,1fr))] items-center gap-x-4 gap-y-10 p-[5%]"
-    ></div>
-</div>
+<div
+    class="grid grid-cols-[repeat(auto-fill,minmax(325px,1fr))] items-center gap-x-4 gap-y-10 p-[5%]"
+></div>

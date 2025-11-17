@@ -36,7 +36,7 @@
         } else {
             goto(
                 resolve("/search/[query]", {
-                    query: query,
+                    query: encodeURI(query),
                 }),
                 {
                     keepFocus: true,
@@ -48,7 +48,7 @@
 </script>
 
 <button
-    class="align-center flex w-full max-w-200 grow cursor-text content-center rounded-xl border-2 border-purple-950 bg-neutral-800 p-3 focus-within:border-purple-700"
+    class="align-center flex w-full max-w-200 grow cursor-text content-center rounded-xl border-2 border-neutral-800 bg-neutral-900 p-3 focus-within:border-neutral-600"
     aria-label="searchbar"
     onclick={focus}
 >
