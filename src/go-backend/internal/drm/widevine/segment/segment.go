@@ -1,8 +1,10 @@
 package segment
 
 import (
+	"bytes"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/Eyevinn/mp4ff/mp4"
@@ -14,36 +16,47 @@ import (
 )
 
 // TODO: Fix the decryption
-func Get(initByte []byte, segmentByte []byte, keys []string, wantInit bool, dbID string) ([]byte, error) {
+func Get(initByte []byte, segmentByte []byte, strKeys []string, wantInit bool, dbID string) ([]byte, error) {
 
+	// Return decrypted init
 	if wantInit {
-		segment, err := GetUsingDB(dbID)
+		initByte, err := GetUsingDB(dbID)
+
 		if err == nil {
-			return segment, nil
+			initMP4, err := decodeByteSegment(initByte)
+			if err != nil {
+				return nil, err
+			}
+
+			_, err = mp4.DecryptInit(initMP4.Init)
+			if err != nil {
+				return nil, fmt.Errorf("couldn't clean init: %w", err)
+			}
+
+			return encodeByteInit(initMP4.Init)
 		}
 	}
 
 	initMP4, err := decodeByteSegment(initByte)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("couldn't decode init: %w", err)
 	}
 
 	segmentMP4, err := decodeByteSegment(segmentByte)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("couldn't decode segment: %w", err)
 	}
 
 	init, err := getInit(initMP4, segmentMP4)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("couldn't extract init: %w", err)
 	}
 
-	// TODO: FIXME: Check if that makes sense
-	// if !segmentMP4.IsFragmented() {
-	// 	return nil, fmt.Errorf("file not fragmented")
-	// }
-
-	encryptedInit := *init
+	// Deep copy
+	encryptedInit, err := copyInit(init)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't copy init: %w", err)
+	}
 
 	decryptInfo, err := mp4.DecryptInit(init)
 	if err != nil {
@@ -52,45 +65,81 @@ func Get(initByte []byte, segmentByte []byte, keys []string, wantInit bool, dbID
 
 	// Return decrypted init
 	if wantInit {
-		encodedInit, err := encodeBase64Init(&encryptedInit)
+		encodedEncryptedInit, err := encodeBase64Init(encryptedInit)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("couldn't base64 encode init: %w", err)
 		}
 
-		if err := SaveUsingDB(dbID, encodedInit); err != nil {
-			return nil, err
+		if err := SaveUsingDB(dbID, encodedEncryptedInit); err != nil {
+			return nil, fmt.Errorf("couldn't save base64 encode init: %w", err)
 		}
+
+		t, _ := encodeByteInit(encryptedInit)
+		os.WriteFile("encrypted_init.mp4", t, 0644)
+
+		t, _ = encodeByteInit(init)
+		os.WriteFile("decrypted_init.mp4", t, 0644)
 
 		return encodeByteInit(init)
 	}
 
-	// segmentMP4.Init = init
+	segmentMP4.Init = encryptedInit
 
-	// Decrypt segment
-	for _, k := range keys {
+	t, _ := encodeByteSegment(segmentMP4)
+	log.Println(segmentMP4.Size())
 
+	os.WriteFile("encrypted_segment.mp4", t, 0644)
+
+	w := new(bytes.Buffer)
+
+	if err = init.Encode(w); err != nil {
+		return nil, fmt.Errorf("couldn't encode init: %w", err)
+	}
+
+	for _, k := range strKeys {
 		split := strings.Split(k, ":")
-		if len(split) < 2 {
+		if len(split) != 2 {
 			log.Println("couldn't split key:", k)
 			continue
 		}
+
 		k = split[0]
 
-		key, err := mp4.UnpackKey(k)
+		keyByte, err := mp4.UnpackKey(k)
 		if err != nil {
-			log.Println("couldn't unpack key")
+			log.Println("couldn't unpack key:", k)
 			continue
 		}
 
-		for _, segment := range segmentMP4.Segments {
-			if err := mp4.DecryptSegment(segment, decryptInfo, key); err != nil {
-				log.Println("couldn't decrypt segment")
-				continue
+		// widevine.DecryptMP4Auto()
+
+		// Decode segments
+		for _, seg := range segmentMP4.Segments {
+			if err = mp4.DecryptSegment(seg, decryptInfo, keyByte); err != nil {
+				if err.Error() == "no senc box in traf" {
+					// No SENC box, skip decryption for this segment as samples can have
+					// unencrypted segments followed by encrypted segments. See:
+					// https://github.com/iyear/gowidevine/pull/26#issuecomment-2385960551
+					err = nil
+				} else {
+					log.Println("couldn't decrypt segment")
+					return nil, err
+				}
 			}
 		}
 	}
 
-	return encodeByteSegment(segmentMP4)
+	for _, seg := range segmentMP4.Segments {
+		if err = seg.Encode(w); err != nil {
+			return nil, fmt.Errorf("couldn't encode segment: %w", err)
+		}
+		log.Println()
+	}
+
+	os.WriteFile("decrypted_segment.mp4", w.Bytes(), 0644)
+
+	// Return decrypted segment
+	return w.Bytes(), nil
 }
 
 func GetUsingDB(dbID string) ([]byte, error) {

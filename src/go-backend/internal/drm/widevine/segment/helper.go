@@ -103,3 +103,17 @@ func encodeBase64Segment(segment *mp4.File) (string, error) {
 
 	return base64.StdEncoding.EncodeToString(segmentByte), nil
 }
+
+func copyInit(init *mp4.InitSegment) (*mp4.InitSegment, error) {
+	b, err := encodeByteInit(init)
+	if err != nil {
+		return nil, err
+	}
+
+	seg, err := decodeByteSegment(b)
+	if err != nil {
+		return nil, err
+	}
+
+	return seg.Init, nil
+}

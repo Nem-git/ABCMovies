@@ -6,9 +6,6 @@ services:
     volumes: # Needed to fix issues with vite and optional dependencies in NPM
       - /srv/www/node_modules
       - /srv/www/.svelte-kit
-    depends_on:
-      # - backend # backend
-      - go_backend
     networks:
       - nginx-adjacent
 
@@ -44,13 +41,13 @@ services:
     networks:
       - python-adjacent
 
-  go_backend:
-    container_name: go_backend
-    ports:
-      - "8090:8090"
-    networks:
-      - nginx-adjacent
-      - redis-adjacent
+  # go_backend:
+  #   container_name: go_backend
+  #   ports:
+  #     - "8090:8090"
+  #   networks:
+  #     - nginx-adjacent
+  #     - redis-adjacent
 
   redis:
     container_name: redis

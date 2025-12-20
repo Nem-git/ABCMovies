@@ -9,11 +9,11 @@ services:
   #     context: src/backend
   #     dockerfile: Dockerfile
   #     target: backend-prod
-  go_backend:
-    build:
-      context: src/go-backend
-      dockerfile: Dockerfile
-      target: go-backend-prod
+  # go_backend:
+  #   build:
+  #     context: src/go-backend
+  #     dockerfile: Dockerfile
+  #     target: go-backend-prod
   python_backend:
     build:
       context: src/python-backend

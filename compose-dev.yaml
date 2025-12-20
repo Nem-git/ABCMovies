@@ -17,15 +17,15 @@ services:
   #     - type: bind
   #       source: ./src/backend
   #       target: /srv/www
-  go_backend:
-    build:
-      context: src/go-backend
-      dockerfile: Dockerfile
-      target: go-backend-dev
-    # volumes:
-    #   - type: bind
-    #     source: ./src/go-backend
-    #     target: /srv/www
+  # go_backend:
+  #   build:
+  #     context: src/go-backend
+  #     dockerfile: Dockerfile
+  #     target: go-backend-dev
+  # volumes:
+  #   - type: bind
+  #     source: ./src/go-backend
+  #     target: /srv/www
   python_backend:
     build:
       context: src/python-backend

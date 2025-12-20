@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/nem-git/abcmovies/internal/config"
-	"github.com/nem-git/abcmovies/internal/drm/widevine/segment"
 	"github.com/nem-git/abcmovies/internal/errs"
 	"github.com/nem-git/abcmovies/internal/http/api"
 	"github.com/nem-git/abcmovies/internal/http/model"
@@ -50,13 +49,13 @@ func (h *StreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		if h.Request.Media.Dash.Type == config.DASH_INIT_URL_PREFIX {
-			init, err := segment.GetUsingDB(h.Request.Media.Dash.ID)
-			if err == nil {
-				utils.ByteResponse(w, init, config.DASH_CONTENT_TYPE)
-				return
-			}
-		}
+		// if h.Request.Media.Dash.Type == config.DASH_INIT_URL_PREFIX {
+		// 	init, err := segment.GetUsingDB(h.Request.Media.Dash.ID)
+		// 	if err == nil {
+		// 		utils.ByteResponse(w, init, config.DASH_CONTENT_TYPE)
+		// 		return
+		// 	}
+		// }
 	}
 
 	response := model.Stream{}

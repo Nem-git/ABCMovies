@@ -7,6 +7,7 @@ import (
 
 	"github.com/nem-git/abcmovies/internal/errs"
 	"github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9/maintnotifications"
 )
 
 func NewRedisConnector(details ConnectionDetails) *RedisConnector {
@@ -24,6 +25,10 @@ func NewRedisConnector(details ConnectionDetails) *RedisConnector {
 		Username: details.User,
 		Password: details.Password,
 		DB:       db,
+
+		MaintNotificationsConfig: &maintnotifications.Config{
+			Mode: maintnotifications.ModeDisabled,
+		},
 	})
 
 	// r := c.conn.Ping(c.context)
