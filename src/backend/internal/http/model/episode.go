@@ -55,16 +55,16 @@ type EpisodeVideoTrack struct {
 }
 
 type EpisodeAudioTrack struct {
-	Code         string `json:"code"`
-	Name         string `json:"name"`
-	OriginalName string `json:"originalName"`
+	Type     string `json:"type"`
+	Name     string `json:"name"`
+	Language string `json:"language"`
 }
 
 type EpisodeTextTrack struct {
 	Type     string `json:"type"`
 	Name     string `json:"name"`
 	Language string `json:"language"`
-	TrackURL string `json:"trackURL"`
+	URL      string `json:"url"`
 }
 
 type EpisodeCuePoint struct {

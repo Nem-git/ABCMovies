@@ -8,30 +8,12 @@ services:
       - type: bind
         source: ./src/frontend
         target: /srv/www
-  # backend: # backend
-  #   build:
-  #     context: src/backend
-  #     dockerfile: Dockerfile
-  #     target: backend-dev
-  #   volumes:
-  #     - type: bind
-  #       source: ./src/backend
-  #       target: /srv/www
-  # go_backend:
-  #   build:
-  #     context: src/go-backend
-  #     dockerfile: Dockerfile
-  #     target: go-backend-dev
-  # volumes:
-  #   - type: bind
-  #     source: ./src/go-backend
-  #     target: /srv/www
-  python_backend:
+  backend:
     build:
-      context: src/python-backend
+      context: src/backend
       dockerfile: Dockerfile
-      target: python-backend-dev
-    volumes:
-      - type: bind
-        source: ./src/python-backend
-        target: /srv/www
+      target: go-backend-dev
+  volumes:
+    - type: bind
+      source: ./src/backend
+      target: /srv/www

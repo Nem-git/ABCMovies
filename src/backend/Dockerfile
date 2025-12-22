@@ -1,38 +1,30 @@
-
-################# COMPOSER #################
-
-FROM composer AS composer-base
+FROM golang:1.25-alpine AS base
 
 WORKDIR /srv/www
 
-################# PHP BASE #################
+RUN apk add --no-cache make
+RUN apk add g++
 
-FROM php:fpm-alpine AS backend-base
+COPY go.mod go.sum ./
 
-WORKDIR /srv/www
+RUN go mod download
 
-RUN apk --no-cache add bento4
-COPY --from=composer-base /usr/bin/composer /usr/bin/composer
+COPY Makefile ./
+COPY bin/ ./bin
+COPY cmd/ ./cmd
+COPY internal/ ./internal
+COPY plugins/ ./plugins
 
-COPY ./core.ini /usr/local/etc/php
-COPY ./dev.ini /usr/local/etc/php
+RUN make
 
-COPY ./composer.* ./
+FROM alpine:latest AS go-backend-dev
 
-EXPOSE 9000
+COPY --from=base /srv/www/build ./build
 
-################# PHP DEV #################
+CMD [ "./build/abcmovies.out" ]
 
-FROM backend-base AS backend-dev
+FROM alpine:latest AS go-backend-prod
 
-RUN composer install --no-interaction
+COPY --from=base /srv/www/build ./build
 
-COPY ./ ./
-
-################# PHP PROD #################
-
-FROM backend-base AS backend-prod
-
-RUN composer install --no-dev --no-interaction
-
-COPY ./ ./
+CMD [ "./build/abcmovies.out" ]

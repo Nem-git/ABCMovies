@@ -1,5 +1,0 @@
-fastapi
-mpd-parser
-pywidevine
-uvicorn
-yt-dlp
