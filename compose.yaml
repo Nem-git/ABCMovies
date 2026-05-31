@@ -1,0 +1,44 @@
+name: abcmovies
+
+services:
+  dev:
+    build:
+      target: dev
+    container_name: dev
+    env_file:
+      - src/config/.env
+    ports:
+      - '80:80'
+    # Sync modified files to rebuild app
+    develop:
+      watch:
+        - action: sync
+          path: .
+          target: /usr/src/app
+        # Rebuild container if air or conf files changed
+        - action: rebuild
+          path: go.mod
+        - action: rebuild
+          path: go.sum
+        - action: rebuild
+          path: src/config/.air.conf
+    profiles: [ dev ]
+
+  prod:
+    build:
+      target: prod
+    container_name: prod
+    env_file:
+      - src/config/.env
+    ports:
+      - '80:80'
+    restart: unless-stopped
+    profiles: [ prod ]
+
+  testing:
+    build:
+      target: testing
+    container_name: testing
+    env_file:
+      - src/config/.env
+    profiles: [ testing ]

@@ -1,0 +1,40 @@
+# Working directory
+# . or absolute path, please note that the directories following must be under root.
+root = "."
+tmp_dir = "tmp"
+
+# Remove to not load any files whatsoever
+# Non-existing files are safely ignored
+# env_files = [".env"]
+
+[build]
+# Just plain old shell command. You could use `make` as well.
+cmd = "go build -v -o ./tmp/app ./cmd"
+# Entrypoint binary relative to root. First item is the executable, more items are default arguments.
+entrypoint = ["./tmp/app"]
+# Customize binary, can setup environment variables when run your app.
+full_bin = "./tmp/app"
+# Watch these filename extensions. Use ["*"] to watch all file extensions.
+include_ext = ["go", "tpl", "tmpl", "html"]
+# Ignore these filename extensions or directories.
+exclude_dir = ["assets", "tmp", "vendor"]
+# Exclude specific regular expressions.
+exclude_regex = ["_test\\.go"]
+# It's not necessary to trigger build each time file changes if it's too frequent.
+delay = 1000 # ms
+# Send Interrupt signal before killing process (ignored on Windows; uses TASKKILL)
+send_interrupt = true
+
+[log]
+# Show log time
+time = false
+
+[misc]
+# Delete tmp directory on exit
+clean_on_exit = true
+# Startup banner text. Set to "" to hide the banner.
+# startup_banner = ""
+
+[screen]
+clear_on_rebuild = true
+keep_scroll = true
