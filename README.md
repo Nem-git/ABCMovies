@@ -1,5 +1,5 @@
 # 🎬 ABCMovies
-A web app for exploring movies, built using **Svelte**, **Slim (PHP)**, and **Python**. This is my first full-stack project combining these technologies.
+One streaming service to rule them all.
 
 ---
 
@@ -19,7 +19,6 @@ git clone https://github.com/Nem-git/ABCMovies.git
 cd ABCMovies/
 ```
 
-
 ## ⚙️ Environment Configuration
 
 Some files contain environment-specific paths or credentials that you'll need to modify.
@@ -28,17 +27,11 @@ Some files contain environment-specific paths or credentials that you'll need to
 
 - **Docker**
   - `.env`
-```TOUTV_EMAIL=
+```
+TOUTV_EMAIL=
 TOUTV_PASSWORD=
 DB_PW=
 ```
-- **PHP**
-  - `src/backend/src/Config/Constants.php`
-- **Python**
-  - `src/python-backend/config/constants.py`
-- **Frontend**
-  - `src/frontend/src/lib/constants.ts`
-
 
 ## Prepare the `.wvd` file (required for specific DRM-related tasks):
 
@@ -56,6 +49,6 @@ cp {path to the wvd you retrieved} config/devices/device.wvd
 
 ## 🚀 All Set!
 
-Your app is now configured and ready to go. Launch the frontend, ensure the backends are running, and enjoy exploring ABCMovies! 🎉
+Your app is now configured and ready to go. Launch the web app and enjoy exploring ABCMovies! 🎉
 
 Feel free to contribute, open issues, or suggest features!
