@@ -1,4 +1,4 @@
-openapi: 3.1.0
+openapi: 3.2.0
 
 info:
   title: ABCMovies
@@ -26,9 +26,9 @@ tags:
   - name: services
     description: Streaming service metadata
   - name: movies
-    description: Movie resources — self-contained films with no seasons
+    description: Movie resources - self-contained films with no seasons
   - name: series
-    description: TV series resources — multi-episode, multi-season content
+    description: TV series resources - multi-episode, multi-season content
   - name: seasons
     description: Seasons within a TV series
   - name: episodes
@@ -42,12 +42,12 @@ tags:
 
 paths:
 
-  # ─── System ───────────────────────────────────────────────────────────────
+  # --- System ---------------------------------------------------------------
 
   /health:
     get:
       tags:
-        - system
+        - System
       summary: Health check
       description: Returns the current operational status of the API.
       operationId: getHealth
@@ -58,13 +58,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Health'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  # ─── Services ─────────────────────────────────────────────────────────────
+  # --- Services -------------------------------------------------------------
 
   /services:
     get:
       tags:
-        - services
+        - Services
       summary: List all streaming services
       description: Retrieve all streaming services offered by the API.
       operationId: getServices
@@ -90,7 +96,7 @@ paths:
       - $ref: '#/components/parameters/ServiceTag'
     get:
       tags:
-        - services
+        - Services
       summary: Get a streaming service by tag
       description: Retrieve metadata for a specific streaming service.
       operationId: getServiceByTag
@@ -114,14 +120,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  # ─── Movies ───────────────────────────────────────────────────────────────
+  # --- Movies ---------------------------------------------------------------
+
 
   /services/{serviceTag}/movies:
     parameters:
       - $ref: '#/components/parameters/ServiceTag'
     get:
       tags:
-        - movies
+        - Movies
       summary: List movies on a service
       description: Retrieve all movies available on the given streaming service.
       operationId: getMovies
@@ -160,7 +167,7 @@ paths:
       - $ref: '#/components/parameters/MovieId'
     get:
       tags:
-        - movies
+        - Movies
       summary: Get a movie
       description: Retrieve a specific movie by its identifier on the streaming service.
       operationId: getMovieById
@@ -190,7 +197,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  # ── Movie Streams ─────────────────────────────────────────────────────────
+  # --- Movie Streams --------------------------------------------------------
+
 
   /services/{serviceTag}/movies/{movieId}/streams:
     parameters:
@@ -198,8 +206,8 @@ paths:
       - $ref: '#/components/parameters/MovieId'
     get:
       tags:
-        - movies
-        - streams
+        - Movies
+        - Streams
       summary: List streams for a movie
       description: |
         Retrieve all available video stream manifests (DASH, HLS, etc.)
@@ -242,8 +250,8 @@ paths:
       - $ref: '#/components/parameters/StreamFile'
     get:
       tags:
-        - movies
-        - streams
+        - Movies
+        - Streams
       summary: Get a stream manifest file
       description: |
         Returns the raw stream manifest or playlist binary content.
@@ -287,7 +295,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  # ── Movie Subtitles ───────────────────────────────────────────────────────
+  # -- Movie Subtitles -------------------------------------------------------
 
   /services/{serviceTag}/movies/{movieId}/subtitles:
     parameters:
@@ -295,8 +303,8 @@ paths:
       - $ref: '#/components/parameters/MovieId'
     get:
       tags:
-        - movies
-        - subtitles
+        - Movies
+        - Subtitles
       summary: List external subtitles for a movie
       description: |
         Retrieve all external subtitle files available for a movie.
@@ -339,8 +347,8 @@ paths:
       - $ref: '#/components/parameters/SubtitleFile'
     get:
       tags:
-        - movies
-        - subtitles
+        - Movies
+        - Subtitles
       summary: Get a subtitle file
       description: |
         Returns the raw subtitle file content.
@@ -386,7 +394,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  # ── Movie Images ─────────────────────────────────────────────────────────
+  # -- Movie Images ---------------------------------------------------------
 
   /services/{serviceTag}/movies/{movieId}/poster.png:
     parameters:
@@ -394,7 +402,7 @@ paths:
       - $ref: '#/components/parameters/MovieId'
     get:
       tags:
-        - movies
+        - Movies
       summary: Get movie poster
       description: Returns the movie poster image in PNG format.
       operationId: getMoviePoster
@@ -412,6 +420,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /services/{serviceTag}/movies/{movieId}/backdrop.png:
     parameters:
@@ -419,7 +433,7 @@ paths:
       - $ref: '#/components/parameters/MovieId'
     get:
       tags:
-        - movies
+        - Movies
       summary: Get movie backdrop
       description: Returns the movie backdrop image in PNG format.
       operationId: getMovieBackdrop
@@ -437,15 +451,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+                
 
-  # ─── Series ───────────────────────────────────────────────────────────────
+  # --- Series ---------------------------------------------------------------
 
   /services/{serviceTag}/series:
     parameters:
       - $ref: '#/components/parameters/ServiceTag'
     get:
       tags:
-        - series
+        - Series
       summary: List TV series on a service
       description: Retrieve all TV series available on the given streaming service.
       operationId: getSeries
@@ -484,7 +505,7 @@ paths:
       - $ref: '#/components/parameters/SeriesId'
     get:
       tags:
-        - series
+        - Series
       summary: Get a TV series
       description: Retrieve a specific TV series by its identifier on the streaming service.
       operationId: getSeriesById
@@ -514,7 +535,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  # ─── Series Images ─────────────────────────────────────────────────────────
+  # --- Series Images ---------------------------------------------------------
 
   /services/{serviceTag}/series/{seriesId}/poster.png:
     parameters:
@@ -522,7 +543,7 @@ paths:
       - $ref: '#/components/parameters/SeriesId'
     get:
       tags:
-        - series
+        - Series
       summary: Get series poster
       description: Returns the series poster image in PNG format.
       operationId: getSeriesPoster
@@ -540,6 +561,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /services/{serviceTag}/series/{seriesId}/backdrop.png:
     parameters:
@@ -547,7 +574,7 @@ paths:
       - $ref: '#/components/parameters/SeriesId'
     get:
       tags:
-        - series
+        - Series
       summary: Get series backdrop
       description: Returns the series backdrop image in PNG format.
       operationId: getSeriesBackdrop
@@ -565,8 +592,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  # ─── Seasons ──────────────────────────────────────────────────────────────
+  # --- Seasons --------------------------------------------------------------
 
   /services/{serviceTag}/series/{seriesId}/seasons:
     parameters:
@@ -574,7 +607,7 @@ paths:
       - $ref: '#/components/parameters/SeriesId'
     get:
       tags:
-        - seasons
+        - Seasons
       summary: List seasons for a series
       description: Retrieve all seasons for a given TV series.
       operationId: getSeasons
@@ -614,7 +647,7 @@ paths:
       - $ref: '#/components/parameters/SeasonId'
     get:
       tags:
-        - seasons
+        - Seasons
       summary: Get a season
       description: Retrieve a specific season by its identifier.
       operationId: getSeasonById
@@ -644,7 +677,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  # ─── Season Images ─────────────────────────────────────────────────────────
+  # --- Season Images ---------------------------------------------------------
 
   /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster.png:
     parameters:
@@ -653,7 +686,7 @@ paths:
       - $ref: '#/components/parameters/SeasonId'
     get:
       tags:
-        - seasons
+        - Seasons
       summary: Get season poster
       description: Returns the season poster image in PNG format.
       operationId: getSeasonPoster
@@ -670,6 +703,12 @@ paths:
           content:
             application/json:
               schema:
+                $ref: '#/components/schemas/Error' 
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
                 $ref: '#/components/schemas/Error'
 
   /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop.png:
@@ -679,7 +718,7 @@ paths:
       - $ref: '#/components/parameters/SeasonId'
     get:
       tags:
-        - seasons
+        - Seasons
       summary: Get season backdrop
       description: Returns the season backdrop image in PNG format.
       operationId: getSeasonBackdrop
@@ -697,8 +736,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  # ─── Episodes ─────────────────────────────────────────────────────────────
+  # --- Episodes -------------------------------------------------------------
 
   /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes:
     parameters:
@@ -707,7 +752,7 @@ paths:
       - $ref: '#/components/parameters/SeasonId'
     get:
       tags:
-        - episodes
+        - Episodes
       summary: List episodes in a season
       description: Retrieve all episodes for a given season.
       operationId: getEpisodes
@@ -748,7 +793,7 @@ paths:
       - $ref: '#/components/parameters/EpisodeId'
     get:
       tags:
-        - episodes
+        - Episodes
       summary: Get an episode
       description: Retrieve a specific episode by its identifier.
       operationId: getEpisodeById
@@ -778,7 +823,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  # ── Episode Images ────────────────────────────────────────────────────────
+  # -- Episode Images --------------------------------------------------------
 
   /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail.png:
     parameters:
@@ -788,7 +833,7 @@ paths:
       - $ref: '#/components/parameters/EpisodeId'
     get:
       tags:
-        - episodes
+        - Episodes
       summary: Get episode thumbnail
       description: Returns the episode thumbnail image in PNG format.
       operationId: getEpisodeThumbnail
@@ -806,8 +851,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  # ── Episode Streams ───────────────────────────────────────────────────────
+  # -- Episode Streams -------------------------------------------------------
 
   /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams:
     parameters:
@@ -817,8 +868,8 @@ paths:
       - $ref: '#/components/parameters/EpisodeId'
     get:
       tags:
-        - episodes
-        - streams
+        - Episodes
+        - Streams
       summary: List streams for an episode
       description: |
         Retrieve all available video stream manifests for an episode.
@@ -863,8 +914,8 @@ paths:
       - $ref: '#/components/parameters/StreamFile'
     get:
       tags:
-        - episodes
-        - streams
+        - Episodes
+        - Streams
       summary: Get a stream manifest file for an episode
       description: |
         Returns the raw stream manifest or playlist binary content.
@@ -907,7 +958,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  # ── Episode Subtitles ─────────────────────────────────────────────────────
+  # -- Episode Subtitles -----------------------------------------------------
 
   /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/subtitles:
     parameters:
@@ -917,8 +968,8 @@ paths:
       - $ref: '#/components/parameters/EpisodeId'
     get:
       tags:
-        - episodes
-        - subtitles
+        - Episodes
+        - Subtitles
       summary: List external subtitles for an episode
       description: |
         Retrieve all external subtitle files available for an episode.
@@ -963,8 +1014,8 @@ paths:
       - $ref: '#/components/parameters/SubtitleFile'
     get:
       tags:
-        - episodes
-        - subtitles
+        - Episodes
+        - Subtitles
       summary: Get a subtitle file for an episode
       description: |
         Returns the raw subtitle file content.
@@ -1009,16 +1060,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  # ─── Global Search ────────────────────────────────────────────────────────
+  # --- Global Search --------------------------------------------------------
 
   /search:
     get:
       tags:
-        - search
+        - Search
       summary: Global search
       description: |
         Search across services, movies, and TV series by title or name.
-        This is a lightweight, title-level search — it does not search
+        This is a lightweight, title-level search - it does not search
         episode or season body content. Use the per-collection endpoints
         for deeper queries.
       operationId: globalSearch
@@ -1047,12 +1098,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-# ─── Components ─────────────────────────────────────────────────────────────
+# --- Components -------------------------------------------------------------
 
 components:
   parameters:
 
-    # ── Path ────────────────────────────────────────────────────────────────
+    # -- Path ----------------------------------------------------------------
 
     ServiceTag:
       name: serviceTag
@@ -1149,11 +1200,11 @@ components:
       description: |
         The subtitle filename, following the
         `{language}[-{kind}].{format}` convention:
-          - `en.vtt` — English, default
-          - `en-sdh.vtt` — English, hearing impaired
-          - `en-cc.vtt` — English, closed captions
-          - `fr.vtt` — French, default
-          - `ja.ttml` — Japanese, TTML format
+          - `en.vtt` - English, default
+          - `en-sdh.vtt` - English, hearing impaired
+          - `en-cc.vtt` - English, closed captions
+          - `fr.vtt` - French, default
+          - `ja.ttml` - Japanese, TTML format
       required: true
       schema:
         type: string
@@ -1171,7 +1222,7 @@ components:
           value: fr.vtt
           summary: French, default
 
-    # ── Query ───────────────────────────────────────────────────────────────
+    # -- Query ---------------------------------------------------------------
 
     Limit:
       name: limit
@@ -1228,12 +1279,13 @@ components:
 
   schemas:
 
-    # ── System ──────────────────────────────────────────────────────────────
+    # -- System --------------------------------------------------------------
 
     Health:
       type: object
       description: |
         Represents the current operational status of the API.
+      additionalProperties: false
       properties:
         status:
           type: string
@@ -1253,11 +1305,12 @@ components:
       required:
         - status
 
-    # ── Error ───────────────────────────────────────────────────────────────
+    # -- Error ---------------------------------------------------------------
 
     Error:
       type: object
       description: An error response.
+      additionalProperties: false
       properties:
         code:
           type: string
@@ -1273,11 +1326,12 @@ components:
         - code
         - message
 
-    # ── Pagination ──────────────────────────────────────────────────────────
+    # -- Pagination ----------------------------------------------------------
 
     Page_Service:
       type: object
       description: Paginated list of streaming services.
+      additionalProperties: false
       properties:
         items:
           type: array
@@ -1304,6 +1358,7 @@ components:
     Page_Movie:
       type: object
       description: Paginated list of movies.
+      additionalProperties: false
       properties:
         items:
           type: array
@@ -1327,6 +1382,7 @@ components:
     Page_Series:
       type: object
       description: Paginated list of TV series.
+      additionalProperties: false
       properties:
         items:
           type: array
@@ -1350,6 +1406,7 @@ components:
     Page_Season:
       type: object
       description: Paginated list of seasons.
+      additionalProperties: false
       properties:
         items:
           type: array
@@ -1373,6 +1430,7 @@ components:
     Page_Episode:
       type: object
       description: Paginated list of episodes.
+      additionalProperties: false
       properties:
         items:
           type: array
@@ -1396,6 +1454,7 @@ components:
     Page_Stream:
       type: object
       description: Paginated list of video stream manifests.
+      additionalProperties: false
       properties:
         items:
           type: array
@@ -1419,6 +1478,7 @@ components:
     Page_Subtitle:
       type: object
       description: Paginated list of external subtitle files.
+      additionalProperties: false
       properties:
         items:
           type: array
@@ -1442,6 +1502,7 @@ components:
     Page_SearchResult:
       type: object
       description: Paginated list of search results.
+      additionalProperties: false
       properties:
         items:
           type: array
@@ -1462,13 +1523,14 @@ components:
         - limit
         - offset
 
-    # ── Domain ──────────────────────────────────────────────────────────────
+    # -- Domain --------------------------------------------------------------
 
     Service:
       type: object
       description: |
         A streaming service platform (e.g. Netflix, Crave, Disney+).
         Maps to schema.org [Service](https://schema.org/Service).
+      additionalProperties: false
       properties:
         '@type':
           type: string
@@ -1526,6 +1588,7 @@ components:
       description: |
         A self-contained film with no seasonal divisions.
         Maps to schema.org [Movie](https://schema.org/Movie).
+      additionalProperties: false
       properties:
         '@type':
           type: string
@@ -1611,6 +1674,7 @@ components:
       description: |
         A TV series containing one or more seasons and episodes.
         Maps to schema.org [TVSeries](https://schema.org/TVSeries).
+      additionalProperties: false
       properties:
         '@type':
           type: string
@@ -1693,6 +1757,7 @@ components:
       description: |
         A single season within a TV series.
         Maps to schema.org [TVSeason](https://schema.org/TVSeason).
+      additionalProperties: false
       properties:
         '@type':
           type: string
@@ -1767,6 +1832,7 @@ components:
       description: |
         A single episode within a TV series season.
         Maps to schema.org [TVEpisode](https://schema.org/TVEpisode).
+      additionalProperties: false
       properties:
         '@type':
           type: string
@@ -1843,6 +1909,7 @@ components:
         file endpoint to retrieve the raw bytes.
 
         Maps to schema.org [VideoObject](https://schema.org/VideoObject).
+      additionalProperties: false
       properties:
         '@type':
           type: string
@@ -1884,11 +1951,12 @@ components:
       description: |
         An external subtitle file not embedded in any stream manifest.
         Subtitles that are already part of a DASH or HLS manifest are
-        not duplicated here — only standalone sidecar files are listed.
+        not duplicated here - only standalone sidecar files are listed.
         At least, as long as it's feasable and doesn't require file parsing.
         If it does, the subtitles might be duplicated between the file and here.
 
         Use the individual file endpoint to retrieve the raw content.
+      additionalProperties: false
       properties:
         id:
           type: string
@@ -1943,11 +2011,12 @@ components:
         - language
         - format
 
-    # ── Search ──────────────────────────────────────────────────────────────
+    # -- Search --------------------------------------------------------------
 
     SearchResultItem:
       type: object
       description: A single item returned from a global search query.
+      additionalProperties: false
       properties:
         score:
           type: number
