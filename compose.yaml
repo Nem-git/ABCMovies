@@ -6,22 +6,22 @@ services:
       target: dev
     container_name: dev
     env_file:
-      - src/config/.env
+      - config/.env
     ports:
-      - '80:80'
+      - '80:7331'
     # Sync modified files to rebuild app
     develop:
       watch:
         - action: sync
           path: .
           target: /usr/src/app
-        # Rebuild container if air or conf files changed
+        # Rebuild container if config or deps files changed
         - action: rebuild
           path: go.mod
         - action: rebuild
           path: go.sum
         - action: rebuild
-          path: src/config/.air.conf
+          path: config/air/*.toml
     profiles: [ dev ]
 
   prod:
@@ -29,7 +29,7 @@ services:
       target: prod
     container_name: prod
     env_file:
-      - src/config/.env
+      - config/.env
     ports:
       - '80:80'
     restart: unless-stopped
@@ -40,5 +40,5 @@ services:
       target: testing
     container_name: testing
     env_file:
-      - src/config/.env
+      - config/.env
     profiles: [ testing ]

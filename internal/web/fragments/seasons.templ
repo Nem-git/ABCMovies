@@ -1,0 +1,13 @@
+package fragments
+
+import (
+	"github.com/nem-git/abcmovies/internal/oas"
+	"github.com/nem-git/abcmovies/internal/web/components"
+)
+
+templ Seasons(tag string, seriesID string, seasons []oas.Season, nextURL string) {
+	for _, s := range seasons {
+		@components.SeasonCard(tag, seriesID, s)
+	}
+	@components.Sentinel(nextURL)
+}

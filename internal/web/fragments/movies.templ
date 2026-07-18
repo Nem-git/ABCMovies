@@ -1,0 +1,13 @@
+package fragments
+
+import (
+	"github.com/nem-git/abcmovies/internal/oas"
+	"github.com/nem-git/abcmovies/internal/web/components"
+)
+
+templ Movies(tag string, movies []oas.Movie, nextURL string) {
+	for _, m := range movies {
+		@components.MovieCard(tag, m)
+	}
+	@components.Sentinel(nextURL)
+}

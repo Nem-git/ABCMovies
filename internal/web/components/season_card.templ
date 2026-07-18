@@ -1,0 +1,15 @@
+package components
+
+import "github.com/nem-git/abcmovies/internal/oas"
+
+templ SeasonCard(tag string, seriesID string, season oas.Season) {
+	@CardLink("/services/" + tag + "/series/" + seriesID + "/seasons/" + season.ID) {
+		<h3 class="font-semibold">{ season.Name }</h3>
+		if season.Description.IsSet() {
+			<p class="text-sm text-gray-400 mt-1">{ season.Description.Value }</p>
+		}
+		if season.NumberOfEpisodes.IsSet() {
+			<p class="text-xs text-gray-500 mt-1">{ season.NumberOfEpisodes.Value } episodes</p>
+		}
+	}
+}

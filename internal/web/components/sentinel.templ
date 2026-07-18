@@ -1,0 +1,9 @@
+package components
+
+templ Sentinel(nextURL string) {
+	if nextURL != "" {
+		<div hx-get={ nextURL } hx-trigger="revealed" hx-swap="outerHTML" class="text-center text-gray-500 py-4">
+			<p>Loading more...</p>
+		</div>
+	}
+}

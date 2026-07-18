@@ -1,0 +1,19 @@
+package components
+
+import "github.com/nem-git/abcmovies/internal/oas"
+
+templ StreamList(streams []oas.Stream, baseURL string) {
+	if len(streams) > 0 {
+		<div class="mt-8">
+			<h2 class="text-xl font-semibold mb-4">Streams</h2>
+			<div class="grid gap-2">
+				for _, s := range streams {
+					<a href={ baseURL + "/" + s.ID } class="block bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition">
+						<span class="font-medium">{ s.Name }</span>
+						<span class="text-sm text-gray-400 ml-2">{ string(s.EncodingFormat) }</span>
+					</a>
+				}
+			</div>
+		</div>
+	}
+}

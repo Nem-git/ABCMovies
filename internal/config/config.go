@@ -1,0 +1,58 @@
+package config
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/nem-git/abcmovies/internal/oas"
+	"gopkg.in/yaml.v2"
+)
+
+type Config struct {
+	Server   ServerConfig   `yaml:"server"`
+	Services []ServiceEntry `yaml:"services"`
+}
+
+type ServerConfig struct {
+	Port int `yaml:"port"`
+}
+
+type StubSearchEntry struct {
+	Score        float64 `yaml:"score"`
+	ResourceType string  `yaml:"resourceType"`
+	ResourceID   string  `yaml:"resourceId"`
+}
+
+type ServiceEntry struct {
+	Tag         string   `yaml:"tag"`
+	Type        string   `yaml:"type"`
+	Name        string   `yaml:"name,omitempty"`
+	Description string   `yaml:"description,omitempty"`
+	URL         string   `yaml:"url,omitempty"`
+	Country     string   `yaml:"country,omitempty"`
+	Languages   []string `yaml:"languages,omitempty"`
+
+	Movies    []oas.Movie       `yaml:"movies,omitempty"`
+	Series    []oas.Series      `yaml:"series,omitempty"`
+	Seasons   []oas.Season      `yaml:"seasons,omitempty"`
+	Episodes  []oas.Episode     `yaml:"episodes,omitempty"`
+	Streams   []oas.Stream      `yaml:"streams,omitempty"`
+	Subtitles []oas.Subtitle    `yaml:"subtitles,omitempty"`
+	Search    []StubSearchEntry `yaml:"search,omitempty"`
+}
+
+func Load(path string) (*Config, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading config file: %w", err)
+	}
+
+	var cfg Config
+	cfg.Server.Port = 80
+
+	if err := yaml.Unmarshal(raw, &cfg); err != nil {
+		return nil, fmt.Errorf("decoding config: %w", err)
+	}
+
+	return &cfg, nil
+}

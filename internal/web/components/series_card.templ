@@ -1,0 +1,12 @@
+package components
+
+import "github.com/nem-git/abcmovies/internal/oas"
+
+templ SeriesCard(tag string, series oas.Series) {
+	@CardLink("/services/" + tag + "/series/" + series.ID) {
+		<h2 class="text-lg font-semibold">{ series.Name }</h2>
+		if series.NumberOfSeasons > 0 {
+			<p class="text-sm text-gray-400 mt-1">{ series.NumberOfSeasons } seasons</p>
+		}
+	}
+}

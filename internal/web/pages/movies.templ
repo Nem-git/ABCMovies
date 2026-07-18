@@ -1,0 +1,22 @@
+package pages
+
+import (
+	"github.com/nem-git/abcmovies/internal/oas"
+	"github.com/nem-git/abcmovies/internal/web/components"
+	"github.com/nem-git/abcmovies/internal/web/layouts"
+)
+
+templ MoviesList(tag string, movies []oas.Movie, nextURL string) {
+	@layouts.App("Movies") {
+		<div class="p-8 max-w-4xl mx-auto">
+			@components.BackLink("/services/"+tag, tag)
+			<h1 class="text-2xl font-bold mt-4 mb-6">Movies</h1>
+			<div class="grid gap-4" id="movie-list">
+				for _, m := range movies {
+					@components.MovieCard(tag, m)
+				}
+				@components.Sentinel(nextURL)
+			</div>
+		</div>
+	}
+}

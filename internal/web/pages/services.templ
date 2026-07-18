@@ -1,0 +1,17 @@
+package pages
+
+import (
+	"github.com/nem-git/abcmovies/internal/oas"
+	"github.com/nem-git/abcmovies/internal/web/components"
+	"github.com/nem-git/abcmovies/internal/web/layouts"
+)
+
+templ ServicesList(services []*oas.Service) {
+	@layouts.App("Services") {
+		<div class="grid gap-4 p-8">
+			for _, s := range services {
+				@components.ServiceCard(s.Tag, *s)
+			}
+		</div>
+	}
+}

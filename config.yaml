@@ -1,0 +1,100 @@
+server:
+  port: 80
+
+services:
+  - tag: CRAV
+    type: stub
+    name: Crave
+    description: Bell Media's Crave streaming service
+    country: CA
+    languages: [en, fr]
+    movies:
+      - "@type": Movie
+        id: memento
+        name: Memento
+        languages: [en]
+        genres: [Thriller, Mystery]
+      - "@type": Movie
+        id: inception
+        name: Inception
+        languages: [en, fr]
+        genres: [Action, Sci-Fi]
+    series:
+      - "@type": TVSeries
+        id: the-sopranos
+        name: The Sopranos
+    seasons:
+      - "@type": TVSeason
+        id: season-1
+        name: Season 1
+    episodes:
+      - "@type": TVEpisode
+        id: pilot
+        name: The Sopranos Pilot
+        duration: PT1H
+        languages: [en]
+    streams:
+      - "@type": VideoObject
+        id: manifest.mpd
+        name: DASH Stream
+        encodingFormat: application/dash+xml
+    subtitles:
+      - id: en.vtt
+        language: en
+        format: vtt
+    search:
+      - score: 0.95
+        resourceType: Movie
+        resourceId: memento
+
+  - tag: DSNP
+    type: stub
+    name: Disney+
+    country: US
+    languages: [en]
+    movies:
+      - "@type": Movie
+        id: the-avengers
+        name: The Avengers
+        languages: [en]
+        genres: [Action, Superhero]
+      - "@type": Movie
+        id: frozen
+        name: Frozen
+        languages: [en, fr]
+        genres: [Animation, Musical]
+    series:
+      - "@type": TVSeries
+        id: the-mandalorian
+        name: The Mandalorian
+    seasons:
+      - "@type": TVSeason
+        id: season-1
+        name: Season 1
+    episodes:
+      - "@type": TVEpisode
+        id: chapter-1
+        name: Chapter 1
+        duration: PT39M
+        languages: [en]
+    streams:
+      - "@type": VideoObject
+        id: master.m3u8
+        name: HLS Stream
+        encodingFormat: application/vnd.apple.mpegurl
+    subtitles:
+      - id: fr.vtt
+        language: fr
+        format: vtt
+    search:
+      - score: 0.98
+        resourceType: Movie
+        resourceId: the-avengers
+
+  - tag: CBC
+    type: cbc
+    name: CBC Gem
+    description: CBC Gem streaming service from the Canadian Broadcasting Corporation
+    country: CA
+    languages: [en, fr]
+    url: https://gem.cbc.ca

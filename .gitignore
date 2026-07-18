@@ -37,3 +37,4 @@ go.work.sum
 *.bin
 *.cache
 *.log
+node_modules

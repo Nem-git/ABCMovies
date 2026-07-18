@@ -1,0 +1,43 @@
+package pages
+
+import (
+	"github.com/nem-git/abcmovies/internal/oas"
+	"github.com/nem-git/abcmovies/internal/web/components"
+	"github.com/nem-git/abcmovies/internal/web/layouts"
+	"strings"
+)
+
+templ MovieDetail(tag string, movie *oas.Movie, streams []oas.Stream) {
+	@layouts.App(movie.Name) {
+		<div class="p-8 max-w-4xl mx-auto">
+			@components.BackLink("/services/"+tag+"/movies", "Movies")
+			@components.BackdropHero(APIPrefix + "/services/" + tag + "/movies/" + movie.ID + "/backdrop.png") {
+				if movie.Poster.IsSet() {
+					<img src={ APIPrefix + "/services/" + tag + "/movies/" + movie.ID + "/poster" } alt={ movie.Name + " Poster" } class="w-32 rounded-lg shadow-lg"/>
+				}
+				<div>
+					<h1 class="text-3xl font-bold text-white">{ movie.Name }</h1>
+					if movie.Description.IsSet() {
+						<p class="text-gray-300 mt-2">{ movie.Description.Value }</p>
+					}
+					<div class="flex flex-wrap gap-2 mt-4 text-sm text-gray-400">
+						if len(movie.Genres) > 0 {
+							for _, g := range movie.Genres {
+								<span class="bg-gray-800/60 px-2 py-1 rounded">{ g }</span>
+							}
+						}
+					</div>
+					<div class="mt-2 text-sm text-gray-400">
+						if len(movie.Languages) > 0 {
+							<p>{ strings.Join(movie.Languages, ", ") }</p>
+						}
+						if movie.Duration.IsSet() {
+							<p>{ movie.Duration.Value }</p>
+						}
+					</div>
+				</div>
+			}
+			@components.StreamList(streams, APIPrefix + "/services/" + tag + "/movies/" + movie.ID + "/streams")
+		</div>
+	}
+}

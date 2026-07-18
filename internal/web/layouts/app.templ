@@ -1,0 +1,12 @@
+package layouts
+
+import "github.com/nem-git/abcmovies/internal/web/components"
+
+templ App(title string) {
+	@Base(title) {
+		<body class="bg-gray-900 text-white">
+			@components.NavBar()
+			<main>{ children... }</main>
+		</body>
+	}
+}

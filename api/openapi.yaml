@@ -1,0 +1,1973 @@
+openapi: 3.1.0
+
+info:
+  title: ABCMovies
+  description: |
+    This is the API Documentation for ABCMovies, a program that allows people to
+    download and stream videos from many different streaming services.
+
+    This specification aims to align with:
+      - ISO 3166-1 alpha-2 for countries
+      - ISO 639-1 for languages
+      - ISO 8601 for durations and dates
+      - RFC 3339 for date/time formats
+      - schema.org for resource type identification
+  version: 0.0.0-alpha
+
+servers:
+  - url: http://localhost:80/api/v1alpha
+    description: Local development
+  - url: https://api.abcmovies.example/v1alpha
+    description: Production
+
+tags:
+  - name: system
+    description: System endpoints (health, etc.)
+  - name: services
+    description: Streaming service metadata
+  - name: movies
+    description: Movie resources — self-contained films with no seasons
+  - name: series
+    description: TV series resources — multi-episode, multi-season content
+  - name: seasons
+    description: Seasons within a TV series
+  - name: episodes
+    description: Episodes within a season
+  - name: streams
+    description: Video stream manifests and playlists
+  - name: subtitles
+    description: External subtitle files not embedded in stream manifests
+  - name: search
+    description: Global search across services and titles
+
+paths:
+
+  # ─── System ───────────────────────────────────────────────────────────────
+
+  /health:
+    get:
+      tags:
+        - system
+      summary: Health check
+      description: Returns the current operational status of the API.
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+
+  # ─── Services ─────────────────────────────────────────────────────────────
+
+  /services:
+    get:
+      tags:
+        - services
+      summary: List all streaming services
+      description: Retrieve all streaming services offered by the API.
+      operationId: getServices
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: A page of streaming services
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_Service'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+    get:
+      tags:
+        - services
+      summary: Get a streaming service by tag
+      description: Retrieve metadata for a specific streaming service.
+      operationId: getServiceByTag
+      responses:
+        '200':
+          description: A streaming service
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '404':
+          description: Service not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ─── Movies ───────────────────────────────────────────────────────────────
+
+  /services/{serviceTag}/movies:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+    get:
+      tags:
+        - movies
+      summary: List movies on a service
+      description: Retrieve all movies available on the given streaming service.
+      operationId: getMovies
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: A page of movies
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_Movie'
+        '400':
+          description: Invalid service tag
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Service not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/movies/{movieId}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+    get:
+      tags:
+        - movies
+      summary: Get a movie
+      description: Retrieve a specific movie by its identifier on the streaming service.
+      operationId: getMovieById
+      responses:
+        '200':
+          description: A movie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Movie'
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Movie not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Movie Streams ─────────────────────────────────────────────────────────
+
+  /services/{serviceTag}/movies/{movieId}/streams:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+    get:
+      tags:
+        - movies
+        - streams
+      summary: List streams for a movie
+      description: |
+        Retrieve all available video stream manifests (DASH, HLS, etc.)
+        for a movie. The listing returns metadata only; fetch the individual
+        file endpoint to get the raw manifest bytes.
+      operationId: getMovieStreams
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: A page of video stream metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_Stream'
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Movie not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/movies/{movieId}/streams/{streamFile}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+      - $ref: '#/components/parameters/StreamFile'
+    get:
+      tags:
+        - movies
+        - streams
+      summary: Get a stream manifest file
+      description: |
+        Returns the raw stream manifest or playlist binary content.
+        The response Content-Type matches the stream's encoding format
+        (e.g. `application/dash+xml`, `application/vnd.apple.mpegurl`).
+      operationId: getMovieStreamFile
+      responses:
+        '200':
+          description: |
+            The stream manifest file. Content-Type depends on the stream's
+            encoding format.
+          content:
+            application/dash+xml:
+              schema:
+                type: string
+                format: binary
+            application/vnd.apple.mpegurl:
+              schema:
+                type: string
+                format: binary
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Stream file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Movie Subtitles ───────────────────────────────────────────────────────
+
+  /services/{serviceTag}/movies/{movieId}/subtitles:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+    get:
+      tags:
+        - movies
+        - subtitles
+      summary: List external subtitles for a movie
+      description: |
+        Retrieve all external subtitle files available for a movie.
+        Only subtitles that exist as standalone sidecar files are listed here;
+        subtitles embedded in stream manifests are not duplicated.
+      operationId: getMovieSubtitles
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: A page of subtitle metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_Subtitle'
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Movie not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/movies/{movieId}/subtitles/{subtitleFile}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+      - $ref: '#/components/parameters/SubtitleFile'
+    get:
+      tags:
+        - movies
+        - subtitles
+      summary: Get a subtitle file
+      description: |
+        Returns the raw subtitle file content.
+        The response Content-Type matches the subtitle format
+        (e.g. `text/vtt`, `application/x-subrip`).
+      operationId: getMovieSubtitleFile
+      responses:
+        '200':
+          description: The subtitle file
+          content:
+            text/vtt:
+              schema:
+                type: string
+                format: binary
+            application/x-subrip:
+              schema:
+                type: string
+                format: binary
+            application/ttml+xml:
+              schema:
+                type: string
+                format: binary
+            text/plain:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Subtitle file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Movie Images ─────────────────────────────────────────────────────────
+
+  /services/{serviceTag}/movies/{movieId}/poster.png:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+    get:
+      tags:
+        - movies
+      summary: Get movie poster
+      description: Returns the movie poster image in PNG format.
+      operationId: getMoviePoster
+      responses:
+        '200':
+          description: Movie poster image
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Image not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/movies/{movieId}/backdrop.png:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+    get:
+      tags:
+        - movies
+      summary: Get movie backdrop
+      description: Returns the movie backdrop image in PNG format.
+      operationId: getMovieBackdrop
+      responses:
+        '200':
+          description: Movie backdrop image
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Image not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ─── Series ───────────────────────────────────────────────────────────────
+
+  /services/{serviceTag}/series:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+    get:
+      tags:
+        - series
+      summary: List TV series on a service
+      description: Retrieve all TV series available on the given streaming service.
+      operationId: getSeries
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: A page of TV series
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_Series'
+        '400':
+          description: Invalid service tag
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Service not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/series/{seriesId}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+    get:
+      tags:
+        - series
+      summary: Get a TV series
+      description: Retrieve a specific TV series by its identifier on the streaming service.
+      operationId: getSeriesById
+      responses:
+        '200':
+          description: A TV series
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Series'
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Series not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ─── Series Images ─────────────────────────────────────────────────────────
+
+  /services/{serviceTag}/series/{seriesId}/poster.png:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+    get:
+      tags:
+        - series
+      summary: Get series poster
+      description: Returns the series poster image in PNG format.
+      operationId: getSeriesPoster
+      responses:
+        '200':
+          description: Series poster image
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Image not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/series/{seriesId}/backdrop.png:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+    get:
+      tags:
+        - series
+      summary: Get series backdrop
+      description: Returns the series backdrop image in PNG format.
+      operationId: getSeriesBackdrop
+      responses:
+        '200':
+          description: Series backdrop image
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Image not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ─── Seasons ──────────────────────────────────────────────────────────────
+
+  /services/{serviceTag}/series/{seriesId}/seasons:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+    get:
+      tags:
+        - seasons
+      summary: List seasons for a series
+      description: Retrieve all seasons for a given TV series.
+      operationId: getSeasons
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: A page of seasons
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_Season'
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Series not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+    get:
+      tags:
+        - seasons
+      summary: Get a season
+      description: Retrieve a specific season by its identifier.
+      operationId: getSeasonById
+      responses:
+        '200':
+          description: A season
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Season'
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Season not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ─── Season Images ─────────────────────────────────────────────────────────
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster.png:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+    get:
+      tags:
+        - seasons
+      summary: Get season poster
+      description: Returns the season poster image in PNG format.
+      operationId: getSeasonPoster
+      responses:
+        '200':
+          description: Season poster image
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Image not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop.png:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+    get:
+      tags:
+        - seasons
+      summary: Get season backdrop
+      description: Returns the season backdrop image in PNG format.
+      operationId: getSeasonBackdrop
+      responses:
+        '200':
+          description: Season backdrop image
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Image not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ─── Episodes ─────────────────────────────────────────────────────────────
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+    get:
+      tags:
+        - episodes
+      summary: List episodes in a season
+      description: Retrieve all episodes for a given season.
+      operationId: getEpisodes
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: A page of episodes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_Episode'
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Season not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+    get:
+      tags:
+        - episodes
+      summary: Get an episode
+      description: Retrieve a specific episode by its identifier.
+      operationId: getEpisodeById
+      responses:
+        '200':
+          description: An episode
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Episode'
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Episode not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Episode Images ────────────────────────────────────────────────────────
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail.png:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+    get:
+      tags:
+        - episodes
+      summary: Get episode thumbnail
+      description: Returns the episode thumbnail image in PNG format.
+      operationId: getEpisodeThumbnail
+      responses:
+        '200':
+          description: Episode thumbnail image
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Image not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Episode Streams ───────────────────────────────────────────────────────
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+    get:
+      tags:
+        - episodes
+        - streams
+      summary: List streams for an episode
+      description: |
+        Retrieve all available video stream manifests for an episode.
+        The listing returns metadata only; fetch the individual file
+        endpoint to get the raw manifest bytes.
+      operationId: getEpisodeStreams
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: A page of video stream metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_Stream'
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Episode not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{streamFile}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+      - $ref: '#/components/parameters/StreamFile'
+    get:
+      tags:
+        - episodes
+        - streams
+      summary: Get a stream manifest file for an episode
+      description: |
+        Returns the raw stream manifest or playlist binary content.
+        The response Content-Type matches the stream's encoding format.
+      operationId: getEpisodeStreamFile
+      responses:
+        '200':
+          description: |
+            The stream manifest file. Content-Type depends on the stream's
+            encoding format.
+          content:
+            application/dash+xml:
+              schema:
+                type: string
+                format: binary
+            application/vnd.apple.mpegurl:
+              schema:
+                type: string
+                format: binary
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Stream file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Episode Subtitles ─────────────────────────────────────────────────────
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/subtitles:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+    get:
+      tags:
+        - episodes
+        - subtitles
+      summary: List external subtitles for an episode
+      description: |
+        Retrieve all external subtitle files available for an episode.
+        Only subtitles that exist as standalone sidecar files are listed here;
+        subtitles embedded in stream manifests are not duplicated.
+      operationId: getEpisodeSubtitles
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: A page of subtitle metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_Subtitle'
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Episode not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/subtitles/{subtitleFile}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+      - $ref: '#/components/parameters/SubtitleFile'
+    get:
+      tags:
+        - episodes
+        - subtitles
+      summary: Get a subtitle file for an episode
+      description: |
+        Returns the raw subtitle file content.
+        The response Content-Type matches the subtitle format.
+      operationId: getEpisodeSubtitleFile
+      responses:
+        '200':
+          description: The subtitle file
+          content:
+            text/vtt:
+              schema:
+                type: string
+                format: binary
+            application/x-subrip:
+              schema:
+                type: string
+                format: binary
+            application/ttml+xml:
+              schema:
+                type: string
+                format: binary
+            text/plain:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Subtitle file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ─── Global Search ────────────────────────────────────────────────────────
+
+  /search:
+    get:
+      tags:
+        - search
+      summary: Global search
+      description: |
+        Search across services, movies, and TV series by title or name.
+        This is a lightweight, title-level search — it does not search
+        episode or season body content. Use the per-collection endpoints
+        for deeper queries.
+      operationId: globalSearch
+      parameters:
+        - $ref: '#/components/parameters/SearchQuery'
+        - $ref: '#/components/parameters/SearchType'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: A page of search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_SearchResult'
+        '400':
+          description: Invalid or missing query parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+# ─── Components ─────────────────────────────────────────────────────────────
+
+components:
+  parameters:
+
+    # ── Path ────────────────────────────────────────────────────────────────
+
+    ServiceTag:
+      name: serviceTag
+      in: path
+      description: |
+        A short, unique tag identifying the streaming service.
+        Example: `CRAV`, `NFLX`, `DSNP`.
+      required: true
+      schema:
+        type: string
+        pattern: '^[A-Z]{2,8}$'
+        examples:
+          - CRAV
+  
+    MovieId:
+      name: movieId
+      in: path
+      description: |
+        The movie's identifier on the streaming service.
+        Preferably a readable slug, not a numeric ID, when possible.
+      required: true
+      schema:
+        type: string
+        examples:
+          - inception-2010
+
+    SeriesId:
+      name: seriesId
+      in: path
+      description: |
+        The TV series's identifier on the streaming service.
+        Preferably a readable slug, not a numeric ID, when possible.
+      required: true
+      schema:
+        type: string
+        examples:
+          - hells-kitchen-52597
+
+    SeasonId:
+      name: seasonId
+      in: path
+      description: |
+        Identifier for the season. Prefer a human-readable slug
+        (e.g. `season-1`) or a descriptive name when available.
+      required: true
+      schema:
+        type: string
+        examples:
+          - season-1
+
+    EpisodeId:
+      name: episodeId
+      in: path
+      description: |
+        Identifier for the episode. Prefer a human-readable slug
+        (e.g. `pilot`, `the-one-with-the-sonogram`) when available.
+      required: true
+      schema:
+        type: string
+        examples:
+          - pilot
+
+    StreamFile:
+      name: streamFile
+      in: path
+      description: |
+        The stream manifest or media filename.
+        Uses standard streaming file names:
+          - `manifest.mpd` for DASH
+          - `master.m3u8` for HLS
+          - `video.mp4` for direct MP4
+        If multiple variants exist (e.g. different DRM systems),
+        append a qualifier: `master-fairplay.m3u8`,
+        `manifest-widevine.mpd`.
+      required: true
+      schema:
+        type: string
+        examples:
+          - manifest.mpd
+      examples:
+        dash:
+          value: manifest.mpd
+          summary: DASH manifest
+        hls:
+          value: master.m3u8
+          summary: HLS playlist
+        mp4:
+          value: video.mp4
+          summary: Direct MP4 file
+
+    SubtitleFile:
+      name: subtitleFile
+      in: path
+      description: |
+        The subtitle filename, following the
+        `{language}[-{kind}].{format}` convention:
+          - `en.vtt` — English, default
+          - `en-sdh.vtt` — English, hearing impaired
+          - `en-cc.vtt` — English, closed captions
+          - `fr.vtt` — French, default
+          - `ja.ttml` — Japanese, TTML format
+      required: true
+      schema:
+        type: string
+        pattern: '^[a-z]{2}(?:-(?:sdh|cc|forced))?\.(?:vtt|srt|ttml|ass)$'
+        examples:
+          - en.vtt
+      examples:
+        english:
+          value: en.vtt
+          summary: English, default
+        english-sdh:
+          value: en-sdh.vtt
+          summary: English, hearing impaired
+        french:
+          value: fr.vtt
+          summary: French, default
+
+    # ── Query ───────────────────────────────────────────────────────────────
+
+    Limit:
+      name: limit
+      in: query
+      description: Maximum number of results to return per page.
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+
+    Offset:
+      name: offset
+      in: query
+      description: Number of results to skip for offset-based pagination.
+      schema:
+        type: integer
+        default: 0
+        minimum: 0
+
+    SearchQuery:
+      name: q
+      in: query
+      description: Free-text search query.
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        examples:
+          - breaking bad
+
+    SearchType:
+      name: type
+      in: query
+      description: |
+        Comma-separated list of resource types to include in the search.
+        If omitted, all types are searched.
+      schema:
+        type: array
+        items:
+          type: string
+          enum:
+            - service
+            - movie
+            - series
+        default:
+          - movie
+          - series
+        examples:
+          - movie
+          - series
+      style: form
+      explode: false
+
+  schemas:
+
+    # ── System ──────────────────────────────────────────────────────────────
+
+    Health:
+      type: object
+      description: |
+        Represents the current operational status of the API.
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+            - degraded
+            - down
+          description: |
+            - `ok`: All systems operational.
+            - `degraded`: Functional but with reduced capacity.
+            - `down`: API is not serving requests.
+        version:
+          type: string
+          description: Current API version string.
+          examples:
+            - 0.2.0-alpha
+      required:
+        - status
+
+    # ── Error ───────────────────────────────────────────────────────────────
+
+    Error:
+      type: object
+      description: An error response.
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code.
+          examples:
+            - NOT_FOUND
+        message:
+          type: string
+          description: Human-readable error description.
+          examples:
+            - The requested resource was not found.
+      required:
+        - code
+        - message
+
+    # ── Pagination ──────────────────────────────────────────────────────────
+
+    Page_Service:
+      type: object
+      description: Paginated list of streaming services.
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Service'
+        total:
+          type: integer
+          description: Total number of matching items across all pages.
+          minimum: 0
+        limit:
+          type: integer
+          description: Maximum items per page (as requested).
+          minimum: 1
+        offset:
+          type: integer
+          description: Zero-based offset of the first item in this page.
+          minimum: 0
+      required:
+        - items
+        - total
+        - limit
+        - offset
+
+    Page_Movie:
+      type: object
+      description: Paginated list of movies.
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Movie'
+        total:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+        offset:
+          type: integer
+          minimum: 0
+      required:
+        - items
+        - total
+        - limit
+        - offset
+
+    Page_Series:
+      type: object
+      description: Paginated list of TV series.
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Series'
+        total:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+        offset:
+          type: integer
+          minimum: 0
+      required:
+        - items
+        - total
+        - limit
+        - offset
+
+    Page_Season:
+      type: object
+      description: Paginated list of seasons.
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Season'
+        total:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+        offset:
+          type: integer
+          minimum: 0
+      required:
+        - items
+        - total
+        - limit
+        - offset
+
+    Page_Episode:
+      type: object
+      description: Paginated list of episodes.
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Episode'
+        total:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+        offset:
+          type: integer
+          minimum: 0
+      required:
+        - items
+        - total
+        - limit
+        - offset
+
+    Page_Stream:
+      type: object
+      description: Paginated list of video stream manifests.
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Stream'
+        total:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+        offset:
+          type: integer
+          minimum: 0
+      required:
+        - items
+        - total
+        - limit
+        - offset
+
+    Page_Subtitle:
+      type: object
+      description: Paginated list of external subtitle files.
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Subtitle'
+        total:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+        offset:
+          type: integer
+          minimum: 0
+      required:
+        - items
+        - total
+        - limit
+        - offset
+
+    Page_SearchResult:
+      type: object
+      description: Paginated list of search results.
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResultItem'
+        total:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+        offset:
+          type: integer
+          minimum: 0
+      required:
+        - items
+        - total
+        - limit
+        - offset
+
+    # ── Domain ──────────────────────────────────────────────────────────────
+
+    Service:
+      type: object
+      description: |
+        A streaming service platform (e.g. Netflix, Crave, Disney+).
+        Maps to schema.org [Service](https://schema.org/Service).
+      properties:
+        '@type':
+          type: string
+          description: JSON-LD type discriminator.
+          enum:
+            - Service
+          default: Service
+        tag:
+          type: string
+          description: Short, unique service identifier.
+          pattern: '^[A-Z]{2,8}$'
+          examples:
+            - CRAV
+        name:
+          type: string
+          description: Human-readable service name.
+          examples:
+            - Crave
+        description:
+          type: string
+          description: Short description of the service.
+        website:
+          type: string
+          format: uri
+          description: Official website URL.
+          examples:
+            - https://www.cravetv.ca
+        country:
+          type: string
+          description: |
+            ISO 3166-1 alpha-2 country code of the service's primary market.
+          pattern: '^[A-Z]{2}$'
+          examples:
+            - CA
+        languages:
+          type: array
+          description: |
+            ISO 639-1 language codes available on this service.
+          items:
+            type: string
+            pattern: '^[a-z]{2}$'
+          examples:
+            - en
+            - fr
+        logo:
+          type: string
+          format: uri
+          description: URL to the service's logo image.
+      required:
+        - tag
+        - name
+
+    Movie:
+      type: object
+      description: |
+        A self-contained film with no seasonal divisions.
+        Maps to schema.org [Movie](https://schema.org/Movie).
+      properties:
+        '@type':
+          type: string
+          description: JSON-LD type discriminator.
+          enum:
+            - Movie
+          default: Movie
+        id:
+          type: string
+          description: Canonical API identifier (path-safe slug).
+          examples:
+            - inception-2010
+        name:
+          type: string
+          description: Title of the movie.
+          examples:
+          - Inception
+        description:
+          type: string
+          description: Plot summary or tagline.
+        datePublished:
+          type: string
+          format: date
+          description: |
+            Original release date (ISO 8601 / RFC 3339 full-date).
+          examples:
+            - 2010-07-16
+        duration:
+          type: string
+          description: |
+            Runtime in ISO 8601 duration format.
+          pattern: '^P(?!$)(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+S)?)?$'
+          examples:
+            - PT2H28M
+        countryOfOrigin:
+          type: string
+          description: |
+            ISO 3166-1 alpha-2 country code of origin.
+          pattern: '^[A-Z]{2}$'
+          examples:
+            - US
+        languages:
+          type: array
+          description: |
+            ISO 639-1 language codes available in this movie's audio or subtitles.
+          items:
+            type: string
+            pattern: '^[a-z]{2}$'
+          examples:
+            - en
+            - fr
+        contentRating:
+          type: string
+          description: |
+            Content rating from the source country's rating system
+            (e.g. MPAA, TV Parental Guidelines).
+          examples:
+            - PG-13
+        genres:
+          type: array
+          description: One or more genre classifications.
+          items:
+            type: string
+          examples:
+            - Action
+            - Sci-Fi
+            - Thriller
+        poster:
+          type: string
+          format: uri
+          description: URL to the movie poster image.
+        trailer:
+          type: string
+          format: uri
+          description: URL to a trailer video.
+      required:
+        - '@type'
+        - id
+        - name
+
+    Series:
+      type: object
+      description: |
+        A TV series containing one or more seasons and episodes.
+        Maps to schema.org [TVSeries](https://schema.org/TVSeries).
+      properties:
+        '@type':
+          type: string
+          description: JSON-LD type discriminator.
+          enum:
+            - TVSeries
+          default: TVSeries
+        id:
+          type: string
+          description: Canonical API identifier (path-safe slug).
+          examples:
+            - hells-kitchen-52597
+        name:
+          type: string
+          description: Title of the series.
+          examples:
+            - Hell's Kitchen
+        description:
+          type: string
+          description: Plot summary or tagline.
+        datePublished:
+          type: string
+          format: date
+          description: |
+            Original premiere date (ISO 8601 / RFC 3339 full-date).
+          examples:
+            - 2005-05-30
+        countryOfOrigin:
+          type: string
+          description: |
+            ISO 3166-1 alpha-2 country code of origin.
+          pattern: '^[A-Z]{2}$'
+          examples:
+            - US
+        languages:
+          type: array
+          description: |
+            ISO 639-1 language codes available in this series.
+          items:
+            type: string
+            pattern: '^[a-z]{2}$'
+          examples:
+            - en
+        contentRating:
+          type: string
+          description: |
+            Content rating (e.g. MPAA, TV Parental Guidelines).
+          examples:
+            - TV-14
+        genres:
+          type: array
+          description: One or more genre classifications.
+          items:
+            type: string
+          examples:
+            - Reality
+            - Cooking
+        poster:
+          type: string
+          format: uri
+          description: URL to the series poster image.
+        trailer:
+          type: string
+          format: uri
+          description: URL to a trailer video.
+        numberOfSeasons:
+          type: integer
+          description: Total number of seasons currently available.
+          minimum: 1
+          examples:
+            - 22
+      required:
+        - '@type'
+        - id
+        - name
+        - numberOfSeasons
+
+    Season:
+      type: object
+      description: |
+        A single season within a TV series.
+        Maps to schema.org [TVSeason](https://schema.org/TVSeason).
+      properties:
+        '@type':
+          type: string
+          description: JSON-LD type discriminator.
+          enum:
+            - TVSeason
+          default: TVSeason
+        id:
+          type: string
+          description: Canonical API identifier.
+          examples:
+            - season-1
+        seasonNumber:
+          type: integer
+          description: Sequential season number.
+          minimum: 1
+          examples:
+            - 1
+        name:
+          type: string
+          description: Human-readable season name.
+          examples:
+            - Season 1
+        description:
+          type: string
+          description: Description of the season's narrative arc.
+        datePublished:
+          type: string
+          format: date
+          description: |
+            Season premiere date (ISO 8601 / RFC 3339 full-date).
+          examples:
+            - 2005-05-30
+        countryOfOrigin:
+          type: string
+          description: |
+            ISO 3166-1 alpha-2 country code of origin.
+          pattern: '^[A-Z]{2}$'
+          examples:
+            - US
+        languages:
+          type: array
+          description: |
+            ISO 639-1 language codes available in this season.
+          items:
+            type: string
+            pattern: '^[a-z]{2}$'
+          examples:
+            - en
+        poster:
+          type: string
+          format: uri
+          description: URL to the season's poster or cover art.
+        numberOfEpisodes:
+          type: integer
+          description: Total number of episodes in this season.
+          minimum: 0
+          examples:
+            - 15
+        trailer:
+          type: string
+          format: uri
+          description: URL to a season trailer.
+      required:
+        - '@type'
+        - id
+        - number
+        - name
+
+    Episode:
+      type: object
+      description: |
+        A single episode within a TV series season.
+        Maps to schema.org [TVEpisode](https://schema.org/TVEpisode).
+      properties:
+        '@type':
+          type: string
+          description: JSON-LD type discriminator.
+          enum:
+            - TVEpisode
+          default: TVEpisode
+        id:
+          type: string
+          description: Canonical API identifier.
+          examples:
+            - pilot
+        episodeNumber:
+          type: integer
+          description: Sequential episode number within the season.
+          minimum: 1
+          examples:
+            - 1
+        name:
+          type: string
+          description: Episode title.
+          examples:
+            - Pilot
+        description:
+          type: string
+          description: Synopsis or plot summary.
+        datePublished:
+          type: string
+          format: date
+          description: |
+            Original air or release date (ISO 8601 / RFC 3339 full-date).
+          examples:
+            - 2005-05-30
+        duration:
+          type: string
+          description: |
+            Runtime in ISO 8601 duration format.
+          pattern: '^P(?!$)(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+S)?)?$'
+          examples:
+            - PT42M
+        countryOfOrigin:
+          type: string
+          description: |
+            ISO 3166-1 alpha-2 country code of origin.
+          pattern: '^[A-Z]{2}$'
+        languages:
+          type: array
+          description: |
+            ISO 639-1 language codes available for this episode.
+          items:
+            type: string
+            pattern: '^[a-z]{2}$'
+          examples:
+            - en
+        contentRating:
+          type: string
+          description: |
+            Content rating (e.g. MPAA, TV Parental Guidelines).
+          examples:
+            - TV-14
+      required:
+        - '@type'
+        - id
+        - number
+        - name
+        - duration
+
+    Stream:
+      type: object
+      description: |
+        A single video stream manifest or playlist file.
+        Each stream represents one playable artifact using a specific
+        streaming technology (DASH, HLS, MP4). Fetch the individual
+        file endpoint to retrieve the raw bytes.
+
+        Maps to schema.org [VideoObject](https://schema.org/VideoObject).
+      properties:
+        '@type':
+          type: string
+          description: JSON-LD type discriminator.
+          enum:
+            - VideoObject
+          default: VideoObject
+        id:
+          type: string
+          description: |
+            Stream file identifier matching the path segment.
+            Convention: `manifest.mpd` (DASH), `master.m3u8` (HLS),
+            `video.mp4` (MP4).
+          examples:
+            - manifest.mpd
+        name:
+          type: string
+          description: Human-readable stream label.
+          examples:
+            - DASH
+        encodingFormat:
+          type: string
+          description: |
+            MIME type identifying the streaming protocol.
+          enum:
+            - application/dash+xml
+            - application/vnd.apple.mpegurl
+            - video/mp4
+          examples:
+            - application/dash+xml
+      required:
+        - '@type'
+        - id
+        - name
+        - encodingFormat
+
+    Subtitle:
+      type: object
+      description: |
+        An external subtitle file not embedded in any stream manifest.
+        Subtitles that are already part of a DASH or HLS manifest are
+        not duplicated here — only standalone sidecar files are listed.
+        At least, as long as it's feasable and doesn't require file parsing.
+        If it does, the subtitles might be duplicated between the file and here.
+
+        Use the individual file endpoint to retrieve the raw content.
+      properties:
+        id:
+          type: string
+          description: |
+            Subtitle file identifier following the
+            `{language}[-{kind}].{format}` convention.
+          pattern: '^[a-z]{2}(?:-(?:sdh|cc|forced))?\.(?:vtt|srt|ttml|ass)$'
+          examples:
+            - en.vtt
+        language:
+          type: string
+          description: |
+            ISO 639-1 language code.
+          pattern: '^[a-z]{2}$'
+          examples:
+            - en
+        name:
+          type: string
+          description: Human-readable language or label.
+          examples:
+            - English
+        kind:
+          type: string
+          description: |
+            Subtitle variant.
+              - `default`: Standard dialogue subtitles
+              - `sdh`: Subtitles for the deaf or hard-of-hearing
+              - `cc`: Closed captions
+              - `forced`: Forced narration (foreign dialogue, signs)
+          enum:
+            - default
+            - sdh
+            - cc
+            - forced
+          default: default
+        format:
+          type: string
+          description: Subtitle file format.
+          enum:
+            - vtt
+            - srt
+            - ttml
+            - ass
+          examples:
+            - vtt
+        isDefault:
+          type: boolean
+          description: Whether this subtitle should be auto-enabled by the player.
+          default: false
+      required:
+        - id
+        - language
+        - format
+
+    # ── Search ──────────────────────────────────────────────────────────────
+
+    SearchResultItem:
+      type: object
+      description: A single item returned from a global search query.
+      properties:
+        score:
+          type: number
+          format: float
+          description: Relevance score (higher is more relevant).
+          minimum: 0
+          maximum: 1
+          examples:
+            - 0.95
+        resource:
+          oneOf:
+            - $ref: '#/components/schemas/Service'
+            - $ref: '#/components/schemas/Movie'
+            - $ref: '#/components/schemas/Series'
+          discriminator:
+            propertyName: '@type'
+            mapping:
+              Service: '#/components/schemas/Service'
+              Movie: '#/components/schemas/Movie'
+              TVSeries: '#/components/schemas/Series'
+      required:
+        - score
+        - resource

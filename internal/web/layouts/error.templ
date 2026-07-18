@@ -1,0 +1,12 @@
+package layouts
+
+templ ErrorPage(title string, message string, backURL string) {
+	@App(title) {
+		<div class="p-8 text-center">
+			<p class="mb-4">{ message }</p>
+			if backURL != "" {
+				<a href={ backURL } class="text-blue-400 hover:underline">← Back</a>
+			}
+		</div>
+	}
+}

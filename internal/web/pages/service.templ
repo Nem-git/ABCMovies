@@ -1,0 +1,39 @@
+package pages
+
+import (
+	"github.com/nem-git/abcmovies/internal/oas"
+	"github.com/nem-git/abcmovies/internal/web/components"
+	"github.com/nem-git/abcmovies/internal/web/layouts"
+	"strings"
+)
+
+templ ServiceDetail(service *oas.Service) {
+	@layouts.App(service.Name) {
+		<div class="p-8 max-w-2xl mx-auto">
+			@components.BackLink("/services", "All services")
+			<div class="mt-4">
+				<h1 class="text-3xl font-bold">{ service.Name }</h1>
+				if service.Description.IsSet() {
+					<p class="text-gray-400 mt-2">{ service.Description.Value }</p>
+				}
+				<div class="flex gap-4 mt-4 text-sm text-gray-500">
+					<span class="uppercase">{ service.Tag }</span>
+					if len(service.Languages) > 0 {
+						<span>{ strings.Join(service.Languages, ", ") }</span>
+					}
+					if service.Country.IsSet() {
+						<span>{ service.Country.Value }</span>
+					}
+				</div>
+			</div>
+			<div class="mt-8 flex gap-4">
+				<a href={ "/services/" + service.Tag + "/movies" } class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg text-center">
+					<div class="text-lg font-semibold">Movies</div>
+				</a>
+				<a href={ "/services/" + service.Tag + "/series" } class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg text-center">
+					<div class="text-lg font-semibold">Series</div>
+				</a>
+			</div>
+		</div>
+	}
+}

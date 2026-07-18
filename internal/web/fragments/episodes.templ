@@ -1,0 +1,13 @@
+package fragments
+
+import (
+	"github.com/nem-git/abcmovies/internal/oas"
+	"github.com/nem-git/abcmovies/internal/web/components"
+)
+
+templ Episodes(tag string, seriesID string, seasonID string, episodes []oas.Episode, nextURL string) {
+	for _, ep := range episodes {
+		@components.EpisodeCard(tag, seriesID, seasonID, ep)
+	}
+	@components.Sentinel(nextURL)
+}

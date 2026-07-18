@@ -1,0 +1,24 @@
+package components
+
+import (
+	"github.com/nem-git/abcmovies/internal/oas"
+	"strings"
+)
+
+templ ServiceCard(tag string, service oas.Service) {
+	@CardLink("/services/" + service.Tag) {
+		<h2 class="text-xl font-bold">{ service.Name }</h2>
+		if service.Description.IsSet() {
+			<p class="text-gray-400 mt-1">{ service.Description.Value }</p>
+		}
+		<div class="flex gap-2 mt-2 text-sm text-gray-500">
+			<span class="uppercase">{ service.Tag }</span>
+			if service.Country.IsSet() {
+				<span>{ service.Country.Value }</span>
+			}
+			if len(service.Languages) > 0 {
+				<span>{ strings.Join(service.Languages, ", ") }</span>
+			}
+		</div>
+	}
+}
