@@ -29,8 +29,7 @@ RUN make generate/templ generate/css generate/js
 
 ############ Dev ############
 FROM golang-base AS dev
-
-COPY --from=cosmtrek/air:v1.65.3 /go/bin/air /go/bin/air
+COPY --from=docker.io/cosmtrek/air:v1.65.3 /go/bin/air /go/bin/air
 
 # Start hot reloading server
 EXPOSE 80

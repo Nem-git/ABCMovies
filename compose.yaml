@@ -8,7 +8,7 @@ services:
     env_file:
       - config/.env
     ports:
-      - '80:7331'
+      - '8080:7331'
     # Sync modified files to rebuild app
     develop:
       watch:
@@ -31,7 +31,7 @@ services:
     env_file:
       - config/.env
     ports:
-      - '80:80'
+      - '8080:80'
     restart: unless-stopped
     profiles: [ prod ]
 
