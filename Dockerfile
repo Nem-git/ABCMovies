@@ -1,5 +1,5 @@
 ############ Image de base pour Go ############
-FROM golang:1.26.3-alpine3.23 AS golang-base
+FROM golang:1.26.5-alpine3.24 AS golang-base
 
 WORKDIR /usr/src/app
 
@@ -7,7 +7,7 @@ WORKDIR /usr/src/app
 RUN apk add --no-cache make curl gcc musl-dev
 
 # Installs Tailwind CSS CLI
-RUN curl -fsSL https://github.com/tailwindlabs/tailwindcss/releases/download/v4.3.1/tailwindcss-linux-x64-musl -o tailwindcss
+RUN curl -fsSL https://github.com/tailwindlabs/tailwindcss/releases/download/v4.3.3/tailwindcss-linux-x64-musl -o tailwindcss
 RUN chmod +x tailwindcss
 
 # Installs ESBuild
@@ -29,7 +29,7 @@ RUN make generate/templ generate/css generate/js
 
 ############ Dev ############
 FROM golang-base AS dev
-COPY --from=docker.io/cosmtrek/air:v1.65.3 /go/bin/air /go/bin/air
+COPY --from=docker.io/cosmtrek/air:v1.66.0 /go/bin/air /go/bin/air
 
 # Start hot reloading server
 EXPOSE 80
@@ -54,7 +54,7 @@ RUN apk add --no-cache ca-certificates
 
 FROM scratch AS prod
 
-# Copier le binaire compilé depuis l'étape de build + certificats pour les requetes HTTPS
+# Copy binary from previous step and copies HTTPS certs
 COPY --from=builder-prod /usr/src/app/bin/abcmovies /go/bin/app
 COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
