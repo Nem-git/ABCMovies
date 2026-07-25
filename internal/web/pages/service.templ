@@ -9,31 +9,44 @@ import (
 
 templ ServiceDetail(service *oas.Service) {
 	@layouts.App(service.Name) {
-		<div class="p-8 max-w-2xl mx-auto">
+		<div class="max-w-4xl mx-auto px-6 py-8">
 			@components.BackLink("/services", "All services")
-			<div class="mt-4">
-				<h1 class="text-3xl font-bold">{ service.Name }</h1>
-				if service.Description.IsSet() {
-					<p class="text-gray-400 mt-2">{ service.Description.Value }</p>
-				}
-				<div class="flex gap-4 mt-4 text-sm text-gray-500">
-					<span class="uppercase">{ service.Tag }</span>
-					if len(service.Languages) > 0 {
-						<span>{ strings.Join(service.Languages, ", ") }</span>
-					}
-					if service.Country.IsSet() {
-						<span>{ service.Country.Value }</span>
-					}
+			<div class="mt-6">
+				<div class="flex items-center gap-4 mb-4">
+					<div class="w-14 h-14 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xl shrink-0">
+						{ service.Tag[:min(2, len(service.Tag))] }
+					</div>
+					<div>
+						<h1 class="text-3xl font-bold">{ service.Name }</h1>
+						<div class="flex flex-wrap gap-2 mt-1 text-sm text-gray-400">
+							if service.Country.IsSet() {
+								<span>{ service.Country.Value }</span>
+							}
+							if len(service.Languages) > 0 {
+								<span>· { strings.Join(service.Languages, ", ") }</span>
+							}
+						</div>
+					</div>
 				</div>
+				if service.Description.IsSet() {
+					<p class="text-gray-400">{ service.Description.Value }</p>
+				}
 			</div>
 			<div class="mt-8 flex gap-4">
-				<a href={ "/services/" + service.Tag + "/movies" } class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg text-center">
+				<a href={ "/services/" + service.Tag + "/movies" } class="flex-1 bg-blue-600 hover:bg-blue-700 transition px-6 py-4 rounded-lg text-center">
 					<div class="text-lg font-semibold">Movies</div>
 				</a>
-				<a href={ "/services/" + service.Tag + "/series" } class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg text-center">
+				<a href={ "/services/" + service.Tag + "/series" } class="flex-1 bg-blue-600 hover:bg-blue-700 transition px-6 py-4 rounded-lg text-center">
 					<div class="text-lg font-semibold">Series</div>
 				</a>
 			</div>
 		</div>
 	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

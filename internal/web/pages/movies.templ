@@ -8,15 +8,19 @@ import (
 
 templ MoviesList(tag string, movies []oas.Movie, nextURL string) {
 	@layouts.App("Movies") {
-		<div class="p-8 max-w-4xl mx-auto">
+		<div class="max-w-6xl mx-auto px-6 py-8">
 			@components.BackLink("/services/"+tag, tag)
 			<h1 class="text-2xl font-bold mt-4 mb-6">Movies</h1>
-			<div class="grid gap-4" id="movie-list">
-				for _, m := range movies {
-					@components.MovieCard(tag, m)
-				}
-				@components.Sentinel(nextURL)
-			</div>
+			if len(movies) == 0 && nextURL == "" {
+				@components.EmptyState("No movies available yet.")
+			} else {
+				<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" id="movie-list">
+					for _, m := range movies {
+						@components.MovieCard(tag, m)
+					}
+					@components.Sentinel(nextURL)
+				</div>
+			}
 		</div>
 	}
 }

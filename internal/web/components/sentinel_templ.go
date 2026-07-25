@@ -43,7 +43,7 @@ func Sentinel(nextURL string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" hx-trigger=\"revealed\" hx-swap=\"outerHTML\" class=\"text-center text-gray-500 py-4\"><p>Loading more...</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" hx-trigger=\"revealed\" hx-swap=\"outerHTML\" class=\"flex justify-center py-8\"><div class=\"flex gap-1\"><div class=\"w-2 h-2 bg-gray-500 rounded-full animate-bounce\" style=\"animation-delay: 0ms\"></div><div class=\"w-2 h-2 bg-gray-500 rounded-full animate-bounce\" style=\"animation-delay: 150ms\"></div><div class=\"w-2 h-2 bg-gray-500 rounded-full animate-bounce\" style=\"animation-delay: 300ms\"></div></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -34,6 +34,7 @@ func New(r *registry.Registry, baseURL, apiPrefix string) *Handler {
 
 	mux.Handle("GET /", http.RedirectHandler("/services", http.StatusFound))
 	mux.HandleFunc("GET /services", h.handleServiceList)
+	mux.HandleFunc("GET /search", h.handleSearch)
 	mux.HandleFunc("GET /services/{tag}", h.handleServiceByTag)
 	mux.HandleFunc("GET /services/{tag}/movies", h.handleServiceMovies)
 	mux.HandleFunc("GET /services/{tag}/movies/{id}", h.handleServiceMovieByID)
@@ -104,6 +105,30 @@ func (h *Handler) handleServiceList(w http.ResponseWriter, r *http.Request) {
 		h.servePage(w, r, pages.ServicesList(services))
 	} else {
 		h.servePage(w, r, layouts.ErrorPage("Services", "We couldn't find any streaming services right now. Please try again later.", ""))
+	}
+}
+
+func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	providers := h.registry.All()
+
+	var allResults []oas.SearchResultItem
+	var searchTag string
+
+	for _, p := range providers {
+		searchTag = p.Tag()
+		results, _, err := p.Search(r.Context(), query, maxPageSize, 0)
+		if err != nil {
+			log.Printf("Error searching %s: %s", p.Tag(), err)
+			continue
+		}
+		allResults = append(allResults, results...)
+	}
+
+	if r.Header.Get("HX-Request") == "true" {
+		h.servePage(w, r, fragments.SearchResults(allResults, searchTag))
+	} else {
+		h.servePage(w, r, pages.SearchResults(query, allResults, searchTag))
 	}
 }
 

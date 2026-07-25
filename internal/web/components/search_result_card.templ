@@ -1,0 +1,63 @@
+package components
+
+import (
+	"fmt"
+	"github.com/nem-git/abcmovies/internal/oas"
+)
+
+templ SearchResultItemCard(tag string, item oas.SearchResultItem) {
+	if item.Resource.IsMovie() {
+		<a href={ fmt.Sprintf("/services/%s/movies/%s", tag, item.Resource.Movie.ID) } class="block bg-gray-800 rounded-lg p-4 hover:bg-gray-700 transition">
+			<div class="flex items-center gap-4">
+				<div class="shrink-0 w-10 h-10 rounded bg-purple-900/60 flex items-center justify-center text-purple-300 text-xs font-medium">
+					Movie
+				</div>
+				<div class="min-w-0">
+					<h3 class="font-semibold truncate">{ item.Resource.Movie.Name }</h3>
+					if len(item.Resource.Movie.Genres) > 0 {
+						<p class="text-sm text-gray-400 truncate">{ joinGenres(item.Resource.Movie.Genres) }</p>
+					}
+					if item.Resource.Movie.Duration.Set {
+						<p class="text-sm text-gray-400 truncate">{ item.Resource.Movie.Duration.Value }</p>
+					}
+				</div>
+			</div>
+		</a>
+	} else if item.Resource.IsSeries() {
+		<a href={ fmt.Sprintf("/services/%s/series/%s", tag, item.Resource.Series.ID) } class="block bg-gray-800 rounded-lg p-4 hover:bg-gray-700 transition">
+			<div class="flex items-center gap-4">
+				<div class="shrink-0 w-10 h-10 rounded bg-blue-900/60 flex items-center justify-center text-blue-300 text-xs font-medium">
+					Series
+				</div>
+				<div class="min-w-0">
+					<h3 class="font-semibold truncate">{ item.Resource.Series.Name }</h3>
+					if item.Resource.Series.NumberOfSeasons > 0 {
+						<p class="text-sm text-gray-400">{ fmt.Sprintf("%d seasons", item.Resource.Series.NumberOfSeasons) }</p>
+					}
+				</div>
+			</div>
+		</a>
+	} else if item.Resource.IsService() {
+		<a href={ fmt.Sprintf("/services/%s", item.Resource.Service.Tag) } class="block bg-gray-800 rounded-lg p-4 hover:bg-gray-700 transition">
+			<div class="flex items-center gap-4">
+				<div class="shrink-0 w-10 h-10 rounded bg-green-900/60 flex items-center justify-center text-green-300 text-xs font-medium">
+					Service
+				</div>
+				<div class="min-w-0">
+					<h3 class="font-semibold truncate">{ item.Resource.Service.Name }</h3>
+				</div>
+			</div>
+		</a>
+	}
+}
+
+func joinGenres(genres []string) string {
+	result := ""
+	for i, g := range genres {
+		if i > 0 {
+			result += ", "
+		}
+		result += g
+	}
+	return result
+}

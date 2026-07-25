@@ -501,10 +501,10 @@ func (p *Provider) mapSeason(lu types.Lineup, images *types.Images, seriesID str
 	if len(lu.Items) > 0 {
 		s.NumberOfEpisodes = oas.NewOptInt(len(lu.Items))
 	}
-	if images != nil && images.Card != nil {
+	if images != nil && p.getImagePoster(images) != "" {
 		s.Poster = p.imageURL("series", seriesID, "seasons", s.ID, "poster")
 	}
-	if images != nil && images.Background != nil {
+	if images != nil && p.getImageBackdrop(images) != "" {
 		s.Backdrop = p.imageURL("series", seriesID, "seasons", s.ID, "backdrop")
 	}
 	return s

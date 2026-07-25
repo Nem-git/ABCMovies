@@ -9,24 +9,27 @@ import (
 
 templ EpisodeDetail(tag string, seriesID string, seasonID string, episode *oas.Episode, streams []oas.Stream, streamURL string) {
 	@layouts.App(episode.Name) {
-		<div class="p-8 max-w-4xl mx-auto">
+		<div class="max-w-4xl mx-auto px-6 py-8">
 			@components.BackLink("/services/"+tag+"/series/"+seriesID+"/seasons/"+seasonID, "Season")
 			<div class="mt-4">
+				<div class="flex items-center gap-3 text-sm text-gray-500 mb-2">
+					if episode.EpisodeNumber.IsSet() {
+						<span>Episode { episode.EpisodeNumber.Value }</span>
+					}
+					if episode.Duration != "" {
+						<span>· { episode.Duration }</span>
+					}
+					if episode.ContentRating.IsSet() {
+						<span>· { episode.ContentRating.Value }</span>
+					}
+				</div>
 				<h1 class="text-3xl font-bold">{ episode.Name }</h1>
 				if episode.Description.IsSet() {
 					<p class="text-gray-400 mt-2">{ episode.Description.Value }</p>
 				}
-				<div class="flex gap-4 mt-4 text-sm text-gray-500">
-					if episode.Duration != "" {
-						<span>{ episode.Duration }</span>
-					}
-					if len(episode.Languages) > 0 {
-						<span>{ strings.Join(episode.Languages, ", ") }</span>
-					}
-					if episode.ContentRating.IsSet() {
-						<span>{ episode.ContentRating.Value }</span>
-					}
-				</div>
+				if len(episode.Languages) > 0 {
+					<p class="text-sm text-gray-500 mt-2">{ strings.Join(episode.Languages, ", ") }</p>
+				}
 			</div>
 			@components.StreamList(streams, streamURL)
 		</div>

@@ -47,7 +47,7 @@ func SeriesDetail(tag string, series *oas.Series, seasons []oas.Season, nextURL 
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"p-8 max-w-4xl mx-auto\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"max-w-4xl mx-auto px-6 py-8\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -85,14 +85,14 @@ func SeriesDetail(tag string, series *oas.Series, seasons []oas.Season, nextURL 
 					return templ_7745c5c3_Err
 				}
 				if series.Description.IsSet() {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<p class=\"text-gray-300 mt-2\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<p class=\"text-gray-300 mt-2 line-clamp-3\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var5 string
 					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(series.Description.Value)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/pages/series_detail.templ`, Line: 17, Col: 62}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/pages/series_detail.templ`, Line: 17, Col: 75}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -133,7 +133,7 @@ func SeriesDetail(tag string, series *oas.Series, seasons []oas.Season, nextURL 
 				return templ_7745c5c3_Err
 			}
 			if len(seasons) > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"mt-8\"><h2 class=\"text-xl font-semibold mb-4\">Seasons</h2><div class=\"grid gap-4\" id=\"season-list\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"mt-8\"><h2 class=\"text-xl font-semibold mb-4\">Seasons</h2><div class=\"grid gap-3\" id=\"season-list\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -148,6 +148,11 @@ func SeriesDetail(tag string, series *oas.Series, seasons []oas.Season, nextURL 
 					return templ_7745c5c3_Err
 				}
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</div></div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			} else {
+				templ_7745c5c3_Err = components.EmptyState("No seasons available yet.").Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

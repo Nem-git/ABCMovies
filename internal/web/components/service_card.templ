@@ -7,18 +7,31 @@ import (
 
 templ ServiceCard(tag string, service oas.Service) {
 	@CardLink("/services/" + service.Tag) {
-		<h2 class="text-xl font-bold">{ service.Name }</h2>
-		if service.Description.IsSet() {
-			<p class="text-gray-400 mt-1">{ service.Description.Value }</p>
-		}
-		<div class="flex gap-2 mt-2 text-sm text-gray-500">
-			<span class="uppercase">{ service.Tag }</span>
-			if service.Country.IsSet() {
-				<span>{ service.Country.Value }</span>
-			}
-			if len(service.Languages) > 0 {
-				<span>{ strings.Join(service.Languages, ", ") }</span>
-			}
+		<div class="flex items-start gap-4">
+			<div class="shrink-0 w-12 h-12 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-lg">
+				{ tag[:min(2, len(tag))] }
+			</div>
+			<div class="min-w-0">
+				<h2 class="text-lg font-bold">{ service.Name }</h2>
+				if service.Description.IsSet() {
+					<p class="text-gray-400 text-sm mt-1 line-clamp-2">{ service.Description.Value }</p>
+				}
+				<div class="flex flex-wrap gap-2 mt-2 text-xs text-gray-500">
+					if service.Country.IsSet() {
+						<span class="bg-gray-700 px-2 py-0.5 rounded">{ service.Country.Value }</span>
+					}
+					if len(service.Languages) > 0 {
+						<span class="bg-gray-700 px-2 py-0.5 rounded">{ strings.Join(service.Languages, ", ") }</span>
+					}
+				</div>
+			</div>
 		</div>
 	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

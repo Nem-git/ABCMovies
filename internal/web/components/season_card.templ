@@ -4,15 +4,19 @@ import "github.com/nem-git/abcmovies/internal/oas"
 
 templ SeasonCard(tag string, seriesID string, season oas.Season) {
 	@CardLink("/services/" + tag + "/series/" + seriesID + "/seasons/" + season.ID) {
-		<div class="flex items-start justify-between">
-			<img src={ season.Poster.Value.String() } alt={ season.Name + " Poster" } class="w-32 rounded-lg shadow-lg"/>
-			<h3 class="font-semibold">{ season.Name }</h3>
-			if season.Description.IsSet() {
-				<p class="text-sm text-gray-400 mt-1">{ season.Description.Value }</p>
-			}
-			if season.NumberOfEpisodes.IsSet() {
-				<p class="text-xs text-gray-500 mt-1">{ season.NumberOfEpisodes.Value } episodes</p>
-			}
+		<div class="flex items-start gap-4">
+			<div class="shrink-0 w-20 h-28 rounded-lg overflow-hidden bg-gray-700">
+				<img src={ season.Poster.Value.String() } alt={ season.Name + " Poster" } class="w-full h-full object-cover" loading="lazy"/>
+			</div>
+			<div class="min-w-0">
+				<h3 class="font-semibold">{ season.Name }</h3>
+				if season.Description.IsSet() {
+					<p class="text-sm text-gray-400 mt-1 line-clamp-2">{ season.Description.Value }</p>
+				}
+				if season.NumberOfEpisodes.IsSet() {
+					<p class="text-xs text-gray-500 mt-1">{ season.NumberOfEpisodes.Value } episodes</p>
+				}
+			</div>
 		</div>
 	}
 }

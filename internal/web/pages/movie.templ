@@ -9,29 +9,33 @@ import (
 
 templ MovieDetail(tag string, movie *oas.Movie, streams []oas.Stream, streamURL string) {
 	@layouts.App(movie.Name) {
-		<div class="p-8 max-w-4xl mx-auto">
-			@components.BackLink("/services/" + tag + "/movies", "Movies")
+		<div class="max-w-4xl mx-auto px-6 py-8">
+			@components.BackLink("/services/"+tag+"/movies", "Movies")
 			@components.BackdropHero(movie.Backdrop.Value.String()) {
-				<img src={ movie.Poster.Value.String() } alt={ movie.Name + " Poster" } class="w-32 rounded-lg shadow-lg"/>
-				<div>
-					<h1 class="text-3xl font-bold text-white">{ movie.Name }</h1>
-					if movie.Description.IsSet() {
-						<p class="text-gray-300 mt-2">{ movie.Description.Value }</p>
-					}
-					<div class="flex flex-wrap gap-2 mt-4 text-sm text-gray-400">
-						if len(movie.Genres) > 0 {
-							for _, g := range movie.Genres {
-								<span class="bg-gray-800/60 px-2 py-1 rounded">{ g }</span>
-							}
-						}
+				<div class="flex items-end gap-6">
+					<div class="shrink-0 w-24 md:w-32 rounded-lg overflow-hidden shadow-2xl hidden sm:block">
+						<img src={ movie.Poster.Value.String() } alt={ movie.Name + " Poster" } class="w-full" loading="lazy"/>
 					</div>
-					<div class="mt-2 text-sm text-gray-400">
-						if len(movie.Languages) > 0 {
-							<p>{ strings.Join(movie.Languages, ", ") }</p>
+					<div class="min-w-0">
+						<h1 class="text-3xl font-bold text-white">{ movie.Name }</h1>
+						if movie.Description.IsSet() {
+							<p class="text-gray-300 mt-2 line-clamp-3">{ movie.Description.Value }</p>
 						}
-						if movie.Duration.IsSet() {
-							<p>{ movie.Duration.Value }</p>
-						}
+						<div class="flex flex-wrap gap-2 mt-3">
+							if len(movie.Genres) > 0 {
+								for _, g := range movie.Genres {
+									<span class="bg-white/10 backdrop-blur text-xs px-2 py-1 rounded">{ g }</span>
+								}
+							}
+						</div>
+						<div class="flex flex-wrap gap-3 mt-3 text-sm text-gray-400">
+							if len(movie.Languages) > 0 {
+								<span>{ strings.Join(movie.Languages, ", ") }</span>
+							}
+							if movie.Duration.IsSet() {
+								<span>· { movie.Duration.Value }</span>
+							}
+						</div>
 					</div>
 				</div>
 			}

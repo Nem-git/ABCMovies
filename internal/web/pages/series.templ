@@ -8,15 +8,19 @@ import (
 
 templ SeriesList(tag string, series []oas.Series, nextURL string) {
 	@layouts.App("Series") {
-		<div class="p-8 max-w-4xl mx-auto">
+		<div class="max-w-6xl mx-auto px-6 py-8">
 			@components.BackLink("/services/"+tag, tag)
 			<h1 class="text-2xl font-bold mt-4 mb-6">Series</h1>
-			<div class="grid gap-4" id="series-list">
-				for _, s := range series {
-					@components.SeriesCard(tag, s)
-				}
-				@components.Sentinel(nextURL)
-			</div>
+			if len(series) == 0 && nextURL == "" {
+				@components.EmptyState("No series available yet.")
+			} else {
+				<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" id="series-list">
+					for _, s := range series {
+						@components.SeriesCard(tag, s)
+					}
+					@components.Sentinel(nextURL)
+				</div>
+			}
 		</div>
 	}
 }

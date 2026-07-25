@@ -8,13 +8,13 @@ import (
 
 templ SeriesDetail(tag string, series *oas.Series, seasons []oas.Season, nextURL string) {
 	@layouts.App(series.Name) {
-		<div class="p-8 max-w-4xl mx-auto">
+		<div class="max-w-4xl mx-auto px-6 py-8">
 			@components.BackLink("/services/"+tag+"/series", "Series")
 			@components.BackdropHero(series.Backdrop.Value.String()) {
 				<div>
 					<h1 class="text-3xl font-bold text-white">{ series.Name }</h1>
 					if series.Description.IsSet() {
-						<p class="text-gray-300 mt-2">{ series.Description.Value }</p>
+						<p class="text-gray-300 mt-2 line-clamp-3">{ series.Description.Value }</p>
 					}
 					if series.NumberOfSeasons > 0 {
 						<p class="text-sm text-gray-400 mt-2">{ series.NumberOfSeasons } seasons</p>
@@ -24,13 +24,15 @@ templ SeriesDetail(tag string, series *oas.Series, seasons []oas.Season, nextURL
 			if len(seasons) > 0 {
 				<div class="mt-8">
 					<h2 class="text-xl font-semibold mb-4">Seasons</h2>
-					<div class="grid gap-4" id="season-list">
+					<div class="grid gap-3" id="season-list">
 						for _, s := range seasons {
 							@components.SeasonCard(tag, series.ID, s)
 						}
 						@components.Sentinel(nextURL)
 					</div>
 				</div>
+			} else {
+				@components.EmptyState("No seasons available yet.")
 			}
 		</div>
 	}

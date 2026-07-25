@@ -1,0 +1,20 @@
+package fragments
+
+import (
+	"github.com/nem-git/abcmovies/internal/oas"
+	"github.com/nem-git/abcmovies/internal/web/components"
+)
+
+templ SearchResults(results []oas.SearchResultItem, tag string) {
+	if len(results) == 0 {
+		<div class="py-8 text-center text-gray-400">
+			<p>No results found.</p>
+		</div>
+	} else {
+		<div class="grid gap-3">
+			for _, r := range results {
+				@components.SearchResultItemCard(tag, r)
+			}
+		</div>
+	}
+}
