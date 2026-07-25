@@ -552,7 +552,7 @@ func TestGetEpisodeThumbnail(t *testing.T) {
 	defer ts.Close()
 
 	p := newTestProvider(ts.URL)
-	rc, err := p.GetEpisodeThumbnail(t.Context(), "s", "s01", "101")
+	rc, _, err := p.GetEpisodeThumbnail(t.Context(), "s", "s01", "101")
 	if err != nil {
 		t.Fatalf("GetEpisodeThumbnail() error: %v", err)
 	}
@@ -791,14 +791,14 @@ func TestMovieEndpoints_unsupported(t *testing.T) {
 	})
 
 	t.Run("GetMoviePoster", func(t *testing.T) {
-		_, err := p.GetMoviePoster(t.Context(), "x")
+		_, _, err := p.GetMoviePoster(t.Context(), "x")
 		if err != provider.ErrNotSupported {
 			t.Errorf("GetMoviePoster() error = %v, want ErrNotSupported", err)
 		}
 	})
 
 	t.Run("GetMovieBackdrop", func(t *testing.T) {
-		_, err := p.GetMovieBackdrop(t.Context(), "x")
+		_, _, err := p.GetMovieBackdrop(t.Context(), "x")
 		if err != provider.ErrNotSupported {
 			t.Errorf("GetMovieBackdrop() error = %v, want ErrNotSupported", err)
 		}
@@ -844,7 +844,7 @@ func TestSeriesImages(t *testing.T) {
 	p := newTestProvider(ts.URL)
 
 	t.Run("poster", func(t *testing.T) {
-		rc, err := p.GetSeriesPoster(t.Context(), "s")
+		rc, _, err := p.GetSeriesPoster(t.Context(), "s")
 		if err != nil {
 			t.Fatalf("GetSeriesPoster() error: %v", err)
 		}
@@ -856,7 +856,7 @@ func TestSeriesImages(t *testing.T) {
 	})
 
 	t.Run("backdrop", func(t *testing.T) {
-		rc, err := p.GetSeriesBackdrop(t.Context(), "s")
+		rc, _, err := p.GetSeriesBackdrop(t.Context(), "s")
 		if err != nil {
 			t.Fatalf("GetSeriesBackdrop() error: %v", err)
 		}
@@ -910,7 +910,7 @@ func TestUnimplementedMethods(t *testing.T) {
 
 	t.Run("GetSeasonPoster delegates to SeriesPoster", func(t *testing.T) {
 		// Should try to fetch the series images
-		_, err := p.GetSeasonPoster(t.Context(), "nonexistent", "s01")
+		_, _, err := p.GetSeasonPoster(t.Context(), "nonexistent", "s01")
 		if err == nil {
 			t.Error("expected error for nonexistent series")
 		}
@@ -932,8 +932,9 @@ func showTestServer(t *testing.T, body string) *httptest.Server {
 // newTestProvider creates a CBC provider pointed at tsURL.
 func newTestProvider(tsURL string) *cbc.Provider {
 	return cbc.New(cbc.Config{
-		Tag:     "CBC",
-		Service: &oas.Service{Tag: "CBC", Name: "CBC Gem"},
-		BaseURL: tsURL,
+		Tag:       "CBC",
+		Service:   &oas.Service{Tag: "CBC", Name: "CBC Gem"},
+		BaseURL:   tsURL,
+		APIPrefix: "/api/v1alpha",
 	})
 }

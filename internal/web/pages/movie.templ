@@ -7,14 +7,12 @@ import (
 	"strings"
 )
 
-templ MovieDetail(tag string, movie *oas.Movie, streams []oas.Stream) {
+templ MovieDetail(tag string, movie *oas.Movie, streams []oas.Stream, streamURL string) {
 	@layouts.App(movie.Name) {
 		<div class="p-8 max-w-4xl mx-auto">
-			@components.BackLink("/services/"+tag+"/movies", "Movies")
-			@components.BackdropHero(APIPrefix + "/services/" + tag + "/movies/" + movie.ID + "/backdrop.png") {
-				if movie.Poster.IsSet() {
-					<img src={ APIPrefix + "/services/" + tag + "/movies/" + movie.ID + "/poster" } alt={ movie.Name + " Poster" } class="w-32 rounded-lg shadow-lg"/>
-				}
+			@components.BackLink("/services/" + tag + "/movies", "Movies")
+			@components.BackdropHero(movie.Backdrop.Value.String()) {
+				<img src={ movie.Poster.Value.String() } alt={ movie.Name + " Poster" } class="w-32 rounded-lg shadow-lg"/>
 				<div>
 					<h1 class="text-3xl font-bold text-white">{ movie.Name }</h1>
 					if movie.Description.IsSet() {
@@ -37,7 +35,7 @@ templ MovieDetail(tag string, movie *oas.Movie, streams []oas.Stream) {
 					</div>
 				</div>
 			}
-			@components.StreamList(streams, APIPrefix + "/services/" + tag + "/movies/" + movie.ID + "/streams")
+			@components.StreamList(streams, streamURL)
 		</div>
 	}
 }

@@ -14,7 +14,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port int `yaml:"port"`
+	Port      int    `yaml:"port"`
+	BaseURL   string `yaml:"base_url"`
+	APIPrefix string `yaml:"api_prefix"`
 }
 
 type StubSearchEntry struct {
@@ -49,9 +51,17 @@ func Load(path string) (*Config, error) {
 
 	var cfg Config
 	cfg.Server.Port = 80
+	cfg.Server.APIPrefix = "/api/v1alpha"
 
 	if err := yaml.Unmarshal(raw, &cfg); err != nil {
 		return nil, fmt.Errorf("decoding config: %w", err)
+	}
+
+	if v := os.Getenv("BASE_URL"); v != "" {
+		cfg.Server.BaseURL = v
+	}
+	if v := os.Getenv("API_PREFIX"); v != "" {
+		cfg.Server.APIPrefix = v
 	}
 
 	return &cfg, nil

@@ -1,7 +1,7 @@
 package components
 
 templ BackdropHero(backdropURL string) {
-	<div class="relative w-full h-80 rounded-lg overflow-hidden bg-cover bg-center" style={ "background-image: url('" + backdropURL + "')" }>
+	<div class="relative w-full h-80 rounded-lg overflow-hidden bg-cover bg-center" style={ "background-image: url(" + backdropURL + ")" }>
 		<div class="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/60 to-gray-900/10"></div>
 		<div class="relative z-10 p-8 h-full flex items-end gap-6">
 			{ children... }

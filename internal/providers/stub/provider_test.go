@@ -359,13 +359,17 @@ func TestImageEndpoints(t *testing.T) {
 		SeasonPosterData:     data,
 		SeasonBackdropData:   data,
 		EpisodeThumbnailData: data,
+		ImageMIME:            "image/png",
 	})
 
-	checkImage := func(name string, fn func() (io.ReadCloser, error)) {
+	checkImage := func(name string, fn func() (io.ReadCloser, string, error)) {
 		t.Helper()
-		rc, err := fn()
+		rc, mime, err := fn()
 		if err != nil {
 			t.Fatalf("%s() error: %v", name, err)
+		}
+		if mime != "image/png" {
+			t.Errorf("%s() mime = %q, want %q", name, mime, "image/png")
 		}
 		got, _ := io.ReadAll(rc)
 		rc.Close()
@@ -374,13 +378,13 @@ func TestImageEndpoints(t *testing.T) {
 		}
 	}
 
-	checkImage("GetMoviePoster", func() (io.ReadCloser, error) { return p.GetMoviePoster(t.Context(), "m1") })
-	checkImage("GetMovieBackdrop", func() (io.ReadCloser, error) { return p.GetMovieBackdrop(t.Context(), "m1") })
-	checkImage("GetSeriesPoster", func() (io.ReadCloser, error) { return p.GetSeriesPoster(t.Context(), "s1") })
-	checkImage("GetSeriesBackdrop", func() (io.ReadCloser, error) { return p.GetSeriesBackdrop(t.Context(), "s1") })
-	checkImage("GetSeasonPoster", func() (io.ReadCloser, error) { return p.GetSeasonPoster(t.Context(), "s1", "sea1") })
-	checkImage("GetSeasonBackdrop", func() (io.ReadCloser, error) { return p.GetSeasonBackdrop(t.Context(), "s1", "sea1") })
-	checkImage("GetEpisodeThumbnail", func() (io.ReadCloser, error) { return p.GetEpisodeThumbnail(t.Context(), "s1", "sea1", "ep1") })
+	checkImage("GetMoviePoster", func() (io.ReadCloser, string, error) { return p.GetMoviePoster(t.Context(), "m1") })
+	checkImage("GetMovieBackdrop", func() (io.ReadCloser, string, error) { return p.GetMovieBackdrop(t.Context(), "m1") })
+	checkImage("GetSeriesPoster", func() (io.ReadCloser, string, error) { return p.GetSeriesPoster(t.Context(), "s1") })
+	checkImage("GetSeriesBackdrop", func() (io.ReadCloser, string, error) { return p.GetSeriesBackdrop(t.Context(), "s1") })
+	checkImage("GetSeasonPoster", func() (io.ReadCloser, string, error) { return p.GetSeasonPoster(t.Context(), "s1", "sea1") })
+	checkImage("GetSeasonBackdrop", func() (io.ReadCloser, string, error) { return p.GetSeasonBackdrop(t.Context(), "s1", "sea1") })
+	checkImage("GetEpisodeThumbnail", func() (io.ReadCloser, string, error) { return p.GetEpisodeThumbnail(t.Context(), "s1", "sea1", "ep1") })
 }
 
 func TestFileEndpoints(t *testing.T) {
@@ -463,8 +467,8 @@ func TestNilConfig(t *testing.T) {
 	checkNotSupported("GetSeasonById", func() error { _, err := p.GetSeasonById(t.Context(), "x", "y"); return err }())
 	checkNotSupported("GetEpisodes", func() error { _, _, err := p.GetEpisodes(t.Context(), "x", "y", 10, 0); return err }())
 	checkNotSupported("GetEpisodeById", func() error { _, err := p.GetEpisodeById(t.Context(), "x", "y", "z"); return err }())
-	checkNotSupported("GetMoviePoster", func() error { _, err := p.GetMoviePoster(t.Context(), "x"); return err }())
+	checkNotSupported("GetMoviePoster", func() error { _, _, err := p.GetMoviePoster(t.Context(), "x"); return err }())
 	checkNotSupported("GetMovieStreamFile", func() error { _, _, err := p.GetMovieStreamFile(t.Context(), "x", "y"); return err }())
-	checkNotSupported("GetEpisodeThumbnail", func() error { _, err := p.GetEpisodeThumbnail(t.Context(), "x", "y", "z"); return err }())
+	checkNotSupported("GetEpisodeThumbnail", func() error { _, _, err := p.GetEpisodeThumbnail(t.Context(), "x", "y", "z"); return err }())
 	checkNotSupported("Search", func() error { _, _, err := p.Search(t.Context(), "q", 10, 0); return err }())
 }

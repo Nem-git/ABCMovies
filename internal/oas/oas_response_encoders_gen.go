@@ -51,29 +51,6 @@ func encodeGetEpisodeByIdResponse(response GetEpisodeByIdRes, w http.ResponseWri
 
 		return nil
 
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
-		return nil
-
 	default:
 		return errors.Errorf("unexpected response type: %T", response)
 	}
@@ -147,29 +124,6 @@ func encodeGetEpisodeStreamFileResponse(response GetEpisodeStreamFileRes, w http
 
 		return nil
 
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
-		return nil
-
 	default:
 		return errors.Errorf("unexpected response type: %T", response)
 	}
@@ -211,29 +165,6 @@ func encodeGetEpisodeStreamsResponse(response GetEpisodeStreamsRes, w http.Respo
 			return errors.Wrap(err, "write")
 		}
 
-		return nil
-
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
 		return nil
 
 	default:
@@ -323,29 +254,6 @@ func encodeGetEpisodeSubtitleFileResponse(response GetEpisodeSubtitleFileRes, w 
 
 		return nil
 
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
-		return nil
-
 	default:
 		return errors.Errorf("unexpected response type: %T", response)
 	}
@@ -389,29 +297,6 @@ func encodeGetEpisodeSubtitlesResponse(response GetEpisodeSubtitlesRes, w http.R
 
 		return nil
 
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
-		return nil
-
 	default:
 		return errors.Errorf("unexpected response type: %T", response)
 	}
@@ -419,8 +304,36 @@ func encodeGetEpisodeSubtitlesResponse(response GetEpisodeSubtitlesRes, w http.R
 
 func encodeGetEpisodeThumbnailResponse(response GetEpisodeThumbnailRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *GetEpisodeThumbnailOK:
+	case *GetEpisodeThumbnailOKImageJpeg:
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetEpisodeThumbnailOKImagePNG:
 		w.Header().Set("Content-Type", "image/png")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetEpisodeThumbnailOKImageWEBP:
+		w.Header().Set("Content-Type", "image/webp")
 		w.WriteHeader(200)
 
 		writer := w
@@ -488,29 +401,6 @@ func encodeGetEpisodesResponse(response GetEpisodesRes, w http.ResponseWriter, s
 
 		return nil
 
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
-		return nil
-
 	default:
 		return errors.Errorf("unexpected response type: %T", response)
 	}
@@ -531,8 +421,36 @@ func encodeGetHealthResponse(response *Health, w http.ResponseWriter, span trace
 
 func encodeGetMovieBackdropResponse(response GetMovieBackdropRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *GetMovieBackdropOK:
+	case *GetMovieBackdropOKImageJpeg:
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetMovieBackdropOKImagePNG:
 		w.Header().Set("Content-Type", "image/png")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetMovieBackdropOKImageWEBP:
+		w.Header().Set("Content-Type", "image/webp")
 		w.WriteHeader(200)
 
 		writer := w
@@ -600,29 +518,6 @@ func encodeGetMovieByIdResponse(response GetMovieByIdRes, w http.ResponseWriter,
 
 		return nil
 
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
-		return nil
-
 	default:
 		return errors.Errorf("unexpected response type: %T", response)
 	}
@@ -630,8 +525,36 @@ func encodeGetMovieByIdResponse(response GetMovieByIdRes, w http.ResponseWriter,
 
 func encodeGetMoviePosterResponse(response GetMoviePosterRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *GetMoviePosterOK:
+	case *GetMoviePosterOKImageJpeg:
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetMoviePosterOKImagePNG:
 		w.Header().Set("Content-Type", "image/png")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetMoviePosterOKImageWEBP:
+		w.Header().Set("Content-Type", "image/webp")
 		w.WriteHeader(200)
 
 		writer := w
@@ -729,29 +652,6 @@ func encodeGetMovieStreamFileResponse(response GetMovieStreamFileRes, w http.Res
 
 		return nil
 
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
-		return nil
-
 	default:
 		return errors.Errorf("unexpected response type: %T", response)
 	}
@@ -793,29 +693,6 @@ func encodeGetMovieStreamsResponse(response GetMovieStreamsRes, w http.ResponseW
 			return errors.Wrap(err, "write")
 		}
 
-		return nil
-
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
 		return nil
 
 	default:
@@ -905,29 +782,6 @@ func encodeGetMovieSubtitleFileResponse(response GetMovieSubtitleFileRes, w http
 
 		return nil
 
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
-		return nil
-
 	default:
 		return errors.Errorf("unexpected response type: %T", response)
 	}
@@ -969,29 +823,6 @@ func encodeGetMovieSubtitlesResponse(response GetMovieSubtitlesRes, w http.Respo
 			return errors.Wrap(err, "write")
 		}
 
-		return nil
-
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
 		return nil
 
 	default:
@@ -1037,29 +868,6 @@ func encodeGetMoviesResponse(response GetMoviesRes, w http.ResponseWriter, span 
 
 		return nil
 
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
-		return nil
-
 	default:
 		return errors.Errorf("unexpected response type: %T", response)
 	}
@@ -1067,8 +875,36 @@ func encodeGetMoviesResponse(response GetMoviesRes, w http.ResponseWriter, span 
 
 func encodeGetSeasonBackdropResponse(response GetSeasonBackdropRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *GetSeasonBackdropOK:
+	case *GetSeasonBackdropOKImageJpeg:
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetSeasonBackdropOKImagePNG:
 		w.Header().Set("Content-Type", "image/png")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetSeasonBackdropOKImageWEBP:
+		w.Header().Set("Content-Type", "image/webp")
 		w.WriteHeader(200)
 
 		writer := w
@@ -1136,29 +972,6 @@ func encodeGetSeasonByIdResponse(response GetSeasonByIdRes, w http.ResponseWrite
 
 		return nil
 
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
-		return nil
-
 	default:
 		return errors.Errorf("unexpected response type: %T", response)
 	}
@@ -1166,8 +979,36 @@ func encodeGetSeasonByIdResponse(response GetSeasonByIdRes, w http.ResponseWrite
 
 func encodeGetSeasonPosterResponse(response GetSeasonPosterRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *GetSeasonPosterOK:
+	case *GetSeasonPosterOKImageJpeg:
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetSeasonPosterOKImagePNG:
 		w.Header().Set("Content-Type", "image/png")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetSeasonPosterOKImageWEBP:
+		w.Header().Set("Content-Type", "image/webp")
 		w.WriteHeader(200)
 
 		writer := w
@@ -1235,29 +1076,6 @@ func encodeGetSeasonsResponse(response GetSeasonsRes, w http.ResponseWriter, spa
 
 		return nil
 
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
-		return nil
-
 	default:
 		return errors.Errorf("unexpected response type: %T", response)
 	}
@@ -1301,29 +1119,6 @@ func encodeGetSeriesResponse(response GetSeriesRes, w http.ResponseWriter, span 
 
 		return nil
 
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
-		return nil
-
 	default:
 		return errors.Errorf("unexpected response type: %T", response)
 	}
@@ -1331,8 +1126,36 @@ func encodeGetSeriesResponse(response GetSeriesRes, w http.ResponseWriter, span 
 
 func encodeGetSeriesBackdropResponse(response GetSeriesBackdropRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *GetSeriesBackdropOK:
+	case *GetSeriesBackdropOKImageJpeg:
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetSeriesBackdropOKImagePNG:
 		w.Header().Set("Content-Type", "image/png")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetSeriesBackdropOKImageWEBP:
+		w.Header().Set("Content-Type", "image/webp")
 		w.WriteHeader(200)
 
 		writer := w
@@ -1400,29 +1223,6 @@ func encodeGetSeriesByIdResponse(response GetSeriesByIdRes, w http.ResponseWrite
 
 		return nil
 
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
-		return nil
-
 	default:
 		return errors.Errorf("unexpected response type: %T", response)
 	}
@@ -1430,8 +1230,36 @@ func encodeGetSeriesByIdResponse(response GetSeriesByIdRes, w http.ResponseWrite
 
 func encodeGetSeriesPosterResponse(response GetSeriesPosterRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *GetSeriesPosterOK:
+	case *GetSeriesPosterOKImageJpeg:
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetSeriesPosterOKImagePNG:
 		w.Header().Set("Content-Type", "image/png")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetSeriesPosterOKImageWEBP:
+		w.Header().Set("Content-Type", "image/webp")
 		w.WriteHeader(200)
 
 		writer := w
@@ -1487,74 +1315,22 @@ func encodeGetServiceByTagResponse(response GetServiceByTagRes, w http.ResponseW
 
 		return nil
 
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
-		return nil
-
 	default:
 		return errors.Errorf("unexpected response type: %T", response)
 	}
 }
 
-func encodeGetServicesResponse(response GetServicesRes, w http.ResponseWriter, span trace.Span) error {
-	switch response := response.(type) {
-	case *PageService:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(200)
+func encodeGetServicesResponse(response *PageService, w http.ResponseWriter, span trace.Span) error {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(200)
 
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
-		return nil
-
-	default:
-		return errors.Errorf("unexpected response type: %T", response)
+	e := new(jx.Encoder)
+	response.Encode(e)
+	if _, err := e.WriteTo(w); err != nil {
+		return errors.Wrap(err, "write")
 	}
+
+	return nil
 }
 
 func encodeGlobalSearchResponse(response GlobalSearchRes, w http.ResponseWriter, span trace.Span) error {
@@ -1583,30 +1359,32 @@ func encodeGlobalSearchResponse(response GlobalSearchRes, w http.ResponseWriter,
 
 		return nil
 
-	case *ErrorStatusCode:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		code := response.StatusCode
-		if code == 0 {
-			// Set default status code.
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-		if code >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(code))
-		}
-
-		e := new(jx.Encoder)
-		response.Response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		if code >= http.StatusInternalServerError {
-			return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
-		}
-		return nil
-
 	default:
 		return errors.Errorf("unexpected response type: %T", response)
 	}
+}
+
+func encodeErrorResponse(response *ErrorStatusCode, w http.ResponseWriter, span trace.Span) error {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	code := response.StatusCode
+	if code == 0 {
+		// Set default status code.
+		code = http.StatusOK
+	}
+	w.WriteHeader(code)
+	if code >= http.StatusInternalServerError {
+		span.SetStatus(codes.Error, http.StatusText(code))
+	}
+
+	e := new(jx.Encoder)
+	response.Response.Encode(e)
+	if _, err := e.WriteTo(w); err != nil {
+		return errors.Wrap(err, "write")
+	}
+
+	if code >= http.StatusInternalServerError {
+		return errors.Wrapf(ht.ErrInternalServerErrorResponse, "code: %d, message: %s", code, http.StatusText(code))
+	}
+	return nil
+
 }

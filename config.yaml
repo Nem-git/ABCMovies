@@ -1,5 +1,7 @@
 server:
   port: 80
+  base_url: ""
+  api_prefix: /api/v1
 
 services:
   - tag: CRAV

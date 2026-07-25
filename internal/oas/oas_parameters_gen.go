@@ -1007,11 +1007,11 @@ type GetEpisodeSubtitleFileParams struct {
 	EpisodeId string
 	// The subtitle filename, following the `{language}[-{kind}].{format}` convention:
 	//
-	//  - `en.vtt` — English, default
-	//  - `en-sdh.vtt` — English, hearing impaired
-	//  - `en-cc.vtt` — English, closed captions
-	//  - `fr.vtt` — French, default
-	//  - `ja.ttml` — Japanese, TTML format
+	//  - `en.vtt` - English, default
+	//  - `en-sdh.vtt` - English, hearing impaired
+	//  - `en-cc.vtt` - English, closed captions
+	//  - `fr.vtt` - French, default
+	//  - `ja.ttml` - Japanese, TTML format
 	SubtitleFile string
 }
 
@@ -3289,11 +3289,11 @@ type GetMovieSubtitleFileParams struct {
 	MovieId string
 	// The subtitle filename, following the `{language}[-{kind}].{format}` convention:
 	//
-	//  - `en.vtt` — English, default
-	//  - `en-sdh.vtt` — English, hearing impaired
-	//  - `en-cc.vtt` — English, closed captions
-	//  - `fr.vtt` — French, default
-	//  - `ja.ttml` — Japanese, TTML format
+	//  - `en.vtt` - English, default
+	//  - `en-sdh.vtt` - English, hearing impaired
+	//  - `en-cc.vtt` - English, closed captions
+	//  - `fr.vtt` - French, default
+	//  - `ja.ttml` - Japanese, TTML format
 	SubtitleFile string
 }
 
@@ -5997,6 +5997,25 @@ func decodeGlobalSearchParams(args [0]string, argsEscaped bool, r *http.Request)
 			Err:  err,
 		}
 	}
+	// Set default value for query: type.
+	{
+		var defaultVal0 []SearchTypeItem
+		{
+			var defaultVal0Elem SearchTypeItem
+
+			val := SearchTypeItem("movie")
+			defaultVal0Elem = val
+			defaultVal0 = append(defaultVal0, defaultVal0Elem)
+		}
+		{
+			var defaultVal0Elem SearchTypeItem
+
+			val := SearchTypeItem("series")
+			defaultVal0Elem = val
+			defaultVal0 = append(defaultVal0, defaultVal0Elem)
+		}
+		params.Type = defaultVal0
+	}
 	// Decode query: type.
 	if err := func() error {
 		cfg := uri.QueryParameterDecodingConfig{
@@ -6007,6 +6026,7 @@ func decodeGlobalSearchParams(args [0]string, argsEscaped bool, r *http.Request)
 
 		if err := q.HasParam(cfg); err == nil {
 			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				params.Type = nil
 				return d.DecodeArray(func(d uri.Decoder) error {
 					var paramsDotTypeVal SearchTypeItem
 					if err := func() error {

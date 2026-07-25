@@ -128,7 +128,7 @@ func SeasonDetail(tag string, seriesID string, season *oas.Season, episodes []oa
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.BackdropHero(APIPrefix+"/services/"+tag+"/series/"+seriesID+"/seasons/"+season.ID+"/backdrop").Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.BackdropHero(season.Backdrop.Value.String()).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

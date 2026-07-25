@@ -22,20 +22,20 @@ type Provider interface {
 	GetMovieStreamFile(ctx context.Context, movieID, streamFile string) (r io.ReadCloser, mimeType string, err error) // mimeType so handler can set Content-Type
 	GetMovieSubtitles(ctx context.Context, movieID string) (subtitles []oas.Subtitle, total int, err error)
 	GetMovieSubtitleFile(ctx context.Context, movieID, subtitleFile string) (r io.ReadCloser, mimeType string, err error)
-	GetMoviePoster(ctx context.Context, movieID string) (io.ReadCloser, error)
-	GetMovieBackdrop(ctx context.Context, movieID string) (io.ReadCloser, error)
+	GetMoviePoster(ctx context.Context, movieID string) (io.ReadCloser, string, error)
+	GetMovieBackdrop(ctx context.Context, movieID string) (io.ReadCloser, string, error)
 
 	// Series
 	GetSeries(ctx context.Context, limit, offset int) (series []oas.Series, total int, err error)
 	GetSeriesByID(ctx context.Context, seriesID string) (*oas.Series, error)
-	GetSeriesPoster(ctx context.Context, seriesID string) (io.ReadCloser, error)
-	GetSeriesBackdrop(ctx context.Context, seriesID string) (io.ReadCloser, error)
+	GetSeriesPoster(ctx context.Context, seriesID string) (io.ReadCloser, string, error)
+	GetSeriesBackdrop(ctx context.Context, seriesID string) (io.ReadCloser, string, error)
 
 	// Seasons
 	GetSeasons(ctx context.Context, seriesID string, limit, offset int) (seasons []oas.Season, total int, err error)
 	GetSeasonById(ctx context.Context, seriesID, seasonID string) (*oas.Season, error)
-	GetSeasonPoster(ctx context.Context, seriesID, seasonID string) (io.ReadCloser, error)
-	GetSeasonBackdrop(ctx context.Context, seriesID, seasonID string) (io.ReadCloser, error)
+	GetSeasonPoster(ctx context.Context, seriesID, seasonID string) (io.ReadCloser, string, error)
+	GetSeasonBackdrop(ctx context.Context, seriesID, seasonID string) (io.ReadCloser, string, error)
 
 	// Episodes
 	GetEpisodes(ctx context.Context, seriesID, seasonID string, limit, offset int) (episodes []oas.Episode, total int, err error)
@@ -44,7 +44,7 @@ type Provider interface {
 	GetEpisodeStreamFile(ctx context.Context, seriesID, seasonID, episodeID, streamFile string) (r io.ReadCloser, mimeType string, err error)
 	GetEpisodeSubtitles(ctx context.Context, seriesID, seasonID, episodeID string) (subtitles []oas.Subtitle, total int, err error)
 	GetEpisodeSubtitleFile(ctx context.Context, seriesID, seasonID, episodeID, subtitleFile string) (r io.ReadCloser, mimeType string, err error)
-	GetEpisodeThumbnail(ctx context.Context, seriesID, seasonID, episodeID string) (io.ReadCloser, error)
+	GetEpisodeThumbnail(ctx context.Context, seriesID, seasonID, episodeID string) (io.ReadCloser, string, error)
 
 	// Search
 	Search(ctx context.Context, query string, limit, offset int) (results []oas.SearchResultItem, total int, err error)

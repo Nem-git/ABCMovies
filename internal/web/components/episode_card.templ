@@ -5,6 +5,7 @@ import "github.com/nem-git/abcmovies/internal/oas"
 templ EpisodeCard(tag string, seriesID string, seasonID string, episode oas.Episode) {
 	@CardLink("/services/" + tag + "/series/" + seriesID + "/seasons/" + seasonID + "/episodes/" + episode.ID) {
 		<div class="flex items-start justify-between">
+			<img src={ episode.Poster.Value.String() } alt={ episode.Name + " Poster" } class="w-32 rounded-lg shadow-lg"/>
 			<div>
 				if episode.EpisodeNumber.IsSet() {
 					<span class="text-sm text-gray-500">Episode { episode.EpisodeNumber.Value }</span>

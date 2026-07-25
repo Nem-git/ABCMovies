@@ -8,10 +8,11 @@ RUN apk add --no-cache make curl gcc musl-dev
 
 # Installs Tailwind CSS CLI
 RUN curl -fsSL https://github.com/tailwindlabs/tailwindcss/releases/download/v4.3.3/tailwindcss-linux-x64-musl -o tailwindcss
-RUN chmod +x tailwindcss
+RUN chmod +x tailwindcss && cp tailwindcss /usr/local/bin/tailwindcss
 
 # Installs ESBuild
 RUN curl -fsSL https://esbuild.github.io/dl/v0.28.1 | sh
+RUN cp esbuild /usr/local/bin/esbuild
 
 # Download dependencies
 # src/go.sum

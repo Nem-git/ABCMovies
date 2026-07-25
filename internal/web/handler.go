@@ -17,15 +17,17 @@ import (
 )
 
 type Handler struct {
-	registry *registry.Registry
-	mux      *http.ServeMux
+	registry  *registry.Registry
+	mux       *http.ServeMux
+	baseURL   string
+	apiPrefix string
 }
 
 const defaultPageSize = 20
 const maxPageSize = 100
 
-func New(r *registry.Registry) *Handler {
-	h := &Handler{registry: r}
+func New(r *registry.Registry, baseURL, apiPrefix string) *Handler {
+	h := &Handler{registry: r, baseURL: baseURL, apiPrefix: apiPrefix}
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /static/", http.StripPrefix("/static", http.FileServer(http.Dir("internal/web/static"))))
@@ -46,6 +48,10 @@ func New(r *registry.Registry) *Handler {
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
+}
+
+func (h *Handler) apiBaseURL() string {
+	return h.baseURL + h.apiPrefix
 }
 
 func (h *Handler) servePage(w http.ResponseWriter, r *http.Request, c templ.Component, options ...func(*templ.ComponentHandler)) {
@@ -187,7 +193,8 @@ func (h *Handler) handleServiceMovieByID(w http.ResponseWriter, r *http.Request)
 		streams = nil
 	}
 
-	h.servePage(w, r, pages.MovieDetail(tag, movie, streams))
+	streamURL := h.apiBaseURL() + "/services/" + tag + "/movies/" + id + "/streams"
+	h.servePage(w, r, pages.MovieDetail(tag, movie, streams, streamURL))
 }
 
 func (h *Handler) handleServiceSeries(w http.ResponseWriter, r *http.Request) {
@@ -367,7 +374,8 @@ func (h *Handler) handleServiceEpisodeByID(w http.ResponseWriter, r *http.Reques
 		streams = nil
 	}
 
-	h.servePage(w, r, pages.EpisodeDetail(tag, id, sid, episode, streams))
+	streamURL := h.apiBaseURL() + "/services/" + tag + "/series/" + id + "/seasons/" + sid + "/episodes/" + eid + "/streams"
+	h.servePage(w, r, pages.EpisodeDetail(tag, id, sid, episode, streams, streamURL))
 }
 
 func parsePagination(r *http.Request) (limit, offset int) {

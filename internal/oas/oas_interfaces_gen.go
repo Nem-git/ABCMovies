@@ -97,10 +97,6 @@ type GetServiceByTagRes interface {
 	getServiceByTagRes()
 }
 
-type GetServicesRes interface {
-	getServicesRes()
-}
-
 type GlobalSearchRes interface {
 	globalSearchRes()
 }

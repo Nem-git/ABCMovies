@@ -174,8 +174,19 @@ func (s *Server) handleGetEpisodeByIdRequest(args [4]string, argsEscaped bool, w
 		response, err = s.h.GetEpisodeById(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -334,8 +345,19 @@ func (s *Server) handleGetEpisodeStreamFileRequest(args [5]string, argsEscaped b
 		response, err = s.h.GetEpisodeStreamFile(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -498,8 +520,19 @@ func (s *Server) handleGetEpisodeStreamsRequest(args [4]string, argsEscaped bool
 		response, err = s.h.GetEpisodeStreams(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -657,8 +690,19 @@ func (s *Server) handleGetEpisodeSubtitleFileRequest(args [5]string, argsEscaped
 		response, err = s.h.GetEpisodeSubtitleFile(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -821,8 +865,19 @@ func (s *Server) handleGetEpisodeSubtitlesRequest(args [4]string, argsEscaped bo
 		response, err = s.h.GetEpisodeSubtitles(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -837,16 +892,16 @@ func (s *Server) handleGetEpisodeSubtitlesRequest(args [4]string, argsEscaped bo
 
 // handleGetEpisodeThumbnailRequest handles getEpisodeThumbnail operation.
 //
-// Returns the episode thumbnail image in PNG format.
+// Returns the episode thumbnail image.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail.png
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail
 func (s *Server) handleGetEpisodeThumbnailRequest(args [4]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getEpisodeThumbnail"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail.png"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -976,8 +1031,19 @@ func (s *Server) handleGetEpisodeThumbnailRequest(args [4]string, argsEscaped bo
 		response, err = s.h.GetEpisodeThumbnail(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -1135,8 +1201,19 @@ func (s *Server) handleGetEpisodesRequest(args [3]string, argsEscaped bool, w ht
 		response, err = s.h.GetEpisodes(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -1259,8 +1336,19 @@ func (s *Server) handleGetHealthRequest(args [0]string, argsEscaped bool, w http
 		response, err = s.h.GetHealth(ctx)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -1275,16 +1363,16 @@ func (s *Server) handleGetHealthRequest(args [0]string, argsEscaped bool, w http
 
 // handleGetMovieBackdropRequest handles getMovieBackdrop operation.
 //
-// Returns the movie backdrop image in PNG format.
+// Returns the movie backdrop image.
 //
-// GET /services/{serviceTag}/movies/{movieId}/backdrop.png
+// GET /services/{serviceTag}/movies/{movieId}/backdrop
 func (s *Server) handleGetMovieBackdropRequest(args [2]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getMovieBackdrop"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/backdrop.png"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/backdrop"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -1406,8 +1494,19 @@ func (s *Server) handleGetMovieBackdropRequest(args [2]string, argsEscaped bool,
 		response, err = s.h.GetMovieBackdrop(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -1553,8 +1652,19 @@ func (s *Server) handleGetMovieByIdRequest(args [2]string, argsEscaped bool, w h
 		response, err = s.h.GetMovieById(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -1569,16 +1679,16 @@ func (s *Server) handleGetMovieByIdRequest(args [2]string, argsEscaped bool, w h
 
 // handleGetMoviePosterRequest handles getMoviePoster operation.
 //
-// Returns the movie poster image in PNG format.
+// Returns the movie poster image.
 //
-// GET /services/{serviceTag}/movies/{movieId}/poster.png
+// GET /services/{serviceTag}/movies/{movieId}/poster
 func (s *Server) handleGetMoviePosterRequest(args [2]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getMoviePoster"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/poster.png"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/poster"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -1700,8 +1810,19 @@ func (s *Server) handleGetMoviePosterRequest(args [2]string, argsEscaped bool, w
 		response, err = s.h.GetMoviePoster(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -1852,8 +1973,19 @@ func (s *Server) handleGetMovieStreamFileRequest(args [3]string, argsEscaped boo
 		response, err = s.h.GetMovieStreamFile(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -2008,8 +2140,19 @@ func (s *Server) handleGetMovieStreamsRequest(args [2]string, argsEscaped bool, 
 		response, err = s.h.GetMovieStreams(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -2160,8 +2303,19 @@ func (s *Server) handleGetMovieSubtitleFileRequest(args [3]string, argsEscaped b
 		response, err = s.h.GetMovieSubtitleFile(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -2316,8 +2470,19 @@ func (s *Server) handleGetMovieSubtitlesRequest(args [2]string, argsEscaped bool
 		response, err = s.h.GetMovieSubtitles(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -2467,8 +2632,19 @@ func (s *Server) handleGetMoviesRequest(args [1]string, argsEscaped bool, w http
 		response, err = s.h.GetMovies(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -2483,16 +2659,16 @@ func (s *Server) handleGetMoviesRequest(args [1]string, argsEscaped bool, w http
 
 // handleGetSeasonBackdropRequest handles getSeasonBackdrop operation.
 //
-// Returns the season backdrop image in PNG format.
+// Returns the season backdrop image.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop.png
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop
 func (s *Server) handleGetSeasonBackdropRequest(args [3]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getSeasonBackdrop"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop.png"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -2618,8 +2794,19 @@ func (s *Server) handleGetSeasonBackdropRequest(args [3]string, argsEscaped bool
 		response, err = s.h.GetSeasonBackdrop(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -2769,8 +2956,19 @@ func (s *Server) handleGetSeasonByIdRequest(args [3]string, argsEscaped bool, w 
 		response, err = s.h.GetSeasonById(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -2785,16 +2983,16 @@ func (s *Server) handleGetSeasonByIdRequest(args [3]string, argsEscaped bool, w 
 
 // handleGetSeasonPosterRequest handles getSeasonPoster operation.
 //
-// Returns the season poster image in PNG format.
+// Returns the season poster image.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster.png
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster
 func (s *Server) handleGetSeasonPosterRequest(args [3]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getSeasonPoster"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster.png"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -2920,8 +3118,19 @@ func (s *Server) handleGetSeasonPosterRequest(args [3]string, argsEscaped bool, 
 		response, err = s.h.GetSeasonPoster(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -3075,8 +3284,19 @@ func (s *Server) handleGetSeasonsRequest(args [2]string, argsEscaped bool, w htt
 		response, err = s.h.GetSeasons(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -3226,8 +3446,19 @@ func (s *Server) handleGetSeriesRequest(args [1]string, argsEscaped bool, w http
 		response, err = s.h.GetSeries(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -3242,16 +3473,16 @@ func (s *Server) handleGetSeriesRequest(args [1]string, argsEscaped bool, w http
 
 // handleGetSeriesBackdropRequest handles getSeriesBackdrop operation.
 //
-// Returns the series backdrop image in PNG format.
+// Returns the series backdrop image.
 //
-// GET /services/{serviceTag}/series/{seriesId}/backdrop.png
+// GET /services/{serviceTag}/series/{seriesId}/backdrop
 func (s *Server) handleGetSeriesBackdropRequest(args [2]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getSeriesBackdrop"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/backdrop.png"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/backdrop"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -3373,8 +3604,19 @@ func (s *Server) handleGetSeriesBackdropRequest(args [2]string, argsEscaped bool
 		response, err = s.h.GetSeriesBackdrop(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -3520,8 +3762,19 @@ func (s *Server) handleGetSeriesByIdRequest(args [2]string, argsEscaped bool, w 
 		response, err = s.h.GetSeriesById(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -3536,16 +3789,16 @@ func (s *Server) handleGetSeriesByIdRequest(args [2]string, argsEscaped bool, w 
 
 // handleGetSeriesPosterRequest handles getSeriesPoster operation.
 //
-// Returns the series poster image in PNG format.
+// Returns the series poster image.
 //
-// GET /services/{serviceTag}/series/{seriesId}/poster.png
+// GET /services/{serviceTag}/series/{seriesId}/poster
 func (s *Server) handleGetSeriesPosterRequest(args [2]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getSeriesPoster"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/poster.png"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/poster"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -3667,8 +3920,19 @@ func (s *Server) handleGetSeriesPosterRequest(args [2]string, argsEscaped bool, 
 		response, err = s.h.GetSeriesPoster(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -3810,8 +4074,19 @@ func (s *Server) handleGetServiceByTagRequest(args [1]string, argsEscaped bool, 
 		response, err = s.h.GetServiceByTag(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -3913,7 +4188,7 @@ func (s *Server) handleGetServicesRequest(args [0]string, argsEscaped bool, w ht
 
 	var rawBody []byte
 
-	var response GetServicesRes
+	var response *PageService
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
 			Context:          ctx,
@@ -3938,7 +4213,7 @@ func (s *Server) handleGetServicesRequest(args [0]string, argsEscaped bool, w ht
 		type (
 			Request  = struct{}
 			Params   = GetServicesParams
-			Response = GetServicesRes
+			Response = *PageService
 		)
 		response, err = middleware.HookMiddleware[
 			Request,
@@ -3957,8 +4232,19 @@ func (s *Server) handleGetServicesRequest(args [0]string, argsEscaped bool, w ht
 		response, err = s.h.GetServices(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -3974,7 +4260,7 @@ func (s *Server) handleGetServicesRequest(args [0]string, argsEscaped bool, w ht
 // handleGlobalSearchRequest handles globalSearch operation.
 //
 // Search across services, movies, and TV series by title or name. This is a lightweight, title-level
-// search — it does not search episode or season body content. Use the per-collection endpoints for
+// search - it does not search episode or season body content. Use the per-collection endpoints for
 // deeper queries.
 //
 // GET /search
@@ -4114,8 +4400,19 @@ func (s *Server) handleGlobalSearchRequest(args [0]string, argsEscaped bool, w h
 		response, err = s.h.GlobalSearch(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 

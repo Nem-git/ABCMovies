@@ -30,6 +30,7 @@ type Config struct {
 	SeasonPosterData     []byte
 	SeasonBackdropData   []byte
 	EpisodeThumbnailData []byte
+	ImageMIME            string
 	StreamFileData       []byte
 	StreamFileMIME       string
 	SubtitleFileData     []byte
@@ -130,24 +131,24 @@ func (p *Provider) GetMovieSubtitleFile(ctx context.Context, movieID, subtitleFi
 	return p.file(p.cfg.SubtitleFileData, p.cfg.SubtitleFileMIME)
 }
 
-func (p *Provider) GetMoviePoster(ctx context.Context, movieID string) (io.ReadCloser, error) {
+func (p *Provider) GetMoviePoster(ctx context.Context, movieID string) (io.ReadCloser, string, error) {
 	if p.cfg.Error != nil {
-		return nil, p.cfg.Error
+		return nil, "", p.cfg.Error
 	}
 	if p.cfg.MoviePosterData == nil {
 		return p.UnimplementedProvider.GetMoviePoster(ctx, movieID)
 	}
-	return p.image(p.cfg.MoviePosterData), nil
+	return p.image(p.cfg.MoviePosterData)
 }
 
-func (p *Provider) GetMovieBackdrop(ctx context.Context, movieID string) (io.ReadCloser, error) {
+func (p *Provider) GetMovieBackdrop(ctx context.Context, movieID string) (io.ReadCloser, string, error) {
 	if p.cfg.Error != nil {
-		return nil, p.cfg.Error
+		return nil, "", p.cfg.Error
 	}
 	if p.cfg.MovieBackdropData == nil {
 		return p.UnimplementedProvider.GetMovieBackdrop(ctx, movieID)
 	}
-	return p.image(p.cfg.MovieBackdropData), nil
+	return p.image(p.cfg.MovieBackdropData)
 }
 
 func (p *Provider) GetSeries(ctx context.Context, limit, offset int) ([]oas.Series, int, error) {
@@ -171,24 +172,24 @@ func (p *Provider) GetSeriesByID(ctx context.Context, seriesID string) (*oas.Ser
 	return findItem(p.cfg.Series, func(s oas.Series) bool { return s.GetID() == seriesID })
 }
 
-func (p *Provider) GetSeriesPoster(ctx context.Context, seriesID string) (io.ReadCloser, error) {
+func (p *Provider) GetSeriesPoster(ctx context.Context, seriesID string) (io.ReadCloser, string, error) {
 	if p.cfg.Error != nil {
-		return nil, p.cfg.Error
+		return nil, "", p.cfg.Error
 	}
 	if p.cfg.SeriesPosterData == nil {
 		return p.UnimplementedProvider.GetSeriesPoster(ctx, seriesID)
 	}
-	return p.image(p.cfg.SeriesPosterData), nil
+	return p.image(p.cfg.SeriesPosterData)
 }
 
-func (p *Provider) GetSeriesBackdrop(ctx context.Context, seriesID string) (io.ReadCloser, error) {
+func (p *Provider) GetSeriesBackdrop(ctx context.Context, seriesID string) (io.ReadCloser, string, error) {
 	if p.cfg.Error != nil {
-		return nil, p.cfg.Error
+		return nil, "", p.cfg.Error
 	}
 	if p.cfg.SeriesBackdropData == nil {
 		return p.UnimplementedProvider.GetSeriesBackdrop(ctx, seriesID)
 	}
-	return p.image(p.cfg.SeriesBackdropData), nil
+	return p.image(p.cfg.SeriesBackdropData)
 }
 
 func (p *Provider) GetSeasons(ctx context.Context, seriesID string, limit, offset int) ([]oas.Season, int, error) {
@@ -212,24 +213,24 @@ func (p *Provider) GetSeasonById(ctx context.Context, seriesID, seasonID string)
 	return findItem(p.cfg.Seasons, func(s oas.Season) bool { return s.GetID() == seasonID })
 }
 
-func (p *Provider) GetSeasonPoster(ctx context.Context, seriesID, seasonID string) (io.ReadCloser, error) {
+func (p *Provider) GetSeasonPoster(ctx context.Context, seriesID, seasonID string) (io.ReadCloser, string, error) {
 	if p.cfg.Error != nil {
-		return nil, p.cfg.Error
+		return nil, "", p.cfg.Error
 	}
 	if p.cfg.SeasonPosterData == nil {
 		return p.UnimplementedProvider.GetSeasonPoster(ctx, seriesID, seasonID)
 	}
-	return p.image(p.cfg.SeasonPosterData), nil
+	return p.image(p.cfg.SeasonPosterData)
 }
 
-func (p *Provider) GetSeasonBackdrop(ctx context.Context, seriesID, seasonID string) (io.ReadCloser, error) {
+func (p *Provider) GetSeasonBackdrop(ctx context.Context, seriesID, seasonID string) (io.ReadCloser, string, error) {
 	if p.cfg.Error != nil {
-		return nil, p.cfg.Error
+		return nil, "", p.cfg.Error
 	}
 	if p.cfg.SeasonBackdropData == nil {
 		return p.UnimplementedProvider.GetSeasonBackdrop(ctx, seriesID, seasonID)
 	}
-	return p.image(p.cfg.SeasonBackdropData), nil
+	return p.image(p.cfg.SeasonBackdropData)
 }
 
 func (p *Provider) GetEpisodes(ctx context.Context, seriesID, seasonID string, limit, offset int) ([]oas.Episode, int, error) {
@@ -293,14 +294,14 @@ func (p *Provider) GetEpisodeSubtitleFile(ctx context.Context, seriesID, seasonI
 	return p.file(p.cfg.SubtitleFileData, p.cfg.SubtitleFileMIME)
 }
 
-func (p *Provider) GetEpisodeThumbnail(ctx context.Context, seriesID, seasonID, episodeID string) (io.ReadCloser, error) {
+func (p *Provider) GetEpisodeThumbnail(ctx context.Context, seriesID, seasonID, episodeID string) (io.ReadCloser, string, error) {
 	if p.cfg.Error != nil {
-		return nil, p.cfg.Error
+		return nil, "", p.cfg.Error
 	}
 	if p.cfg.EpisodeThumbnailData == nil {
 		return p.UnimplementedProvider.GetEpisodeThumbnail(ctx, seriesID, seasonID, episodeID)
 	}
-	return p.image(p.cfg.EpisodeThumbnailData), nil
+	return p.image(p.cfg.EpisodeThumbnailData)
 }
 
 func (p *Provider) Search(ctx context.Context, query string, limit, offset int) ([]oas.SearchResultItem, int, error) {
@@ -342,6 +343,10 @@ func (p *Provider) file(data []byte, mime string) (io.ReadCloser, string, error)
 	return io.NopCloser(bytes.NewReader(data)), mime, nil
 }
 
-func (p *Provider) image(data []byte) io.ReadCloser {
-	return io.NopCloser(bytes.NewReader(data))
+func (p *Provider) image(data []byte) (io.ReadCloser, string, error) {
+	mime := p.cfg.ImageMIME
+	if mime == "" {
+		mime = "image/png"
+	}
+	return io.NopCloser(bytes.NewReader(data)), mime, nil
 }

@@ -17,7 +17,7 @@ func setupTest(t *testing.T, cfg stub.Config) *web.Handler {
 	if err := r.Register(stub.New(cfg)); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
-	return web.New(r)
+	return web.New(r, "", "/api/v1alpha")
 }
 
 func TestServicesList(t *testing.T) {

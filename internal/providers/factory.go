@@ -11,18 +11,18 @@ import (
 	"github.com/nem-git/abcmovies/internal/providers/stub"
 )
 
-func Build(cfg config.ServiceEntry) (provider.Provider, error) {
+func Build(cfg config.ServiceEntry, baseURL, apiPrefix string) (provider.Provider, error) {
 	switch cfg.Type {
 	case "stub":
-		return buildStub(cfg), nil
+		return buildStub(cfg, baseURL, apiPrefix), nil
 	case "cbc":
-		return buildCBC(cfg), nil
+		return buildCBC(cfg, baseURL, apiPrefix), nil
 	default:
 		return nil, fmt.Errorf("unknown provider type: %q", cfg.Type)
 	}
 }
 
-func buildStub(cfg config.ServiceEntry) *stub.Provider {
+func buildStub(cfg config.ServiceEntry, baseURL, apiPrefix string) *stub.Provider {
 	srv := oas.Service{
 		Tag:  cfg.Tag,
 		Name: cfg.Name,
@@ -53,6 +53,8 @@ func buildStub(cfg config.ServiceEntry) *stub.Provider {
 		Subtitles: cfg.Subtitles,
 	}
 
+	setStubImageURLs(baseURL, apiPrefix, cfg.Tag, sc.Movies, sc.Series, sc.Seasons)
+
 	for _, se := range cfg.Search {
 		item := oas.SearchResultItem{Score: float32(se.Score)}
 		switch se.ResourceType {
@@ -79,7 +81,27 @@ func buildStub(cfg config.ServiceEntry) *stub.Provider {
 	return stub.New(sc)
 }
 
-func buildCBC(cfg config.ServiceEntry) *cbc.Provider {
+func setStubImageURLs(baseURL, apiPrefix, tag string, movies []oas.Movie, series []oas.Series, seasons []oas.Season) {
+	for i := range movies {
+		movies[i].Poster = stubImageURL(baseURL, apiPrefix, tag, "movies", movies[i].ID, "poster")
+		movies[i].Backdrop = stubImageURL(baseURL, apiPrefix, tag, "movies", movies[i].ID, "backdrop")
+	}
+	for i := range series {
+		series[i].Poster = stubImageURL(baseURL, apiPrefix, tag, "series", series[i].ID, "poster")
+		series[i].Backdrop = stubImageURL(baseURL, apiPrefix, tag, "series", series[i].ID, "backdrop")
+	}
+	for i := range seasons {
+		seasons[i].Poster = stubImageURL(baseURL, apiPrefix, tag, "series", seasons[i].ID, "poster")
+		seasons[i].Backdrop = stubImageURL(baseURL, apiPrefix, tag, "series", seasons[i].ID, "backdrop")
+	}
+}
+
+func stubImageURL(baseURL, apiPrefix, tag, resource, id, kind string) oas.OptURI {
+	u, _ := url.Parse(baseURL + apiPrefix + fmt.Sprintf("/services/%s/%s/%s/%s", tag, resource, id, kind))
+	return oas.NewOptURI(*u)
+}
+
+func buildCBC(cfg config.ServiceEntry, baseURL, apiPrefix string) *cbc.Provider {
 	srv := oas.Service{
 		Tag:  cfg.Tag,
 		Name: cfg.Name,
@@ -99,7 +121,9 @@ func buildCBC(cfg config.ServiceEntry) *cbc.Provider {
 		}
 	}
 	return cbc.New(cbc.Config{
-		Tag:     cfg.Tag,
-		Service: &srv,
+		Tag:       cfg.Tag,
+		Service:   &srv,
+		BaseURL:   baseURL,
+		APIPrefix: apiPrefix,
 	})
 }

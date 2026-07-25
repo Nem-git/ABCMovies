@@ -268,9 +268,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 											break
 										}
 										switch elem[0] {
-										case 'b': // Prefix: "backdrop.png"
+										case 'b': // Prefix: "backdrop"
 
-											if l := len("backdrop.png"); len(elem) >= l && elem[0:l] == "backdrop.png" {
+											if l := len("backdrop"); len(elem) >= l && elem[0:l] == "backdrop" {
 												elem = elem[l:]
 											} else {
 												break
@@ -296,9 +296,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 												return
 											}
 
-										case 'p': // Prefix: "poster.png"
+										case 'p': // Prefix: "poster"
 
-											if l := len("poster.png"); len(elem) >= l && elem[0:l] == "poster.png" {
+											if l := len("poster"); len(elem) >= l && elem[0:l] == "poster" {
 												elem = elem[l:]
 											} else {
 												break
@@ -552,9 +552,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 											break
 										}
 										switch elem[0] {
-										case 'b': // Prefix: "backdrop.png"
+										case 'b': // Prefix: "backdrop"
 
-											if l := len("backdrop.png"); len(elem) >= l && elem[0:l] == "backdrop.png" {
+											if l := len("backdrop"); len(elem) >= l && elem[0:l] == "backdrop" {
 												elem = elem[l:]
 											} else {
 												break
@@ -580,9 +580,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 												return
 											}
 
-										case 'p': // Prefix: "poster.png"
+										case 'p': // Prefix: "poster"
 
-											if l := len("poster.png"); len(elem) >= l && elem[0:l] == "poster.png" {
+											if l := len("poster"); len(elem) >= l && elem[0:l] == "poster" {
 												elem = elem[l:]
 											} else {
 												break
@@ -684,9 +684,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 														break
 													}
 													switch elem[0] {
-													case 'b': // Prefix: "backdrop.png"
+													case 'b': // Prefix: "backdrop"
 
-														if l := len("backdrop.png"); len(elem) >= l && elem[0:l] == "backdrop.png" {
+														if l := len("backdrop"); len(elem) >= l && elem[0:l] == "backdrop" {
 															elem = elem[l:]
 														} else {
 															break
@@ -947,9 +947,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 																	}
 
-																case 't': // Prefix: "thumbnail.png"
+																case 't': // Prefix: "thumbnail"
 
-																	if l := len("thumbnail.png"); len(elem) >= l && elem[0:l] == "thumbnail.png" {
+																	if l := len("thumbnail"); len(elem) >= l && elem[0:l] == "thumbnail" {
 																		elem = elem[l:]
 																	} else {
 																		break
@@ -983,9 +983,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 														}
 
-													case 'p': // Prefix: "poster.png"
+													case 'p': // Prefix: "poster"
 
-														if l := len("poster.png"); len(elem) >= l && elem[0:l] == "poster.png" {
+														if l := len("poster"); len(elem) >= l && elem[0:l] == "poster" {
 															elem = elem[l:]
 														} else {
 															break
@@ -1332,9 +1332,9 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 											break
 										}
 										switch elem[0] {
-										case 'b': // Prefix: "backdrop.png"
+										case 'b': // Prefix: "backdrop"
 
-											if l := len("backdrop.png"); len(elem) >= l && elem[0:l] == "backdrop.png" {
+											if l := len("backdrop"); len(elem) >= l && elem[0:l] == "backdrop" {
 												elem = elem[l:]
 											} else {
 												break
@@ -1348,7 +1348,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 													r.summary = "Get movie backdrop"
 													r.operationID = "getMovieBackdrop"
 													r.operationGroup = ""
-													r.pathPattern = "/services/{serviceTag}/movies/{movieId}/backdrop.png"
+													r.pathPattern = "/services/{serviceTag}/movies/{movieId}/backdrop"
 													r.args = args
 													r.count = 2
 													return r, true
@@ -1357,9 +1357,9 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 												}
 											}
 
-										case 'p': // Prefix: "poster.png"
+										case 'p': // Prefix: "poster"
 
-											if l := len("poster.png"); len(elem) >= l && elem[0:l] == "poster.png" {
+											if l := len("poster"); len(elem) >= l && elem[0:l] == "poster" {
 												elem = elem[l:]
 											} else {
 												break
@@ -1373,7 +1373,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 													r.summary = "Get movie poster"
 													r.operationID = "getMoviePoster"
 													r.operationGroup = ""
-													r.pathPattern = "/services/{serviceTag}/movies/{movieId}/poster.png"
+													r.pathPattern = "/services/{serviceTag}/movies/{movieId}/poster"
 													r.args = args
 													r.count = 2
 													return r, true
@@ -1591,9 +1591,9 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 											break
 										}
 										switch elem[0] {
-										case 'b': // Prefix: "backdrop.png"
+										case 'b': // Prefix: "backdrop"
 
-											if l := len("backdrop.png"); len(elem) >= l && elem[0:l] == "backdrop.png" {
+											if l := len("backdrop"); len(elem) >= l && elem[0:l] == "backdrop" {
 												elem = elem[l:]
 											} else {
 												break
@@ -1607,7 +1607,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 													r.summary = "Get series backdrop"
 													r.operationID = "getSeriesBackdrop"
 													r.operationGroup = ""
-													r.pathPattern = "/services/{serviceTag}/series/{seriesId}/backdrop.png"
+													r.pathPattern = "/services/{serviceTag}/series/{seriesId}/backdrop"
 													r.args = args
 													r.count = 2
 													return r, true
@@ -1616,9 +1616,9 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 												}
 											}
 
-										case 'p': // Prefix: "poster.png"
+										case 'p': // Prefix: "poster"
 
-											if l := len("poster.png"); len(elem) >= l && elem[0:l] == "poster.png" {
+											if l := len("poster"); len(elem) >= l && elem[0:l] == "poster" {
 												elem = elem[l:]
 											} else {
 												break
@@ -1632,7 +1632,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 													r.summary = "Get series poster"
 													r.operationID = "getSeriesPoster"
 													r.operationGroup = ""
-													r.pathPattern = "/services/{serviceTag}/series/{seriesId}/poster.png"
+													r.pathPattern = "/services/{serviceTag}/series/{seriesId}/poster"
 													r.args = args
 													r.count = 2
 													return r, true
@@ -1710,9 +1710,9 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 														break
 													}
 													switch elem[0] {
-													case 'b': // Prefix: "backdrop.png"
+													case 'b': // Prefix: "backdrop"
 
-														if l := len("backdrop.png"); len(elem) >= l && elem[0:l] == "backdrop.png" {
+														if l := len("backdrop"); len(elem) >= l && elem[0:l] == "backdrop" {
 															elem = elem[l:]
 														} else {
 															break
@@ -1726,7 +1726,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																r.summary = "Get season backdrop"
 																r.operationID = "getSeasonBackdrop"
 																r.operationGroup = ""
-																r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop.png"
+																r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop"
 																r.args = args
 																r.count = 3
 																return r, true
@@ -1938,9 +1938,9 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 
 																	}
 
-																case 't': // Prefix: "thumbnail.png"
+																case 't': // Prefix: "thumbnail"
 
-																	if l := len("thumbnail.png"); len(elem) >= l && elem[0:l] == "thumbnail.png" {
+																	if l := len("thumbnail"); len(elem) >= l && elem[0:l] == "thumbnail" {
 																		elem = elem[l:]
 																	} else {
 																		break
@@ -1954,7 +1954,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																			r.summary = "Get episode thumbnail"
 																			r.operationID = "getEpisodeThumbnail"
 																			r.operationGroup = ""
-																			r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail.png"
+																			r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail"
 																			r.args = args
 																			r.count = 4
 																			return r, true
@@ -1969,9 +1969,9 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 
 														}
 
-													case 'p': // Prefix: "poster.png"
+													case 'p': // Prefix: "poster"
 
-														if l := len("poster.png"); len(elem) >= l && elem[0:l] == "poster.png" {
+														if l := len("poster"); len(elem) >= l && elem[0:l] == "poster" {
 															elem = elem[l:]
 														} else {
 															break
@@ -1985,7 +1985,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																r.summary = "Get season poster"
 																r.operationID = "getSeasonPoster"
 																r.operationGroup = ""
-																r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster.png"
+																r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster"
 																r.args = args
 																r.count = 3
 																return r, true

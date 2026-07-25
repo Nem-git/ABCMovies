@@ -63,9 +63,9 @@ func (UnimplementedHandler) GetEpisodeSubtitles(ctx context.Context, params GetE
 
 // GetEpisodeThumbnail implements getEpisodeThumbnail operation.
 //
-// Returns the episode thumbnail image in PNG format.
+// Returns the episode thumbnail image.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail.png
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail
 func (UnimplementedHandler) GetEpisodeThumbnail(ctx context.Context, params GetEpisodeThumbnailParams) (r GetEpisodeThumbnailRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
@@ -90,9 +90,9 @@ func (UnimplementedHandler) GetHealth(ctx context.Context) (r *Health, _ error) 
 
 // GetMovieBackdrop implements getMovieBackdrop operation.
 //
-// Returns the movie backdrop image in PNG format.
+// Returns the movie backdrop image.
 //
-// GET /services/{serviceTag}/movies/{movieId}/backdrop.png
+// GET /services/{serviceTag}/movies/{movieId}/backdrop
 func (UnimplementedHandler) GetMovieBackdrop(ctx context.Context, params GetMovieBackdropParams) (r GetMovieBackdropRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
@@ -108,9 +108,9 @@ func (UnimplementedHandler) GetMovieById(ctx context.Context, params GetMovieByI
 
 // GetMoviePoster implements getMoviePoster operation.
 //
-// Returns the movie poster image in PNG format.
+// Returns the movie poster image.
 //
-// GET /services/{serviceTag}/movies/{movieId}/poster.png
+// GET /services/{serviceTag}/movies/{movieId}/poster
 func (UnimplementedHandler) GetMoviePoster(ctx context.Context, params GetMoviePosterParams) (r GetMoviePosterRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
@@ -166,9 +166,9 @@ func (UnimplementedHandler) GetMovies(ctx context.Context, params GetMoviesParam
 
 // GetSeasonBackdrop implements getSeasonBackdrop operation.
 //
-// Returns the season backdrop image in PNG format.
+// Returns the season backdrop image.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop.png
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop
 func (UnimplementedHandler) GetSeasonBackdrop(ctx context.Context, params GetSeasonBackdropParams) (r GetSeasonBackdropRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
@@ -184,9 +184,9 @@ func (UnimplementedHandler) GetSeasonById(ctx context.Context, params GetSeasonB
 
 // GetSeasonPoster implements getSeasonPoster operation.
 //
-// Returns the season poster image in PNG format.
+// Returns the season poster image.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster.png
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster
 func (UnimplementedHandler) GetSeasonPoster(ctx context.Context, params GetSeasonPosterParams) (r GetSeasonPosterRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
@@ -211,9 +211,9 @@ func (UnimplementedHandler) GetSeries(ctx context.Context, params GetSeriesParam
 
 // GetSeriesBackdrop implements getSeriesBackdrop operation.
 //
-// Returns the series backdrop image in PNG format.
+// Returns the series backdrop image.
 //
-// GET /services/{serviceTag}/series/{seriesId}/backdrop.png
+// GET /services/{serviceTag}/series/{seriesId}/backdrop
 func (UnimplementedHandler) GetSeriesBackdrop(ctx context.Context, params GetSeriesBackdropParams) (r GetSeriesBackdropRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
@@ -229,9 +229,9 @@ func (UnimplementedHandler) GetSeriesById(ctx context.Context, params GetSeriesB
 
 // GetSeriesPoster implements getSeriesPoster operation.
 //
-// Returns the series poster image in PNG format.
+// Returns the series poster image.
 //
-// GET /services/{serviceTag}/series/{seriesId}/poster.png
+// GET /services/{serviceTag}/series/{seriesId}/poster
 func (UnimplementedHandler) GetSeriesPoster(ctx context.Context, params GetSeriesPosterParams) (r GetSeriesPosterRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
@@ -250,17 +250,25 @@ func (UnimplementedHandler) GetServiceByTag(ctx context.Context, params GetServi
 // Retrieve all streaming services offered by the API.
 //
 // GET /services
-func (UnimplementedHandler) GetServices(ctx context.Context, params GetServicesParams) (r GetServicesRes, _ error) {
+func (UnimplementedHandler) GetServices(ctx context.Context, params GetServicesParams) (r *PageService, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
 // GlobalSearch implements globalSearch operation.
 //
 // Search across services, movies, and TV series by title or name. This is a lightweight, title-level
-// search — it does not search episode or season body content. Use the per-collection endpoints for
+// search - it does not search episode or season body content. Use the per-collection endpoints for
 // deeper queries.
 //
 // GET /search
 func (UnimplementedHandler) GlobalSearch(ctx context.Context, params GlobalSearchParams) (r GlobalSearchRes, _ error) {
 	return r, ht.ErrNotImplemented
+}
+
+// NewError creates *ErrorStatusCode from error returned by handler.
+//
+// Used for common default response.
+func (UnimplementedHandler) NewError(ctx context.Context, err error) (r *ErrorStatusCode) {
+	r = new(ErrorStatusCode)
+	return r
 }

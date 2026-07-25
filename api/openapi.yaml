@@ -396,7 +396,7 @@ paths:
 
   # -- Movie Images ---------------------------------------------------------
 
-  /services/{serviceTag}/movies/{movieId}/poster.png:
+  /services/{serviceTag}/movies/{movieId}/poster:
     parameters:
       - $ref: '#/components/parameters/ServiceTag'
       - $ref: '#/components/parameters/MovieId'
@@ -404,13 +404,21 @@ paths:
       tags:
         - Movies
       summary: Get movie poster
-      description: Returns the movie poster image in PNG format.
+      description: Returns the movie poster image.
       operationId: getMoviePoster
       responses:
         '200':
           description: Movie poster image
           content:
             image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/webp:
               schema:
                 type: string
                 format: binary
@@ -427,7 +435,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /services/{serviceTag}/movies/{movieId}/backdrop.png:
+  /services/{serviceTag}/movies/{movieId}/backdrop:
     parameters:
       - $ref: '#/components/parameters/ServiceTag'
       - $ref: '#/components/parameters/MovieId'
@@ -435,13 +443,21 @@ paths:
       tags:
         - Movies
       summary: Get movie backdrop
-      description: Returns the movie backdrop image in PNG format.
+      description: Returns the movie backdrop image.
       operationId: getMovieBackdrop
       responses:
         '200':
           description: Movie backdrop image
           content:
             image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/webp:
               schema:
                 type: string
                 format: binary
@@ -537,7 +553,7 @@ paths:
 
   # --- Series Images ---------------------------------------------------------
 
-  /services/{serviceTag}/series/{seriesId}/poster.png:
+  /services/{serviceTag}/series/{seriesId}/poster:
     parameters:
       - $ref: '#/components/parameters/ServiceTag'
       - $ref: '#/components/parameters/SeriesId'
@@ -545,13 +561,21 @@ paths:
       tags:
         - Series
       summary: Get series poster
-      description: Returns the series poster image in PNG format.
+      description: Returns the series poster image.
       operationId: getSeriesPoster
       responses:
         '200':
           description: Series poster image
           content:
             image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/webp:
               schema:
                 type: string
                 format: binary
@@ -568,7 +592,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /services/{serviceTag}/series/{seriesId}/backdrop.png:
+  /services/{serviceTag}/series/{seriesId}/backdrop:
     parameters:
       - $ref: '#/components/parameters/ServiceTag'
       - $ref: '#/components/parameters/SeriesId'
@@ -576,13 +600,21 @@ paths:
       tags:
         - Series
       summary: Get series backdrop
-      description: Returns the series backdrop image in PNG format.
+      description: Returns the series backdrop image.
       operationId: getSeriesBackdrop
       responses:
         '200':
           description: Series backdrop image
           content:
             image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/webp:
               schema:
                 type: string
                 format: binary
@@ -679,7 +711,7 @@ paths:
 
   # --- Season Images ---------------------------------------------------------
 
-  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster.png:
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster:
     parameters:
       - $ref: '#/components/parameters/ServiceTag'
       - $ref: '#/components/parameters/SeriesId'
@@ -688,13 +720,21 @@ paths:
       tags:
         - Seasons
       summary: Get season poster
-      description: Returns the season poster image in PNG format.
+      description: Returns the season poster image.
       operationId: getSeasonPoster
       responses:
         '200':
           description: Season poster image
           content:
             image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/webp:
               schema:
                 type: string
                 format: binary
@@ -711,7 +751,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop.png:
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop:
     parameters:
       - $ref: '#/components/parameters/ServiceTag'
       - $ref: '#/components/parameters/SeriesId'
@@ -720,13 +760,21 @@ paths:
       tags:
         - Seasons
       summary: Get season backdrop
-      description: Returns the season backdrop image in PNG format.
+      description: Returns the season backdrop image.
       operationId: getSeasonBackdrop
       responses:
         '200':
           description: Season backdrop image
           content:
             image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/webp:
               schema:
                 type: string
                 format: binary
@@ -825,7 +873,7 @@ paths:
 
   # -- Episode Images --------------------------------------------------------
 
-  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail.png:
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail:
     parameters:
       - $ref: '#/components/parameters/ServiceTag'
       - $ref: '#/components/parameters/SeriesId'
@@ -835,13 +883,21 @@ paths:
       tags:
         - Episodes
       summary: Get episode thumbnail
-      description: Returns the episode thumbnail image in PNG format.
+      description: Returns the episode thumbnail image.
       operationId: getEpisodeThumbnail
       responses:
         '200':
           description: Episode thumbnail image
           content:
             image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/webp:
               schema:
                 type: string
                 format: binary
@@ -1660,6 +1716,10 @@ components:
           type: string
           format: uri
           description: URL to the movie poster image.
+        backdrop:
+          type: string
+          format: uri
+          description: URL to the movie backdrop image.
         trailer:
           type: string
           format: uri
@@ -1736,6 +1796,10 @@ components:
           type: string
           format: uri
           description: URL to the series poster image.
+        backdrop:
+          type: string
+          format: uri
+          description: URL to the series backdrop image.
         trailer:
           type: string
           format: uri
@@ -1811,6 +1875,10 @@ components:
           type: string
           format: uri
           description: URL to the season's poster or cover art.
+        backdrop:
+          type: string
+          format: uri
+          description: URL to the season's backdrop image.
         numberOfEpisodes:
           type: integer
           description: Total number of episodes in this season.
@@ -1887,6 +1955,10 @@ components:
             pattern: '^[a-z]{2}$'
           examples:
             - en
+        poster:
+          type: string
+          format: uri
+          description: URL to the episode's poster image.
         contentRating:
           type: string
           description: |

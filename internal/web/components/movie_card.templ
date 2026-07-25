@@ -7,12 +7,15 @@ import (
 
 templ MovieCard(tag string, movie oas.Movie) {
 	@CardLink("/services/" + tag + "/movies/" + movie.ID) {
-		<h2 class="text-lg font-semibold">{ movie.Name }</h2>
-		if len(movie.Genres) > 0 {
-			<p class="text-sm text-gray-400 mt-1">{ strings.Join(movie.Genres, ", ") }</p>
-		}
-		if len(movie.Languages) > 0 {
-			<p class="text-xs text-gray-500 mt-1">{ strings.Join(movie.Languages, ", ") }</p>
-		}
+		<div class="flex items-start justify-between">
+			<img src={ movie.Poster.Value.String() } alt={ movie.Name + " Poster" } class="w-32 rounded-lg shadow-lg"/>
+			<h2 class="text-lg font-semibold">{ movie.Name }</h2>
+			if len(movie.Genres) > 0 {
+				<p class="text-sm text-gray-400 mt-1">{ strings.Join(movie.Genres, ", ") }</p>
+			}
+			if len(movie.Languages) > 0 {
+				<p class="text-xs text-gray-500 mt-1">{ strings.Join(movie.Languages, ", ") }</p>
+			}
+		</div>
 	}
 }

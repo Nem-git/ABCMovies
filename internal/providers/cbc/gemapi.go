@@ -53,20 +53,8 @@ func newClientWithOpts(opts clientOptions) *client {
 	}
 }
 
-func (c *client) resolve(rawURL string) string {
-	if c.baseURL != "" {
-		u, err := url.Parse(rawURL)
-		if err == nil {
-			if joined, err := url.JoinPath(c.baseURL, u.Path); err == nil {
-				return joined
-			}
-		}
-	}
-	return rawURL
-}
-
 func (c *client) getBrowse(ctx context.Context) error {
-	body, _, err := c.getRaw(ctx, c.resolve(browseUrl), map[string]string{"device": "web"})
+	body, _, err := c.getRaw(ctx, browseUrl, map[string]string{"device": "web"})
 	if err != nil {
 		return err
 	}
@@ -83,17 +71,17 @@ func (c *client) search(ctx context.Context, term string, page, pageSize int) (*
 	if pageSize > 0 {
 		params["pageSize"] = strconv.Itoa(pageSize)
 	}
-	if err := c.getJSON(ctx, c.resolve(searchUrl), params, &resp); err != nil {
+	if err := c.getJSON(ctx, searchUrl, params, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
 func (c *client) getCategory(ctx context.Context, category string, page, pageSize int) (*types.CategoryResponse, error) {
-	u := c.resolve(categoryUrl) + "/" + url.PathEscape(category)
+	u := categoryUrl + "/" + url.PathEscape(category)
 	params := map[string]string{"device": "web"}
 	if page > 0 {
-		params["page"] = strconv.Itoa(page)
+		params["pageNumber"] = strconv.Itoa(page)
 	}
 	if pageSize > 0 {
 		params["pageSize"] = strconv.Itoa(pageSize)
@@ -106,7 +94,7 @@ func (c *client) getCategory(ctx context.Context, category string, page, pageSiz
 }
 
 func (c *client) getShow(ctx context.Context, showId string) (*types.ShowResponse, error) {
-	u := c.resolve(showUrl) + "/" + url.PathEscape(showId)
+	u := showUrl + "/" + url.PathEscape(showId)
 	var resp types.ShowResponse
 	if err := c.getJSON(ctx, u, map[string]string{"device": "web"}, &resp); err != nil {
 		return nil, err
@@ -115,7 +103,7 @@ func (c *client) getShow(ctx context.Context, showId string) (*types.ShowRespons
 }
 
 func (c *client) getSeason(ctx context.Context, showId, seasonId string) (*types.ShowResponse, error) {
-	u := strings.Join([]string{c.resolve(showUrl), url.PathEscape(showId), url.PathEscape(seasonId)}, "/")
+	u := strings.Join([]string{showUrl, url.PathEscape(showId), url.PathEscape(seasonId)}, "/")
 	var resp types.ShowResponse
 	if err := c.getJSON(ctx, u, map[string]string{"device": "web"}, &resp); err != nil {
 		return nil, err
@@ -130,7 +118,7 @@ func (c *client) getStreamMeta(ctx context.Context, idMedia, appCode, tech strin
 		"idMedia": idMedia,
 		"output":  "jsonObject",
 	}
-	if err := c.getJSON(ctx, c.resolve(streamMetaUrl), params, &resp); err != nil {
+	if err := c.getJSON(ctx, streamMetaUrl, params, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -148,7 +136,7 @@ func (c *client) getStreamValidation(ctx context.Context, idMedia, appCode, tech
 		"tech":           tech,
 		"manifestType":   "desktop",
 	}
-	if err := c.getJSON(ctx, c.resolve(streamValidationUrl), params, &resp); err != nil {
+	if err := c.getJSON(ctx, streamValidationUrl, params, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -179,12 +167,8 @@ func (c *client) getRaw(ctx context.Context, rawURL string, params map[string]st
 	return resp.Body, resp.Header.Get("Content-Type"), nil
 }
 
-func (c *client) getImage(ctx context.Context, imageURL string) (io.ReadCloser, error) {
-	image, _, err := c.getRaw(ctx, imageURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("fetching image: %w", err)
-	}
-	return image, nil
+func (c *client) getImage(ctx context.Context, imageURL string) (io.ReadCloser, string, error) {
+	return c.getRaw(ctx, imageURL, nil)
 }
 
 func (c *client) getJSON(ctx context.Context, urlStr string, params map[string]string, dest any) error {

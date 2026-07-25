@@ -3,12 +3,17 @@
 package oas
 
 import (
+	"fmt"
 	"io"
 	"net/url"
 	"time"
 
 	"github.com/go-faster/errors"
 )
+
+func (s *ErrorStatusCode) Error() string {
+	return fmt.Sprintf("code %d: %+v", s.StatusCode, s.Response)
+}
 
 // A single episode within a TV series season. Maps to schema.org [TVEpisode].
 //
@@ -33,6 +38,8 @@ type Episode struct {
 	CountryOfOrigin OptString `json:"countryOfOrigin"`
 	// ISO 639-1 language codes available for this episode.
 	Languages []string `json:"languages"`
+	// URL to the episode's poster image.
+	Poster OptURI `json:"poster"`
 	// Content rating (e.g. MPAA, TV Parental Guidelines).
 	ContentRating OptString `json:"contentRating"`
 }
@@ -80,6 +87,11 @@ func (s *Episode) GetCountryOfOrigin() OptString {
 // GetLanguages returns the value of Languages.
 func (s *Episode) GetLanguages() []string {
 	return s.Languages
+}
+
+// GetPoster returns the value of Poster.
+func (s *Episode) GetPoster() OptURI {
+	return s.Poster
 }
 
 // GetContentRating returns the value of ContentRating.
@@ -130,6 +142,11 @@ func (s *Episode) SetCountryOfOrigin(val OptString) {
 // SetLanguages sets the value of Languages.
 func (s *Episode) SetLanguages(val []string) {
 	s.Languages = val
+}
+
+// SetPoster sets the value of Poster.
+func (s *Episode) SetPoster(val OptURI) {
+	s.Poster = val
 }
 
 // SetContentRating sets the value of ContentRating.
@@ -238,26 +255,6 @@ func (s *ErrorStatusCode) SetStatusCode(val int) {
 func (s *ErrorStatusCode) SetResponse(val Error) {
 	s.Response = val
 }
-
-func (*ErrorStatusCode) getEpisodeByIdRes()         {}
-func (*ErrorStatusCode) getEpisodeStreamFileRes()   {}
-func (*ErrorStatusCode) getEpisodeStreamsRes()      {}
-func (*ErrorStatusCode) getEpisodeSubtitleFileRes() {}
-func (*ErrorStatusCode) getEpisodeSubtitlesRes()    {}
-func (*ErrorStatusCode) getEpisodesRes()            {}
-func (*ErrorStatusCode) getMovieByIdRes()           {}
-func (*ErrorStatusCode) getMovieStreamFileRes()     {}
-func (*ErrorStatusCode) getMovieStreamsRes()        {}
-func (*ErrorStatusCode) getMovieSubtitleFileRes()   {}
-func (*ErrorStatusCode) getMovieSubtitlesRes()      {}
-func (*ErrorStatusCode) getMoviesRes()              {}
-func (*ErrorStatusCode) getSeasonByIdRes()          {}
-func (*ErrorStatusCode) getSeasonsRes()             {}
-func (*ErrorStatusCode) getSeriesByIdRes()          {}
-func (*ErrorStatusCode) getSeriesRes()              {}
-func (*ErrorStatusCode) getServiceByTagRes()        {}
-func (*ErrorStatusCode) getServicesRes()            {}
-func (*ErrorStatusCode) globalSearchRes()           {}
 
 type GetEpisodeByIdBadRequest Error
 
@@ -411,21 +408,53 @@ type GetEpisodeSubtitlesNotFound Error
 
 func (*GetEpisodeSubtitlesNotFound) getEpisodeSubtitlesRes() {}
 
-type GetEpisodeThumbnailOK struct {
+type GetEpisodeThumbnailOKImageJpeg struct {
 	Data io.Reader
 }
 
 // Read reads data from the Data reader.
 //
 // Kept to satisfy the io.Reader interface.
-func (s GetEpisodeThumbnailOK) Read(p []byte) (n int, err error) {
+func (s GetEpisodeThumbnailOKImageJpeg) Read(p []byte) (n int, err error) {
 	if s.Data == nil {
 		return 0, io.EOF
 	}
 	return s.Data.Read(p)
 }
 
-func (*GetEpisodeThumbnailOK) getEpisodeThumbnailRes() {}
+func (*GetEpisodeThumbnailOKImageJpeg) getEpisodeThumbnailRes() {}
+
+type GetEpisodeThumbnailOKImagePNG struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeThumbnailOKImagePNG) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeThumbnailOKImagePNG) getEpisodeThumbnailRes() {}
+
+type GetEpisodeThumbnailOKImageWEBP struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeThumbnailOKImageWEBP) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeThumbnailOKImageWEBP) getEpisodeThumbnailRes() {}
 
 type GetEpisodesBadRequest Error
 
@@ -435,21 +464,53 @@ type GetEpisodesNotFound Error
 
 func (*GetEpisodesNotFound) getEpisodesRes() {}
 
-type GetMovieBackdropOK struct {
+type GetMovieBackdropOKImageJpeg struct {
 	Data io.Reader
 }
 
 // Read reads data from the Data reader.
 //
 // Kept to satisfy the io.Reader interface.
-func (s GetMovieBackdropOK) Read(p []byte) (n int, err error) {
+func (s GetMovieBackdropOKImageJpeg) Read(p []byte) (n int, err error) {
 	if s.Data == nil {
 		return 0, io.EOF
 	}
 	return s.Data.Read(p)
 }
 
-func (*GetMovieBackdropOK) getMovieBackdropRes() {}
+func (*GetMovieBackdropOKImageJpeg) getMovieBackdropRes() {}
+
+type GetMovieBackdropOKImagePNG struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieBackdropOKImagePNG) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieBackdropOKImagePNG) getMovieBackdropRes() {}
+
+type GetMovieBackdropOKImageWEBP struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieBackdropOKImageWEBP) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieBackdropOKImageWEBP) getMovieBackdropRes() {}
 
 type GetMovieByIdBadRequest Error
 
@@ -459,21 +520,53 @@ type GetMovieByIdNotFound Error
 
 func (*GetMovieByIdNotFound) getMovieByIdRes() {}
 
-type GetMoviePosterOK struct {
+type GetMoviePosterOKImageJpeg struct {
 	Data io.Reader
 }
 
 // Read reads data from the Data reader.
 //
 // Kept to satisfy the io.Reader interface.
-func (s GetMoviePosterOK) Read(p []byte) (n int, err error) {
+func (s GetMoviePosterOKImageJpeg) Read(p []byte) (n int, err error) {
 	if s.Data == nil {
 		return 0, io.EOF
 	}
 	return s.Data.Read(p)
 }
 
-func (*GetMoviePosterOK) getMoviePosterRes() {}
+func (*GetMoviePosterOKImageJpeg) getMoviePosterRes() {}
+
+type GetMoviePosterOKImagePNG struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMoviePosterOKImagePNG) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMoviePosterOKImagePNG) getMoviePosterRes() {}
+
+type GetMoviePosterOKImageWEBP struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMoviePosterOKImageWEBP) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMoviePosterOKImageWEBP) getMoviePosterRes() {}
 
 type GetMovieStreamFileBadRequest Error
 
@@ -627,21 +720,53 @@ type GetMoviesNotFound Error
 
 func (*GetMoviesNotFound) getMoviesRes() {}
 
-type GetSeasonBackdropOK struct {
+type GetSeasonBackdropOKImageJpeg struct {
 	Data io.Reader
 }
 
 // Read reads data from the Data reader.
 //
 // Kept to satisfy the io.Reader interface.
-func (s GetSeasonBackdropOK) Read(p []byte) (n int, err error) {
+func (s GetSeasonBackdropOKImageJpeg) Read(p []byte) (n int, err error) {
 	if s.Data == nil {
 		return 0, io.EOF
 	}
 	return s.Data.Read(p)
 }
 
-func (*GetSeasonBackdropOK) getSeasonBackdropRes() {}
+func (*GetSeasonBackdropOKImageJpeg) getSeasonBackdropRes() {}
+
+type GetSeasonBackdropOKImagePNG struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetSeasonBackdropOKImagePNG) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetSeasonBackdropOKImagePNG) getSeasonBackdropRes() {}
+
+type GetSeasonBackdropOKImageWEBP struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetSeasonBackdropOKImageWEBP) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetSeasonBackdropOKImageWEBP) getSeasonBackdropRes() {}
 
 type GetSeasonByIdBadRequest Error
 
@@ -651,21 +776,53 @@ type GetSeasonByIdNotFound Error
 
 func (*GetSeasonByIdNotFound) getSeasonByIdRes() {}
 
-type GetSeasonPosterOK struct {
+type GetSeasonPosterOKImageJpeg struct {
 	Data io.Reader
 }
 
 // Read reads data from the Data reader.
 //
 // Kept to satisfy the io.Reader interface.
-func (s GetSeasonPosterOK) Read(p []byte) (n int, err error) {
+func (s GetSeasonPosterOKImageJpeg) Read(p []byte) (n int, err error) {
 	if s.Data == nil {
 		return 0, io.EOF
 	}
 	return s.Data.Read(p)
 }
 
-func (*GetSeasonPosterOK) getSeasonPosterRes() {}
+func (*GetSeasonPosterOKImageJpeg) getSeasonPosterRes() {}
+
+type GetSeasonPosterOKImagePNG struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetSeasonPosterOKImagePNG) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetSeasonPosterOKImagePNG) getSeasonPosterRes() {}
+
+type GetSeasonPosterOKImageWEBP struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetSeasonPosterOKImageWEBP) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetSeasonPosterOKImageWEBP) getSeasonPosterRes() {}
 
 type GetSeasonsBadRequest Error
 
@@ -675,21 +832,53 @@ type GetSeasonsNotFound Error
 
 func (*GetSeasonsNotFound) getSeasonsRes() {}
 
-type GetSeriesBackdropOK struct {
+type GetSeriesBackdropOKImageJpeg struct {
 	Data io.Reader
 }
 
 // Read reads data from the Data reader.
 //
 // Kept to satisfy the io.Reader interface.
-func (s GetSeriesBackdropOK) Read(p []byte) (n int, err error) {
+func (s GetSeriesBackdropOKImageJpeg) Read(p []byte) (n int, err error) {
 	if s.Data == nil {
 		return 0, io.EOF
 	}
 	return s.Data.Read(p)
 }
 
-func (*GetSeriesBackdropOK) getSeriesBackdropRes() {}
+func (*GetSeriesBackdropOKImageJpeg) getSeriesBackdropRes() {}
+
+type GetSeriesBackdropOKImagePNG struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetSeriesBackdropOKImagePNG) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetSeriesBackdropOKImagePNG) getSeriesBackdropRes() {}
+
+type GetSeriesBackdropOKImageWEBP struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetSeriesBackdropOKImageWEBP) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetSeriesBackdropOKImageWEBP) getSeriesBackdropRes() {}
 
 type GetSeriesBadRequest Error
 
@@ -707,21 +896,53 @@ type GetSeriesNotFound Error
 
 func (*GetSeriesNotFound) getSeriesRes() {}
 
-type GetSeriesPosterOK struct {
+type GetSeriesPosterOKImageJpeg struct {
 	Data io.Reader
 }
 
 // Read reads data from the Data reader.
 //
 // Kept to satisfy the io.Reader interface.
-func (s GetSeriesPosterOK) Read(p []byte) (n int, err error) {
+func (s GetSeriesPosterOKImageJpeg) Read(p []byte) (n int, err error) {
 	if s.Data == nil {
 		return 0, io.EOF
 	}
 	return s.Data.Read(p)
 }
 
-func (*GetSeriesPosterOK) getSeriesPosterRes() {}
+func (*GetSeriesPosterOKImageJpeg) getSeriesPosterRes() {}
+
+type GetSeriesPosterOKImagePNG struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetSeriesPosterOKImagePNG) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetSeriesPosterOKImagePNG) getSeriesPosterRes() {}
+
+type GetSeriesPosterOKImageWEBP struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetSeriesPosterOKImageWEBP) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetSeriesPosterOKImageWEBP) getSeriesPosterRes() {}
 
 // Represents the current operational status of the API.
 // Ref: #/components/schemas/Health
@@ -832,6 +1053,8 @@ type Movie struct {
 	Genres []string `json:"genres"`
 	// URL to the movie poster image.
 	Poster OptURI `json:"poster"`
+	// URL to the movie backdrop image.
+	Backdrop OptURI `json:"backdrop"`
 	// URL to a trailer video.
 	Trailer OptURI `json:"trailer"`
 }
@@ -889,6 +1112,11 @@ func (s *Movie) GetGenres() []string {
 // GetPoster returns the value of Poster.
 func (s *Movie) GetPoster() OptURI {
 	return s.Poster
+}
+
+// GetBackdrop returns the value of Backdrop.
+func (s *Movie) GetBackdrop() OptURI {
+	return s.Backdrop
 }
 
 // GetTrailer returns the value of Trailer.
@@ -949,6 +1177,11 @@ func (s *Movie) SetGenres(val []string) {
 // SetPoster sets the value of Poster.
 func (s *Movie) SetPoster(val OptURI) {
 	s.Poster = val
+}
+
+// SetBackdrop sets the value of Backdrop.
+func (s *Movie) SetBackdrop(val OptURI) {
+	s.Backdrop = val
 }
 
 // SetTrailer sets the value of Trailer.
@@ -1622,8 +1855,6 @@ func (s *PageService) SetOffset(val int) {
 	s.Offset = val
 }
 
-func (*PageService) getServicesRes() {}
-
 // Paginated list of video stream manifests.
 // Ref: #/components/schemas/Page_Stream
 type PageStream struct {
@@ -1918,6 +2149,8 @@ type Season struct {
 	Languages []string `json:"languages"`
 	// URL to the season's poster or cover art.
 	Poster OptURI `json:"poster"`
+	// URL to the season's backdrop image.
+	Backdrop OptURI `json:"backdrop"`
 	// Total number of episodes in this season.
 	NumberOfEpisodes OptInt `json:"numberOfEpisodes"`
 	// URL to a season trailer.
@@ -1967,6 +2200,11 @@ func (s *Season) GetLanguages() []string {
 // GetPoster returns the value of Poster.
 func (s *Season) GetPoster() OptURI {
 	return s.Poster
+}
+
+// GetBackdrop returns the value of Backdrop.
+func (s *Season) GetBackdrop() OptURI {
+	return s.Backdrop
 }
 
 // GetNumberOfEpisodes returns the value of NumberOfEpisodes.
@@ -2022,6 +2260,11 @@ func (s *Season) SetLanguages(val []string) {
 // SetPoster sets the value of Poster.
 func (s *Season) SetPoster(val OptURI) {
 	s.Poster = val
+}
+
+// SetBackdrop sets the value of Backdrop.
+func (s *Season) SetBackdrop(val OptURI) {
+	s.Backdrop = val
 }
 
 // SetNumberOfEpisodes sets the value of NumberOfEpisodes.
@@ -2096,6 +2339,8 @@ type Series struct {
 	Genres []string `json:"genres"`
 	// URL to the series poster image.
 	Poster OptURI `json:"poster"`
+	// URL to the series backdrop image.
+	Backdrop OptURI `json:"backdrop"`
 	// URL to a trailer video.
 	Trailer OptURI `json:"trailer"`
 	// Total number of seasons currently available.
@@ -2150,6 +2395,11 @@ func (s *Series) GetGenres() []string {
 // GetPoster returns the value of Poster.
 func (s *Series) GetPoster() OptURI {
 	return s.Poster
+}
+
+// GetBackdrop returns the value of Backdrop.
+func (s *Series) GetBackdrop() OptURI {
+	return s.Backdrop
 }
 
 // GetTrailer returns the value of Trailer.
@@ -2210,6 +2460,11 @@ func (s *Series) SetGenres(val []string) {
 // SetPoster sets the value of Poster.
 func (s *Series) SetPoster(val OptURI) {
 	s.Poster = val
+}
+
+// SetBackdrop sets the value of Backdrop.
+func (s *Series) SetBackdrop(val OptURI) {
+	s.Backdrop = val
 }
 
 // SetTrailer sets the value of Trailer.
@@ -2544,7 +2799,7 @@ func (s *StreamType) UnmarshalText(data []byte) error {
 }
 
 // An external subtitle file not embedded in any stream manifest. Subtitles that are already part of a
-// DASH or HLS manifest are not duplicated here — only standalone sidecar files are listed. At least,
+// DASH or HLS manifest are not duplicated here - only standalone sidecar files are listed. At least,
 // as long as it's feasable and doesn't require file parsing. If it does, the subtitles might be
 // duplicated between the file and here.
 //

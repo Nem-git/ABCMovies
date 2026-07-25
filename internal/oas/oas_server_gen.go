@@ -43,9 +43,9 @@ type Handler interface {
 	GetEpisodeSubtitles(ctx context.Context, params GetEpisodeSubtitlesParams) (GetEpisodeSubtitlesRes, error)
 	// GetEpisodeThumbnail implements getEpisodeThumbnail operation.
 	//
-	// Returns the episode thumbnail image in PNG format.
+	// Returns the episode thumbnail image.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail.png
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail
 	GetEpisodeThumbnail(ctx context.Context, params GetEpisodeThumbnailParams) (GetEpisodeThumbnailRes, error)
 	// GetEpisodes implements getEpisodes operation.
 	//
@@ -61,9 +61,9 @@ type Handler interface {
 	GetHealth(ctx context.Context) (*Health, error)
 	// GetMovieBackdrop implements getMovieBackdrop operation.
 	//
-	// Returns the movie backdrop image in PNG format.
+	// Returns the movie backdrop image.
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/backdrop.png
+	// GET /services/{serviceTag}/movies/{movieId}/backdrop
 	GetMovieBackdrop(ctx context.Context, params GetMovieBackdropParams) (GetMovieBackdropRes, error)
 	// GetMovieById implements getMovieById operation.
 	//
@@ -73,9 +73,9 @@ type Handler interface {
 	GetMovieById(ctx context.Context, params GetMovieByIdParams) (GetMovieByIdRes, error)
 	// GetMoviePoster implements getMoviePoster operation.
 	//
-	// Returns the movie poster image in PNG format.
+	// Returns the movie poster image.
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/poster.png
+	// GET /services/{serviceTag}/movies/{movieId}/poster
 	GetMoviePoster(ctx context.Context, params GetMoviePosterParams) (GetMoviePosterRes, error)
 	// GetMovieStreamFile implements getMovieStreamFile operation.
 	//
@@ -113,9 +113,9 @@ type Handler interface {
 	GetMovies(ctx context.Context, params GetMoviesParams) (GetMoviesRes, error)
 	// GetSeasonBackdrop implements getSeasonBackdrop operation.
 	//
-	// Returns the season backdrop image in PNG format.
+	// Returns the season backdrop image.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop.png
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop
 	GetSeasonBackdrop(ctx context.Context, params GetSeasonBackdropParams) (GetSeasonBackdropRes, error)
 	// GetSeasonById implements getSeasonById operation.
 	//
@@ -125,9 +125,9 @@ type Handler interface {
 	GetSeasonById(ctx context.Context, params GetSeasonByIdParams) (GetSeasonByIdRes, error)
 	// GetSeasonPoster implements getSeasonPoster operation.
 	//
-	// Returns the season poster image in PNG format.
+	// Returns the season poster image.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster.png
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster
 	GetSeasonPoster(ctx context.Context, params GetSeasonPosterParams) (GetSeasonPosterRes, error)
 	// GetSeasons implements getSeasons operation.
 	//
@@ -143,9 +143,9 @@ type Handler interface {
 	GetSeries(ctx context.Context, params GetSeriesParams) (GetSeriesRes, error)
 	// GetSeriesBackdrop implements getSeriesBackdrop operation.
 	//
-	// Returns the series backdrop image in PNG format.
+	// Returns the series backdrop image.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/backdrop.png
+	// GET /services/{serviceTag}/series/{seriesId}/backdrop
 	GetSeriesBackdrop(ctx context.Context, params GetSeriesBackdropParams) (GetSeriesBackdropRes, error)
 	// GetSeriesById implements getSeriesById operation.
 	//
@@ -155,9 +155,9 @@ type Handler interface {
 	GetSeriesById(ctx context.Context, params GetSeriesByIdParams) (GetSeriesByIdRes, error)
 	// GetSeriesPoster implements getSeriesPoster operation.
 	//
-	// Returns the series poster image in PNG format.
+	// Returns the series poster image.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/poster.png
+	// GET /services/{serviceTag}/series/{seriesId}/poster
 	GetSeriesPoster(ctx context.Context, params GetSeriesPosterParams) (GetSeriesPosterRes, error)
 	// GetServiceByTag implements getServiceByTag operation.
 	//
@@ -170,15 +170,19 @@ type Handler interface {
 	// Retrieve all streaming services offered by the API.
 	//
 	// GET /services
-	GetServices(ctx context.Context, params GetServicesParams) (GetServicesRes, error)
+	GetServices(ctx context.Context, params GetServicesParams) (*PageService, error)
 	// GlobalSearch implements globalSearch operation.
 	//
 	// Search across services, movies, and TV series by title or name. This is a lightweight, title-level
-	// search — it does not search episode or season body content. Use the per-collection endpoints for
+	// search - it does not search episode or season body content. Use the per-collection endpoints for
 	// deeper queries.
 	//
 	// GET /search
 	GlobalSearch(ctx context.Context, params GlobalSearchParams) (GlobalSearchRes, error)
+	// NewError creates *ErrorStatusCode from error returned by handler.
+	//
+	// Used for common default response.
+	NewError(ctx context.Context, err error) *ErrorStatusCode
 }
 
 // Server implements http server based on OpenAPI v3 specification and

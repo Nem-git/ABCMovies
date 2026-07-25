@@ -6,11 +6,11 @@ live/proxy:
 
 # run tailwindcss to generate the style.css bundle in watch mode.
 live/tailwind:
-	./tailwindcss -i ./internal/web/static/css/input.css -o ./internal/web/static/css/style.css --minify --watch=always
+	tailwindcss -i ./internal/web/static/css/input.css -o ./internal/web/static/css/style.css --minify --watch=always
 
 # run esbuild to generate the index.js bundle in watch mode.
 live/esbuild:
-	./esbuild ./internal/web/static/js/index.ts --bundle --outdir=./internal/web/static/js/ --minify --watch=forever
+	esbuild ./internal/web/static/js/index.ts --bundle --outdir=./internal/web/static/js/ --minify --watch=forever
 
 # Watch CSS output, send browser reload when tailwind finishes compiling.
 live/sync:

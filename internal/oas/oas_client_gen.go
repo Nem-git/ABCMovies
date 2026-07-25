@@ -63,9 +63,9 @@ type Invoker interface {
 	GetEpisodeSubtitles(ctx context.Context, params GetEpisodeSubtitlesParams) (GetEpisodeSubtitlesRes, error)
 	// GetEpisodeThumbnail invokes getEpisodeThumbnail operation.
 	//
-	// Returns the episode thumbnail image in PNG format.
+	// Returns the episode thumbnail image.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail.png
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail
 	GetEpisodeThumbnail(ctx context.Context, params GetEpisodeThumbnailParams) (GetEpisodeThumbnailRes, error)
 	// GetEpisodes invokes getEpisodes operation.
 	//
@@ -81,9 +81,9 @@ type Invoker interface {
 	GetHealth(ctx context.Context) (*Health, error)
 	// GetMovieBackdrop invokes getMovieBackdrop operation.
 	//
-	// Returns the movie backdrop image in PNG format.
+	// Returns the movie backdrop image.
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/backdrop.png
+	// GET /services/{serviceTag}/movies/{movieId}/backdrop
 	GetMovieBackdrop(ctx context.Context, params GetMovieBackdropParams) (GetMovieBackdropRes, error)
 	// GetMovieById invokes getMovieById operation.
 	//
@@ -93,9 +93,9 @@ type Invoker interface {
 	GetMovieById(ctx context.Context, params GetMovieByIdParams) (GetMovieByIdRes, error)
 	// GetMoviePoster invokes getMoviePoster operation.
 	//
-	// Returns the movie poster image in PNG format.
+	// Returns the movie poster image.
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/poster.png
+	// GET /services/{serviceTag}/movies/{movieId}/poster
 	GetMoviePoster(ctx context.Context, params GetMoviePosterParams) (GetMoviePosterRes, error)
 	// GetMovieStreamFile invokes getMovieStreamFile operation.
 	//
@@ -133,9 +133,9 @@ type Invoker interface {
 	GetMovies(ctx context.Context, params GetMoviesParams) (GetMoviesRes, error)
 	// GetSeasonBackdrop invokes getSeasonBackdrop operation.
 	//
-	// Returns the season backdrop image in PNG format.
+	// Returns the season backdrop image.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop.png
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop
 	GetSeasonBackdrop(ctx context.Context, params GetSeasonBackdropParams) (GetSeasonBackdropRes, error)
 	// GetSeasonById invokes getSeasonById operation.
 	//
@@ -145,9 +145,9 @@ type Invoker interface {
 	GetSeasonById(ctx context.Context, params GetSeasonByIdParams) (GetSeasonByIdRes, error)
 	// GetSeasonPoster invokes getSeasonPoster operation.
 	//
-	// Returns the season poster image in PNG format.
+	// Returns the season poster image.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster.png
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster
 	GetSeasonPoster(ctx context.Context, params GetSeasonPosterParams) (GetSeasonPosterRes, error)
 	// GetSeasons invokes getSeasons operation.
 	//
@@ -163,9 +163,9 @@ type Invoker interface {
 	GetSeries(ctx context.Context, params GetSeriesParams) (GetSeriesRes, error)
 	// GetSeriesBackdrop invokes getSeriesBackdrop operation.
 	//
-	// Returns the series backdrop image in PNG format.
+	// Returns the series backdrop image.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/backdrop.png
+	// GET /services/{serviceTag}/series/{seriesId}/backdrop
 	GetSeriesBackdrop(ctx context.Context, params GetSeriesBackdropParams) (GetSeriesBackdropRes, error)
 	// GetSeriesById invokes getSeriesById operation.
 	//
@@ -175,9 +175,9 @@ type Invoker interface {
 	GetSeriesById(ctx context.Context, params GetSeriesByIdParams) (GetSeriesByIdRes, error)
 	// GetSeriesPoster invokes getSeriesPoster operation.
 	//
-	// Returns the series poster image in PNG format.
+	// Returns the series poster image.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/poster.png
+	// GET /services/{serviceTag}/series/{seriesId}/poster
 	GetSeriesPoster(ctx context.Context, params GetSeriesPosterParams) (GetSeriesPosterRes, error)
 	// GetServiceByTag invokes getServiceByTag operation.
 	//
@@ -190,11 +190,11 @@ type Invoker interface {
 	// Retrieve all streaming services offered by the API.
 	//
 	// GET /services
-	GetServices(ctx context.Context, params GetServicesParams) (GetServicesRes, error)
+	GetServices(ctx context.Context, params GetServicesParams) (*PageService, error)
 	// GlobalSearch invokes globalSearch operation.
 	//
 	// Search across services, movies, and TV series by title or name. This is a lightweight, title-level
-	// search — it does not search episode or season body content. Use the per-collection endpoints for
+	// search - it does not search episode or season body content. Use the per-collection endpoints for
 	// deeper queries.
 	//
 	// GET /search
@@ -1136,9 +1136,9 @@ func (c *Client) sendGetEpisodeSubtitles(ctx context.Context, params GetEpisodeS
 
 // GetEpisodeThumbnail invokes getEpisodeThumbnail operation.
 //
-// Returns the episode thumbnail image in PNG format.
+// Returns the episode thumbnail image.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail.png
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail
 func (c *Client) GetEpisodeThumbnail(ctx context.Context, params GetEpisodeThumbnailParams) (GetEpisodeThumbnailRes, error) {
 	res, err := c.sendGetEpisodeThumbnail(ctx, params)
 	return res, err
@@ -1148,7 +1148,7 @@ func (c *Client) sendGetEpisodeThumbnail(ctx context.Context, params GetEpisodeT
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getEpisodeThumbnail"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail.png"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -1258,7 +1258,7 @@ func (c *Client) sendGetEpisodeThumbnail(ctx context.Context, params GetEpisodeT
 		}
 		pathParts[7] = encoded
 	}
-	pathParts[8] = "/thumbnail.png"
+	pathParts[8] = "/thumbnail"
 	uri.AddPathParts(u, pathParts[:]...)
 
 	stage = "EncodeRequest"
@@ -1547,9 +1547,9 @@ func (c *Client) sendGetHealth(ctx context.Context) (res *Health, err error) {
 
 // GetMovieBackdrop invokes getMovieBackdrop operation.
 //
-// Returns the movie backdrop image in PNG format.
+// Returns the movie backdrop image.
 //
-// GET /services/{serviceTag}/movies/{movieId}/backdrop.png
+// GET /services/{serviceTag}/movies/{movieId}/backdrop
 func (c *Client) GetMovieBackdrop(ctx context.Context, params GetMovieBackdropParams) (GetMovieBackdropRes, error) {
 	res, err := c.sendGetMovieBackdrop(ctx, params)
 	return res, err
@@ -1559,7 +1559,7 @@ func (c *Client) sendGetMovieBackdrop(ctx context.Context, params GetMovieBackdr
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getMovieBackdrop"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/backdrop.png"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/backdrop"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -1631,7 +1631,7 @@ func (c *Client) sendGetMovieBackdrop(ctx context.Context, params GetMovieBackdr
 		}
 		pathParts[3] = encoded
 	}
-	pathParts[4] = "/backdrop.png"
+	pathParts[4] = "/backdrop"
 	uri.AddPathParts(u, pathParts[:]...)
 
 	stage = "EncodeRequest"
@@ -1782,9 +1782,9 @@ func (c *Client) sendGetMovieById(ctx context.Context, params GetMovieByIdParams
 
 // GetMoviePoster invokes getMoviePoster operation.
 //
-// Returns the movie poster image in PNG format.
+// Returns the movie poster image.
 //
-// GET /services/{serviceTag}/movies/{movieId}/poster.png
+// GET /services/{serviceTag}/movies/{movieId}/poster
 func (c *Client) GetMoviePoster(ctx context.Context, params GetMoviePosterParams) (GetMoviePosterRes, error) {
 	res, err := c.sendGetMoviePoster(ctx, params)
 	return res, err
@@ -1794,7 +1794,7 @@ func (c *Client) sendGetMoviePoster(ctx context.Context, params GetMoviePosterPa
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getMoviePoster"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/poster.png"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/poster"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -1866,7 +1866,7 @@ func (c *Client) sendGetMoviePoster(ctx context.Context, params GetMoviePosterPa
 		}
 		pathParts[3] = encoded
 	}
-	pathParts[4] = "/poster.png"
+	pathParts[4] = "/poster"
 	uri.AddPathParts(u, pathParts[:]...)
 
 	stage = "EncodeRequest"
@@ -2625,9 +2625,9 @@ func (c *Client) sendGetMovies(ctx context.Context, params GetMoviesParams) (res
 
 // GetSeasonBackdrop invokes getSeasonBackdrop operation.
 //
-// Returns the season backdrop image in PNG format.
+// Returns the season backdrop image.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop.png
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop
 func (c *Client) GetSeasonBackdrop(ctx context.Context, params GetSeasonBackdropParams) (GetSeasonBackdropRes, error) {
 	res, err := c.sendGetSeasonBackdrop(ctx, params)
 	return res, err
@@ -2637,7 +2637,7 @@ func (c *Client) sendGetSeasonBackdrop(ctx context.Context, params GetSeasonBack
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getSeasonBackdrop"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop.png"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/backdrop"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -2728,7 +2728,7 @@ func (c *Client) sendGetSeasonBackdrop(ctx context.Context, params GetSeasonBack
 		}
 		pathParts[5] = encoded
 	}
-	pathParts[6] = "/backdrop.png"
+	pathParts[6] = "/backdrop"
 	uri.AddPathParts(u, pathParts[:]...)
 
 	stage = "EncodeRequest"
@@ -2898,9 +2898,9 @@ func (c *Client) sendGetSeasonById(ctx context.Context, params GetSeasonByIdPara
 
 // GetSeasonPoster invokes getSeasonPoster operation.
 //
-// Returns the season poster image in PNG format.
+// Returns the season poster image.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster.png
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster
 func (c *Client) GetSeasonPoster(ctx context.Context, params GetSeasonPosterParams) (GetSeasonPosterRes, error) {
 	res, err := c.sendGetSeasonPoster(ctx, params)
 	return res, err
@@ -2910,7 +2910,7 @@ func (c *Client) sendGetSeasonPoster(ctx context.Context, params GetSeasonPoster
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getSeasonPoster"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster.png"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/poster"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -3001,7 +3001,7 @@ func (c *Client) sendGetSeasonPoster(ctx context.Context, params GetSeasonPoster
 		}
 		pathParts[5] = encoded
 	}
-	pathParts[6] = "/poster.png"
+	pathParts[6] = "/poster"
 	uri.AddPathParts(u, pathParts[:]...)
 
 	stage = "EncodeRequest"
@@ -3328,9 +3328,9 @@ func (c *Client) sendGetSeries(ctx context.Context, params GetSeriesParams) (res
 
 // GetSeriesBackdrop invokes getSeriesBackdrop operation.
 //
-// Returns the series backdrop image in PNG format.
+// Returns the series backdrop image.
 //
-// GET /services/{serviceTag}/series/{seriesId}/backdrop.png
+// GET /services/{serviceTag}/series/{seriesId}/backdrop
 func (c *Client) GetSeriesBackdrop(ctx context.Context, params GetSeriesBackdropParams) (GetSeriesBackdropRes, error) {
 	res, err := c.sendGetSeriesBackdrop(ctx, params)
 	return res, err
@@ -3340,7 +3340,7 @@ func (c *Client) sendGetSeriesBackdrop(ctx context.Context, params GetSeriesBack
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getSeriesBackdrop"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/backdrop.png"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/backdrop"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -3412,7 +3412,7 @@ func (c *Client) sendGetSeriesBackdrop(ctx context.Context, params GetSeriesBack
 		}
 		pathParts[3] = encoded
 	}
-	pathParts[4] = "/backdrop.png"
+	pathParts[4] = "/backdrop"
 	uri.AddPathParts(u, pathParts[:]...)
 
 	stage = "EncodeRequest"
@@ -3563,9 +3563,9 @@ func (c *Client) sendGetSeriesById(ctx context.Context, params GetSeriesByIdPara
 
 // GetSeriesPoster invokes getSeriesPoster operation.
 //
-// Returns the series poster image in PNG format.
+// Returns the series poster image.
 //
-// GET /services/{serviceTag}/series/{seriesId}/poster.png
+// GET /services/{serviceTag}/series/{seriesId}/poster
 func (c *Client) GetSeriesPoster(ctx context.Context, params GetSeriesPosterParams) (GetSeriesPosterRes, error) {
 	res, err := c.sendGetSeriesPoster(ctx, params)
 	return res, err
@@ -3575,7 +3575,7 @@ func (c *Client) sendGetSeriesPoster(ctx context.Context, params GetSeriesPoster
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getSeriesPoster"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/poster.png"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/poster"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -3647,7 +3647,7 @@ func (c *Client) sendGetSeriesPoster(ctx context.Context, params GetSeriesPoster
 		}
 		pathParts[3] = encoded
 	}
-	pathParts[4] = "/poster.png"
+	pathParts[4] = "/poster"
 	uri.AddPathParts(u, pathParts[:]...)
 
 	stage = "EncodeRequest"
@@ -3782,12 +3782,12 @@ func (c *Client) sendGetServiceByTag(ctx context.Context, params GetServiceByTag
 // Retrieve all streaming services offered by the API.
 //
 // GET /services
-func (c *Client) GetServices(ctx context.Context, params GetServicesParams) (GetServicesRes, error) {
+func (c *Client) GetServices(ctx context.Context, params GetServicesParams) (*PageService, error) {
 	res, err := c.sendGetServices(ctx, params)
 	return res, err
 }
 
-func (c *Client) sendGetServices(ctx context.Context, params GetServicesParams) (res GetServicesRes, err error) {
+func (c *Client) sendGetServices(ctx context.Context, params GetServicesParams) (res *PageService, err error) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getServices"),
 		semconv.HTTPRequestMethodKey.String("GET"),
@@ -3898,7 +3898,7 @@ func (c *Client) sendGetServices(ctx context.Context, params GetServicesParams) 
 // GlobalSearch invokes globalSearch operation.
 //
 // Search across services, movies, and TV series by title or name. This is a lightweight, title-level
-// search — it does not search episode or season body content. Use the per-collection endpoints for
+// search - it does not search episode or season body content. Use the per-collection endpoints for
 // deeper queries.
 //
 // GET /search

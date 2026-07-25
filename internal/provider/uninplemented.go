@@ -49,12 +49,12 @@ func (p *UnimplementedProvider) GetMovieSubtitleFile(context.Context, string, st
 	return nil, "", ErrNotSupported
 }
 
-func (p *UnimplementedProvider) GetMoviePoster(context.Context, string) (io.ReadCloser, error) {
-	return nil, ErrNotSupported
+func (p *UnimplementedProvider) GetMoviePoster(context.Context, string) (io.ReadCloser, string, error) {
+	return nil, "", ErrNotSupported
 }
 
-func (p *UnimplementedProvider) GetMovieBackdrop(context.Context, string) (io.ReadCloser, error) {
-	return nil, ErrNotSupported
+func (p *UnimplementedProvider) GetMovieBackdrop(context.Context, string) (io.ReadCloser, string, error) {
+	return nil, "", ErrNotSupported
 }
 
 // Series
@@ -66,12 +66,12 @@ func (p *UnimplementedProvider) GetSeriesByID(context.Context, string) (*oas.Ser
 	return nil, ErrNotSupported
 }
 
-func (p *UnimplementedProvider) GetSeriesPoster(context.Context, string) (io.ReadCloser, error) {
-	return nil, ErrNotSupported
+func (p *UnimplementedProvider) GetSeriesPoster(context.Context, string) (io.ReadCloser, string, error) {
+	return nil, "", ErrNotSupported
 }
 
-func (p *UnimplementedProvider) GetSeriesBackdrop(context.Context, string) (io.ReadCloser, error) {
-	return nil, ErrNotSupported
+func (p *UnimplementedProvider) GetSeriesBackdrop(context.Context, string) (io.ReadCloser, string, error) {
+	return nil, "", ErrNotSupported
 }
 
 // Seasons
@@ -83,12 +83,12 @@ func (p *UnimplementedProvider) GetSeasonById(context.Context, string, string) (
 	return nil, ErrNotSupported
 }
 
-func (p *UnimplementedProvider) GetSeasonPoster(context.Context, string, string) (io.ReadCloser, error) {
-	return nil, ErrNotSupported
+func (p *UnimplementedProvider) GetSeasonPoster(context.Context, string, string) (io.ReadCloser, string, error) {
+	return nil, "", ErrNotSupported
 }
 
-func (p *UnimplementedProvider) GetSeasonBackdrop(context.Context, string, string) (io.ReadCloser, error) {
-	return nil, ErrNotSupported
+func (p *UnimplementedProvider) GetSeasonBackdrop(context.Context, string, string) (io.ReadCloser, string, error) {
+	return nil, "", ErrNotSupported
 }
 
 // Episodes
@@ -116,8 +116,8 @@ func (p *UnimplementedProvider) GetEpisodeSubtitleFile(context.Context, string, 
 	return nil, "", ErrNotSupported
 }
 
-func (p *UnimplementedProvider) GetEpisodeThumbnail(context.Context, string, string, string) (io.ReadCloser, error) {
-	return nil, ErrNotSupported
+func (p *UnimplementedProvider) GetEpisodeThumbnail(context.Context, string, string, string) (io.ReadCloser, string, error) {
+	return nil, "", ErrNotSupported
 }
 
 // Search

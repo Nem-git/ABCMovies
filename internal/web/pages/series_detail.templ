@@ -10,7 +10,7 @@ templ SeriesDetail(tag string, series *oas.Series, seasons []oas.Season, nextURL
 	@layouts.App(series.Name) {
 		<div class="p-8 max-w-4xl mx-auto">
 			@components.BackLink("/services/"+tag+"/series", "Series")
-			@components.BackdropHero(APIPrefix + "/services/" + tag + "/series/" + series.ID + "/backdrop") {
+			@components.BackdropHero(series.Backdrop.Value.String()) {
 				<div>
 					<h1 class="text-3xl font-bold text-white">{ series.Name }</h1>
 					if series.Description.IsSet() {

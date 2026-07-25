@@ -9,19 +9,22 @@ services:
       - config/.env
     ports:
       - '8080:7331'
+    # podman doesn't support watch
     # Sync modified files to rebuild app
-    develop:
-      watch:
-        - action: sync
-          path: .
-          target: /usr/src/app
-        # Rebuild container if config or deps files changed
-        - action: rebuild
-          path: go.mod
-        - action: rebuild
-          path: go.sum
-        - action: rebuild
-          path: config/air/*.toml
+    # develop:
+    #   watch:
+    #     - action: sync
+    #       path: .
+    #       target: /usr/src/app
+    #     # Rebuild container if config or deps files changed
+    #     - action: rebuild
+    #       path: go.mod
+    #     - action: rebuild
+    #       path: go.sum
+    #     - action: rebuild
+    #       path: config/air/*.toml
+    volumes:
+      - "./:/usr/src/app"
     profiles: [ dev ]
 
   prod:

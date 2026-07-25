@@ -83,14 +83,12 @@ func (p *Provider) GetMovieSubtitleFile(ctx context.Context, movieID, subtitleFi
 	return getRaw(p, ctx, fmt.Sprintf("/movies/%s/subtitles/%s", url.PathEscape(movieID), url.PathEscape(subtitleFile)))
 }
 
-func (p *Provider) GetMoviePoster(ctx context.Context, movieID string) (io.ReadCloser, error) {
-	r, _, err := getRaw(p, ctx, fmt.Sprintf("/movies/%s/poster.png", url.PathEscape(movieID)))
-	return r, err
+func (p *Provider) GetMoviePoster(ctx context.Context, movieID string) (io.ReadCloser, string, error) {
+	return getRaw(p, ctx, fmt.Sprintf("/movies/%s/poster", url.PathEscape(movieID)))
 }
 
-func (p *Provider) GetMovieBackdrop(ctx context.Context, movieID string) (io.ReadCloser, error) {
-	r, _, err := getRaw(p, ctx, fmt.Sprintf("/movies/%s/backdrop.png", url.PathEscape(movieID)))
-	return r, err
+func (p *Provider) GetMovieBackdrop(ctx context.Context, movieID string) (io.ReadCloser, string, error) {
+	return getRaw(p, ctx, fmt.Sprintf("/movies/%s/backdrop", url.PathEscape(movieID)))
 }
 
 func (p *Provider) GetSeries(ctx context.Context, limit, offset int) ([]oas.Series, int, error) {
@@ -101,14 +99,12 @@ func (p *Provider) GetSeriesByID(ctx context.Context, seriesID string) (*oas.Ser
 	return getItem[oas.Series](p, ctx, fmt.Sprintf("/series/%s", url.PathEscape(seriesID)))
 }
 
-func (p *Provider) GetSeriesPoster(ctx context.Context, seriesID string) (io.ReadCloser, error) {
-	r, _, err := getRaw(p, ctx, fmt.Sprintf("/series/%s/poster.png", url.PathEscape(seriesID)))
-	return r, err
+func (p *Provider) GetSeriesPoster(ctx context.Context, seriesID string) (io.ReadCloser, string, error) {
+	return getRaw(p, ctx, fmt.Sprintf("/series/%s/poster", url.PathEscape(seriesID)))
 }
 
-func (p *Provider) GetSeriesBackdrop(ctx context.Context, seriesID string) (io.ReadCloser, error) {
-	r, _, err := getRaw(p, ctx, fmt.Sprintf("/series/%s/backdrop.png", url.PathEscape(seriesID)))
-	return r, err
+func (p *Provider) GetSeriesBackdrop(ctx context.Context, seriesID string) (io.ReadCloser, string, error) {
+	return getRaw(p, ctx, fmt.Sprintf("/series/%s/backdrop", url.PathEscape(seriesID)))
 }
 
 func (p *Provider) GetSeasons(ctx context.Context, seriesID string, limit, offset int) ([]oas.Season, int, error) {
@@ -119,14 +115,12 @@ func (p *Provider) GetSeasonById(ctx context.Context, seriesID, seasonID string)
 	return getItem[oas.Season](p, ctx, fmt.Sprintf("/series/%s/seasons/%s", url.PathEscape(seriesID), url.PathEscape(seasonID)))
 }
 
-func (p *Provider) GetSeasonPoster(ctx context.Context, seriesID, seasonID string) (io.ReadCloser, error) {
-	r, _, err := getRaw(p, ctx, fmt.Sprintf("/series/%s/seasons/%s/poster.png", url.PathEscape(seriesID), url.PathEscape(seasonID)))
-	return r, err
+func (p *Provider) GetSeasonPoster(ctx context.Context, seriesID, seasonID string) (io.ReadCloser, string, error) {
+	return getRaw(p, ctx, fmt.Sprintf("/series/%s/seasons/%s/poster", url.PathEscape(seriesID), url.PathEscape(seasonID)))
 }
 
-func (p *Provider) GetSeasonBackdrop(ctx context.Context, seriesID, seasonID string) (io.ReadCloser, error) {
-	r, _, err := getRaw(p, ctx, fmt.Sprintf("/series/%s/seasons/%s/backdrop.png", url.PathEscape(seriesID), url.PathEscape(seasonID)))
-	return r, err
+func (p *Provider) GetSeasonBackdrop(ctx context.Context, seriesID, seasonID string) (io.ReadCloser, string, error) {
+	return getRaw(p, ctx, fmt.Sprintf("/series/%s/seasons/%s/backdrop", url.PathEscape(seriesID), url.PathEscape(seasonID)))
 }
 
 func (p *Provider) GetEpisodes(ctx context.Context, seriesID, seasonID string, limit, offset int) ([]oas.Episode, int, error) {
@@ -159,10 +153,9 @@ func (p *Provider) GetEpisodeSubtitleFile(ctx context.Context, seriesID, seasonI
 		url.PathEscape(seriesID), url.PathEscape(seasonID), url.PathEscape(episodeID), url.PathEscape(subtitleFile)))
 }
 
-func (p *Provider) GetEpisodeThumbnail(ctx context.Context, seriesID, seasonID, episodeID string) (io.ReadCloser, error) {
-	r, _, err := getRaw(p, ctx, fmt.Sprintf("/series/%s/seasons/%s/episodes/%s/thumbnail.png",
+func (p *Provider) GetEpisodeThumbnail(ctx context.Context, seriesID, seasonID, episodeID string) (io.ReadCloser, string, error) {
+	return getRaw(p, ctx, fmt.Sprintf("/series/%s/seasons/%s/episodes/%s/thumbnail",
 		url.PathEscape(seriesID), url.PathEscape(seasonID), url.PathEscape(episodeID)))
-	return r, err
 }
 
 func (p *Provider) Search(ctx context.Context, query string, limit, offset int) ([]oas.SearchResultItem, int, error) {

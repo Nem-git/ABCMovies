@@ -26,11 +26,7 @@ func TestGetServices(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetServices() error: %v", err)
 	}
-
-	page, ok := res.(*oas.PageService)
-	if !ok {
-		t.Fatalf("GetServices() returned %T, want *oas.PageService", res)
-	}
+	page := res
 	if page.Total != 1 {
 		t.Errorf("Total = %d, want 1", page.Total)
 	}
@@ -64,7 +60,7 @@ func TestGetServicesMultipleProviders(t *testing.T) {
 		t.Fatalf("GetServices() error: %v", err)
 	}
 
-	page := res.(*oas.PageService)
+	page := res
 	if page.Total != 2 {
 		t.Errorf("Total = %d, want 2", page.Total)
 	}
@@ -82,17 +78,17 @@ func TestGetServicesProviderError(t *testing.T) {
 	r.Register(p)
 
 	h := handler.New(r)
-	res, err := h.GetServices(t.Context(), oas.GetServicesParams{
+	_, err := h.GetServices(t.Context(), oas.GetServicesParams{
 		Limit:  oas.NewOptInt(20),
 		Offset: oas.NewOptInt(0),
 	})
-	if err != nil {
-		t.Fatalf("GetServices() error: %v", err)
+	if err == nil {
+		t.Fatal("GetServices() expected error, got nil")
 	}
 
-	errResp, ok := res.(*oas.ErrorStatusCode)
+	errResp, ok := err.(*oas.ErrorStatusCode)
 	if !ok {
-		t.Fatalf("GetServices() returned %T, want *oas.ErrorStatusCode", res)
+		t.Fatalf("GetServices() error = %T, want *oas.ErrorStatusCode", err)
 	}
 	if errResp.StatusCode != 502 {
 		t.Errorf("StatusCode = %d, want 502", errResp.StatusCode)
@@ -114,7 +110,7 @@ func TestGetServicesEmpty(t *testing.T) {
 		t.Fatalf("GetServices() error: %v", err)
 	}
 
-	page := res.(*oas.PageService)
+	page := res
 	if page.Total != 0 {
 		t.Errorf("Total = %d, want 0", page.Total)
 	}
@@ -141,23 +137,23 @@ func TestGetServicesPagination(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetServices() error: %v", err)
 		}
-		page := res.(*oas.PageService)
+		page := res
 		if len(page.Items) != 1 {
 			t.Errorf("got %d items, want 1", len(page.Items))
 		}
 	})
 
 	t.Run("offset past total returns error", func(t *testing.T) {
-		res, err := h.GetServices(t.Context(), oas.GetServicesParams{
+		_, err := h.GetServices(t.Context(), oas.GetServicesParams{
 			Limit:  oas.NewOptInt(20),
 			Offset: oas.NewOptInt(5),
 		})
-		if err != nil {
-			t.Fatalf("GetServices() error: %v", err)
+		if err == nil {
+			t.Fatal("GetServices() expected error, got nil")
 		}
-		errResp, ok := res.(*oas.ErrorStatusCode)
+		errResp, ok := err.(*oas.ErrorStatusCode)
 		if !ok {
-			t.Fatalf("GetServices() returned %T, want *oas.ErrorStatusCode", res)
+			t.Fatalf("GetServices() error = %T, want *oas.ErrorStatusCode", err)
 		}
 		if errResp.StatusCode != 400 {
 			t.Errorf("StatusCode = %d, want 400", errResp.StatusCode)
@@ -190,13 +186,13 @@ func TestGetServiceByTag(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		res, err := h.GetServiceByTag(t.Context(), oas.GetServiceByTagParams{ServiceTag: "unknown"})
-		if err != nil {
-			t.Fatalf("GetServiceByTag() error: %v", err)
+		_, err := h.GetServiceByTag(t.Context(), oas.GetServiceByTagParams{ServiceTag: "unknown"})
+		if err == nil {
+			t.Fatal("GetServiceByTag() expected error, got nil")
 		}
-		errResp, ok := res.(*oas.ErrorStatusCode)
+		errResp, ok := err.(*oas.ErrorStatusCode)
 		if !ok {
-			t.Fatalf("returned %T, want *oas.ErrorStatusCode", res)
+			t.Fatalf("GetServiceByTag() error = %T, want *oas.ErrorStatusCode", err)
 		}
 		if errResp.StatusCode != 404 {
 			t.Errorf("StatusCode = %d, want 404", errResp.StatusCode)
@@ -301,13 +297,13 @@ func TestProviderNotFound(t *testing.T) {
 	h := handler.New(registry.New())
 
 	t.Run("GetMovies", func(t *testing.T) {
-		res, err := h.GetMovies(t.Context(), oas.GetMoviesParams{ServiceTag: "nope"})
-		if err != nil {
-			t.Fatalf("GetMovies() error: %v", err)
+		_, err := h.GetMovies(t.Context(), oas.GetMoviesParams{ServiceTag: "nope"})
+		if err == nil {
+			t.Fatal("GetMovies() expected error, got nil")
 		}
-		errResp, ok := res.(*oas.ErrorStatusCode)
+		errResp, ok := err.(*oas.ErrorStatusCode)
 		if !ok {
-			t.Fatalf("returned %T, want *oas.ErrorStatusCode", res)
+			t.Fatalf("GetMovies() error = %T, want *oas.ErrorStatusCode", err)
 		}
 		if errResp.StatusCode != 404 {
 			t.Errorf("StatusCode = %d, want 404", errResp.StatusCode)
@@ -328,13 +324,13 @@ func TestProviderError(t *testing.T) {
 	h := handler.New(r)
 
 	t.Run("GetMovies", func(t *testing.T) {
-		res, err := h.GetMovies(t.Context(), oas.GetMoviesParams{ServiceTag: "broken"})
-		if err != nil {
-			t.Fatalf("GetMovies() error: %v", err)
+		_, err := h.GetMovies(t.Context(), oas.GetMoviesParams{ServiceTag: "broken"})
+		if err == nil {
+			t.Fatal("GetMovies() expected error, got nil")
 		}
-		errResp, ok := res.(*oas.ErrorStatusCode)
+		errResp, ok := err.(*oas.ErrorStatusCode)
 		if !ok {
-			t.Fatalf("returned %T, want *oas.ErrorStatusCode", res)
+			t.Fatalf("GetMovies() error = %T, want *oas.ErrorStatusCode", err)
 		}
 		if errResp.StatusCode != 502 {
 			t.Errorf("StatusCode = %d, want 502", errResp.StatusCode)
@@ -371,13 +367,13 @@ func TestGetMovieById(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		res, err := h.GetMovieById(t.Context(), oas.GetMovieByIdParams{ServiceTag: "test", MovieId: "nope"})
-		if err != nil {
-			t.Fatalf("GetMovieById() error: %v", err)
+		_, err := h.GetMovieById(t.Context(), oas.GetMovieByIdParams{ServiceTag: "test", MovieId: "nope"})
+		if err == nil {
+			t.Fatal("GetMovieById() expected error, got nil")
 		}
-		errResp, ok := res.(*oas.ErrorStatusCode)
+		errResp, ok := err.(*oas.ErrorStatusCode)
 		if !ok {
-			t.Fatalf("returned %T, want *oas.ErrorStatusCode", res)
+			t.Fatalf("GetMovieById() error = %T, want *oas.ErrorStatusCode", err)
 		}
 		if errResp.StatusCode != 502 {
 			t.Errorf("StatusCode = %d, want 502", errResp.StatusCode)
@@ -415,6 +411,7 @@ func TestGetMoviePoster(t *testing.T) {
 	p := stub.New(stub.Config{
 		Tag:             "test",
 		MoviePosterData: []byte("fake-png"),
+		ImageMIME:       "image/png",
 	})
 	r.Register(p)
 	h := handler.New(r)
@@ -423,8 +420,8 @@ func TestGetMoviePoster(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetMoviePoster() error: %v", err)
 	}
-	_, ok := res.(*oas.GetMoviePosterOK)
+	_, ok := res.(*oas.GetMoviePosterOKImagePNG)
 	if !ok {
-		t.Fatalf("returned %T, want *oas.GetMoviePosterOK", res)
+		t.Fatalf("returned %T, want *oas.GetMoviePosterOKImagePNG", res)
 	}
 }

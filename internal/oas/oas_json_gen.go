@@ -73,6 +73,12 @@ func (s *Episode) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.Poster.Set {
+			e.FieldStart("poster")
+			s.Poster.Encode(e)
+		}
+	}
+	{
 		if s.ContentRating.Set {
 			e.FieldStart("contentRating")
 			s.ContentRating.Encode(e)
@@ -80,17 +86,18 @@ func (s *Episode) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfEpisode = [10]string{
-	0: "@type",
-	1: "id",
-	2: "episodeNumber",
-	3: "name",
-	4: "description",
-	5: "datePublished",
-	6: "duration",
-	7: "countryOfOrigin",
-	8: "languages",
-	9: "contentRating",
+var jsonFieldsNameOfEpisode = [11]string{
+	0:  "@type",
+	1:  "id",
+	2:  "episodeNumber",
+	3:  "name",
+	4:  "description",
+	5:  "datePublished",
+	6:  "duration",
+	7:  "countryOfOrigin",
+	8:  "languages",
+	9:  "poster",
+	10: "contentRating",
 }
 
 // Decode decodes Episode from json.
@@ -208,6 +215,16 @@ func (s *Episode) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"languages\"")
 			}
+		case "poster":
+			if err := func() error {
+				s.Poster.Reset()
+				if err := s.Poster.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"poster\"")
+			}
 		case "contentRating":
 			if err := func() error {
 				s.ContentRating.Reset()
@@ -219,7 +236,7 @@ func (s *Episode) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"contentRating\"")
 			}
 		default:
-			return d.Skip()
+			return errors.Errorf("unexpected field %q", k)
 		}
 		return nil
 	}); err != nil {
@@ -371,7 +388,7 @@ func (s *Error) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"message\"")
 			}
 		default:
-			return d.Skip()
+			return errors.Errorf("unexpected field %q", k)
 		}
 		return nil
 	}); err != nil {
@@ -1698,7 +1715,7 @@ func (s *Health) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"version\"")
 			}
 		default:
-			return d.Skip()
+			return errors.Errorf("unexpected field %q", k)
 		}
 		return nil
 	}); err != nil {
@@ -1873,6 +1890,12 @@ func (s *Movie) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.Backdrop.Set {
+			e.FieldStart("backdrop")
+			s.Backdrop.Encode(e)
+		}
+	}
+	{
 		if s.Trailer.Set {
 			e.FieldStart("trailer")
 			s.Trailer.Encode(e)
@@ -1880,7 +1903,7 @@ func (s *Movie) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfMovie = [12]string{
+var jsonFieldsNameOfMovie = [13]string{
 	0:  "@type",
 	1:  "id",
 	2:  "name",
@@ -1892,7 +1915,8 @@ var jsonFieldsNameOfMovie = [12]string{
 	8:  "contentRating",
 	9:  "genres",
 	10: "poster",
-	11: "trailer",
+	11: "backdrop",
+	12: "trailer",
 }
 
 // Decode decodes Movie from json.
@@ -2037,6 +2061,16 @@ func (s *Movie) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"poster\"")
 			}
+		case "backdrop":
+			if err := func() error {
+				s.Backdrop.Reset()
+				if err := s.Backdrop.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"backdrop\"")
+			}
 		case "trailer":
 			if err := func() error {
 				s.Trailer.Reset()
@@ -2048,7 +2082,7 @@ func (s *Movie) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"trailer\"")
 			}
 		default:
-			return d.Skip()
+			return errors.Errorf("unexpected field %q", k)
 		}
 		return nil
 	}); err != nil {
@@ -2485,7 +2519,7 @@ func (s *PageEpisode) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"offset\"")
 			}
 		default:
-			return d.Skip()
+			return errors.Errorf("unexpected field %q", k)
 		}
 		return nil
 	}); err != nil {
@@ -2642,7 +2676,7 @@ func (s *PageMovie) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"offset\"")
 			}
 		default:
-			return d.Skip()
+			return errors.Errorf("unexpected field %q", k)
 		}
 		return nil
 	}); err != nil {
@@ -2799,7 +2833,7 @@ func (s *PageSearchResult) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"offset\"")
 			}
 		default:
-			return d.Skip()
+			return errors.Errorf("unexpected field %q", k)
 		}
 		return nil
 	}); err != nil {
@@ -2956,7 +2990,7 @@ func (s *PageSeason) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"offset\"")
 			}
 		default:
-			return d.Skip()
+			return errors.Errorf("unexpected field %q", k)
 		}
 		return nil
 	}); err != nil {
@@ -3113,7 +3147,7 @@ func (s *PageSeries) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"offset\"")
 			}
 		default:
-			return d.Skip()
+			return errors.Errorf("unexpected field %q", k)
 		}
 		return nil
 	}); err != nil {
@@ -3270,7 +3304,7 @@ func (s *PageService) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"offset\"")
 			}
 		default:
-			return d.Skip()
+			return errors.Errorf("unexpected field %q", k)
 		}
 		return nil
 	}); err != nil {
@@ -3427,7 +3461,7 @@ func (s *PageStream) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"offset\"")
 			}
 		default:
-			return d.Skip()
+			return errors.Errorf("unexpected field %q", k)
 		}
 		return nil
 	}); err != nil {
@@ -3584,7 +3618,7 @@ func (s *PageSubtitle) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"offset\"")
 			}
 		default:
-			return d.Skip()
+			return errors.Errorf("unexpected field %q", k)
 		}
 		return nil
 	}); err != nil {
@@ -3695,7 +3729,7 @@ func (s *SearchResultItem) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"resource\"")
 			}
 		default:
-			return d.Skip()
+			return errors.Errorf("unexpected field %q", k)
 		}
 		return nil
 	}); err != nil {
@@ -3877,6 +3911,12 @@ func (s SearchResultItemResource) encodeFields(e *jx.Encoder) {
 				}
 			}
 			{
+				if s.Backdrop.Set {
+					e.FieldStart("backdrop")
+					s.Backdrop.Encode(e)
+				}
+			}
+			{
 				if s.Trailer.Set {
 					e.FieldStart("trailer")
 					s.Trailer.Encode(e)
@@ -3944,6 +3984,12 @@ func (s SearchResultItemResource) encodeFields(e *jx.Encoder) {
 				if s.Poster.Set {
 					e.FieldStart("poster")
 					s.Poster.Encode(e)
+				}
+			}
+			{
+				if s.Backdrop.Set {
+					e.FieldStart("backdrop")
+					s.Backdrop.Encode(e)
 				}
 			}
 			{
@@ -4099,6 +4145,12 @@ func (s *Season) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.Backdrop.Set {
+			e.FieldStart("backdrop")
+			s.Backdrop.Encode(e)
+		}
+	}
+	{
 		if s.NumberOfEpisodes.Set {
 			e.FieldStart("numberOfEpisodes")
 			s.NumberOfEpisodes.Encode(e)
@@ -4112,7 +4164,7 @@ func (s *Season) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfSeason = [11]string{
+var jsonFieldsNameOfSeason = [12]string{
 	0:  "@type",
 	1:  "id",
 	2:  "seasonNumber",
@@ -4122,8 +4174,9 @@ var jsonFieldsNameOfSeason = [11]string{
 	6:  "countryOfOrigin",
 	7:  "languages",
 	8:  "poster",
-	9:  "numberOfEpisodes",
-	10: "trailer",
+	9:  "backdrop",
+	10: "numberOfEpisodes",
+	11: "trailer",
 }
 
 // Decode decodes Season from json.
@@ -4239,6 +4292,16 @@ func (s *Season) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"poster\"")
 			}
+		case "backdrop":
+			if err := func() error {
+				s.Backdrop.Reset()
+				if err := s.Backdrop.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"backdrop\"")
+			}
 		case "numberOfEpisodes":
 			if err := func() error {
 				s.NumberOfEpisodes.Reset()
@@ -4260,7 +4323,7 @@ func (s *Season) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"trailer\"")
 			}
 		default:
-			return d.Skip()
+			return errors.Errorf("unexpected field %q", k)
 		}
 		return nil
 	}); err != nil {
@@ -4426,6 +4489,12 @@ func (s *Series) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.Backdrop.Set {
+			e.FieldStart("backdrop")
+			s.Backdrop.Encode(e)
+		}
+	}
+	{
 		if s.Trailer.Set {
 			e.FieldStart("trailer")
 			s.Trailer.Encode(e)
@@ -4437,7 +4506,7 @@ func (s *Series) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfSeries = [12]string{
+var jsonFieldsNameOfSeries = [13]string{
 	0:  "@type",
 	1:  "id",
 	2:  "name",
@@ -4448,8 +4517,9 @@ var jsonFieldsNameOfSeries = [12]string{
 	7:  "contentRating",
 	8:  "genres",
 	9:  "poster",
-	10: "trailer",
-	11: "numberOfSeasons",
+	10: "backdrop",
+	11: "trailer",
+	12: "numberOfSeasons",
 }
 
 // Decode decodes Series from json.
@@ -4584,6 +4654,16 @@ func (s *Series) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"poster\"")
 			}
+		case "backdrop":
+			if err := func() error {
+				s.Backdrop.Reset()
+				if err := s.Backdrop.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"backdrop\"")
+			}
 		case "trailer":
 			if err := func() error {
 				s.Trailer.Reset()
@@ -4595,7 +4675,7 @@ func (s *Series) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"trailer\"")
 			}
 		case "numberOfSeasons":
-			requiredBitSet[1] |= 1 << 3
+			requiredBitSet[1] |= 1 << 4
 			if err := func() error {
 				v, err := d.Int()
 				s.NumberOfSeasons = int(v)
@@ -4607,7 +4687,7 @@ func (s *Series) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"numberOfSeasons\"")
 			}
 		default:
-			return d.Skip()
+			return errors.Errorf("unexpected field %q", k)
 		}
 		return nil
 	}); err != nil {
@@ -4617,7 +4697,7 @@ func (s *Series) Decode(d *jx.Decoder) error {
 	var failures []validate.FieldError
 	for i, mask := range [2]uint8{
 		0b00000111,
-		0b00001000,
+		0b00010000,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.
@@ -4875,7 +4955,7 @@ func (s *Service) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"logo\"")
 			}
 		default:
-			return d.Skip()
+			return errors.Errorf("unexpected field %q", k)
 		}
 		return nil
 	}); err != nil {
@@ -5057,7 +5137,7 @@ func (s *Stream) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"encodingFormat\"")
 			}
 		default:
-			return d.Skip()
+			return errors.Errorf("unexpected field %q", k)
 		}
 		return nil
 	}); err != nil {
@@ -5317,7 +5397,7 @@ func (s *Subtitle) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"isDefault\"")
 			}
 		default:
-			return d.Skip()
+			return errors.Errorf("unexpected field %q", k)
 		}
 		return nil
 	}); err != nil {
