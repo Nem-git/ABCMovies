@@ -42,7 +42,7 @@ func Base(title string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " - ABCMovies</title><script src=\"/static/js/htmx.min.js\"></script><script defer type=\"text/javascript\" src=\"/static/js/alpine.min.js\"></script><link rel=\"stylesheet\" href=\"/static/css/style.css\"></head>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " - ABCMovies</title><script src=\"/static/js/htmx.min.js\"></script><script defer type=\"text/javascript\" src=\"/static/js/alpine-csp.min.js\"></script><link rel=\"stylesheet\" href=\"/static/css/style.css\"></head>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

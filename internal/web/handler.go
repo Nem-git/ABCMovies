@@ -6,11 +6,13 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/a-h/templ"
 	"github.com/nem-git/abcmovies/internal/oas"
 	"github.com/nem-git/abcmovies/internal/provider"
 	"github.com/nem-git/abcmovies/internal/registry"
+	"github.com/nem-git/abcmovies/internal/search"
 	"github.com/nem-git/abcmovies/internal/web/fragments"
 	"github.com/nem-git/abcmovies/internal/web/layouts"
 	"github.com/nem-git/abcmovies/internal/web/pages"
@@ -110,26 +112,49 @@ func (h *Handler) handleServiceList(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
+	types := parseSearchTypes(r)
 	providers := h.registry.All()
 
-	var allResults []oas.SearchResultItem
-	var searchTag string
+	var allResults []search.Result
 
 	for _, p := range providers {
-		searchTag = p.Tag()
 		results, _, err := p.Search(r.Context(), query, maxPageSize, 0)
 		if err != nil {
 			log.Printf("Error searching %s: %s", p.Tag(), err)
 			continue
 		}
-		allResults = append(allResults, results...)
+		for _, item := range results {
+			allResults = append(allResults, search.Result{Tag: p.Tag(), Item: item})
+		}
 	}
 
+	allResults = search.FilterByType(allResults, types)
+	allResults = search.ScoreAndSort(query, allResults)
+
 	if r.Header.Get("HX-Request") == "true" {
-		h.servePage(w, r, fragments.SearchResults(allResults, searchTag))
+		h.servePage(w, r, fragments.SearchResults(allResults))
 	} else {
-		h.servePage(w, r, pages.SearchResults(query, allResults, searchTag))
+		h.servePage(w, r, pages.SearchResults(query, allResults, types))
 	}
+}
+
+func parseSearchTypes(r *http.Request) []string {
+	raw := r.URL.Query().Get("type")
+	if raw == "" {
+		return []string{"movie", "series"}
+	}
+	parts := strings.Split(raw, ",")
+	var valid []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "movie" || p == "series" || p == "service" {
+			valid = append(valid, p)
+		}
+	}
+	if len(valid) == 0 {
+		return []string{"movie", "series"}
+	}
+	return valid
 }
 
 func (h *Handler) handleServiceByTag(w http.ResponseWriter, r *http.Request) {

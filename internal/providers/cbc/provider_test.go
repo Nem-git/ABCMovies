@@ -783,13 +783,6 @@ func TestMovieEndpoints_unsupported(t *testing.T) {
 		}
 	})
 
-	t.Run("GetMovieStreams", func(t *testing.T) {
-		_, _, err := p.GetMovieStreams(t.Context(), "x")
-		if err != provider.ErrNotSupported {
-			t.Errorf("GetMovieStreams() error = %v, want ErrNotSupported", err)
-		}
-	})
-
 	t.Run("GetMoviePoster", func(t *testing.T) {
 		_, _, err := p.GetMoviePoster(t.Context(), "x")
 		if err != provider.ErrNotSupported {
@@ -886,13 +879,6 @@ func TestEmptyShow(t *testing.T) {
 
 func TestUnimplementedMethods(t *testing.T) {
 	p := cbc.New(cbc.Config{Tag: "CBC"})
-
-	t.Run("GetMovieStreamFile", func(t *testing.T) {
-		_, _, err := p.GetMovieStreamFile(t.Context(), "x", "y")
-		if err != provider.ErrNotSupported {
-			t.Errorf("error = %v, want ErrNotSupported", err)
-		}
-	})
 
 	t.Run("GetMovieSubtitleFile", func(t *testing.T) {
 		_, _, err := p.GetMovieSubtitleFile(t.Context(), "x", "y")

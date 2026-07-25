@@ -56,7 +56,7 @@ func buildStub(cfg config.ServiceEntry, baseURL, apiPrefix string) *stub.Provide
 	setStubImageURLs(baseURL, apiPrefix, cfg.Tag, sc.Movies, sc.Series, sc.Seasons)
 
 	for _, se := range cfg.Search {
-		item := oas.SearchResultItem{Score: float32(se.Score)}
+		item := oas.SearchResultItem{}
 		switch se.ResourceType {
 		case "Movie":
 			for _, m := range cfg.Movies {

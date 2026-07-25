@@ -45,8 +45,7 @@ services:
         language: en
         format: vtt
     search:
-      - score: 0.95
-        resourceType: Movie
+      - resourceType: Movie
         resourceId: memento
 
   - tag: DSNP
@@ -89,8 +88,7 @@ services:
         language: fr
         format: vtt
     search:
-      - score: 0.98
-        resourceType: Movie
+      - resourceType: Movie
         resourceId: the-avengers
 
   - tag: CBC

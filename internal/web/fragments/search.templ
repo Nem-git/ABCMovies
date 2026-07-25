@@ -1,11 +1,11 @@
 package fragments
 
 import (
-	"github.com/nem-git/abcmovies/internal/oas"
+	"github.com/nem-git/abcmovies/internal/search"
 	"github.com/nem-git/abcmovies/internal/web/components"
 )
 
-templ SearchResults(results []oas.SearchResultItem, tag string) {
+templ SearchResults(results []search.Result) {
 	if len(results) == 0 {
 		<div class="py-8 text-center text-gray-400">
 			<p>No results found.</p>
@@ -13,7 +13,7 @@ templ SearchResults(results []oas.SearchResultItem, tag string) {
 	} else {
 		<div class="grid gap-3">
 			for _, r := range results {
-				@components.SearchResultItemCard(tag, r)
+				@components.SearchResultItemCard(r)
 			}
 		</div>
 	}

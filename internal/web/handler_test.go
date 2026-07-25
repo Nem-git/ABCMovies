@@ -197,3 +197,86 @@ func TestEpisodeDetail(t *testing.T) {
 		t.Errorf("expected body to contain 'Episode 1', got: %s", rec.Body.String())
 	}
 }
+
+func TestSearchResults(t *testing.T) {
+	h := setupTest(t, stub.Config{
+		Tag: "TEST",
+		Movies: []oas.Movie{
+			{Type: oas.MovieTypeMovie, ID: "m1", Name: "Batman Begins"},
+			{Type: oas.MovieTypeMovie, ID: "m2", Name: "Superman Returns"},
+		},
+		Search: []oas.SearchResultItem{
+			{Resource: oas.SearchResultItemResource{Type: oas.MovieSearchResultItemResource, Movie: oas.Movie{ID: "m1", Name: "Batman Begins"}}},
+			{Resource: oas.SearchResultItemResource{Type: oas.MovieSearchResultItemResource, Movie: oas.Movie{ID: "m2", Name: "Superman Returns"}}},
+		},
+	})
+
+	t.Run("search returns scored results", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/search?q=Batman", nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "Batman Begins") {
+			t.Errorf("expected body to contain 'Batman Begins', got: %s", body)
+		}
+		if !strings.Contains(body, "Results for") {
+			t.Errorf("expected body to contain 'Results for', got: %s", body)
+		}
+	})
+
+	t.Run("search empty query shows empty state", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/search?q=", nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), "Type something to search") {
+			t.Errorf("expected empty state message, got: %s", rec.Body.String())
+		}
+	})
+
+	t.Run("htmx search returns fragment", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/search?q=Batman", nil)
+		req.Header.Set("HX-Request", "true")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), "Batman Begins") {
+			t.Errorf("expected body to contain 'Batman Begins', got: %s", rec.Body.String())
+		}
+	})
+
+	t.Run("filters by type", func(t *testing.T) {
+		h2 := setupTest(t, stub.Config{
+			Tag: "FLT",
+			Search: []oas.SearchResultItem{
+				{Resource: oas.SearchResultItemResource{Type: oas.MovieSearchResultItemResource, Movie: oas.Movie{ID: "m1", Name: "Batman Begins"}}},
+				{Resource: oas.SearchResultItemResource{Type: oas.SeriesSearchResultItemResource, Series: oas.Series{ID: "s1", Name: "Batman Animated"}}},
+			},
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/search?q=Batman&type=movie", nil)
+		rec := httptest.NewRecorder()
+		h2.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "Batman Begins") {
+			t.Errorf("expected body to contain 'Batman Begins', got: %s", body)
+		}
+		if strings.Contains(body, "Batman Animated") {
+			t.Errorf("expected body to NOT contain 'Batman Animated', got: %s", body)
+		}
+	})
+}

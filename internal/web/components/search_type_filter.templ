@@ -1,0 +1,60 @@
+package components
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
+
+templ SearchTypeFilter(types []string) {
+	<div
+		x-data="searchTypeFilter"
+		data-types={ marshalTypes(types) }
+		class="flex gap-2 mb-4"
+	>
+		@typePill("movie", "Movies")
+		@typePill("series", "Series")
+		@typePill("service", "Services")
+		<script nonce={ templ.GetNonce(ctx) }>
+			document.addEventListener('alpine:init', () => {
+				Alpine.data('searchTypeFilter', () => ({
+					types: [],
+					init() {
+						this.types = JSON.parse(this.$el.dataset.types);
+						this.$watch('types', (val) => {
+							document.getElementById('search-type-value').value = val.join(',');
+							document.querySelector('input[name=q]').dispatchEvent(new Event('search'));
+						});
+					},
+					toggle(type) {
+						if (this.types.includes(type)) {
+							this.types = this.types.filter(t => t !== type);
+						} else {
+							this.types.push(type);
+						}
+					}
+				}));
+			});
+		</script>
+	</div>
+}
+
+templ typePill(value, label string) {
+	<button
+		type="button"
+		@click={ fmt.Sprintf("toggle('%s')", value) }
+		:class={ fmt.Sprintf("types.includes('%s') ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-400 hover:border-gray-400'", value) }
+		class="px-3 py-1 text-xs rounded-full border transition cursor-pointer"
+	>
+		{ label }
+	</button>
+}
+
+func marshalTypes(types []string) string {
+	b, _ := json.Marshal(types)
+	return string(b)
+}
+
+func joinTypes(types []string) string {
+	return strings.Join(types, ",")
+}

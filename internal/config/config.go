@@ -20,9 +20,8 @@ type ServerConfig struct {
 }
 
 type StubSearchEntry struct {
-	Score        float64 `yaml:"score"`
-	ResourceType string  `yaml:"resourceType"`
-	ResourceID   string  `yaml:"resourceId"`
+	ResourceType string `yaml:"resourceType"`
+	ResourceID   string `yaml:"resourceId"`
 }
 
 type ServiceEntry struct {

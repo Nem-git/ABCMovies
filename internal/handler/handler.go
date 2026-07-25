@@ -8,6 +8,7 @@ import (
 	"github.com/nem-git/abcmovies/internal/oas"
 	"github.com/nem-git/abcmovies/internal/provider"
 	"github.com/nem-git/abcmovies/internal/registry"
+	"github.com/nem-git/abcmovies/internal/search"
 )
 
 var _ oas.Handler = (*Handler)(nil)
@@ -61,18 +62,35 @@ func (h *Handler) GlobalSearch(ctx context.Context, params oas.GlobalSearchParam
 	limit := params.Limit.Or(defaultLimit)
 	offset := params.Offset.Or(0)
 
-	var allItems []oas.SearchResultItem
+	var allResults []search.Result
 	for _, p := range h.registry.All() {
 		items, _, err := p.Search(ctx, params.Q, limit, offset)
 		if err != nil {
 			continue
 		}
-		allItems = append(allItems, items...)
+		for _, item := range items {
+			allResults = append(allResults, search.Result{Tag: p.Tag(), Item: item})
+		}
+	}
+
+	if len(params.Type) > 0 {
+		types := make([]string, len(params.Type))
+		for i, t := range params.Type {
+			types[i] = string(t)
+		}
+		allResults = search.FilterByType(allResults, types)
+	}
+
+	allResults = search.ScoreAndSort(params.Q, allResults)
+
+	items := make([]oas.SearchResultItem, len(allResults))
+	for i, r := range allResults {
+		items[i] = r.Item
 	}
 
 	return &oas.PageSearchResult{
-		Items:  allItems,
-		Total:  len(allItems),
+		Items:  items,
+		Total:  len(items),
 		Limit:  limit,
 		Offset: offset,
 	}, nil

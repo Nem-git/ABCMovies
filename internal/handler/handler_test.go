@@ -253,8 +253,11 @@ func TestGlobalSearch(t *testing.T) {
 	r := registry.New()
 	p := stub.New(stub.Config{
 		Tag: "searchable",
+		Movies: []oas.Movie{
+			{ID: "m1", Name: "Test Movie"},
+		},
 		Search: []oas.SearchResultItem{
-			{Score: 1, Resource: oas.SearchResultItemResource{Type: oas.MovieSearchResultItemResource, Movie: oas.Movie{ID: "m1"}}},
+			{Resource: oas.SearchResultItemResource{Type: oas.MovieSearchResultItemResource, Movie: oas.Movie{ID: "m1", Name: "Test Movie"}}},
 		},
 	})
 	r.Register(p)
@@ -289,6 +292,64 @@ func TestGlobalSearch(t *testing.T) {
 		}
 		if page.Total != 1 {
 			t.Errorf("Total = %d, want 1", page.Total)
+		}
+	})
+
+	t.Run("scores and sorts results", func(t *testing.T) {
+		r2 := registry.New()
+		p2 := stub.New(stub.Config{
+			Tag: "svc",
+			Movies: []oas.Movie{
+				{ID: "m1", Name: "Superman Returns"},
+				{ID: "m2", Name: "Batman Begins"},
+			},
+			Search: []oas.SearchResultItem{
+				{Resource: oas.SearchResultItemResource{Type: oas.MovieSearchResultItemResource, Movie: oas.Movie{ID: "m1", Name: "Superman Returns"}}},
+				{Resource: oas.SearchResultItemResource{Type: oas.MovieSearchResultItemResource, Movie: oas.Movie{ID: "m2", Name: "Batman Begins"}}},
+			},
+		})
+		r2.Register(p2)
+		h2 := handler.New(r2)
+
+		res, err := h2.GlobalSearch(t.Context(), oas.GlobalSearchParams{Q: "Batman", Limit: oas.NewOptInt(10), Offset: oas.NewOptInt(0)})
+		if err != nil {
+			t.Fatalf("GlobalSearch() error: %v", err)
+		}
+		page := res.(*oas.PageSearchResult)
+		if page.Items[0].Resource.Movie.Name != "Batman Begins" {
+			t.Errorf("expected Batman Begins first, got %s", page.Items[0].Resource.Movie.Name)
+		}
+		if page.Items[0].Score != 0.9 {
+			t.Errorf("expected score 0.9 (prefix match), got %f", page.Items[0].Score)
+		}
+	})
+
+	t.Run("filters by type", func(t *testing.T) {
+		r2 := registry.New()
+		p2 := stub.New(stub.Config{
+			Tag: "svc",
+			Search: []oas.SearchResultItem{
+				{Resource: oas.SearchResultItemResource{Type: oas.MovieSearchResultItemResource, Movie: oas.Movie{ID: "m1", Name: "Batman Begins"}}},
+				{Resource: oas.SearchResultItemResource{Type: oas.SeriesSearchResultItemResource, Series: oas.Series{ID: "s1", Name: "Batman Animated"}}},
+				{Resource: oas.SearchResultItemResource{Type: oas.ServiceSearchResultItemResource, Service: oas.Service{Tag: "BAT", Name: "Batman Service"}}},
+			},
+		})
+		r2.Register(p2)
+		h2 := handler.New(r2)
+
+		res, err := h2.GlobalSearch(t.Context(), oas.GlobalSearchParams{
+			Q:    "Batman",
+			Type: []oas.SearchTypeItem{oas.SearchTypeItemMovie},
+		})
+		if err != nil {
+			t.Fatalf("GlobalSearch() error: %v", err)
+		}
+		page := res.(*oas.PageSearchResult)
+		if page.Total != 1 {
+			t.Errorf("Total = %d, want 1", page.Total)
+		}
+		if page.Items[0].Resource.Movie.Name != "Batman Begins" {
+			t.Errorf("expected Batman Begins, got %s", page.Items[0].Resource.Movie.Name)
 		}
 	})
 }

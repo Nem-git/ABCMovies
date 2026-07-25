@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/url"
 	"strconv"
 	"strings"
@@ -128,7 +127,7 @@ func (p *Provider) GetSeasonById(ctx context.Context, seriesID, seasonID string)
 	if err != nil {
 		return nil, fmt.Errorf("invalid season ID %q: %w", seasonID, err)
 	}
-	sr, err := p.cli.getShow(ctx, seriesID)
+	sr, err := p.cli.getSeason(ctx, seriesID, seasonID)
 	if err != nil {
 		return nil, fmt.Errorf("fetching season for series %q: %w", seriesID, err)
 	}
@@ -306,12 +305,54 @@ func (p *Provider) GetMovieById(ctx context.Context, movieId string) (*oas.Movie
 	return p.mapMovieFromShow(sr, movieId)
 }
 
-func (p *Provider) GetMovieStreams(context.Context, string) ([]oas.Stream, int, error) {
-	return nil, 0, provider.ErrNotSupported
+func (p *Provider) GetMovieStreams(ctx context.Context, movieID string) ([]oas.Stream, int, error) {
+	meta, err := p.cli.getStreamMeta(ctx, movieID, "gem", "")
+	if err != nil {
+		return nil, 0, fmt.Errorf("fetching stream info for movie %q: %w", movieID, err)
+	}
+	if meta.ErrorMessage != nil {
+		return nil, 0, fmt.Errorf("media meta error: code=%d text=%s", meta.ErrorMessage.ErrorCode, meta.ErrorMessage.Text)
+	}
+	var streams []oas.Stream
+	for _, t := range meta.AvailableTechs {
+		switch t.Name {
+		case "dash":
+			streams = append(streams, oas.Stream{
+				Type:           oas.StreamTypeVideoObject,
+				ID:             "manifest.mpd",
+				Name:           "DASH Stream",
+				EncodingFormat: oas.StreamEncodingFormatApplicationDashXML,
+			})
+		case "hls":
+			streams = append(streams, oas.Stream{
+				Type:           oas.StreamTypeVideoObject,
+				ID:             "master.m3u8",
+				Name:           "HLS Stream",
+				EncodingFormat: oas.StreamEncodingFormatApplicationVndAppleMpegurl,
+			})
+		}
+	}
+	return paginate(streams, len(streams), 0)
 }
 
-func (p *Provider) GetMovieStreamFile(context.Context, string, string) (io.ReadCloser, string, error) {
-	return nil, "", provider.ErrNotSupported
+func (p *Provider) GetMovieStreamFile(ctx context.Context, movieID, streamFile string) (io.ReadCloser, string, error) {
+	tech, err := streamFileToTech(streamFile)
+	if err != nil {
+		return nil, "", err
+	}
+	val, err := p.cli.getStreamValidation(ctx, movieID, "gem", tech)
+	if err != nil {
+		return nil, "", fmt.Errorf("fetching stream URL for movie %q: %w", movieID, err)
+	}
+	mime := dashMIME
+	if tech == "hls" {
+		mime = hlsMIME
+	}
+	rc, _, err := p.cli.getRaw(ctx, val.URL, nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("fetching stream manifest: %w", err)
+	}
+	return rc, mime, nil
 }
 
 func (p *Provider) GetMovieSubtitles(context.Context, string) ([]oas.Subtitle, int, error) {
@@ -323,13 +364,10 @@ func (p *Provider) GetMovieSubtitleFile(context.Context, string, string) (io.Rea
 }
 
 func (p *Provider) GetMoviePoster(ctx context.Context, movieId string) (io.ReadCloser, string, error) {
-	log.Println("ASDASd")
 	return p.fetchShowImage(ctx, movieId, func(im *types.Images) string {
 		if im == nil {
 			return ""
 		}
-
-		log.Println(im)
 
 		if im.Card != nil {
 			return im.Card.URL
@@ -617,12 +655,13 @@ func (p *Provider) mapSearchResult(r types.Result) *oas.SearchResultItem {
 			}
 		}
 
-	case "Media", "Live":
-		m := p.mapMovieFromSearch(r)
-		item.Resource = oas.SearchResultItemResource{
-			Type:  oas.MovieSearchResultItemResource,
-			Movie: m,
-		}
+	// Removed because it filled the responses
+	// case "Media", "Live":
+	// 	m := p.mapMovieFromSearch(r)
+	// 	item.Resource = oas.SearchResultItemResource{
+	// 		Type:  oas.MovieSearchResultItemResource,
+	// 		Movie: m,
+	// 	}
 	default:
 		return nil
 	}
