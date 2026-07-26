@@ -7,6 +7,7 @@ import (
 	"github.com/nem-git/abcmovies/internal/oas"
 	"github.com/nem-git/abcmovies/internal/provider"
 	"github.com/nem-git/abcmovies/internal/providers/stub"
+	"github.com/nem-git/abcmovies/internal/stream"
 )
 
 func TestTag(t *testing.T) {
@@ -413,9 +414,28 @@ func TestFileEndpoints(t *testing.T) {
 		}
 	}
 
-	checkFile("GetMovieStreamFile", func() (io.ReadCloser, string, error) { return p.GetMovieStreamFile(t.Context(), "m1", "manifest.mpd") })
+	checkLocator := func(name string, fn func() (*stream.Locator, error), expectedMIME string) {
+		t.Helper()
+		locator, err := fn()
+		if err != nil {
+			t.Fatalf("%s() error: %v", name, err)
+		}
+		if locator.EncodingFormat != expectedMIME {
+			t.Errorf("%s() encoding = %q, want %q", name, locator.EncodingFormat, expectedMIME)
+		}
+		if locator.Data == nil {
+			t.Fatalf("%s() returned nil data", name)
+		}
+		got, _ := io.ReadAll(locator.Data)
+		locator.Data.Close()
+		if len(got) == 0 {
+			t.Errorf("%s() returned empty data", name)
+		}
+	}
+
+	checkLocator("GetMovieStreamLocator", func() (*stream.Locator, error) { return p.GetMovieStreamLocator(t.Context(), "m1", "manifest.mpd") }, "video/mp4")
 	checkFile("GetMovieSubtitleFile", func() (io.ReadCloser, string, error) { return p.GetMovieSubtitleFile(t.Context(), "m1", "en.vtt") })
-	checkFile("GetEpisodeStreamFile", func() (io.ReadCloser, string, error) { return p.GetEpisodeStreamFile(t.Context(), "s1", "sea1", "ep1", "manifest.mpd") })
+	checkLocator("GetEpisodeStreamLocator", func() (*stream.Locator, error) { return p.GetEpisodeStreamLocator(t.Context(), "s1", "sea1", "ep1", "manifest.mpd") }, "video/mp4")
 	checkFile("GetEpisodeSubtitleFile", func() (io.ReadCloser, string, error) { return p.GetEpisodeSubtitleFile(t.Context(), "s1", "sea1", "ep1", "en.vtt") })
 }
 
@@ -468,7 +488,7 @@ func TestNilConfig(t *testing.T) {
 	checkNotSupported("GetEpisodes", func() error { _, _, err := p.GetEpisodes(t.Context(), "x", "y", 10, 0); return err }())
 	checkNotSupported("GetEpisodeById", func() error { _, err := p.GetEpisodeById(t.Context(), "x", "y", "z"); return err }())
 	checkNotSupported("GetMoviePoster", func() error { _, _, err := p.GetMoviePoster(t.Context(), "x"); return err }())
-	checkNotSupported("GetMovieStreamFile", func() error { _, _, err := p.GetMovieStreamFile(t.Context(), "x", "y"); return err }())
+	checkNotSupported("GetMovieStreamLocator", func() error { _, err := p.GetMovieStreamLocator(t.Context(), "x", "y"); return err }())
 	checkNotSupported("GetEpisodeThumbnail", func() error { _, _, err := p.GetEpisodeThumbnail(t.Context(), "x", "y", "z"); return err }())
 	checkNotSupported("Search", func() error { _, _, err := p.Search(t.Context(), "q", 10, 0); return err }())
 }

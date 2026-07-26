@@ -320,6 +320,46 @@ func (s GetEpisodeStreamFileOKVideoMP4) Read(p []byte) (n int, err error) {
 
 func (*GetEpisodeStreamFileOKVideoMP4) getEpisodeStreamFileRes() {}
 
+type GetEpisodeStreamSegmentBadRequest Error
+
+func (*GetEpisodeStreamSegmentBadRequest) getEpisodeStreamSegmentRes() {}
+
+type GetEpisodeStreamSegmentNotFound Error
+
+func (*GetEpisodeStreamSegmentNotFound) getEpisodeStreamSegmentRes() {}
+
+type GetEpisodeStreamSegmentOKVideoMP4 struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeStreamSegmentOKVideoMP4) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeStreamSegmentOKVideoMP4) getEpisodeStreamSegmentRes() {}
+
+type GetEpisodeStreamSegmentOKVideoMp2t struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeStreamSegmentOKVideoMp2t) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeStreamSegmentOKVideoMp2t) getEpisodeStreamSegmentRes() {}
+
 type GetEpisodeStreamsBadRequest Error
 
 func (*GetEpisodeStreamsBadRequest) getEpisodeStreamsRes() {}
@@ -623,6 +663,46 @@ func (s GetMovieStreamFileOKVideoMP4) Read(p []byte) (n int, err error) {
 }
 
 func (*GetMovieStreamFileOKVideoMP4) getMovieStreamFileRes() {}
+
+type GetMovieStreamSegmentBadRequest Error
+
+func (*GetMovieStreamSegmentBadRequest) getMovieStreamSegmentRes() {}
+
+type GetMovieStreamSegmentNotFound Error
+
+func (*GetMovieStreamSegmentNotFound) getMovieStreamSegmentRes() {}
+
+type GetMovieStreamSegmentOKVideoMP4 struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieStreamSegmentOKVideoMP4) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieStreamSegmentOKVideoMP4) getMovieStreamSegmentRes() {}
+
+type GetMovieStreamSegmentOKVideoMp2t struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieStreamSegmentOKVideoMp2t) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieStreamSegmentOKVideoMp2t) getMovieStreamSegmentRes() {}
 
 type GetMovieStreamsBadRequest Error
 
@@ -2757,6 +2837,54 @@ func (s *StreamEncodingFormat) UnmarshalText(data []byte) error {
 		return nil
 	case StreamEncodingFormatVideoMP4:
 		*s = StreamEncodingFormatVideoMP4
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+type StreamFormat string
+
+const (
+	StreamFormatHls  StreamFormat = "hls"
+	StreamFormatDash StreamFormat = "dash"
+	StreamFormatMP4  StreamFormat = "mp4"
+)
+
+// AllValues returns all StreamFormat values.
+func (StreamFormat) AllValues() []StreamFormat {
+	return []StreamFormat{
+		StreamFormatHls,
+		StreamFormatDash,
+		StreamFormatMP4,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s StreamFormat) MarshalText() ([]byte, error) {
+	switch s {
+	case StreamFormatHls:
+		return []byte(s), nil
+	case StreamFormatDash:
+		return []byte(s), nil
+	case StreamFormatMP4:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *StreamFormat) UnmarshalText(data []byte) error {
+	switch StreamFormat(data) {
+	case StreamFormatHls:
+		*s = StreamFormatHls
+		return nil
+	case StreamFormatDash:
+		*s = StreamFormatDash
+		return nil
+	case StreamFormatMP4:
+		*s = StreamFormatMP4
 		return nil
 	default:
 		return errors.Errorf("invalid value: %q", data)

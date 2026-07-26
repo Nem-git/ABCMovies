@@ -243,10 +243,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /services/{serviceTag}/movies/{movieId}/streams/{streamFile}:
+  /services/{serviceTag}/movies/{movieId}/streams/{format}/{file}:
     parameters:
       - $ref: '#/components/parameters/ServiceTag'
       - $ref: '#/components/parameters/MovieId'
+      - $ref: '#/components/parameters/StreamFormat'
       - $ref: '#/components/parameters/StreamFile'
     get:
       tags:
@@ -284,6 +285,55 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           description: Stream file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/movies/{movieId}/streams/{format}/{rendition}/{segment}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+      - $ref: '#/components/parameters/StreamFormat'
+      - $ref: '#/components/parameters/StreamRendition'
+      - $ref: '#/components/parameters/StreamSegment'
+    get:
+      tags:
+        - Movies
+        - Streams
+      summary: Get a stream segment for a movie
+      description: |
+        Returns a single media segment (HLS .ts/.m4s, DASH .m4s/.mp4)
+        or an initialization segment for a given rendition.
+      operationId: getMovieStreamSegment
+      responses:
+        '200':
+          description: |
+            The media segment binary data. Content-Type is typically
+            `video/mp2t` (HLS) or `video/mp4` (DASH).
+          content:
+            video/mp2t:
+              schema:
+                type: string
+                format: binary
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Segment not found or state expired
           content:
             application/json:
               schema:
@@ -961,12 +1011,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{streamFile}:
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{file}:
     parameters:
       - $ref: '#/components/parameters/ServiceTag'
       - $ref: '#/components/parameters/SeriesId'
       - $ref: '#/components/parameters/SeasonId'
       - $ref: '#/components/parameters/EpisodeId'
+      - $ref: '#/components/parameters/StreamFormat'
       - $ref: '#/components/parameters/StreamFile'
     get:
       tags:
@@ -1003,6 +1054,57 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           description: Stream file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{rendition}/{segment}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+      - $ref: '#/components/parameters/StreamFormat'
+      - $ref: '#/components/parameters/StreamRendition'
+      - $ref: '#/components/parameters/StreamSegment'
+    get:
+      tags:
+        - Episodes
+        - Streams
+      summary: Get a stream segment for an episode
+      description: |
+        Returns a single media segment (HLS .ts/.m4s, DASH .m4s/.mp4)
+        or an initialization segment for a given rendition.
+      operationId: getEpisodeStreamSegment
+      responses:
+        '200':
+          description: |
+            The media segment binary data. Content-Type is typically
+            `video/mp2t` (HLS) or `video/mp4` (DASH).
+          content:
+            video/mp2t:
+              schema:
+                type: string
+                format: binary
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Segment not found or state expired
           content:
             application/json:
               schema:
@@ -1222,23 +1324,38 @@ components:
         examples:
           - pilot
 
-    StreamFile:
-      name: streamFile
+    StreamFormat:
+      name: format
       in: path
       description: |
-        The stream manifest or media filename.
-        Uses standard streaming file names:
-          - `manifest.mpd` for DASH
-          - `master.m3u8` for HLS
-          - `video.mp4` for direct MP4
-        If multiple variants exist (e.g. different DRM systems),
-        append a qualifier: `master-fairplay.m3u8`,
-        `manifest-widevine.mpd`.
+        The streaming format type. Determines the manifest/segment
+        URL scheme and content types.
       required: true
       schema:
         type: string
-        examples:
-          - manifest.mpd
+        enum: [hls, dash, mp4]
+      examples:
+        hls:
+          value: hls
+          summary: HLS (HTTP Live Streaming)
+        dash:
+          value: dash
+          summary: MPEG-DASH
+        mp4:
+          value: mp4
+          summary: Direct MP4 file
+
+    StreamFile:
+      name: file
+      in: path
+      description: |
+        The stream manifest or media filename. Standard names:
+          - `master.m3u8` - HLS master playlist
+          - `manifest.mpd` - DASH manifest
+          - `video.mp4` - Direct MP4 file
+      required: true
+      schema:
+        type: string
       examples:
         dash:
           value: manifest.mpd
@@ -1249,6 +1366,51 @@ components:
         mp4:
           value: video.mp4
           summary: Direct MP4 file
+
+    StreamRendition:
+      name: rendition
+      in: path
+      description: |
+        The rendition (bitrate option) identifier.
+        For HLS this is the variant playlist name (e.g. `720p`, `1080p`).
+        For DASH this is the representation ID (e.g. `v1`, `v2`).
+      required: true
+      schema:
+        type: string
+      examples:
+        hls-720p:
+          value: 720p
+          summary: HLS 720p variant
+        hls-1080p:
+          value: 1080p
+          summary: HLS 1080p variant
+        dash-v1:
+          value: v1
+          summary: DASH representation v1
+
+    StreamSegment:
+      name: segment
+      in: path
+      description: |
+        The segment filename. Examples:
+          - HLS: `segment_00001.ts`, `init.mp4`
+          - DASH: `00001.m4s`, `init.mp4`
+      required: true
+      schema:
+        type: string
+      examples:
+        hls-ts:
+          value: segment_00001.ts
+          summary: HLS TS segment
+        hls-init:
+          value: init.mp4
+          summary: HLS init segment
+        dash-m4s:
+          value: 00001.m4s
+          summary: DASH media segment
+        dash-init:
+          value: init.mp4
+          summary: DASH init segment
 
     SubtitleFile:
       name: subtitleFile

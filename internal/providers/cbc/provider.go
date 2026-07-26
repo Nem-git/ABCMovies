@@ -13,6 +13,7 @@ import (
 	"github.com/nem-git/abcmovies/internal/oas"
 	"github.com/nem-git/abcmovies/internal/provider"
 	"github.com/nem-git/abcmovies/internal/providers/cbc/types"
+	"github.com/nem-git/abcmovies/internal/stream"
 	"golang.org/x/text/language"
 )
 
@@ -226,24 +227,23 @@ func (p *Provider) GetEpisodeStreams(ctx context.Context, _, _, episodeID string
 	return paginate(streams, len(streams), 0)
 }
 
-func (p *Provider) GetEpisodeStreamFile(ctx context.Context, _, _, episodeID, streamFile string) (io.ReadCloser, string, error) {
+func (p *Provider) GetEpisodeStreamLocator(ctx context.Context, _, _, episodeID, streamFile string) (*stream.Locator, error) {
 	tech, err := streamFileToTech(streamFile)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	val, err := p.cli.getStreamValidation(ctx, episodeID, "gem", tech)
 	if err != nil {
-		return nil, "", fmt.Errorf("fetching stream URL for episode %q: %w", episodeID, err)
+		return nil, fmt.Errorf("fetching stream URL for episode %q: %w", episodeID, err)
 	}
 	mime := dashMIME
 	if tech == "hls" {
 		mime = hlsMIME
 	}
-	rc, _, err := p.cli.getRaw(ctx, val.URL, nil)
-	if err != nil {
-		return nil, "", fmt.Errorf("fetching stream manifest: %w", err)
-	}
-	return rc, mime, nil
+	return &stream.Locator{
+		URL:            val.URL,
+		EncodingFormat: mime,
+	}, nil
 }
 
 func (p *Provider) GetEpisodeSubtitles(context.Context, string, string, string) ([]oas.Subtitle, int, error) {
@@ -335,24 +335,23 @@ func (p *Provider) GetMovieStreams(ctx context.Context, movieID string) ([]oas.S
 	return paginate(streams, len(streams), 0)
 }
 
-func (p *Provider) GetMovieStreamFile(ctx context.Context, movieID, streamFile string) (io.ReadCloser, string, error) {
+func (p *Provider) GetMovieStreamLocator(ctx context.Context, movieID, streamFile string) (*stream.Locator, error) {
 	tech, err := streamFileToTech(streamFile)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	val, err := p.cli.getStreamValidation(ctx, movieID, "gem", tech)
 	if err != nil {
-		return nil, "", fmt.Errorf("fetching stream URL for movie %q: %w", movieID, err)
+		return nil, fmt.Errorf("fetching stream URL for movie %q: %w", movieID, err)
 	}
 	mime := dashMIME
 	if tech == "hls" {
 		mime = hlsMIME
 	}
-	rc, _, err := p.cli.getRaw(ctx, val.URL, nil)
-	if err != nil {
-		return nil, "", fmt.Errorf("fetching stream manifest: %w", err)
-	}
-	return rc, mime, nil
+	return &stream.Locator{
+		URL:            val.URL,
+		EncodingFormat: mime,
+	}, nil
 }
 
 func (p *Provider) GetMovieSubtitles(context.Context, string) ([]oas.Subtitle, int, error) {

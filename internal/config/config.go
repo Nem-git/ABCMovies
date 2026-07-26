@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/nem-git/abcmovies/internal/oas"
+	"github.com/nem-git/abcmovies/internal/proxy"
 	"gopkg.in/yaml.v2"
 )
 
@@ -40,6 +41,8 @@ type ServiceEntry struct {
 	Streams   []oas.Stream      `yaml:"streams,omitempty"`
 	Subtitles []oas.Subtitle    `yaml:"subtitles,omitempty"`
 	Search    []StubSearchEntry `yaml:"search,omitempty"`
+
+	Proxy *proxy.Config `yaml:"proxy,omitempty"`
 }
 
 func Load(path string) (*Config, error) {

@@ -9,6 +9,10 @@ type GetEpisodeStreamFileRes interface {
 	getEpisodeStreamFileRes()
 }
 
+type GetEpisodeStreamSegmentRes interface {
+	getEpisodeStreamSegmentRes()
+}
+
 type GetEpisodeStreamsRes interface {
 	getEpisodeStreamsRes()
 }
@@ -43,6 +47,10 @@ type GetMoviePosterRes interface {
 
 type GetMovieStreamFileRes interface {
 	getMovieStreamFileRes()
+}
+
+type GetMovieStreamSegmentRes interface {
+	getMovieStreamSegmentRes()
 }
 
 type GetMovieStreamsRes interface {

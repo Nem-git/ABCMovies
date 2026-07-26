@@ -40,7 +40,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	args := [5]string{}
+	args := [7]string{}
 
 	// Static code generated router with unwrapped path search.
 	switch {
@@ -371,34 +371,99 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 														break
 													}
 
-													// Param: "streamFile"
-													// Leaf parameter, slashes are prohibited
+													// Param: "format"
+													// Match until "/"
 													idx := strings.IndexByte(elem, '/')
-													if idx >= 0 {
-														break
+													if idx < 0 {
+														idx = len(elem)
 													}
-													args[2] = elem
-													elem = ""
+													args[2] = elem[:idx]
+													elem = elem[idx:]
 
 													if len(elem) == 0 {
-														// Leaf node.
-														switch r.Method {
-														case "GET":
-															s.handleGetMovieStreamFileRequest([3]string{
-																args[0],
-																args[1],
-																args[2],
-															}, elemIsEscaped, w, r)
-														default:
-															s.notAllowed(w, r, notAllowedParams{
-																allowedMethods: "GET",
-																allowedHeaders: nil,
-																acceptPost:     "",
-																acceptPatch:    "",
-															})
+														break
+													}
+													switch elem[0] {
+													case '/': // Prefix: "/"
+
+														if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+															elem = elem[l:]
+														} else {
+															break
 														}
 
-														return
+														// Param: "file"
+														// Match until "/"
+														idx := strings.IndexByte(elem, '/')
+														if idx < 0 {
+															idx = len(elem)
+														}
+														args[3] = elem[:idx]
+														elem = elem[idx:]
+
+														if len(elem) == 0 {
+															switch r.Method {
+															case "GET":
+																s.handleGetMovieStreamFileRequest([4]string{
+																	args[0],
+																	args[1],
+																	args[2],
+																	args[3],
+																}, elemIsEscaped, w, r)
+															default:
+																s.notAllowed(w, r, notAllowedParams{
+																	allowedMethods: "GET",
+																	allowedHeaders: nil,
+																	acceptPost:     "",
+																	acceptPatch:    "",
+																})
+															}
+
+															return
+														}
+														switch elem[0] {
+														case '/': // Prefix: "/"
+
+															if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																elem = elem[l:]
+															} else {
+																break
+															}
+
+															// Param: "segment"
+															// Leaf parameter, slashes are prohibited
+															idx := strings.IndexByte(elem, '/')
+															if idx >= 0 {
+																break
+															}
+															args[4] = elem
+															elem = ""
+
+															if len(elem) == 0 {
+																// Leaf node.
+																switch r.Method {
+																case "GET":
+																	s.handleGetMovieStreamSegmentRequest([5]string{
+																		args[0],
+																		args[1],
+																		args[2],
+																		args[3],
+																		args[4],
+																	}, elemIsEscaped, w, r)
+																default:
+																	s.notAllowed(w, r, notAllowedParams{
+																		allowedMethods: "GET",
+																		allowedHeaders: nil,
+																		acceptPost:     "",
+																		acceptPatch:    "",
+																	})
+																}
+
+																return
+															}
+
+														}
+
 													}
 
 												}
@@ -840,36 +905,103 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 																				break
 																			}
 
-																			// Param: "streamFile"
-																			// Leaf parameter, slashes are prohibited
+																			// Param: "format"
+																			// Match until "/"
 																			idx := strings.IndexByte(elem, '/')
-																			if idx >= 0 {
-																				break
+																			if idx < 0 {
+																				idx = len(elem)
 																			}
-																			args[4] = elem
-																			elem = ""
+																			args[4] = elem[:idx]
+																			elem = elem[idx:]
 
 																			if len(elem) == 0 {
-																				// Leaf node.
-																				switch r.Method {
-																				case "GET":
-																					s.handleGetEpisodeStreamFileRequest([5]string{
-																						args[0],
-																						args[1],
-																						args[2],
-																						args[3],
-																						args[4],
-																					}, elemIsEscaped, w, r)
-																				default:
-																					s.notAllowed(w, r, notAllowedParams{
-																						allowedMethods: "GET",
-																						allowedHeaders: nil,
-																						acceptPost:     "",
-																						acceptPatch:    "",
-																					})
+																				break
+																			}
+																			switch elem[0] {
+																			case '/': // Prefix: "/"
+
+																				if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																					elem = elem[l:]
+																				} else {
+																					break
 																				}
 
-																				return
+																				// Param: "file"
+																				// Match until "/"
+																				idx := strings.IndexByte(elem, '/')
+																				if idx < 0 {
+																					idx = len(elem)
+																				}
+																				args[5] = elem[:idx]
+																				elem = elem[idx:]
+
+																				if len(elem) == 0 {
+																					switch r.Method {
+																					case "GET":
+																						s.handleGetEpisodeStreamFileRequest([6]string{
+																							args[0],
+																							args[1],
+																							args[2],
+																							args[3],
+																							args[4],
+																							args[5],
+																						}, elemIsEscaped, w, r)
+																					default:
+																						s.notAllowed(w, r, notAllowedParams{
+																							allowedMethods: "GET",
+																							allowedHeaders: nil,
+																							acceptPost:     "",
+																							acceptPatch:    "",
+																						})
+																					}
+
+																					return
+																				}
+																				switch elem[0] {
+																				case '/': // Prefix: "/"
+
+																					if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																						elem = elem[l:]
+																					} else {
+																						break
+																					}
+
+																					// Param: "segment"
+																					// Leaf parameter, slashes are prohibited
+																					idx := strings.IndexByte(elem, '/')
+																					if idx >= 0 {
+																						break
+																					}
+																					args[6] = elem
+																					elem = ""
+
+																					if len(elem) == 0 {
+																						// Leaf node.
+																						switch r.Method {
+																						case "GET":
+																							s.handleGetEpisodeStreamSegmentRequest([7]string{
+																								args[0],
+																								args[1],
+																								args[2],
+																								args[3],
+																								args[4],
+																								args[5],
+																								args[6],
+																							}, elemIsEscaped, w, r)
+																						default:
+																							s.notAllowed(w, r, notAllowedParams{
+																								allowedMethods: "GET",
+																								allowedHeaders: nil,
+																								acceptPost:     "",
+																								acceptPatch:    "",
+																							})
+																						}
+
+																						return
+																					}
+
+																				}
+
 																			}
 
 																		}
@@ -1047,7 +1179,7 @@ type Route struct {
 	operationGroup string
 	pathPattern    string
 	count          int
-	args           [5]string
+	args           [7]string
 }
 
 // Name returns ogen operation name.
@@ -1426,30 +1558,88 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 														break
 													}
 
-													// Param: "streamFile"
-													// Leaf parameter, slashes are prohibited
+													// Param: "format"
+													// Match until "/"
 													idx := strings.IndexByte(elem, '/')
-													if idx >= 0 {
-														break
+													if idx < 0 {
+														idx = len(elem)
 													}
-													args[2] = elem
-													elem = ""
+													args[2] = elem[:idx]
+													elem = elem[idx:]
 
 													if len(elem) == 0 {
-														// Leaf node.
-														switch method {
-														case "GET":
-															r.name = GetMovieStreamFileOperation
-															r.summary = "Get a stream manifest file"
-															r.operationID = "getMovieStreamFile"
-															r.operationGroup = ""
-															r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/{streamFile}"
-															r.args = args
-															r.count = 3
-															return r, true
-														default:
-															return
+														break
+													}
+													switch elem[0] {
+													case '/': // Prefix: "/"
+
+														if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+															elem = elem[l:]
+														} else {
+															break
 														}
+
+														// Param: "file"
+														// Match until "/"
+														idx := strings.IndexByte(elem, '/')
+														if idx < 0 {
+															idx = len(elem)
+														}
+														args[3] = elem[:idx]
+														elem = elem[idx:]
+
+														if len(elem) == 0 {
+															switch method {
+															case "GET":
+																r.name = GetMovieStreamFileOperation
+																r.summary = "Get a stream manifest file"
+																r.operationID = "getMovieStreamFile"
+																r.operationGroup = ""
+																r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/{format}/{file}"
+																r.args = args
+																r.count = 4
+																return r, true
+															default:
+																return
+															}
+														}
+														switch elem[0] {
+														case '/': // Prefix: "/"
+
+															if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																elem = elem[l:]
+															} else {
+																break
+															}
+
+															// Param: "segment"
+															// Leaf parameter, slashes are prohibited
+															idx := strings.IndexByte(elem, '/')
+															if idx >= 0 {
+																break
+															}
+															args[4] = elem
+															elem = ""
+
+															if len(elem) == 0 {
+																// Leaf node.
+																switch method {
+																case "GET":
+																	r.name = GetMovieStreamSegmentOperation
+																	r.summary = "Get a stream segment for a movie"
+																	r.operationID = "getMovieStreamSegment"
+																	r.operationGroup = ""
+																	r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/{format}/{rendition}/{segment}"
+																	r.args = args
+																	r.count = 5
+																	return r, true
+																default:
+																	return
+																}
+															}
+
+														}
+
 													}
 
 												}
@@ -1848,30 +2038,88 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																				break
 																			}
 
-																			// Param: "streamFile"
-																			// Leaf parameter, slashes are prohibited
+																			// Param: "format"
+																			// Match until "/"
 																			idx := strings.IndexByte(elem, '/')
-																			if idx >= 0 {
-																				break
+																			if idx < 0 {
+																				idx = len(elem)
 																			}
-																			args[4] = elem
-																			elem = ""
+																			args[4] = elem[:idx]
+																			elem = elem[idx:]
 
 																			if len(elem) == 0 {
-																				// Leaf node.
-																				switch method {
-																				case "GET":
-																					r.name = GetEpisodeStreamFileOperation
-																					r.summary = "Get a stream manifest file for an episode"
-																					r.operationID = "getEpisodeStreamFile"
-																					r.operationGroup = ""
-																					r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{streamFile}"
-																					r.args = args
-																					r.count = 5
-																					return r, true
-																				default:
-																					return
+																				break
+																			}
+																			switch elem[0] {
+																			case '/': // Prefix: "/"
+
+																				if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																					elem = elem[l:]
+																				} else {
+																					break
 																				}
+
+																				// Param: "file"
+																				// Match until "/"
+																				idx := strings.IndexByte(elem, '/')
+																				if idx < 0 {
+																					idx = len(elem)
+																				}
+																				args[5] = elem[:idx]
+																				elem = elem[idx:]
+
+																				if len(elem) == 0 {
+																					switch method {
+																					case "GET":
+																						r.name = GetEpisodeStreamFileOperation
+																						r.summary = "Get a stream manifest file for an episode"
+																						r.operationID = "getEpisodeStreamFile"
+																						r.operationGroup = ""
+																						r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{file}"
+																						r.args = args
+																						r.count = 6
+																						return r, true
+																					default:
+																						return
+																					}
+																				}
+																				switch elem[0] {
+																				case '/': // Prefix: "/"
+
+																					if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																						elem = elem[l:]
+																					} else {
+																						break
+																					}
+
+																					// Param: "segment"
+																					// Leaf parameter, slashes are prohibited
+																					idx := strings.IndexByte(elem, '/')
+																					if idx >= 0 {
+																						break
+																					}
+																					args[6] = elem
+																					elem = ""
+
+																					if len(elem) == 0 {
+																						// Leaf node.
+																						switch method {
+																						case "GET":
+																							r.name = GetEpisodeStreamSegmentOperation
+																							r.summary = "Get a stream segment for an episode"
+																							r.operationID = "getEpisodeStreamSegment"
+																							r.operationGroup = ""
+																							r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{rendition}/{segment}"
+																							r.args = args
+																							r.count = 7
+																							return r, true
+																						default:
+																							return
+																						}
+																					}
+
+																				}
+
 																			}
 
 																		}

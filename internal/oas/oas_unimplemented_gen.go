@@ -27,8 +27,18 @@ func (UnimplementedHandler) GetEpisodeById(ctx context.Context, params GetEpisod
 // Returns the raw stream manifest or playlist binary content. The response Content-Type matches the
 // stream's encoding format.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{streamFile}
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{file}
 func (UnimplementedHandler) GetEpisodeStreamFile(ctx context.Context, params GetEpisodeStreamFileParams) (r GetEpisodeStreamFileRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// GetEpisodeStreamSegment implements getEpisodeStreamSegment operation.
+//
+// Returns a single media segment (HLS .ts/.m4s, DASH .m4s/.mp4) or an initialization segment for a
+// given rendition.
+//
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{rendition}/{segment}
+func (UnimplementedHandler) GetEpisodeStreamSegment(ctx context.Context, params GetEpisodeStreamSegmentParams) (r GetEpisodeStreamSegmentRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -120,8 +130,18 @@ func (UnimplementedHandler) GetMoviePoster(ctx context.Context, params GetMovieP
 // Returns the raw stream manifest or playlist binary content. The response Content-Type matches the
 // stream's encoding format (e.g. `application/dash+xml`, `application/vnd.apple.mpegurl`).
 //
-// GET /services/{serviceTag}/movies/{movieId}/streams/{streamFile}
+// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/{file}
 func (UnimplementedHandler) GetMovieStreamFile(ctx context.Context, params GetMovieStreamFileParams) (r GetMovieStreamFileRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// GetMovieStreamSegment implements getMovieStreamSegment operation.
+//
+// Returns a single media segment (HLS .ts/.m4s, DASH .m4s/.mp4) or an initialization segment for a
+// given rendition.
+//
+// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/{rendition}/{segment}
+func (UnimplementedHandler) GetMovieStreamSegment(ctx context.Context, params GetMovieStreamSegmentParams) (r GetMovieStreamSegmentRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

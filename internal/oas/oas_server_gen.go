@@ -19,8 +19,15 @@ type Handler interface {
 	// Returns the raw stream manifest or playlist binary content. The response Content-Type matches the
 	// stream's encoding format.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{streamFile}
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{file}
 	GetEpisodeStreamFile(ctx context.Context, params GetEpisodeStreamFileParams) (GetEpisodeStreamFileRes, error)
+	// GetEpisodeStreamSegment implements getEpisodeStreamSegment operation.
+	//
+	// Returns a single media segment (HLS .ts/.m4s, DASH .m4s/.mp4) or an initialization segment for a
+	// given rendition.
+	//
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{rendition}/{segment}
+	GetEpisodeStreamSegment(ctx context.Context, params GetEpisodeStreamSegmentParams) (GetEpisodeStreamSegmentRes, error)
 	// GetEpisodeStreams implements getEpisodeStreams operation.
 	//
 	// Retrieve all available video stream manifests for an episode. The listing returns metadata only;
@@ -82,8 +89,15 @@ type Handler interface {
 	// Returns the raw stream manifest or playlist binary content. The response Content-Type matches the
 	// stream's encoding format (e.g. `application/dash+xml`, `application/vnd.apple.mpegurl`).
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/{streamFile}
+	// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/{file}
 	GetMovieStreamFile(ctx context.Context, params GetMovieStreamFileParams) (GetMovieStreamFileRes, error)
+	// GetMovieStreamSegment implements getMovieStreamSegment operation.
+	//
+	// Returns a single media segment (HLS .ts/.m4s, DASH .m4s/.mp4) or an initialization segment for a
+	// given rendition.
+	//
+	// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/{rendition}/{segment}
+	GetMovieStreamSegment(ctx context.Context, params GetMovieStreamSegmentParams) (GetMovieStreamSegmentRes, error)
 	// GetMovieStreams implements getMovieStreams operation.
 	//
 	// Retrieve all available video stream manifests (DASH, HLS, etc.) for a movie. The listing returns

@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/nem-git/abcmovies/internal/oas"
+	"github.com/nem-git/abcmovies/internal/stream"
 )
 
 // Compile-time check for Provider.
@@ -37,8 +38,8 @@ func (p *UnimplementedProvider) GetMovieStreams(context.Context, string) ([]oas.
 	return nil, 0, ErrNotSupported
 }
 
-func (p *UnimplementedProvider) GetMovieStreamFile(context.Context, string, string) (io.ReadCloser, string, error) {
-	return nil, "", ErrNotSupported
+func (p *UnimplementedProvider) GetMovieStreamLocator(context.Context, string, string) (*stream.Locator, error) {
+	return nil, ErrNotSupported
 }
 
 func (p *UnimplementedProvider) GetMovieSubtitles(context.Context, string) ([]oas.Subtitle, int, error) {
@@ -104,8 +105,8 @@ func (p *UnimplementedProvider) GetEpisodeStreams(context.Context, string, strin
 	return nil, 0, ErrNotSupported
 }
 
-func (p *UnimplementedProvider) GetEpisodeStreamFile(context.Context, string, string, string, string) (io.ReadCloser, string, error) {
-	return nil, "", ErrNotSupported
+func (p *UnimplementedProvider) GetEpisodeStreamLocator(context.Context, string, string, string, string) (*stream.Locator, error) {
+	return nil, ErrNotSupported
 }
 
 func (p *UnimplementedProvider) GetEpisodeSubtitles(context.Context, string, string, string) ([]oas.Subtitle, int, error) {

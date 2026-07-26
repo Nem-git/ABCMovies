@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/nem-git/abcmovies/internal/config"
 	"github.com/nem-git/abcmovies/internal/handler"
 	"github.com/nem-git/abcmovies/internal/middleware"
 	"github.com/nem-git/abcmovies/internal/oas"
+	"github.com/nem-git/abcmovies/internal/proxy"
 	"github.com/nem-git/abcmovies/internal/providers"
 	"github.com/nem-git/abcmovies/internal/registry"
 	"github.com/nem-git/abcmovies/internal/web"
@@ -26,6 +28,8 @@ func main() {
 
 	r := registry.New()
 
+	proxyConfigs := make(map[string]*proxy.Config)
+
 	for _, entry := range cfg.Services {
 		p, err := providers.Build(entry, cfg.Server.BaseURL, cfg.Server.APIPrefix)
 		if err != nil {
@@ -34,12 +38,25 @@ func main() {
 		if err := r.Register(p); err != nil {
 			log.Fatalf("registering provider %q: %v", entry.Tag, err)
 		}
+		if entry.Proxy != nil {
+			proxyConfigs[entry.Tag] = entry.Proxy
+		} else {
+			proxyConfigs[entry.Tag] = &proxy.Config{Strategy: "passthrough"}
+		}
 		log.Printf("registered provider: %s (%s)", entry.Tag, entry.Type)
 	}
 
+	deps := proxy.Dependencies{
+		Fetcher:  proxy.NewHTTPFetcher(http.DefaultClient),
+		State:    proxy.NewMemoryStore(5 * time.Minute),
+		Configs:  proxyConfigs,
+	}
+	p := proxy.New(deps)
+	log.Printf("proxy enabled for %d provider(s)", len(proxyConfigs))
+
 	webHandler := web.New(r, cfg.Server.BaseURL, cfg.Server.APIPrefix)
 
-	h := handler.New(r)
+	h := handler.New(r, p)
 
 	srv, err := oas.NewServer(
 		h,

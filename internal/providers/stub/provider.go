@@ -7,6 +7,7 @@ import (
 
 	"github.com/nem-git/abcmovies/internal/oas"
 	"github.com/nem-git/abcmovies/internal/provider"
+	"github.com/nem-git/abcmovies/internal/stream"
 )
 
 type Config struct {
@@ -101,14 +102,17 @@ func (p *Provider) GetMovieStreams(ctx context.Context, movieID string) ([]oas.S
 	return p.cfg.Streams, len(p.cfg.Streams), nil
 }
 
-func (p *Provider) GetMovieStreamFile(ctx context.Context, movieID, streamFile string) (io.ReadCloser, string, error) {
+func (p *Provider) GetMovieStreamLocator(ctx context.Context, movieID, streamFile string) (*stream.Locator, error) {
 	if p.cfg.Error != nil {
-		return nil, "", p.cfg.Error
+		return nil, p.cfg.Error
 	}
 	if p.cfg.StreamFileData == nil {
-		return p.UnimplementedProvider.GetMovieStreamFile(ctx, movieID, streamFile)
+		return p.UnimplementedProvider.GetMovieStreamLocator(ctx, movieID, streamFile)
 	}
-	return p.file(p.cfg.StreamFileData, p.cfg.StreamFileMIME)
+	return &stream.Locator{
+		EncodingFormat: p.cfg.StreamFileMIME,
+		Data:           io.NopCloser(bytes.NewReader(p.cfg.StreamFileData)),
+	}, nil
 }
 
 func (p *Provider) GetMovieSubtitles(ctx context.Context, movieID string) ([]oas.Subtitle, int, error) {
@@ -264,14 +268,17 @@ func (p *Provider) GetEpisodeStreams(ctx context.Context, seriesID, seasonID, ep
 	return p.cfg.Streams, len(p.cfg.Streams), nil
 }
 
-func (p *Provider) GetEpisodeStreamFile(ctx context.Context, seriesID, seasonID, episodeID, streamFile string) (io.ReadCloser, string, error) {
+func (p *Provider) GetEpisodeStreamLocator(ctx context.Context, seriesID, seasonID, episodeID, streamFile string) (*stream.Locator, error) {
 	if p.cfg.Error != nil {
-		return nil, "", p.cfg.Error
+		return nil, p.cfg.Error
 	}
 	if p.cfg.StreamFileData == nil {
-		return p.UnimplementedProvider.GetEpisodeStreamFile(ctx, seriesID, seasonID, episodeID, streamFile)
+		return p.UnimplementedProvider.GetEpisodeStreamLocator(ctx, seriesID, seasonID, episodeID, streamFile)
 	}
-	return p.file(p.cfg.StreamFileData, p.cfg.StreamFileMIME)
+	return &stream.Locator{
+		EncodingFormat: p.cfg.StreamFileMIME,
+		Data:           io.NopCloser(bytes.NewReader(p.cfg.StreamFileData)),
+	}, nil
 }
 
 func (p *Provider) GetEpisodeSubtitles(ctx context.Context, seriesID, seasonID, episodeID string) ([]oas.Subtitle, int, error) {

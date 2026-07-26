@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/nem-git/abcmovies/internal/oas"
+	"github.com/nem-git/abcmovies/internal/stream"
 )
 
 var ErrNotSupported = errors.New("resource type not supported by this provider or not yet implemented in provider")
@@ -19,7 +20,7 @@ type Provider interface {
 	GetMovies(ctx context.Context, limit, offset int) (movies []oas.Movie, total int, err error)
 	GetMovieById(ctx context.Context, movieID string) (*oas.Movie, error)
 	GetMovieStreams(ctx context.Context, movieID string) (streams []oas.Stream, total int, err error)
-	GetMovieStreamFile(ctx context.Context, movieID, streamFile string) (r io.ReadCloser, mimeType string, err error) // mimeType so handler can set Content-Type
+	GetMovieStreamLocator(ctx context.Context, movieID, streamFile string) (*stream.Locator, error)
 	GetMovieSubtitles(ctx context.Context, movieID string) (subtitles []oas.Subtitle, total int, err error)
 	GetMovieSubtitleFile(ctx context.Context, movieID, subtitleFile string) (r io.ReadCloser, mimeType string, err error)
 	GetMoviePoster(ctx context.Context, movieID string) (io.ReadCloser, string, error)
@@ -41,7 +42,7 @@ type Provider interface {
 	GetEpisodes(ctx context.Context, seriesID, seasonID string, limit, offset int) (episodes []oas.Episode, total int, err error)
 	GetEpisodeById(ctx context.Context, seriesID, seasonID, episodeID string) (*oas.Episode, error)
 	GetEpisodeStreams(ctx context.Context, seriesID, seasonID, episodeID string) (streams []oas.Stream, total int, err error)
-	GetEpisodeStreamFile(ctx context.Context, seriesID, seasonID, episodeID, streamFile string) (r io.ReadCloser, mimeType string, err error)
+	GetEpisodeStreamLocator(ctx context.Context, seriesID, seasonID, episodeID, streamFile string) (*stream.Locator, error)
 	GetEpisodeSubtitles(ctx context.Context, seriesID, seasonID, episodeID string) (subtitles []oas.Subtitle, total int, err error)
 	GetEpisodeSubtitleFile(ctx context.Context, seriesID, seasonID, episodeID, subtitleFile string) (r io.ReadCloser, mimeType string, err error)
 	GetEpisodeThumbnail(ctx context.Context, seriesID, seasonID, episodeID string) (io.ReadCloser, string, error)

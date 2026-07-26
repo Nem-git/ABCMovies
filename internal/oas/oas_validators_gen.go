@@ -1678,6 +1678,19 @@ func (s StreamEncodingFormat) Validate() error {
 	}
 }
 
+func (s StreamFormat) Validate() error {
+	switch s {
+	case "hls":
+		return nil
+	case "dash":
+		return nil
+	case "mp4":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
 func (s StreamType) Validate() error {
 	switch s {
 	case "VideoObject":

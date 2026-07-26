@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/nem-git/abcmovies/internal/oas"
 	"github.com/nem-git/abcmovies/internal/provider"
+	"github.com/nem-git/abcmovies/internal/proxy"
 	"github.com/nem-git/abcmovies/internal/registry"
 	"github.com/nem-git/abcmovies/internal/search"
+	"github.com/nem-git/abcmovies/internal/stream"
 )
 
 var _ oas.Handler = (*Handler)(nil)
@@ -18,10 +21,15 @@ const defaultLimit = 20
 type Handler struct {
 	oas.UnimplementedHandler
 	registry *registry.Registry
+	proxy    *proxy.Proxy
 }
 
-func New(r *registry.Registry) *Handler {
-	return &Handler{registry: r}
+func New(r *registry.Registry, opts ...*proxy.Proxy) *Handler {
+	var p *proxy.Proxy
+	if len(opts) > 0 {
+		p = opts[0]
+	}
+	return &Handler{registry: r, proxy: p}
 }
 
 func (h *Handler) providerOrError(tag string) (provider.Provider, error) {
@@ -44,6 +52,10 @@ func providerErrorMessage(msg string) *oas.ErrorStatusCode {
 
 func providerError(err error) *oas.ErrorStatusCode {
 	return providerErrorMessage(err.Error())
+}
+
+func proxyError(err error) *oas.ErrorStatusCode {
+	return providerErrorMessage(fmt.Sprintf("proxy: %v", err))
 }
 
 // --- Global ---
@@ -393,24 +405,34 @@ func (h *Handler) GetMovieStreamFile(ctx context.Context, params oas.GetMovieStr
 	if err != nil {
 		return nil, err
 	}
-	reader, mimeType, err := p.GetMovieStreamFile(ctx, params.MovieId, params.StreamFile)
+	format := string(params.Format)
+	locator, err := p.GetMovieStreamLocator(ctx, params.MovieId, params.File)
 	if err != nil {
 		return nil, providerError(err)
 	}
-	return movieStreamFileResponse(reader, mimeType)
+
+	// Direct serve: provider returns Data with no URL
+	if locator.Data != nil && locator.URL == "" {
+		return movieStreamFileResponse(locator)
+	}
+
+	// Proxy serve: provider returns upstream URL
+	contentKey := proxy.BuildContentKey("movie", params.MovieId)
+	reader, contentType, err := h.proxy.ServeManifest(ctx, params.ServiceTag, contentKey, format, params.File, *locator)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return movieStreamFileResponseByType(reader, contentType)
 }
 
-func movieStreamFileResponse(r io.Reader, mimeType string) (oas.GetMovieStreamFileRes, error) {
-	switch mimeType {
-	case "application/dash+xml":
-		return &oas.GetMovieStreamFileOKApplicationDashXML{Data: r}, nil
-	case "application/vnd.apple.mpegurl":
-		return &oas.GetMovieStreamFileOKApplicationVndAppleMpegurl{Data: r}, nil
-	case "video/mp4":
-		return &oas.GetMovieStreamFileOKVideoMP4{Data: r}, nil
-	default:
-		return nil, fmt.Errorf("unsupported stream mime type: %s", mimeType)
+func (h *Handler) GetMovieStreamSegment(ctx context.Context, params oas.GetMovieStreamSegmentParams) (oas.GetMovieStreamSegmentRes, error) {
+	format := string(params.Format)
+	contentKey := proxy.BuildContentKey("movie", params.MovieId)
+	reader, contentType, err := h.proxy.ServeSegment(ctx, params.ServiceTag, contentKey, format, params.Rendition, params.Segment)
+	if err != nil {
+		return nil, proxyError(err)
 	}
+	return movieSegmentResponseByType(reader, contentType)
 }
 
 func (h *Handler) GetEpisodeStreamFile(ctx context.Context, params oas.GetEpisodeStreamFileParams) (oas.GetEpisodeStreamFileRes, error) {
@@ -418,15 +440,53 @@ func (h *Handler) GetEpisodeStreamFile(ctx context.Context, params oas.GetEpisod
 	if err != nil {
 		return nil, err
 	}
-	reader, mimeType, err := p.GetEpisodeStreamFile(ctx, params.SeriesId, params.SeasonId, params.EpisodeId, params.StreamFile)
+	format := string(params.Format)
+	locator, err := p.GetEpisodeStreamLocator(ctx, params.SeriesId, params.SeasonId, params.EpisodeId, params.File)
 	if err != nil {
 		return nil, providerError(err)
 	}
-	return episodeStreamFileResponse(reader, mimeType)
+
+	// Direct serve: provider returns Data with no URL
+	if locator.Data != nil && locator.URL == "" {
+		return episodeStreamFileResponse(locator)
+	}
+
+	// Proxy serve: provider returns upstream URL
+	contentKey := proxy.BuildContentKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId)
+	reader, contentType, err := h.proxy.ServeManifest(ctx, params.ServiceTag, contentKey, format, params.File, *locator)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return episodeStreamFileResponseByType(reader, contentType)
 }
 
-func episodeStreamFileResponse(r io.Reader, mimeType string) (oas.GetEpisodeStreamFileRes, error) {
-	switch mimeType {
+func (h *Handler) GetEpisodeStreamSegment(ctx context.Context, params oas.GetEpisodeStreamSegmentParams) (oas.GetEpisodeStreamSegmentRes, error) {
+	format := string(params.Format)
+	contentKey := proxy.BuildContentKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId)
+	reader, contentType, err := h.proxy.ServeSegment(ctx, params.ServiceTag, contentKey, format, params.Rendition, params.Segment)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return episodeSegmentResponseByType(reader, contentType)
+}
+
+// --- Stream response helpers ---
+
+func movieStreamFileResponseByType(r io.Reader, contentType string) (oas.GetMovieStreamFileRes, error) {
+	switch contentType {
+	case "application/dash+xml":
+		return &oas.GetMovieStreamFileOKApplicationDashXML{Data: r}, nil
+	case "application/vnd.apple.mpegurl":
+		return &oas.GetMovieStreamFileOKApplicationVndAppleMpegurl{Data: r}, nil
+	case "video/mp4":
+		return &oas.GetMovieStreamFileOKVideoMP4{Data: r}, nil
+	default:
+		return nil, fmt.Errorf("unsupported stream content type: %s", contentType)
+	}
+}
+
+func episodeStreamFileResponseByType(r io.Reader, contentType string) (oas.GetEpisodeStreamFileRes, error) {
+	switch contentType {
 	case "application/dash+xml":
 		return &oas.GetEpisodeStreamFileOKApplicationDashXML{Data: r}, nil
 	case "application/vnd.apple.mpegurl":
@@ -434,7 +494,63 @@ func episodeStreamFileResponse(r io.Reader, mimeType string) (oas.GetEpisodeStre
 	case "video/mp4":
 		return &oas.GetEpisodeStreamFileOKVideoMP4{Data: r}, nil
 	default:
-		return nil, fmt.Errorf("unsupported stream mime type: %s", mimeType)
+		return nil, fmt.Errorf("unsupported stream content type: %s", contentType)
+	}
+}
+
+func movieSegmentResponseByType(r io.Reader, contentType string) (oas.GetMovieStreamSegmentRes, error) {
+	switch contentType {
+	case "video/mp2t":
+		return &oas.GetMovieStreamSegmentOKVideoMp2t{Data: r}, nil
+	case "video/mp4":
+		return &oas.GetMovieStreamSegmentOKVideoMP4{Data: r}, nil
+	default:
+		return nil, fmt.Errorf("unsupported segment content type: %s", contentType)
+	}
+}
+
+func episodeSegmentResponseByType(r io.Reader, contentType string) (oas.GetEpisodeStreamSegmentRes, error) {
+	switch contentType {
+	case "video/mp2t":
+		return &oas.GetEpisodeStreamSegmentOKVideoMp2t{Data: r}, nil
+	case "video/mp4":
+		return &oas.GetEpisodeStreamSegmentOKVideoMP4{Data: r}, nil
+	default:
+		return nil, fmt.Errorf("unsupported segment content type: %s", contentType)
+	}
+}
+
+func movieStreamFileResponse(locator *stream.Locator) (oas.GetMovieStreamFileRes, error) {
+	r := locator.Data
+	if r == nil {
+		r = io.NopCloser(nil)
+	}
+	switch locator.EncodingFormat {
+	case "application/dash+xml":
+		return &oas.GetMovieStreamFileOKApplicationDashXML{Data: r}, nil
+	case "application/vnd.apple.mpegurl":
+		return &oas.GetMovieStreamFileOKApplicationVndAppleMpegurl{Data: r}, nil
+	case "video/mp4":
+		return &oas.GetMovieStreamFileOKVideoMP4{Data: r}, nil
+	default:
+		return nil, fmt.Errorf("unsupported stream mime type: %s", locator.EncodingFormat)
+	}
+}
+
+func episodeStreamFileResponse(locator *stream.Locator) (oas.GetEpisodeStreamFileRes, error) {
+	r := locator.Data
+	if r == nil {
+		r = io.NopCloser(nil)
+	}
+	switch locator.EncodingFormat {
+	case "application/dash+xml":
+		return &oas.GetEpisodeStreamFileOKApplicationDashXML{Data: r}, nil
+	case "application/vnd.apple.mpegurl":
+		return &oas.GetEpisodeStreamFileOKApplicationVndAppleMpegurl{Data: r}, nil
+	case "video/mp4":
+		return &oas.GetEpisodeStreamFileOKVideoMP4{Data: r}, nil
+	default:
+		return nil, fmt.Errorf("unsupported stream mime type: %s", locator.EncodingFormat)
 	}
 }
 
@@ -584,3 +700,7 @@ func episodeThumbnailResponse(r io.Reader, mimeType string) (oas.GetEpisodeThumb
 		return nil, fmt.Errorf("unsupported image mime type: %s", mimeType)
 	}
 }
+
+// --- unused import guard ---
+
+var _ = strings.TrimSpace

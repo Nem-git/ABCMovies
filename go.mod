@@ -10,6 +10,7 @@ tool (
 require (
 	github.com/a-h/templ v0.3.1020
 	github.com/adrg/strutil v0.3.1
+	github.com/alanzng/manifestor v0.9.0
 	github.com/go-faster/errors v0.7.1
 	github.com/go-faster/jx v1.2.0
 	github.com/ogen-go/ogen v1.23.0

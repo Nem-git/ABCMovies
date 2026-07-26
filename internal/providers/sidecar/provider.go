@@ -11,6 +11,7 @@ import (
 
 	"github.com/nem-git/abcmovies/internal/oas"
 	"github.com/nem-git/abcmovies/internal/provider"
+	"github.com/nem-git/abcmovies/internal/stream"
 )
 
 type Config struct {
@@ -71,8 +72,16 @@ func (p *Provider) GetMovieStreams(ctx context.Context, movieID string) ([]oas.S
 	return getPage[oas.Stream](p, ctx, fmt.Sprintf("/movies/%s/streams", url.PathEscape(movieID)))
 }
 
-func (p *Provider) GetMovieStreamFile(ctx context.Context, movieID, streamFile string) (io.ReadCloser, string, error) {
-	return getRaw(p, ctx, fmt.Sprintf("/movies/%s/streams/%s", url.PathEscape(movieID), url.PathEscape(streamFile)))
+func (p *Provider) GetMovieStreamLocator(ctx context.Context, movieID, streamFile string) (*stream.Locator, error) {
+	rc, mime, err := getRaw(p, ctx, fmt.Sprintf("/movies/%s/streams/%s", url.PathEscape(movieID), url.PathEscape(streamFile)))
+	if err != nil {
+		return nil, err
+	}
+	return &stream.Locator{
+		URL:            p.base + fmt.Sprintf("/movies/%s/streams/%s", url.PathEscape(movieID), url.PathEscape(streamFile)),
+		EncodingFormat: mime,
+		Data:           rc,
+	}, nil
 }
 
 func (p *Provider) GetMovieSubtitles(ctx context.Context, movieID string) ([]oas.Subtitle, int, error) {
@@ -138,9 +147,17 @@ func (p *Provider) GetEpisodeStreams(ctx context.Context, seriesID, seasonID, ep
 		url.PathEscape(seriesID), url.PathEscape(seasonID), url.PathEscape(episodeID)))
 }
 
-func (p *Provider) GetEpisodeStreamFile(ctx context.Context, seriesID, seasonID, episodeID, streamFile string) (io.ReadCloser, string, error) {
-	return getRaw(p, ctx, fmt.Sprintf("/series/%s/seasons/%s/episodes/%s/streams/%s",
+func (p *Provider) GetEpisodeStreamLocator(ctx context.Context, seriesID, seasonID, episodeID, streamFile string) (*stream.Locator, error) {
+	rc, mime, err := getRaw(p, ctx, fmt.Sprintf("/series/%s/seasons/%s/episodes/%s/streams/%s",
 		url.PathEscape(seriesID), url.PathEscape(seasonID), url.PathEscape(episodeID), url.PathEscape(streamFile)))
+	if err != nil {
+		return nil, err
+	}
+	return &stream.Locator{
+		URL:            p.base + fmt.Sprintf("/series/%s/seasons/%s/episodes/%s/streams/%s", url.PathEscape(seriesID), url.PathEscape(seasonID), url.PathEscape(episodeID), url.PathEscape(streamFile)),
+		EncodingFormat: mime,
+		Data:           rc,
+	}, nil
 }
 
 func (p *Provider) GetEpisodeSubtitles(ctx context.Context, seriesID, seasonID, episodeID string) ([]oas.Subtitle, int, error) {
