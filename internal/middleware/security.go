@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"path"
 
 	"github.com/a-h/templ"
 )
@@ -95,5 +96,17 @@ func ApiSecurity(next http.Handler) http.Handler {
 		} else {
 			next.ServeHTTP(w, r)
 		}
+	})
+}
+
+// PathSanitize applies path.Clean to the request URL path before routing.
+// This normalizes double slashes, removes dot segments, and prevents path traversal.
+func PathSanitize(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cleaned := path.Clean(r.URL.Path)
+		if cleaned != r.URL.Path {
+			r.URL.Path = cleaned
+		}
+		next.ServeHTTP(w, r)
 	})
 }

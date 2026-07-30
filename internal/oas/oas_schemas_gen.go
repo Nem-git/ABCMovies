@@ -264,6 +264,366 @@ type GetEpisodeByIdNotFound Error
 
 func (*GetEpisodeByIdNotFound) getEpisodeByIdRes() {}
 
+type GetEpisodeDASHInitBadRequest Error
+
+func (*GetEpisodeDASHInitBadRequest) getEpisodeDASHInitRes() {}
+
+type GetEpisodeDASHInitNotFound Error
+
+func (*GetEpisodeDASHInitNotFound) getEpisodeDASHInitRes() {}
+
+type GetEpisodeDASHInitOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeDASHInitOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeDASHInitOK) getEpisodeDASHInitRes() {}
+
+type GetEpisodeDASHSegmentBadRequest Error
+
+func (*GetEpisodeDASHSegmentBadRequest) getEpisodeDASHSegmentRes() {}
+
+type GetEpisodeDASHSegmentNotFound Error
+
+func (*GetEpisodeDASHSegmentNotFound) getEpisodeDASHSegmentRes() {}
+
+type GetEpisodeDASHSegmentOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeDASHSegmentOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeDASHSegmentOK) getEpisodeDASHSegmentRes() {}
+
+type GetEpisodeHLSRenditionBadRequest Error
+
+func (*GetEpisodeHLSRenditionBadRequest) getEpisodeHLSRenditionRes() {}
+
+type GetEpisodeHLSRenditionNotFound Error
+
+func (*GetEpisodeHLSRenditionNotFound) getEpisodeHLSRenditionRes() {}
+
+type GetEpisodeHLSRenditionOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeHLSRenditionOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeHLSRenditionOK) getEpisodeHLSRenditionRes() {}
+
+type GetEpisodeHLSRenditionSegmentBadRequest Error
+
+func (*GetEpisodeHLSRenditionSegmentBadRequest) getEpisodeHLSRenditionSegmentRes() {}
+
+type GetEpisodeHLSRenditionSegmentNotFound Error
+
+func (*GetEpisodeHLSRenditionSegmentNotFound) getEpisodeHLSRenditionSegmentRes() {}
+
+type GetEpisodeHLSRenditionSegmentOKVideoMP4 struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeHLSRenditionSegmentOKVideoMP4) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeHLSRenditionSegmentOKVideoMP4) getEpisodeHLSRenditionSegmentRes() {}
+
+type GetEpisodeHLSRenditionSegmentOKVideoMp2t struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeHLSRenditionSegmentOKVideoMp2t) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeHLSRenditionSegmentOKVideoMp2t) getEpisodeHLSRenditionSegmentRes() {}
+
+type GetEpisodeHLSSessionDataBadRequest Error
+
+func (*GetEpisodeHLSSessionDataBadRequest) getEpisodeHLSSessionDataRes() {}
+
+type GetEpisodeHLSSessionDataNotFound Error
+
+func (*GetEpisodeHLSSessionDataNotFound) getEpisodeHLSSessionDataRes() {}
+
+type GetEpisodeHLSSessionDataOKApplicationJSON string
+
+func (*GetEpisodeHLSSessionDataOKApplicationJSON) getEpisodeHLSSessionDataRes() {}
+
+type GetEpisodeHLSSessionDataOKTextPlain struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeHLSSessionDataOKTextPlain) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeHLSSessionDataOKTextPlain) getEpisodeHLSSessionDataRes() {}
+
+type GetEpisodeHLSSessionKeyBadRequest Error
+
+func (*GetEpisodeHLSSessionKeyBadRequest) getEpisodeHLSSessionKeyRes() {}
+
+type GetEpisodeHLSSessionKeyNotFound Error
+
+func (*GetEpisodeHLSSessionKeyNotFound) getEpisodeHLSSessionKeyRes() {}
+
+type GetEpisodeHLSSessionKeyOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeHLSSessionKeyOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeHLSSessionKeyOK) getEpisodeHLSSessionKeyRes() {}
+
+type GetEpisodeHLSSteeringBadRequest Error
+
+func (*GetEpisodeHLSSteeringBadRequest) getEpisodeHLSSteeringRes() {}
+
+type GetEpisodeHLSSteeringNotFound Error
+
+func (*GetEpisodeHLSSteeringNotFound) getEpisodeHLSSteeringRes() {}
+
+type GetEpisodeHLSSteeringOKApplicationJSON string
+
+func (*GetEpisodeHLSSteeringOKApplicationJSON) getEpisodeHLSSteeringRes() {}
+
+type GetEpisodeHLSSteeringOKApplicationVndAppleMpegurl struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeHLSSteeringOKApplicationVndAppleMpegurl) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeHLSSteeringOKApplicationVndAppleMpegurl) getEpisodeHLSSteeringRes() {}
+
+type GetEpisodeHLSVariantBadRequest Error
+
+func (*GetEpisodeHLSVariantBadRequest) getEpisodeHLSVariantRes() {}
+
+type GetEpisodeHLSVariantNotFound Error
+
+func (*GetEpisodeHLSVariantNotFound) getEpisodeHLSVariantRes() {}
+
+type GetEpisodeHLSVariantOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeHLSVariantOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeHLSVariantOK) getEpisodeHLSVariantRes() {}
+
+type GetEpisodeHLSVariantSegmentBadRequest Error
+
+func (*GetEpisodeHLSVariantSegmentBadRequest) getEpisodeHLSVariantSegmentRes() {}
+
+type GetEpisodeHLSVariantSegmentNotFound Error
+
+func (*GetEpisodeHLSVariantSegmentNotFound) getEpisodeHLSVariantSegmentRes() {}
+
+type GetEpisodeHLSVariantSegmentOKVideoMP4 struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeHLSVariantSegmentOKVideoMP4) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeHLSVariantSegmentOKVideoMP4) getEpisodeHLSVariantSegmentRes() {}
+
+type GetEpisodeHLSVariantSegmentOKVideoMp2t struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeHLSVariantSegmentOKVideoMp2t) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeHLSVariantSegmentOKVideoMp2t) getEpisodeHLSVariantSegmentRes() {}
+
+type GetEpisodeRenditionKeyBadRequest Error
+
+func (*GetEpisodeRenditionKeyBadRequest) getEpisodeRenditionKeyRes() {}
+
+type GetEpisodeRenditionKeyNotFound Error
+
+func (*GetEpisodeRenditionKeyNotFound) getEpisodeRenditionKeyRes() {}
+
+type GetEpisodeRenditionKeyOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeRenditionKeyOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeRenditionKeyOK) getEpisodeRenditionKeyRes() {}
+
+type GetEpisodeRenditionPartialBadRequest Error
+
+func (*GetEpisodeRenditionPartialBadRequest) getEpisodeRenditionPartialRes() {}
+
+type GetEpisodeRenditionPartialNotFound Error
+
+func (*GetEpisodeRenditionPartialNotFound) getEpisodeRenditionPartialRes() {}
+
+type GetEpisodeRenditionPartialOKVideoMP4 struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeRenditionPartialOKVideoMP4) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeRenditionPartialOKVideoMP4) getEpisodeRenditionPartialRes() {}
+
+type GetEpisodeRenditionPartialOKVideoMp2t struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeRenditionPartialOKVideoMp2t) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeRenditionPartialOKVideoMp2t) getEpisodeRenditionPartialRes() {}
+
+type GetEpisodeRenditionPreloadHintBadRequest Error
+
+func (*GetEpisodeRenditionPreloadHintBadRequest) getEpisodeRenditionPreloadHintRes() {}
+
+type GetEpisodeRenditionPreloadHintNotFound Error
+
+func (*GetEpisodeRenditionPreloadHintNotFound) getEpisodeRenditionPreloadHintRes() {}
+
+type GetEpisodeRenditionPreloadHintOKVideoMP4 struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeRenditionPreloadHintOKVideoMP4) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeRenditionPreloadHintOKVideoMP4) getEpisodeRenditionPreloadHintRes() {}
+
+type GetEpisodeRenditionPreloadHintOKVideoMp2t struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeRenditionPreloadHintOKVideoMp2t) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeRenditionPreloadHintOKVideoMp2t) getEpisodeRenditionPreloadHintRes() {}
+
 type GetEpisodeStreamFileBadRequest Error
 
 func (*GetEpisodeStreamFileBadRequest) getEpisodeStreamFileRes() {}
@@ -496,6 +856,110 @@ func (s GetEpisodeThumbnailOKImageWEBP) Read(p []byte) (n int, err error) {
 
 func (*GetEpisodeThumbnailOKImageWEBP) getEpisodeThumbnailRes() {}
 
+type GetEpisodeVariantKeyBadRequest Error
+
+func (*GetEpisodeVariantKeyBadRequest) getEpisodeVariantKeyRes() {}
+
+type GetEpisodeVariantKeyNotFound Error
+
+func (*GetEpisodeVariantKeyNotFound) getEpisodeVariantKeyRes() {}
+
+type GetEpisodeVariantKeyOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeVariantKeyOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeVariantKeyOK) getEpisodeVariantKeyRes() {}
+
+type GetEpisodeVariantPartialBadRequest Error
+
+func (*GetEpisodeVariantPartialBadRequest) getEpisodeVariantPartialRes() {}
+
+type GetEpisodeVariantPartialNotFound Error
+
+func (*GetEpisodeVariantPartialNotFound) getEpisodeVariantPartialRes() {}
+
+type GetEpisodeVariantPartialOKVideoMP4 struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeVariantPartialOKVideoMP4) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeVariantPartialOKVideoMP4) getEpisodeVariantPartialRes() {}
+
+type GetEpisodeVariantPartialOKVideoMp2t struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeVariantPartialOKVideoMp2t) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeVariantPartialOKVideoMp2t) getEpisodeVariantPartialRes() {}
+
+type GetEpisodeVariantPreloadHintBadRequest Error
+
+func (*GetEpisodeVariantPreloadHintBadRequest) getEpisodeVariantPreloadHintRes() {}
+
+type GetEpisodeVariantPreloadHintNotFound Error
+
+func (*GetEpisodeVariantPreloadHintNotFound) getEpisodeVariantPreloadHintRes() {}
+
+type GetEpisodeVariantPreloadHintOKVideoMP4 struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeVariantPreloadHintOKVideoMP4) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeVariantPreloadHintOKVideoMP4) getEpisodeVariantPreloadHintRes() {}
+
+type GetEpisodeVariantPreloadHintOKVideoMp2t struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetEpisodeVariantPreloadHintOKVideoMp2t) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetEpisodeVariantPreloadHintOKVideoMp2t) getEpisodeVariantPreloadHintRes() {}
+
 type GetEpisodesBadRequest Error
 
 func (*GetEpisodesBadRequest) getEpisodesRes() {}
@@ -560,6 +1024,262 @@ type GetMovieByIdNotFound Error
 
 func (*GetMovieByIdNotFound) getMovieByIdRes() {}
 
+type GetMovieDASHInitBadRequest Error
+
+func (*GetMovieDASHInitBadRequest) getMovieDASHInitRes() {}
+
+type GetMovieDASHInitNotFound Error
+
+func (*GetMovieDASHInitNotFound) getMovieDASHInitRes() {}
+
+type GetMovieDASHInitOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieDASHInitOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieDASHInitOK) getMovieDASHInitRes() {}
+
+type GetMovieDASHSegmentBadRequest Error
+
+func (*GetMovieDASHSegmentBadRequest) getMovieDASHSegmentRes() {}
+
+type GetMovieDASHSegmentNotFound Error
+
+func (*GetMovieDASHSegmentNotFound) getMovieDASHSegmentRes() {}
+
+type GetMovieDASHSegmentOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieDASHSegmentOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieDASHSegmentOK) getMovieDASHSegmentRes() {}
+
+type GetMovieHLSRenditionBadRequest Error
+
+func (*GetMovieHLSRenditionBadRequest) getMovieHLSRenditionRes() {}
+
+type GetMovieHLSRenditionNotFound Error
+
+func (*GetMovieHLSRenditionNotFound) getMovieHLSRenditionRes() {}
+
+type GetMovieHLSRenditionOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieHLSRenditionOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieHLSRenditionOK) getMovieHLSRenditionRes() {}
+
+type GetMovieHLSRenditionSegmentBadRequest Error
+
+func (*GetMovieHLSRenditionSegmentBadRequest) getMovieHLSRenditionSegmentRes() {}
+
+type GetMovieHLSRenditionSegmentNotFound Error
+
+func (*GetMovieHLSRenditionSegmentNotFound) getMovieHLSRenditionSegmentRes() {}
+
+type GetMovieHLSRenditionSegmentOKVideoMP4 struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieHLSRenditionSegmentOKVideoMP4) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieHLSRenditionSegmentOKVideoMP4) getMovieHLSRenditionSegmentRes() {}
+
+type GetMovieHLSRenditionSegmentOKVideoMp2t struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieHLSRenditionSegmentOKVideoMp2t) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieHLSRenditionSegmentOKVideoMp2t) getMovieHLSRenditionSegmentRes() {}
+
+type GetMovieHLSSessionDataBadRequest Error
+
+func (*GetMovieHLSSessionDataBadRequest) getMovieHLSSessionDataRes() {}
+
+type GetMovieHLSSessionDataNotFound Error
+
+func (*GetMovieHLSSessionDataNotFound) getMovieHLSSessionDataRes() {}
+
+type GetMovieHLSSessionDataOKApplicationJSON string
+
+func (*GetMovieHLSSessionDataOKApplicationJSON) getMovieHLSSessionDataRes() {}
+
+type GetMovieHLSSessionDataOKTextPlain struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieHLSSessionDataOKTextPlain) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieHLSSessionDataOKTextPlain) getMovieHLSSessionDataRes() {}
+
+type GetMovieHLSSessionKeyBadRequest Error
+
+func (*GetMovieHLSSessionKeyBadRequest) getMovieHLSSessionKeyRes() {}
+
+type GetMovieHLSSessionKeyNotFound Error
+
+func (*GetMovieHLSSessionKeyNotFound) getMovieHLSSessionKeyRes() {}
+
+type GetMovieHLSSessionKeyOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieHLSSessionKeyOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieHLSSessionKeyOK) getMovieHLSSessionKeyRes() {}
+
+type GetMovieHLSSteeringBadRequest Error
+
+func (*GetMovieHLSSteeringBadRequest) getMovieHLSSteeringRes() {}
+
+type GetMovieHLSSteeringNotFound Error
+
+func (*GetMovieHLSSteeringNotFound) getMovieHLSSteeringRes() {}
+
+type GetMovieHLSSteeringOKApplicationJSON string
+
+func (*GetMovieHLSSteeringOKApplicationJSON) getMovieHLSSteeringRes() {}
+
+type GetMovieHLSSteeringOKApplicationVndAppleMpegurl struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieHLSSteeringOKApplicationVndAppleMpegurl) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieHLSSteeringOKApplicationVndAppleMpegurl) getMovieHLSSteeringRes() {}
+
+type GetMovieHLSVariantBadRequest Error
+
+func (*GetMovieHLSVariantBadRequest) getMovieHLSVariantRes() {}
+
+type GetMovieHLSVariantNotFound Error
+
+func (*GetMovieHLSVariantNotFound) getMovieHLSVariantRes() {}
+
+type GetMovieHLSVariantOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieHLSVariantOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieHLSVariantOK) getMovieHLSVariantRes() {}
+
+type GetMovieHLSVariantSegmentBadRequest Error
+
+func (*GetMovieHLSVariantSegmentBadRequest) getMovieHLSVariantSegmentRes() {}
+
+type GetMovieHLSVariantSegmentNotFound Error
+
+func (*GetMovieHLSVariantSegmentNotFound) getMovieHLSVariantSegmentRes() {}
+
+type GetMovieHLSVariantSegmentOKVideoMP4 struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieHLSVariantSegmentOKVideoMP4) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieHLSVariantSegmentOKVideoMP4) getMovieHLSVariantSegmentRes() {}
+
+type GetMovieHLSVariantSegmentOKVideoMp2t struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieHLSVariantSegmentOKVideoMp2t) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieHLSVariantSegmentOKVideoMp2t) getMovieHLSVariantSegmentRes() {}
+
 type GetMoviePosterOKImageJpeg struct {
 	Data io.Reader
 }
@@ -607,6 +1327,110 @@ func (s GetMoviePosterOKImageWEBP) Read(p []byte) (n int, err error) {
 }
 
 func (*GetMoviePosterOKImageWEBP) getMoviePosterRes() {}
+
+type GetMovieRenditionKeyBadRequest Error
+
+func (*GetMovieRenditionKeyBadRequest) getMovieRenditionKeyRes() {}
+
+type GetMovieRenditionKeyNotFound Error
+
+func (*GetMovieRenditionKeyNotFound) getMovieRenditionKeyRes() {}
+
+type GetMovieRenditionKeyOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieRenditionKeyOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieRenditionKeyOK) getMovieRenditionKeyRes() {}
+
+type GetMovieRenditionPartialBadRequest Error
+
+func (*GetMovieRenditionPartialBadRequest) getMovieRenditionPartialRes() {}
+
+type GetMovieRenditionPartialNotFound Error
+
+func (*GetMovieRenditionPartialNotFound) getMovieRenditionPartialRes() {}
+
+type GetMovieRenditionPartialOKVideoMP4 struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieRenditionPartialOKVideoMP4) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieRenditionPartialOKVideoMP4) getMovieRenditionPartialRes() {}
+
+type GetMovieRenditionPartialOKVideoMp2t struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieRenditionPartialOKVideoMp2t) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieRenditionPartialOKVideoMp2t) getMovieRenditionPartialRes() {}
+
+type GetMovieRenditionPreloadHintBadRequest Error
+
+func (*GetMovieRenditionPreloadHintBadRequest) getMovieRenditionPreloadHintRes() {}
+
+type GetMovieRenditionPreloadHintNotFound Error
+
+func (*GetMovieRenditionPreloadHintNotFound) getMovieRenditionPreloadHintRes() {}
+
+type GetMovieRenditionPreloadHintOKVideoMP4 struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieRenditionPreloadHintOKVideoMP4) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieRenditionPreloadHintOKVideoMP4) getMovieRenditionPreloadHintRes() {}
+
+type GetMovieRenditionPreloadHintOKVideoMp2t struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieRenditionPreloadHintOKVideoMp2t) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieRenditionPreloadHintOKVideoMp2t) getMovieRenditionPreloadHintRes() {}
 
 type GetMovieStreamFileBadRequest Error
 
@@ -791,6 +1615,110 @@ func (*GetMovieSubtitlesBadRequest) getMovieSubtitlesRes() {}
 type GetMovieSubtitlesNotFound Error
 
 func (*GetMovieSubtitlesNotFound) getMovieSubtitlesRes() {}
+
+type GetMovieVariantKeyBadRequest Error
+
+func (*GetMovieVariantKeyBadRequest) getMovieVariantKeyRes() {}
+
+type GetMovieVariantKeyNotFound Error
+
+func (*GetMovieVariantKeyNotFound) getMovieVariantKeyRes() {}
+
+type GetMovieVariantKeyOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieVariantKeyOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieVariantKeyOK) getMovieVariantKeyRes() {}
+
+type GetMovieVariantPartialBadRequest Error
+
+func (*GetMovieVariantPartialBadRequest) getMovieVariantPartialRes() {}
+
+type GetMovieVariantPartialNotFound Error
+
+func (*GetMovieVariantPartialNotFound) getMovieVariantPartialRes() {}
+
+type GetMovieVariantPartialOKVideoMP4 struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieVariantPartialOKVideoMP4) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieVariantPartialOKVideoMP4) getMovieVariantPartialRes() {}
+
+type GetMovieVariantPartialOKVideoMp2t struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieVariantPartialOKVideoMp2t) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieVariantPartialOKVideoMp2t) getMovieVariantPartialRes() {}
+
+type GetMovieVariantPreloadHintBadRequest Error
+
+func (*GetMovieVariantPreloadHintBadRequest) getMovieVariantPreloadHintRes() {}
+
+type GetMovieVariantPreloadHintNotFound Error
+
+func (*GetMovieVariantPreloadHintNotFound) getMovieVariantPreloadHintRes() {}
+
+type GetMovieVariantPreloadHintOKVideoMP4 struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieVariantPreloadHintOKVideoMP4) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieVariantPreloadHintOKVideoMP4) getMovieVariantPreloadHintRes() {}
+
+type GetMovieVariantPreloadHintOKVideoMp2t struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetMovieVariantPreloadHintOKVideoMp2t) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+func (*GetMovieVariantPreloadHintOKVideoMp2t) getMovieVariantPreloadHintRes() {}
 
 type GetMoviesBadRequest Error
 

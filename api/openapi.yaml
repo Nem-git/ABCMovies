@@ -345,6 +345,689 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  # --- Movie HLS Variants ---------------------------------------------------
+
+  /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+      - $ref: '#/components/parameters/VariantIndex'
+    get:
+      tags:
+        - Movies
+        - Streams
+      summary: Get an HLS variant sub-playlist for a movie
+      description: |
+        Returns a rewritten HLS media playlist for a specific variant.
+        The variant is identified by its zero-based index in the master playlist.
+        Segment URLs in the response are rewritten to point back to the proxy.
+      operationId: getMovieHLSVariant
+      responses:
+        '200':
+          description: Rewritten HLS media playlist
+          content:
+            application/vnd.apple.mpegurl:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Variant state not found (master playlist may have expired)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/segments/{segment}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+      - $ref: '#/components/parameters/VariantIndex'
+      - $ref: '#/components/parameters/StreamSegment'
+    get:
+      tags:
+        - Movies
+        - Streams
+      summary: Get an HLS variant segment for a movie
+      description: |
+        Returns a single media segment from an HLS variant sub-playlist.
+        The segment filename is passed through and resolved against the
+        upstream base URL stored in state.
+      operationId: getMovieHLSVariantSegment
+      responses:
+        '200':
+          description: The media segment binary data
+          content:
+            video/mp2t:
+              schema:
+                type: string
+                format: binary
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Segment state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # --- Movie HLS Renditions -------------------------------------------------
+
+  /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+      - $ref: '#/components/parameters/RenditionGroupId'
+      - $ref: '#/components/parameters/RenditionName'
+    get:
+      tags:
+        - Movies
+        - Streams
+      summary: Get an HLS rendition sub-playlist for a movie
+      description: |
+        Returns a rewritten HLS media playlist for a specific rendition
+        identified by GROUP-ID and NAME. Typically used for audio or
+        subtitle renditions. Segment URLs are rewritten to the proxy.
+      operationId: getMovieHLSRendition
+      responses:
+        '200':
+          description: Rewritten HLS media playlist
+          content:
+            application/vnd.apple.mpegurl:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Rendition state not found (master playlist may have expired)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/segments/{segment}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+      - $ref: '#/components/parameters/RenditionGroupId'
+      - $ref: '#/components/parameters/RenditionName'
+      - $ref: '#/components/parameters/StreamSegment'
+    get:
+      tags:
+        - Movies
+        - Streams
+      summary: Get an HLS rendition segment for a movie
+      description: |
+        Returns a single media segment from an HLS rendition sub-playlist.
+      operationId: getMovieHLSRenditionSegment
+      responses:
+        '200':
+          description: The media segment binary data
+          content:
+            video/mp2t:
+              schema:
+                type: string
+                format: binary
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Segment state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # --- Movie HLS Variant Resources (Keys, Partials, Preload Hints) -----------
+
+  /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/keys/{file}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+      - $ref: '#/components/parameters/VariantIndex'
+      - $ref: '#/components/parameters/HLSKeyFile'
+    get:
+      tags:
+        - Movies
+        - Streams
+      summary: Get an HLS encryption key for a movie variant
+      description: |
+        Returns an AES-128 encryption key from a variant sub-playlist.
+        The key file is fetched from the upstream CDN and proxied through.
+      operationId: getMovieVariantKey
+      responses:
+        '200':
+          description: The encryption key binary data
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Key state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/partials/{file}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+      - $ref: '#/components/parameters/VariantIndex'
+      - $ref: '#/components/parameters/HLSResourceFile'
+    get:
+      tags:
+        - Movies
+        - Streams
+      summary: Get an HLS partial segment for a movie variant
+      description: |
+        Returns a low-latency HLS partial segment (EXT-X-PART)
+        from a variant sub-playlist. Fetched from the upstream CDN.
+      operationId: getMovieVariantPartial
+      responses:
+        '200':
+          description: The partial segment binary data
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+            video/mp2t:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Partial segment state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/preload-hints/{file}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+      - $ref: '#/components/parameters/VariantIndex'
+      - $ref: '#/components/parameters/HLSResourceFile'
+    get:
+      tags:
+        - Movies
+        - Streams
+      summary: Get an HLS preload hint for a movie variant
+      description: |
+        Returns the resource referenced by an EXT-X-PRELOAD-HINT tag
+        from a variant sub-playlist. Fetched from the upstream CDN.
+      operationId: getMovieVariantPreloadHint
+      responses:
+        '200':
+          description: The preload hint binary data
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+            video/mp2t:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Preload hint state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # --- Movie HLS Rendition Resources (Keys, Partials, Preload Hints) ---------
+
+  /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/keys/{file}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+      - $ref: '#/components/parameters/RenditionGroupId'
+      - $ref: '#/components/parameters/RenditionName'
+      - $ref: '#/components/parameters/HLSKeyFile'
+    get:
+      tags:
+        - Movies
+        - Streams
+      summary: Get an HLS encryption key for a movie rendition
+      description: |
+        Returns an AES-128 encryption key from a rendition sub-playlist.
+        The key file is fetched from the upstream CDN and proxied through.
+      operationId: getMovieRenditionKey
+      responses:
+        '200':
+          description: The encryption key binary data
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Key state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/partials/{file}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+      - $ref: '#/components/parameters/RenditionGroupId'
+      - $ref: '#/components/parameters/RenditionName'
+      - $ref: '#/components/parameters/HLSResourceFile'
+    get:
+      tags:
+        - Movies
+        - Streams
+      summary: Get an HLS partial segment for a movie rendition
+      description: |
+        Returns a low-latency HLS partial segment (EXT-X-PART)
+        from a rendition sub-playlist. Fetched from the upstream CDN.
+      operationId: getMovieRenditionPartial
+      responses:
+        '200':
+          description: The partial segment binary data
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+            video/mp2t:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Partial segment state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/preload-hints/{file}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+      - $ref: '#/components/parameters/RenditionGroupId'
+      - $ref: '#/components/parameters/RenditionName'
+      - $ref: '#/components/parameters/HLSResourceFile'
+    get:
+      tags:
+        - Movies
+        - Streams
+      summary: Get an HLS preload hint for a movie rendition
+      description: |
+        Returns the resource referenced by an EXT-X-PRELOAD-HINT tag
+        from a rendition sub-playlist. Fetched from the upstream CDN.
+      operationId: getMovieRenditionPreloadHint
+      responses:
+        '200':
+          description: The preload hint binary data
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+            video/mp2t:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Preload hint state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # --- Movie HLS Master Resources (Session Keys, Session Data, Steering) -----
+
+  /services/{serviceTag}/movies/{movieId}/streams/hls/session-keys/{file}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+      - $ref: '#/components/parameters/HLSKeyFile'
+    get:
+      tags:
+        - Movies
+        - Streams
+      summary: Get an HLS session key for a movie
+      description: |
+        Returns an encryption key declared in an EXT-X-SESSION-KEY tag
+        in the master playlist. Fetched from the upstream CDN and proxied through.
+      operationId: getMovieHLSSessionKey
+      responses:
+        '200':
+          description: The session key binary data
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Session key state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/movies/{movieId}/streams/hls/session-data/{file}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+      - $ref: '#/components/parameters/HLSResourceFile'
+    get:
+      tags:
+        - Movies
+        - Streams
+      summary: Get an HLS session data resource for a movie
+      description: |
+        Returns the resource referenced by an EXT-X-SESSION-DATA tag.
+        Fetched from the upstream CDN and proxied through.
+      operationId: getMovieHLSSessionData
+      responses:
+        '200':
+          description: The session data file
+          content:
+            application/json:
+              schema:
+                type: string
+                format: binary
+            text/plain:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Session data state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/movies/{movieId}/streams/hls/steering:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+    get:
+      tags:
+        - Movies
+        - Streams
+      summary: Get the HLS content steering manifest for a movie
+      description: |
+        Returns the content steering manifest referenced by an
+        EXT-X-CONTENT-STEERING tag. Fetched from the upstream steering
+        server and proxied through.
+      operationId: getMovieHLSSteering
+      responses:
+        '200':
+          description: The content steering manifest
+          content:
+            application/json:
+              schema:
+                type: string
+                format: binary
+            application/vnd.apple.mpegurl:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Steering state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # --- Movie DASH Segments --------------------------------------------------
+
+  /services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/{segment}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+      - $ref: '#/components/parameters/StreamFormat'
+      - $ref: '#/components/parameters/DASHPeriodIndex'
+      - $ref: '#/components/parameters/DASHAdaptationSetIndex'
+      - $ref: '#/components/parameters/DASHRepresentationId'
+      - $ref: '#/components/parameters/StreamSegment'
+    get:
+      tags:
+        - Movies
+        - Streams
+      summary: Get a DASH segment for a movie
+      description: |
+        Returns a single DASH media segment. The segment number or time
+        is passed as the {segment} parameter and resolved against the
+        upstream SegmentTemplate stored in state.
+      operationId: getMovieDASHSegment
+      responses:
+        '200':
+          description: The media segment binary data
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: DASH state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/init:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/MovieId'
+      - $ref: '#/components/parameters/StreamFormat'
+      - $ref: '#/components/parameters/DASHPeriodIndex'
+      - $ref: '#/components/parameters/DASHAdaptationSetIndex'
+      - $ref: '#/components/parameters/DASHRepresentationId'
+    get:
+      tags:
+        - Movies
+        - Streams
+      summary: Get a DASH init segment for a movie
+      description: |
+        Returns the initialization segment for a DASH Representation.
+        The init segment URL is resolved from the upstream SegmentTemplate
+        stored in state, with $RepresentationID$ and $Bandwidth$ resolved.
+      operationId: getMovieDASHInit
+      responses:
+        '200':
+          description: The initialization segment binary data
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: DASH state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   # -- Movie Subtitles -------------------------------------------------------
 
   /services/{serviceTag}/movies/{movieId}/subtitles:
@@ -1116,6 +1799,707 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  # --- Episode HLS Variants -------------------------------------------------
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+      - $ref: '#/components/parameters/VariantIndex'
+    get:
+      tags:
+        - Episodes
+        - Streams
+      summary: Get an HLS variant sub-playlist for an episode
+      description: |
+        Returns a rewritten HLS media playlist for a specific variant.
+        The variant is identified by its zero-based index in the master playlist.
+      operationId: getEpisodeHLSVariant
+      responses:
+        '200':
+          description: Rewritten HLS media playlist
+          content:
+            application/vnd.apple.mpegurl:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Variant state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/segments/{segment}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+      - $ref: '#/components/parameters/VariantIndex'
+      - $ref: '#/components/parameters/StreamSegment'
+    get:
+      tags:
+        - Episodes
+        - Streams
+      summary: Get an HLS variant segment for an episode
+      description: Returns a single media segment from an HLS variant sub-playlist.
+      operationId: getEpisodeHLSVariantSegment
+      responses:
+        '200':
+          description: The media segment binary data
+          content:
+            video/mp2t:
+              schema:
+                type: string
+                format: binary
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Segment state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # --- Episode HLS Renditions -----------------------------------------------
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+      - $ref: '#/components/parameters/RenditionGroupId'
+      - $ref: '#/components/parameters/RenditionName'
+    get:
+      tags:
+        - Episodes
+        - Streams
+      summary: Get an HLS rendition sub-playlist for an episode
+      description: |
+        Returns a rewritten HLS media playlist for a specific rendition
+        identified by GROUP-ID and NAME.
+      operationId: getEpisodeHLSRendition
+      responses:
+        '200':
+          description: Rewritten HLS media playlist
+          content:
+            application/vnd.apple.mpegurl:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Rendition state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/segments/{segment}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+      - $ref: '#/components/parameters/RenditionGroupId'
+      - $ref: '#/components/parameters/RenditionName'
+      - $ref: '#/components/parameters/StreamSegment'
+    get:
+      tags:
+        - Episodes
+        - Streams
+      summary: Get an HLS rendition segment for an episode
+      description: Returns a single media segment from an HLS rendition sub-playlist.
+      operationId: getEpisodeHLSRenditionSegment
+      responses:
+        '200':
+          description: The media segment binary data
+          content:
+            video/mp2t:
+              schema:
+                type: string
+                format: binary
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Segment state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # --- Episode HLS Variant Resources (Keys, Partials, Preload Hints) --------
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/keys/{file}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+      - $ref: '#/components/parameters/VariantIndex'
+      - $ref: '#/components/parameters/HLSKeyFile'
+    get:
+      tags:
+        - Episodes
+        - Streams
+      summary: Get an HLS encryption key for an episode variant
+      description: |
+        Returns an AES-128 encryption key from a variant sub-playlist.
+        The key file is fetched from the upstream CDN and proxied through.
+      operationId: getEpisodeVariantKey
+      responses:
+        '200':
+          description: The encryption key binary data
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Key state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/partials/{file}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+      - $ref: '#/components/parameters/VariantIndex'
+      - $ref: '#/components/parameters/HLSResourceFile'
+    get:
+      tags:
+        - Episodes
+        - Streams
+      summary: Get an HLS partial segment for an episode variant
+      description: |
+        Returns a low-latency HLS partial segment (EXT-X-PART)
+        from a variant sub-playlist. Fetched from the upstream CDN.
+      operationId: getEpisodeVariantPartial
+      responses:
+        '200':
+          description: The partial segment binary data
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+            video/mp2t:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Partial segment state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/preload-hints/{file}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+      - $ref: '#/components/parameters/VariantIndex'
+      - $ref: '#/components/parameters/HLSResourceFile'
+    get:
+      tags:
+        - Episodes
+        - Streams
+      summary: Get an HLS preload hint for an episode variant
+      description: |
+        Returns the resource referenced by an EXT-X-PRELOAD-HINT tag
+        from a variant sub-playlist. Fetched from the upstream CDN.
+      operationId: getEpisodeVariantPreloadHint
+      responses:
+        '200':
+          description: The preload hint binary data
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+            video/mp2t:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Preload hint state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # --- Episode HLS Rendition Resources (Keys, Partials, Preload Hints) -------
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/keys/{file}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+      - $ref: '#/components/parameters/RenditionGroupId'
+      - $ref: '#/components/parameters/RenditionName'
+      - $ref: '#/components/parameters/HLSKeyFile'
+    get:
+      tags:
+        - Episodes
+        - Streams
+      summary: Get an HLS encryption key for an episode rendition
+      description: |
+        Returns an AES-128 encryption key from a rendition sub-playlist.
+        The key file is fetched from the upstream CDN and proxied through.
+      operationId: getEpisodeRenditionKey
+      responses:
+        '200':
+          description: The encryption key binary data
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Key state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/partials/{file}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+      - $ref: '#/components/parameters/RenditionGroupId'
+      - $ref: '#/components/parameters/RenditionName'
+      - $ref: '#/components/parameters/HLSResourceFile'
+    get:
+      tags:
+        - Episodes
+        - Streams
+      summary: Get an HLS partial segment for an episode rendition
+      description: |
+        Returns a low-latency HLS partial segment (EXT-X-PART)
+        from a rendition sub-playlist. Fetched from the upstream CDN.
+      operationId: getEpisodeRenditionPartial
+      responses:
+        '200':
+          description: The partial segment binary data
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+            video/mp2t:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Partial segment state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/preload-hints/{file}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+      - $ref: '#/components/parameters/RenditionGroupId'
+      - $ref: '#/components/parameters/RenditionName'
+      - $ref: '#/components/parameters/HLSResourceFile'
+    get:
+      tags:
+        - Episodes
+        - Streams
+      summary: Get an HLS preload hint for an episode rendition
+      description: |
+        Returns the resource referenced by an EXT-X-PRELOAD-HINT tag
+        from a rendition sub-playlist. Fetched from the upstream CDN.
+      operationId: getEpisodeRenditionPreloadHint
+      responses:
+        '200':
+          description: The preload hint binary data
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+            video/mp2t:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Preload hint state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # --- Episode HLS Master Resources (Session Keys, Session Data, Steering) ---
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/session-keys/{file}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+      - $ref: '#/components/parameters/HLSKeyFile'
+    get:
+      tags:
+        - Episodes
+        - Streams
+      summary: Get an HLS session key for an episode
+      description: |
+        Returns an encryption key declared in an EXT-X-SESSION-KEY tag
+        in the master playlist. Fetched from the upstream CDN and proxied through.
+      operationId: getEpisodeHLSSessionKey
+      responses:
+        '200':
+          description: The session key binary data
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Session key state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/session-data/{file}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+      - $ref: '#/components/parameters/HLSResourceFile'
+    get:
+      tags:
+        - Episodes
+        - Streams
+      summary: Get an HLS session data resource for an episode
+      description: |
+        Returns the resource referenced by an EXT-X-SESSION-DATA tag.
+        Fetched from the upstream CDN and proxied through.
+      operationId: getEpisodeHLSSessionData
+      responses:
+        '200':
+          description: The session data file
+          content:
+            application/json:
+              schema:
+                type: string
+                format: binary
+            text/plain:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Session data state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/steering:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+    get:
+      tags:
+        - Episodes
+        - Streams
+      summary: Get the HLS content steering manifest for an episode
+      description: |
+        Returns the content steering manifest referenced by an
+        EXT-X-CONTENT-STEERING tag. Fetched from the upstream steering
+        server and proxied through.
+      operationId: getEpisodeHLSSteering
+      responses:
+        '200':
+          description: The content steering manifest
+          content:
+            application/json:
+              schema:
+                type: string
+                format: binary
+            application/vnd.apple.mpegurl:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Steering state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # --- Episode DASH Segments ------------------------------------------------
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/{segment}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+      - $ref: '#/components/parameters/StreamFormat'
+      - $ref: '#/components/parameters/DASHPeriodIndex'
+      - $ref: '#/components/parameters/DASHAdaptationSetIndex'
+      - $ref: '#/components/parameters/DASHRepresentationId'
+      - $ref: '#/components/parameters/StreamSegment'
+    get:
+      tags:
+        - Episodes
+        - Streams
+      summary: Get a DASH segment for an episode
+      description: Returns a single DASH media segment.
+      operationId: getEpisodeDASHSegment
+      responses:
+        '200':
+          description: The media segment binary data
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: DASH state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/init:
+    parameters:
+      - $ref: '#/components/parameters/ServiceTag'
+      - $ref: '#/components/parameters/SeriesId'
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/EpisodeId'
+      - $ref: '#/components/parameters/StreamFormat'
+      - $ref: '#/components/parameters/DASHPeriodIndex'
+      - $ref: '#/components/parameters/DASHAdaptationSetIndex'
+      - $ref: '#/components/parameters/DASHRepresentationId'
+    get:
+      tags:
+        - Episodes
+        - Streams
+      summary: Get a DASH init segment for an episode
+      description: Returns the initialization segment for a DASH Representation.
+      operationId: getEpisodeDASHInit
+      responses:
+        '200':
+          description: The initialization segment binary data
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: DASH state not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   # -- Episode Subtitles -----------------------------------------------------
 
   /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/subtitles:
@@ -1411,6 +2795,115 @@ components:
         dash-init:
           value: init.mp4
           summary: DASH init segment
+
+    HLSKeyFile:
+      name: file
+      in: path
+      description: |
+        The HLS encryption key filename.
+        Examples: `serve.key`, `encryption.key`, `hls-key.bin`
+      required: true
+      schema:
+        type: string
+      examples:
+        key:
+          value: serve.key
+          summary: Encryption key file
+
+    HLSResourceFile:
+      name: file
+      in: path
+      description: |
+        The HLS partial segment, preload hint, or session data filename.
+        Examples: `part001.m4s`, `hint.m4s`, `data.json`
+      required: true
+      schema:
+        type: string
+      examples:
+        partial:
+          value: part001.m4s
+          summary: Partial segment
+
+    VariantIndex:
+      name: variantIndex
+      in: path
+      description: Zero-based index of the variant in the master playlist.
+      required: true
+      schema:
+        type: integer
+        minimum: 0
+      examples:
+        first:
+          value: 0
+          summary: First variant
+
+    RenditionGroupId:
+      name: groupId
+      in: path
+      description: |
+        The GROUP-ID attribute from the EXT-X-MEDIA tag.
+        Uniquely identifies a rendition group within a master playlist.
+      required: true
+      schema:
+        type: string
+      examples:
+        audio:
+          value: audio
+          summary: Audio rendition group
+
+    RenditionName:
+      name: renditionName
+      in: path
+      description: |
+        The NAME attribute from the EXT-X-MEDIA tag.
+        Uniquely identifies a rendition within its group.
+      required: true
+      schema:
+        type: string
+      examples:
+        english:
+          value: English
+          summary: English rendition
+
+    DASHPeriodIndex:
+      name: period
+      in: path
+      description: Zero-based index of the Period in the MPD.
+      required: true
+      schema:
+        type: integer
+        minimum: 0
+      examples:
+        first:
+          value: 0
+          summary: First period
+
+    DASHAdaptationSetIndex:
+      name: adaptationSet
+      in: path
+      description: Zero-based index of the AdaptationSet within the Period.
+      required: true
+      schema:
+        type: integer
+        minimum: 0
+      examples:
+        first:
+          value: 0
+          summary: First adaptation set
+
+    DASHRepresentationId:
+      name: representation
+      in: path
+      description: |
+        The @id attribute of the Representation in the MPD.
+        Identifies a specific bitrate/quality within an AdaptationSet.
+      required: true
+      schema:
+        type: string
+      examples:
+        v1:
+          value: v1
+          summary: Primary representation
 
     SubtitleFile:
       name: subtitleFile

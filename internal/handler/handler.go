@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
+	"path"
+	"strconv"
 
 	"github.com/nem-git/abcmovies/internal/oas"
 	"github.com/nem-git/abcmovies/internal/provider"
@@ -418,7 +419,8 @@ func (h *Handler) GetMovieStreamFile(ctx context.Context, params oas.GetMovieStr
 
 	// Proxy serve: provider returns upstream URL
 	contentKey := proxy.BuildContentKey("movie", params.MovieId)
-	reader, contentType, err := h.proxy.ServeManifest(ctx, params.ServiceTag, contentKey, format, params.File, *locator)
+	proxyBaseURL := path.Clean(fmt.Sprintf("/services/%s/movies/%s/streams/%s", params.ServiceTag, params.MovieId, format))
+	reader, contentType, err := h.proxy.ServeManifest(ctx, params.ServiceTag, contentKey, format, params.File, *locator, proxyBaseURL)
 	if err != nil {
 		return nil, proxyError(err)
 	}
@@ -453,7 +455,8 @@ func (h *Handler) GetEpisodeStreamFile(ctx context.Context, params oas.GetEpisod
 
 	// Proxy serve: provider returns upstream URL
 	contentKey := proxy.BuildContentKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId)
-	reader, contentType, err := h.proxy.ServeManifest(ctx, params.ServiceTag, contentKey, format, params.File, *locator)
+	proxyBaseURL := path.Clean(fmt.Sprintf("/services/%s/series/%s/seasons/%s/episodes/%s/streams/%s", params.ServiceTag, params.SeriesId, params.SeasonId, params.EpisodeId, format))
+	reader, contentType, err := h.proxy.ServeManifest(ctx, params.ServiceTag, contentKey, format, params.File, *locator, proxyBaseURL)
 	if err != nil {
 		return nil, proxyError(err)
 	}
@@ -468,6 +471,126 @@ func (h *Handler) GetEpisodeStreamSegment(ctx context.Context, params oas.GetEpi
 		return nil, proxyError(err)
 	}
 	return episodeSegmentResponseByType(reader, contentType)
+}
+
+// --- Movie HLS variant/rendition/DASH endpoints ---
+
+func (h *Handler) GetMovieHLSVariant(ctx context.Context, params oas.GetMovieHLSVariantParams) (oas.GetMovieHLSVariantRes, error) {
+	contentKey := proxy.BuildContentKey("movie", params.MovieId)
+	reader, _, err := h.proxy.ServeHLSSubPlaylist(ctx, params.ServiceTag, contentKey, "hls", "variants", strconv.Itoa(params.VariantIndex))
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return &oas.GetMovieHLSVariantOK{Data: reader}, nil
+}
+
+func (h *Handler) GetMovieHLSVariantSegment(ctx context.Context, params oas.GetMovieHLSVariantSegmentParams) (oas.GetMovieHLSVariantSegmentRes, error) {
+	contentKey := proxy.BuildContentKey("movie", params.MovieId)
+	reader, contentType, err := h.proxy.ServeHLSSegment(ctx, params.ServiceTag, contentKey, "hls", "variants", strconv.Itoa(params.VariantIndex), params.Segment)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return movieHLSVariantSegmentResponseByType(reader, contentType)
+}
+
+func (h *Handler) GetMovieHLSRendition(ctx context.Context, params oas.GetMovieHLSRenditionParams) (oas.GetMovieHLSRenditionRes, error) {
+	contentKey := proxy.BuildContentKey("movie", params.MovieId)
+	renditionID := params.GroupId + "/" + params.RenditionName
+	reader, _, err := h.proxy.ServeHLSSubPlaylist(ctx, params.ServiceTag, contentKey, "hls", "renditions", renditionID)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return &oas.GetMovieHLSRenditionOK{Data: reader}, nil
+}
+
+func (h *Handler) GetMovieHLSRenditionSegment(ctx context.Context, params oas.GetMovieHLSRenditionSegmentParams) (oas.GetMovieHLSRenditionSegmentRes, error) {
+	contentKey := proxy.BuildContentKey("movie", params.MovieId)
+	renditionID := params.GroupId + "/" + params.RenditionName
+	reader, contentType, err := h.proxy.ServeHLSSegment(ctx, params.ServiceTag, contentKey, "hls", "renditions", renditionID, params.Segment)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return movieHLSRenditionSegmentResponseByType(reader, contentType)
+}
+
+func (h *Handler) GetMovieDASHSegment(ctx context.Context, params oas.GetMovieDASHSegmentParams) (oas.GetMovieDASHSegmentRes, error) {
+	format := string(params.Format)
+	contentKey := proxy.BuildContentKey("movie", params.MovieId)
+	reader, contentType, err := h.proxy.ServeDASHSegment(ctx, params.ServiceTag, contentKey, format, params.Period, params.AdaptationSet, params.Representation, params.Segment)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return movieDashSegmentResponseByType(reader, contentType)
+}
+
+func (h *Handler) GetMovieDASHInit(ctx context.Context, params oas.GetMovieDASHInitParams) (oas.GetMovieDASHInitRes, error) {
+	format := string(params.Format)
+	contentKey := proxy.BuildContentKey("movie", params.MovieId)
+	reader, contentType, err := h.proxy.ServeDASHInit(ctx, params.ServiceTag, contentKey, format, params.Period, params.AdaptationSet, params.Representation)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return movieDashInitResponseByType(reader, contentType)
+}
+
+// --- Episode HLS variant/rendition/DASH endpoints ---
+
+func (h *Handler) GetEpisodeHLSVariant(ctx context.Context, params oas.GetEpisodeHLSVariantParams) (oas.GetEpisodeHLSVariantRes, error) {
+	contentKey := proxy.BuildContentKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId)
+	reader, _, err := h.proxy.ServeHLSSubPlaylist(ctx, params.ServiceTag, contentKey, "hls", "variants", strconv.Itoa(params.VariantIndex))
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return &oas.GetEpisodeHLSVariantOK{Data: reader}, nil
+}
+
+func (h *Handler) GetEpisodeHLSVariantSegment(ctx context.Context, params oas.GetEpisodeHLSVariantSegmentParams) (oas.GetEpisodeHLSVariantSegmentRes, error) {
+	contentKey := proxy.BuildContentKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId)
+	reader, contentType, err := h.proxy.ServeHLSSegment(ctx, params.ServiceTag, contentKey, "hls", "variants", strconv.Itoa(params.VariantIndex), params.Segment)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return episodeHLSVariantSegmentResponseByType(reader, contentType)
+}
+
+func (h *Handler) GetEpisodeHLSRendition(ctx context.Context, params oas.GetEpisodeHLSRenditionParams) (oas.GetEpisodeHLSRenditionRes, error) {
+	contentKey := proxy.BuildContentKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId)
+	renditionID := params.GroupId + "/" + params.RenditionName
+	reader, _, err := h.proxy.ServeHLSSubPlaylist(ctx, params.ServiceTag, contentKey, "hls", "renditions", renditionID)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return &oas.GetEpisodeHLSRenditionOK{Data: reader}, nil
+}
+
+func (h *Handler) GetEpisodeHLSRenditionSegment(ctx context.Context, params oas.GetEpisodeHLSRenditionSegmentParams) (oas.GetEpisodeHLSRenditionSegmentRes, error) {
+	contentKey := proxy.BuildContentKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId)
+	renditionID := params.GroupId + "/" + params.RenditionName
+	reader, contentType, err := h.proxy.ServeHLSSegment(ctx, params.ServiceTag, contentKey, "hls", "renditions", renditionID, params.Segment)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return episodeHLSRenditionSegmentResponseByType(reader, contentType)
+}
+
+func (h *Handler) GetEpisodeDASHSegment(ctx context.Context, params oas.GetEpisodeDASHSegmentParams) (oas.GetEpisodeDASHSegmentRes, error) {
+	format := string(params.Format)
+	contentKey := proxy.BuildContentKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId)
+	reader, contentType, err := h.proxy.ServeDASHSegment(ctx, params.ServiceTag, contentKey, format, params.Period, params.AdaptationSet, params.Representation, params.Segment)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return episodeDashSegmentResponseByType(reader, contentType)
+}
+
+func (h *Handler) GetEpisodeDASHInit(ctx context.Context, params oas.GetEpisodeDASHInitParams) (oas.GetEpisodeDASHInitRes, error) {
+	format := string(params.Format)
+	contentKey := proxy.BuildContentKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId)
+	reader, contentType, err := h.proxy.ServeDASHInit(ctx, params.ServiceTag, contentKey, format, params.Period, params.AdaptationSet, params.Representation)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return episodeDashInitResponseByType(reader, contentType)
 }
 
 // --- Stream response helpers ---
@@ -517,6 +640,86 @@ func episodeSegmentResponseByType(r io.Reader, contentType string) (oas.GetEpiso
 		return &oas.GetEpisodeStreamSegmentOKVideoMP4{Data: r}, nil
 	default:
 		return nil, fmt.Errorf("unsupported segment content type: %s", contentType)
+	}
+}
+
+func movieDashSegmentResponseByType(r io.Reader, contentType string) (oas.GetMovieDASHSegmentRes, error) {
+	switch contentType {
+	case "video/mp4":
+		return &oas.GetMovieDASHSegmentOK{Data: r}, nil
+	default:
+		return nil, fmt.Errorf("unsupported DASH segment content type: %s", contentType)
+	}
+}
+
+func movieHLSVariantSegmentResponseByType(r io.Reader, contentType string) (oas.GetMovieHLSVariantSegmentRes, error) {
+	switch contentType {
+	case "video/mp2t":
+		return &oas.GetMovieHLSVariantSegmentOKVideoMp2t{Data: r}, nil
+	case "video/mp4":
+		return &oas.GetMovieHLSVariantSegmentOKVideoMP4{Data: r}, nil
+	default:
+		return nil, fmt.Errorf("unsupported segment content type: %s", contentType)
+	}
+}
+
+func movieHLSRenditionSegmentResponseByType(r io.Reader, contentType string) (oas.GetMovieHLSRenditionSegmentRes, error) {
+	switch contentType {
+	case "video/mp2t":
+		return &oas.GetMovieHLSRenditionSegmentOKVideoMp2t{Data: r}, nil
+	case "video/mp4":
+		return &oas.GetMovieHLSRenditionSegmentOKVideoMP4{Data: r}, nil
+	default:
+		return nil, fmt.Errorf("unsupported segment content type: %s", contentType)
+	}
+}
+
+func movieDashInitResponseByType(r io.Reader, contentType string) (oas.GetMovieDASHInitRes, error) {
+	switch contentType {
+	case "video/mp4":
+		return &oas.GetMovieDASHInitOK{Data: r}, nil
+	default:
+		return nil, fmt.Errorf("unsupported DASH init content type: %s", contentType)
+	}
+}
+
+func episodeDashSegmentResponseByType(r io.Reader, contentType string) (oas.GetEpisodeDASHSegmentRes, error) {
+	switch contentType {
+	case "video/mp4":
+		return &oas.GetEpisodeDASHSegmentOK{Data: r}, nil
+	default:
+		return nil, fmt.Errorf("unsupported DASH segment content type: %s", contentType)
+	}
+}
+
+func episodeHLSVariantSegmentResponseByType(r io.Reader, contentType string) (oas.GetEpisodeHLSVariantSegmentRes, error) {
+	switch contentType {
+	case "video/mp2t":
+		return &oas.GetEpisodeHLSVariantSegmentOKVideoMp2t{Data: r}, nil
+	case "video/mp4":
+		return &oas.GetEpisodeHLSVariantSegmentOKVideoMP4{Data: r}, nil
+	default:
+		return nil, fmt.Errorf("unsupported segment content type: %s", contentType)
+	}
+}
+
+func episodeHLSRenditionSegmentResponseByType(r io.Reader, contentType string) (oas.GetEpisodeHLSRenditionSegmentRes, error) {
+	switch contentType {
+	case "video/mp2t":
+		return &oas.GetEpisodeHLSRenditionSegmentOKVideoMp2t{Data: r}, nil
+	case "video/mp4":
+		return &oas.GetEpisodeHLSRenditionSegmentOKVideoMP4{Data: r}, nil
+	default:
+		return nil, fmt.Errorf("unsupported segment content type: %s", contentType)
+	}
+}
+
+func episodeDashInitResponseByType(r io.Reader, contentType string) (oas.GetEpisodeDASHInitRes, error) {
+	switch contentType {
+	case "video/mp4":
+		return &oas.GetEpisodeDASHInitOK{Data: r}, nil
+	default:
+		return nil, fmt.Errorf("unsupported DASH init content type: %s", contentType)
 	}
 }
 
@@ -701,6 +904,326 @@ func episodeThumbnailResponse(r io.Reader, mimeType string) (oas.GetEpisodeThumb
 	}
 }
 
-// --- unused import guard ---
+// ── Movie HLS Resource Methods ─────────────────────────────────────────────
 
-var _ = strings.TrimSpace
+func (h *Handler) GetMovieVariantKey(ctx context.Context, params oas.GetMovieVariantKeyParams) (oas.GetMovieVariantKeyRes, error) {
+	contentKey := proxy.BuildContentKey("movie", params.MovieId)
+	resourceID := strconv.Itoa(params.VariantIndex) + "/" + params.File
+	reader, _, err := h.proxy.ServeHLSResource(ctx, params.ServiceTag, contentKey, "hls", "key", resourceID)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return &oas.GetMovieVariantKeyOK{Data: reader}, nil
+}
+
+func (h *Handler) GetMovieVariantPartial(ctx context.Context, params oas.GetMovieVariantPartialParams) (oas.GetMovieVariantPartialRes, error) {
+	contentKey := proxy.BuildContentKey("movie", params.MovieId)
+	resourceID := strconv.Itoa(params.VariantIndex) + "/" + params.File
+	reader, ct, err := h.proxy.ServeHLSResource(ctx, params.ServiceTag, contentKey, "hls", "partial", resourceID)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return movieVariantPartialResponse(reader, ct)
+}
+
+func (h *Handler) GetMovieVariantPreloadHint(ctx context.Context, params oas.GetMovieVariantPreloadHintParams) (oas.GetMovieVariantPreloadHintRes, error) {
+	contentKey := proxy.BuildContentKey("movie", params.MovieId)
+	resourceID := strconv.Itoa(params.VariantIndex) + "/" + params.File
+	reader, ct, err := h.proxy.ServeHLSResource(ctx, params.ServiceTag, contentKey, "hls", "preload-hint", resourceID)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return movieVariantPreloadHintResponse(reader, ct)
+}
+
+func (h *Handler) GetMovieRenditionKey(ctx context.Context, params oas.GetMovieRenditionKeyParams) (oas.GetMovieRenditionKeyRes, error) {
+	contentKey := proxy.BuildContentKey("movie", params.MovieId)
+	resourceID := params.GroupId + "/" + params.RenditionName + "/" + params.File
+	reader, _, err := h.proxy.ServeHLSResource(ctx, params.ServiceTag, contentKey, "hls", "key", resourceID)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return &oas.GetMovieRenditionKeyOK{Data: reader}, nil
+}
+
+func (h *Handler) GetMovieRenditionPartial(ctx context.Context, params oas.GetMovieRenditionPartialParams) (oas.GetMovieRenditionPartialRes, error) {
+	contentKey := proxy.BuildContentKey("movie", params.MovieId)
+	resourceID := params.GroupId + "/" + params.RenditionName + "/" + params.File
+	reader, ct, err := h.proxy.ServeHLSResource(ctx, params.ServiceTag, contentKey, "hls", "partial", resourceID)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return movieRenditionPartialResponse(reader, ct)
+}
+
+func (h *Handler) GetMovieRenditionPreloadHint(ctx context.Context, params oas.GetMovieRenditionPreloadHintParams) (oas.GetMovieRenditionPreloadHintRes, error) {
+	contentKey := proxy.BuildContentKey("movie", params.MovieId)
+	resourceID := params.GroupId + "/" + params.RenditionName + "/" + params.File
+	reader, ct, err := h.proxy.ServeHLSResource(ctx, params.ServiceTag, contentKey, "hls", "preload-hint", resourceID)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return movieRenditionPreloadHintResponse(reader, ct)
+}
+
+func (h *Handler) GetMovieHLSSessionKey(ctx context.Context, params oas.GetMovieHLSSessionKeyParams) (oas.GetMovieHLSSessionKeyRes, error) {
+	contentKey := proxy.BuildContentKey("movie", params.MovieId)
+	reader, _, err := h.proxy.ServeHLSResource(ctx, params.ServiceTag, contentKey, "hls", "session-key", params.File)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return &oas.GetMovieHLSSessionKeyOK{Data: reader}, nil
+}
+
+func (h *Handler) GetMovieHLSSessionData(ctx context.Context, params oas.GetMovieHLSSessionDataParams) (oas.GetMovieHLSSessionDataRes, error) {
+	contentKey := proxy.BuildContentKey("movie", params.MovieId)
+	reader, ct, err := h.proxy.ServeHLSResource(ctx, params.ServiceTag, contentKey, "hls", "session-data", params.File)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return movieHLSSessionDataResponse(reader, ct)
+}
+
+func (h *Handler) GetMovieHLSSteering(ctx context.Context, params oas.GetMovieHLSSteeringParams) (oas.GetMovieHLSSteeringRes, error) {
+	contentKey := proxy.BuildContentKey("movie", params.MovieId)
+	reader, ct, err := h.proxy.ServeHLSResource(ctx, params.ServiceTag, contentKey, "hls", "steering", "")
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return movieHLSSteeringResponse(reader, ct)
+}
+
+// ── Episode HLS Resource Methods ──────────────────────────────────────────
+
+func (h *Handler) GetEpisodeVariantKey(ctx context.Context, params oas.GetEpisodeVariantKeyParams) (oas.GetEpisodeVariantKeyRes, error) {
+	contentKey := proxy.BuildContentKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId)
+	resourceID := strconv.Itoa(params.VariantIndex) + "/" + params.File
+	reader, _, err := h.proxy.ServeHLSResource(ctx, params.ServiceTag, contentKey, "hls", "key", resourceID)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return &oas.GetEpisodeVariantKeyOK{Data: reader}, nil
+}
+
+func (h *Handler) GetEpisodeVariantPartial(ctx context.Context, params oas.GetEpisodeVariantPartialParams) (oas.GetEpisodeVariantPartialRes, error) {
+	contentKey := proxy.BuildContentKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId)
+	resourceID := strconv.Itoa(params.VariantIndex) + "/" + params.File
+	reader, ct, err := h.proxy.ServeHLSResource(ctx, params.ServiceTag, contentKey, "hls", "partial", resourceID)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return episodeVariantPartialResponse(reader, ct)
+}
+
+func (h *Handler) GetEpisodeVariantPreloadHint(ctx context.Context, params oas.GetEpisodeVariantPreloadHintParams) (oas.GetEpisodeVariantPreloadHintRes, error) {
+	contentKey := proxy.BuildContentKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId)
+	resourceID := strconv.Itoa(params.VariantIndex) + "/" + params.File
+	reader, ct, err := h.proxy.ServeHLSResource(ctx, params.ServiceTag, contentKey, "hls", "preload-hint", resourceID)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return episodeVariantPreloadHintResponse(reader, ct)
+}
+
+func (h *Handler) GetEpisodeRenditionKey(ctx context.Context, params oas.GetEpisodeRenditionKeyParams) (oas.GetEpisodeRenditionKeyRes, error) {
+	contentKey := proxy.BuildContentKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId)
+	resourceID := params.GroupId + "/" + params.RenditionName + "/" + params.File
+	reader, _, err := h.proxy.ServeHLSResource(ctx, params.ServiceTag, contentKey, "hls", "key", resourceID)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return &oas.GetEpisodeRenditionKeyOK{Data: reader}, nil
+}
+
+func (h *Handler) GetEpisodeRenditionPartial(ctx context.Context, params oas.GetEpisodeRenditionPartialParams) (oas.GetEpisodeRenditionPartialRes, error) {
+	contentKey := proxy.BuildContentKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId)
+	resourceID := params.GroupId + "/" + params.RenditionName + "/" + params.File
+	reader, ct, err := h.proxy.ServeHLSResource(ctx, params.ServiceTag, contentKey, "hls", "partial", resourceID)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return episodeRenditionPartialResponse(reader, ct)
+}
+
+func (h *Handler) GetEpisodeRenditionPreloadHint(ctx context.Context, params oas.GetEpisodeRenditionPreloadHintParams) (oas.GetEpisodeRenditionPreloadHintRes, error) {
+	contentKey := proxy.BuildContentKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId)
+	resourceID := params.GroupId + "/" + params.RenditionName + "/" + params.File
+	reader, ct, err := h.proxy.ServeHLSResource(ctx, params.ServiceTag, contentKey, "hls", "preload-hint", resourceID)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return episodeRenditionPreloadHintResponse(reader, ct)
+}
+
+func (h *Handler) GetEpisodeHLSSessionKey(ctx context.Context, params oas.GetEpisodeHLSSessionKeyParams) (oas.GetEpisodeHLSSessionKeyRes, error) {
+	contentKey := proxy.BuildContentKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId)
+	reader, _, err := h.proxy.ServeHLSResource(ctx, params.ServiceTag, contentKey, "hls", "session-key", params.File)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return &oas.GetEpisodeHLSSessionKeyOK{Data: reader}, nil
+}
+
+func (h *Handler) GetEpisodeHLSSessionData(ctx context.Context, params oas.GetEpisodeHLSSessionDataParams) (oas.GetEpisodeHLSSessionDataRes, error) {
+	contentKey := proxy.BuildContentKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId)
+	reader, ct, err := h.proxy.ServeHLSResource(ctx, params.ServiceTag, contentKey, "hls", "session-data", params.File)
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return episodeHLSSessionDataResponse(reader, ct)
+}
+
+func (h *Handler) GetEpisodeHLSSteering(ctx context.Context, params oas.GetEpisodeHLSSteeringParams) (oas.GetEpisodeHLSSteeringRes, error) {
+	contentKey := proxy.BuildContentKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId)
+	reader, ct, err := h.proxy.ServeHLSResource(ctx, params.ServiceTag, contentKey, "hls", "steering", "")
+	if err != nil {
+		return nil, proxyError(err)
+	}
+	return episodeHLSSteeringResponse(reader, ct)
+}
+
+// ── HLS Resource Response Helpers ─────────────────────────────────────────
+
+func movieVariantPartialResponse(r io.Reader, ct string) (oas.GetMovieVariantPartialRes, error) {
+	switch ct {
+	case "video/mp4":
+		return &oas.GetMovieVariantPartialOKVideoMP4{Data: r}, nil
+	case "video/mp2t":
+		return &oas.GetMovieVariantPartialOKVideoMp2t{Data: r}, nil
+	default:
+		return &oas.GetMovieVariantPartialOKVideoMp2t{Data: r}, nil
+	}
+}
+
+func movieVariantPreloadHintResponse(r io.Reader, ct string) (oas.GetMovieVariantPreloadHintRes, error) {
+	switch ct {
+	case "video/mp4":
+		return &oas.GetMovieVariantPreloadHintOKVideoMP4{Data: r}, nil
+	case "video/mp2t":
+		return &oas.GetMovieVariantPreloadHintOKVideoMp2t{Data: r}, nil
+	default:
+		return &oas.GetMovieVariantPreloadHintOKVideoMp2t{Data: r}, nil
+	}
+}
+
+func movieRenditionPartialResponse(r io.Reader, ct string) (oas.GetMovieRenditionPartialRes, error) {
+	switch ct {
+	case "video/mp4":
+		return &oas.GetMovieRenditionPartialOKVideoMP4{Data: r}, nil
+	case "video/mp2t":
+		return &oas.GetMovieRenditionPartialOKVideoMp2t{Data: r}, nil
+	default:
+		return &oas.GetMovieRenditionPartialOKVideoMp2t{Data: r}, nil
+	}
+}
+
+func movieRenditionPreloadHintResponse(r io.Reader, ct string) (oas.GetMovieRenditionPreloadHintRes, error) {
+	switch ct {
+	case "video/mp4":
+		return &oas.GetMovieRenditionPreloadHintOKVideoMP4{Data: r}, nil
+	case "video/mp2t":
+		return &oas.GetMovieRenditionPreloadHintOKVideoMp2t{Data: r}, nil
+	default:
+		return &oas.GetMovieRenditionPreloadHintOKVideoMp2t{Data: r}, nil
+	}
+}
+
+func movieHLSSessionDataResponse(r io.Reader, ct string) (oas.GetMovieHLSSessionDataRes, error) {
+	switch ct {
+	case "application/json":
+		data, err := io.ReadAll(r)
+		if err != nil {
+			return nil, err
+		}
+		s := oas.GetMovieHLSSessionDataOKApplicationJSON(string(data))
+		return &s, nil
+	default:
+		return &oas.GetMovieHLSSessionDataOKTextPlain{Data: r}, nil
+	}
+}
+
+func movieHLSSteeringResponse(r io.Reader, ct string) (oas.GetMovieHLSSteeringRes, error) {
+	switch ct {
+	case "application/json":
+		data, err := io.ReadAll(r)
+		if err != nil {
+			return nil, err
+		}
+		s := oas.GetMovieHLSSteeringOKApplicationJSON(string(data))
+		return &s, nil
+	default:
+		return &oas.GetMovieHLSSteeringOKApplicationVndAppleMpegurl{Data: r}, nil
+	}
+}
+
+func episodeVariantPartialResponse(r io.Reader, ct string) (oas.GetEpisodeVariantPartialRes, error) {
+	switch ct {
+	case "video/mp4":
+		return &oas.GetEpisodeVariantPartialOKVideoMP4{Data: r}, nil
+	case "video/mp2t":
+		return &oas.GetEpisodeVariantPartialOKVideoMp2t{Data: r}, nil
+	default:
+		return &oas.GetEpisodeVariantPartialOKVideoMp2t{Data: r}, nil
+	}
+}
+
+func episodeVariantPreloadHintResponse(r io.Reader, ct string) (oas.GetEpisodeVariantPreloadHintRes, error) {
+	switch ct {
+	case "video/mp4":
+		return &oas.GetEpisodeVariantPreloadHintOKVideoMP4{Data: r}, nil
+	case "video/mp2t":
+		return &oas.GetEpisodeVariantPreloadHintOKVideoMp2t{Data: r}, nil
+	default:
+		return &oas.GetEpisodeVariantPreloadHintOKVideoMp2t{Data: r}, nil
+	}
+}
+
+func episodeRenditionPartialResponse(r io.Reader, ct string) (oas.GetEpisodeRenditionPartialRes, error) {
+	switch ct {
+	case "video/mp4":
+		return &oas.GetEpisodeRenditionPartialOKVideoMP4{Data: r}, nil
+	case "video/mp2t":
+		return &oas.GetEpisodeRenditionPartialOKVideoMp2t{Data: r}, nil
+	default:
+		return &oas.GetEpisodeRenditionPartialOKVideoMp2t{Data: r}, nil
+	}
+}
+
+func episodeRenditionPreloadHintResponse(r io.Reader, ct string) (oas.GetEpisodeRenditionPreloadHintRes, error) {
+	switch ct {
+	case "video/mp4":
+		return &oas.GetEpisodeRenditionPreloadHintOKVideoMP4{Data: r}, nil
+	case "video/mp2t":
+		return &oas.GetEpisodeRenditionPreloadHintOKVideoMp2t{Data: r}, nil
+	default:
+		return &oas.GetEpisodeRenditionPreloadHintOKVideoMp2t{Data: r}, nil
+	}
+}
+
+func episodeHLSSessionDataResponse(r io.Reader, ct string) (oas.GetEpisodeHLSSessionDataRes, error) {
+	switch ct {
+	case "application/json":
+		data, err := io.ReadAll(r)
+		if err != nil {
+			return nil, err
+		}
+		s := oas.GetEpisodeHLSSessionDataOKApplicationJSON(string(data))
+		return &s, nil
+	default:
+		return &oas.GetEpisodeHLSSessionDataOKTextPlain{Data: r}, nil
+	}
+}
+
+func episodeHLSSteeringResponse(r io.Reader, ct string) (oas.GetEpisodeHLSSteeringRes, error) {
+	switch ct {
+	case "application/json":
+		data, err := io.ReadAll(r)
+		if err != nil {
+			return nil, err
+		}
+		s := oas.GetEpisodeHLSSteeringOKApplicationJSON(string(data))
+		return &s, nil
+	default:
+		return &oas.GetEpisodeHLSSteeringOKApplicationVndAppleMpegurl{Data: r}, nil
+	}
+}

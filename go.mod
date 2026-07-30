@@ -8,9 +8,10 @@ tool (
 )
 
 require (
+	github.com/Eyevinn/dash-mpd v0.16.0
+	github.com/Eyevinn/hls-m3u8 v0.6.5
 	github.com/a-h/templ v0.3.1020
 	github.com/adrg/strutil v0.3.1
-	github.com/alanzng/manifestor v0.9.0
 	github.com/go-faster/errors v0.7.1
 	github.com/go-faster/jx v1.2.0
 	github.com/ogen-go/ogen v1.23.0
@@ -24,6 +25,7 @@ require (
 require (
 	github.com/a-h/parse v0.0.0-20250122154542-74294addb73e // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
+	github.com/barkimedes/go-deepcopy v0.0.0-20220514131651-17c30cfc62df // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cli/browser v1.3.0 // indirect

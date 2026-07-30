@@ -68,7 +68,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle(cfg.Server.APIPrefix+"/", middleware.ApiSecurity(srv))
+	mux.Handle(cfg.Server.APIPrefix+"/", middleware.PathSanitize(middleware.ApiSecurity(srv)))
 	mux.Handle("/", middleware.FrontendSecurity(webHandler))
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)

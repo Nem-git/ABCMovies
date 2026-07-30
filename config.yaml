@@ -98,3 +98,5 @@ services:
     country: CA
     languages: [en, fr]
     url: https://gem.cbc.ca
+    proxy:
+      strategy: hls
