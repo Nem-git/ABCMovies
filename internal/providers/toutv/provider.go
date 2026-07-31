@@ -1,11 +1,11 @@
-package cbc
+package toutv
 
 import (
 	"github.com/nem-git/abcmovies/internal/oas"
 	"github.com/nem-git/abcmovies/internal/providers/rcmedia"
 )
 
-const appCode = "gem"
+const appCode = "toutv"
 
 type Config struct {
 	Tag     string

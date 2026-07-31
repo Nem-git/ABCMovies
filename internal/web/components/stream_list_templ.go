@@ -8,7 +8,10 @@ package components
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import "github.com/nem-git/abcmovies/internal/oas"
+import (
+	"github.com/nem-git/abcmovies/internal/oas"
+	"github.com/nem-git/abcmovies/internal/streamfmt"
+)
 
 func StreamList(streams []oas.Stream, baseURL string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -42,9 +45,9 @@ func StreamList(streams []oas.Stream, baseURL string) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var2 templ.SafeURL
-				templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinURLErrs(baseURL + "/" + s.ID)
+				templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinURLErrs(baseURL + "/" + streamfmt.ShortName(s.EncodingFormat) + "/" + s.ID)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/stream_list.templ`, Line: 11, Col: 35}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/stream_list.templ`, Line: 14, Col: 81}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 				if templ_7745c5c3_Err != nil {
@@ -57,7 +60,7 @@ func StreamList(streams []oas.Stream, baseURL string) templ.Component {
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(s.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/stream_list.templ`, Line: 12, Col: 40}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/stream_list.templ`, Line: 15, Col: 40}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -67,7 +70,7 @@ func StreamList(streams []oas.Stream, baseURL string) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var4 = []any{"text-xs font-medium px-2 py-1 rounded", streamBadgeColor(string(s.EncodingFormat))}
+				var templ_7745c5c3_Var4 = []any{"text-xs font-medium px-2 py-1 rounded", streamfmt.BadgeColor(s.EncodingFormat)}
 				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var4...)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -90,9 +93,9 @@ func StreamList(streams []oas.Stream, baseURL string) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var6 string
-				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(streamBadgeLabel(string(s.EncodingFormat)))
+				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(streamfmt.Label(s.EncodingFormat))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/stream_list.templ`, Line: 14, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/stream_list.templ`, Line: 17, Col: 42}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -110,32 +113,6 @@ func StreamList(streams []oas.Stream, baseURL string) templ.Component {
 		}
 		return nil
 	})
-}
-
-func streamBadgeColor(format string) string {
-	switch format {
-	case "application/dash+xml":
-		return "bg-green-900/60 text-green-300"
-	case "application/vnd.apple.mpegurl":
-		return "bg-blue-900/60 text-blue-300"
-	case "video/mp4":
-		return "bg-purple-900/60 text-purple-300"
-	default:
-		return "bg-gray-700 text-gray-300"
-	}
-}
-
-func streamBadgeLabel(format string) string {
-	switch format {
-	case "application/dash+xml":
-		return "DASH"
-	case "application/vnd.apple.mpegurl":
-		return "HLS"
-	case "video/mp4":
-		return "MP4"
-	default:
-		return format
-	}
 }
 
 var _ = templruntime.GeneratedTemplate

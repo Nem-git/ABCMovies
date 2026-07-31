@@ -1,4 +1,4 @@
-package cbc
+package rcmedia
 
 import (
 	"context"
@@ -11,50 +11,52 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nem-git/abcmovies/internal/providers/cbc/types"
+	"github.com/nem-git/abcmovies/internal/providers/rcmedia/types"
 )
 
 const defaultTimeout = 30 * time.Second
 
-// production API base URLs
 const (
-	browseUrl           = "https://services.radio-canada.ca/ott/catalog/v2/gem/browse"
-	categoryUrl         = "https://services.radio-canada.ca/ott/catalog/v2/gem/category"
-	showUrl             = "https://services.radio-canada.ca/ott/catalog/v2/gem/show"
-	searchUrl           = "https://services.radio-canada.ca/ott/catalog/v2/gem/search"
-	streamMetaUrl       = "https://services.radio-canada.ca/media/meta/v1/index.ashx"
-	streamValidationUrl = "https://services.radio-canada.ca/media/validation/v2/"
+	catalogProdBase = "https://services.radio-canada.ca"
+	streamMetaPath  = "/media/meta/v1/index.ashx"
+	streamValPath   = "/media/validation/v2/"
 )
 
 type clientOptions struct {
 	httpClient *http.Client
-	baseURL    string // test server URL override
+	baseURL    string
 }
 
 type client struct {
 	httpClient *http.Client
 	baseURL    string
 	userAgent  string
+	appCode    string
 }
 
-func newClient() *client {
-	return newClientWithOpts(clientOptions{})
-}
-
-func newClientWithOpts(opts clientOptions) *client {
+func newClient(appCode string, opts clientOptions) *client {
 	hc := opts.httpClient
 	if hc == nil {
 		hc = &http.Client{Timeout: defaultTimeout}
 	}
+	base := opts.baseURL
+	if base == "" {
+		base = catalogProdBase
+	}
 	return &client{
 		httpClient: hc,
-		baseURL:    opts.baseURL,
+		baseURL:    base,
 		userAgent:  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+		appCode:    appCode,
 	}
 }
 
+func (c *client) catalogURL(path string) string {
+	return catalogProdBase + "/ott/catalog/v2/" + c.appCode + path
+}
+
 func (c *client) getBrowse(ctx context.Context) error {
-	body, _, err := c.getRaw(ctx, browseUrl, map[string]string{"device": "web"})
+	body, _, err := c.getRaw(ctx, c.catalogURL("/browse"), map[string]string{"device": "web"})
 	if err != nil {
 		return err
 	}
@@ -71,14 +73,14 @@ func (c *client) search(ctx context.Context, term string, page, pageSize int) (*
 	if pageSize > 0 {
 		params["pageSize"] = strconv.Itoa(pageSize)
 	}
-	if err := c.getJSON(ctx, searchUrl, params, &resp); err != nil {
+	if err := c.getJSON(ctx, c.catalogURL("/search"), params, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
 func (c *client) getCategory(ctx context.Context, category string, page, pageSize int) (*types.CategoryResponse, error) {
-	u := categoryUrl + "/" + url.PathEscape(category)
+	u := c.catalogURL("/category/" + url.PathEscape(category))
 	params := map[string]string{"device": "web"}
 	if page > 0 {
 		params["pageNumber"] = strconv.Itoa(page)
@@ -94,7 +96,7 @@ func (c *client) getCategory(ctx context.Context, category string, page, pageSiz
 }
 
 func (c *client) getShow(ctx context.Context, showId string) (*types.ShowResponse, error) {
-	u := showUrl + "/" + url.PathEscape(showId)
+	u := c.catalogURL("/show/" + url.PathEscape(showId))
 	var resp types.ShowResponse
 	if err := c.getJSON(ctx, u, map[string]string{"device": "web"}, &resp); err != nil {
 		return nil, err
@@ -103,7 +105,7 @@ func (c *client) getShow(ctx context.Context, showId string) (*types.ShowRespons
 }
 
 func (c *client) getSeason(ctx context.Context, showId, seasonId string) (*types.ShowResponse, error) {
-	u := strings.Join([]string{showUrl, url.PathEscape(showId), url.PathEscape(seasonId)}, "/")
+	u := strings.Join([]string{c.catalogURL(""), "show", url.PathEscape(showId), url.PathEscape(seasonId)}, "/")
 	var resp types.ShowResponse
 	if err := c.getJSON(ctx, u, map[string]string{"device": "web"}, &resp); err != nil {
 		return nil, err
@@ -111,23 +113,23 @@ func (c *client) getSeason(ctx context.Context, showId, seasonId string) (*types
 	return &resp, nil
 }
 
-func (c *client) getStreamMeta(ctx context.Context, idMedia, appCode, tech string) (*types.StreamMetaResponse, error) {
+func (c *client) getStreamMeta(ctx context.Context, idMedia string) (*types.StreamMetaResponse, error) {
 	var resp types.StreamMetaResponse
 	params := map[string]string{
-		"appCode": appCode,
+		"appCode": c.appCode,
 		"idMedia": idMedia,
 		"output":  "jsonObject",
 	}
-	if err := c.getJSON(ctx, streamMetaUrl, params, &resp); err != nil {
+	if err := c.getJSON(ctx, catalogProdBase+streamMetaPath, params, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
-func (c *client) getStreamValidation(ctx context.Context, idMedia, appCode, tech string) (*types.StreamValidationResponse, error) {
+func (c *client) getStreamValidation(ctx context.Context, idMedia, tech string) (*types.StreamValidationResponse, error) {
 	var resp types.StreamValidationResponse
 	params := map[string]string{
-		"appCode":        appCode,
+		"appCode":        c.appCode,
 		"connectionType": "hd",
 		"deviceType":     "multiams",
 		"idMedia":        idMedia,
@@ -136,7 +138,7 @@ func (c *client) getStreamValidation(ctx context.Context, idMedia, appCode, tech
 		"tech":           tech,
 		"manifestType":   "desktop",
 	}
-	if err := c.getJSON(ctx, streamValidationUrl, params, &resp); err != nil {
+	if err := c.getJSON(ctx, catalogProdBase+streamValPath, params, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil

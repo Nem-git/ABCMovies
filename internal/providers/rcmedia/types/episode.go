@@ -2,8 +2,6 @@ package types
 
 import "time"
 
-// External
-
 type EpisodeExternalResponse struct {
 	ContentID                              string    `json:"content.id"`
 	ContentMediaID                         string    `json:"content.mediaId"`

@@ -1,0 +1,18 @@
+package pages
+
+import (
+	"github.com/nem-git/abcmovies/internal/oas"
+	"github.com/nem-git/abcmovies/internal/web/components"
+	"github.com/nem-git/abcmovies/internal/web/layouts"
+)
+
+templ EpisodePlayer(tag string, seriesID string, seasonID string, episode *oas.Episode, streamURL string) {
+	@layouts.Player(episode.Name) {
+		@components.PlayerContainer(
+			episode.Name,
+			streamURL,
+			episode.Poster.Value.String(),
+			"/services/"+tag+"/series/"+seriesID+"/seasons/"+seasonID+"/episodes/"+episode.ID,
+		)
+	}
+}

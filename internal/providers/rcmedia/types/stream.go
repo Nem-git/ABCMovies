@@ -2,15 +2,6 @@ package types
 
 import "time"
 
-// Meta
-// Example:
-// https://services.radio-canada.ca/media/meta/v1/index.ashx
-// params {
-//   appCode: gem,
-//   idMedia: 990148,
-//   output: jsonObject
-// }
-
 type StreamMetaResponse struct {
 	ErrorMessage   *ErrorMessage    `json:"errorMessage"`
 	AvailableTechs []AvailableTechs `json:"availableTechs"`
@@ -54,7 +45,7 @@ type Metas struct {
 	AvEmission           string `json:"Av-Emission"`
 	Title                string `json:"Title"`
 	TitleID              string `json:"TitleID"`
-	Author               string `json:"Author"` // Ex: Alex A in L'agent Jean
+	Author               string `json:"Author"`
 	Chapitres            string `json:"Chapitres"`
 	ClipType             string `json:"ClipType"`
 	Description          string `json:"Description"`
@@ -98,21 +89,6 @@ type Metas struct {
 	GeoPassed            string `json:"geoPassed"`
 }
 
-// Validation
-// Example:
-// https://services.radio-canada.ca/media/validation/v2/
-// params {
-//   appCode: gem,
-//   connectionType: hd,
-//   deviceType: ipad,
-//   idMedia: 990148,
-//   multibitrate: true,
-//   output: json,
-//   tech: hls,
-//   manifestVersion: 2,
-//   manifestType: desktop
-// }
-
 type StreamValidationResponse struct {
 	URL       string    `json:"url"`
 	Message   string    `json:"message"`
@@ -131,6 +107,6 @@ type Bitrate struct {
 	Width   int       `json:"width"`
 	Height  int       `json:"height"`
 	Lines   string    `json:"lines"`
-	Param   time.Time `json:"param"` // just waiting for it to break to see what type to put
+	Param   time.Time `json:"param"`
 	Max     int       `json:"max"`
 }

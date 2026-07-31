@@ -96,7 +96,17 @@ services:
     name: CBC Gem
     description: CBC Gem streaming service from the Canadian Broadcasting Corporation
     country: CA
-    languages: [en, fr]
+    languages: [en]
     url: https://gem.cbc.ca
+    proxy:
+      strategy: hls
+
+  - tag: TOU
+    type: toutv
+    name: Ici TOU.TV
+    description: ICI Tou.TV French Canadian video-on-demand website by the Canadian Broadcasting Corporation
+    country: CA
+    languages: [fr]
+    url: https://ici.tou.tv
     proxy:
       strategy: hls

@@ -13,6 +13,7 @@ import (
 	"github.com/nem-git/abcmovies/internal/provider"
 	"github.com/nem-git/abcmovies/internal/registry"
 	"github.com/nem-git/abcmovies/internal/search"
+	"github.com/nem-git/abcmovies/internal/streamfmt"
 	"github.com/nem-git/abcmovies/internal/web/fragments"
 	"github.com/nem-git/abcmovies/internal/web/layouts"
 	"github.com/nem-git/abcmovies/internal/web/pages"
@@ -39,6 +40,8 @@ func New(r *registry.Registry, baseURL, apiPrefix string) *Handler {
 	mux.HandleFunc("GET /search", h.handleSearch)
 	mux.HandleFunc("GET /services/{tag}", h.handleServiceByTag)
 	mux.HandleFunc("GET /services/{tag}/movies", h.handleServiceMovies)
+	mux.HandleFunc("GET /services/{tag}/movies/{id}/player", h.handleServiceMoviePlayer)
+	mux.HandleFunc("GET /services/{tag}/series/{id}/seasons/{sid}/episodes/{eid}/player", h.handleServiceEpisodePlayer)
 	mux.HandleFunc("GET /services/{tag}/movies/{id}", h.handleServiceMovieByID)
 	mux.HandleFunc("GET /services/{tag}/series", h.handleServiceSeries)
 	mux.HandleFunc("GET /services/{tag}/series/{id}", h.handleServiceSeriesByID)
@@ -426,6 +429,117 @@ func (h *Handler) handleServiceEpisodeByID(w http.ResponseWriter, r *http.Reques
 
 	streamURL := h.apiBaseURL() + "/services/" + tag + "/series/" + id + "/seasons/" + sid + "/episodes/" + eid + "/streams"
 	h.servePage(w, r, pages.EpisodeDetail(tag, id, sid, episode, streams, streamURL))
+}
+
+func (h *Handler) handleServiceMoviePlayer(w http.ResponseWriter, r *http.Request) {
+	tag, err := h.getPathValue("tag", r)
+	if err != nil {
+		h.servePage(w, r, layouts.ErrorPage("Player", "We couldn't find that streaming service.", "/services"))
+		return
+	}
+
+	id, err := h.getPathValue("id", r)
+	if err != nil {
+		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that movie.", "/services/"+tag+"/movies"))
+		return
+	}
+
+	p, err := h.registry.Get(tag)
+	if err != nil {
+		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that streaming service.", "/services/"+tag+"/movies"))
+		return
+	}
+
+	movie, err := p.GetMovieById(r.Context(), id)
+	if err != nil {
+		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that movie.", "/services/"+tag+"/movies"))
+		return
+	}
+
+	streams, _, err := p.GetMovieStreams(r.Context(), id)
+	if err != nil || len(streams) == 0 {
+		h.servePage(w, r, layouts.ErrorPage(tag, "No streams available for this movie.", "/services/"+tag+"/movies/"+id))
+		return
+	}
+
+	best := pickBestStream(streams)
+	if best == nil {
+		h.servePage(w, r, layouts.ErrorPage(tag, "No compatible streams available.", "/services/"+tag+"/movies/"+id))
+		return
+	}
+
+	streamURL := h.apiBaseURL() + "/services/" + tag + "/movies/" + id + "/streams/" + streamfmt.ShortName(best.EncodingFormat) + "/" + best.ID
+	h.servePage(w, r, pages.MoviePlayer(tag, id, movie, streamURL))
+}
+
+func (h *Handler) handleServiceEpisodePlayer(w http.ResponseWriter, r *http.Request) {
+	tag, err := h.getPathValue("tag", r)
+	if err != nil {
+		h.servePage(w, r, layouts.ErrorPage("Player", "We couldn't find that streaming service.", "/services"))
+		return
+	}
+
+	id, err := h.getPathValue("id", r)
+	if err != nil {
+		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that series.", "/services/"+tag+"/series"))
+		return
+	}
+
+	sid, err := h.getPathValue("sid", r)
+	if err != nil {
+		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that season.", "/services/"+tag+"/series/"+id))
+		return
+	}
+
+	eid, err := h.getPathValue("eid", r)
+	if err != nil {
+		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that episode.", "/services/"+tag+"/series/"+id+"/seasons/"+sid))
+		return
+	}
+
+	p, err := h.registry.Get(tag)
+	if err != nil {
+		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that streaming service.", "/services/"+tag+"/series/"+id+"/seasons/"+sid))
+		return
+	}
+
+	episode, err := p.GetEpisodeById(r.Context(), id, sid, eid)
+	if err != nil {
+		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that episode.", "/services/"+tag+"/series/"+id+"/seasons/"+sid))
+		return
+	}
+
+	streams, _, err := p.GetEpisodeStreams(r.Context(), id, sid, eid)
+	if err != nil || len(streams) == 0 {
+		h.servePage(w, r, layouts.ErrorPage(tag, "No streams available for this episode.", "/services/"+tag+"/series/"+id+"/seasons/"+sid+"/episodes/"+eid))
+		return
+	}
+
+	best := pickBestStream(streams)
+	if best == nil {
+		h.servePage(w, r, layouts.ErrorPage(tag, "No compatible streams available.", "/services/"+tag+"/series/"+id+"/seasons/"+sid+"/episodes/"+eid))
+		return
+	}
+
+	streamURL := h.apiBaseURL() + "/services/" + tag + "/series/" + id + "/seasons/" + sid + "/episodes/" + eid + "/streams/" + streamfmt.ShortName(best.EncodingFormat) + "/" + best.ID
+	h.servePage(w, r, pages.EpisodePlayer(tag, id, sid, episode, streamURL))
+}
+
+func pickBestStream(streams []oas.Stream) *oas.Stream {
+	for _, s := range streams {
+		if s.EncodingFormat == oas.StreamEncodingFormatApplicationDashXML {
+			return &s
+		}
+	}
+	for _, s := range streams {
+		if s.EncodingFormat == oas.StreamEncodingFormatApplicationVndAppleMpegurl {
+			return &s
+		}
+	}
+	if len(streams) > 0 {
+		return &streams[0]
+	}
+	return nil
 }
 
 func parsePagination(r *http.Request) (limit, offset int) {

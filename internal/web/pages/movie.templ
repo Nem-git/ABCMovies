@@ -39,6 +39,12 @@ templ MovieDetail(tag string, movie *oas.Movie, streams []oas.Stream, streamURL 
 					</div>
 				</div>
 			}
+			if len(streams) > 0 {
+				<a href={ "/services/" + tag + "/movies/" + movie.ID + "/player" } class="mt-6 flex items-center justify-center gap-2 w-full bg-red-600 hover:bg-red-700 transition text-white font-semibold py-3 px-6 rounded-lg">
+					<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+					Play
+				</a>
+			}
 			@components.StreamList(streams, streamURL)
 		</div>
 	}

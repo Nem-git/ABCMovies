@@ -54,6 +54,8 @@ func TestHealth(t *testing.T) {
 func TestGetSeriesByID(t *testing.T) {
 	ts := showTestServer(t, `
 	{
+		"title": "Schitt's Creek",
+		"description": "A wealthy family loses everything.",
 		"content": [{
 			"items": {"results": [
 				{
@@ -110,7 +112,7 @@ func TestGetSeriesByID_nonexistent(t *testing.T) {
 func TestGetSeries(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ott/catalog/v2/gem/category/shows", func(w http.ResponseWriter, r *http.Request) {
-		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+		page, _ := strconv.Atoi(r.URL.Query().Get("pageNumber"))
 		pageSize, _ := strconv.Atoi(r.URL.Query().Get("pageSize"))
 		w.Header().Set("Content-Type", "application/json")
 		switch {
@@ -124,8 +126,8 @@ func TestGetSeries(t *testing.T) {
 							"pageNumber":   1,
 							"pageSize":     2,
 							"results": []map[string]any{
-								{"type": "show", "title": "Show A", "url": "show-a", "description": "Desc A", "images": map[string]any{"card": map[string]any{"url": "https://img.example.com/a.jpg"}}},
-								{"type": "show", "title": "Show B", "url": "show-b", "description": "Desc B"},
+								{"title": "Show A", "url": "show-a", "description": "Desc A", "images": map[string]any{"card": map[string]any{"url": "https://img.example.com/a.jpg"}}},
+								{"title": "Show B", "url": "show-b", "description": "Desc B"},
 							},
 						},
 					},
@@ -141,7 +143,7 @@ func TestGetSeries(t *testing.T) {
 							"pageNumber":   2,
 							"pageSize":     2,
 							"results": []map[string]any{
-								{"type": "show", "title": "Show C", "url": "show-c", "description": "Desc C"},
+								{"title": "Show C", "url": "show-c", "description": "Desc C"},
 							},
 						},
 					},
@@ -226,8 +228,9 @@ func TestGetSeries(t *testing.T) {
 func TestGetSeasons(t *testing.T) {
 	ts := showTestServer(t, `
 	{
+		"title": "S",
 		"content": [{
-			"items": {"results": [{"type": "show", "title": "S", "url": "s"}]},
+			"items": {"results": [{"title": "S", "url": "s"}]},
 			"lineups": [
 				{"seasonNumber": 1, "title": "Season 1", "items": [{"idMedia": 101, "title": "Ep1"}]},
 				{"seasonNumber": 2, "title": "Season 2", "items": [{"idMedia": 201, "title": "Ep2"}]},
@@ -259,8 +262,9 @@ func TestGetSeasons(t *testing.T) {
 func TestGetSeasons_pagination(t *testing.T) {
 	ts := showTestServer(t, `
 	{
+		"title": "S",
 		"content": [{
-			"items": {"results": [{"type": "show", "title": "S", "url": "s"}]},
+			"items": {"results": [{"title": "S", "url": "s"}]},
 			"lineups": [
 				{"seasonNumber": 1, "items": [{"idMedia": 1}]},
 				{"seasonNumber": 2, "items": [{"idMedia": 2}]},
@@ -323,8 +327,9 @@ func TestGetSeasons_pagination(t *testing.T) {
 func TestGetSeasonById(t *testing.T) {
 	ts := showTestServer(t, `
 	{
+		"title": "S",
 		"content": [{
-			"items": {"results": [{"type": "show", "title": "S", "url": "s"}]},
+			"items": {"results": [{"title": "S", "url": "s"}]},
 			"lineups": [
 				{"seasonNumber": 1, "items": []},
 				{"seasonNumber": 2, "items": []}
@@ -356,8 +361,9 @@ func TestGetSeasonById(t *testing.T) {
 func TestGetEpisodes(t *testing.T) {
 	ts := showTestServer(t, `
 	{
+		"title": "S",
 		"content": [{
-			"items": {"results": [{"type": "show", "title": "S", "url": "s"}]},
+			"items": {"results": [{"title": "S", "url": "s"}]},
 			"lineups": [
 				{
 					"seasonNumber": 1,
@@ -396,8 +402,9 @@ func TestGetEpisodes(t *testing.T) {
 func TestGetEpisodeById(t *testing.T) {
 	ts := showTestServer(t, `
 	{
+		"title": "S",
 		"content": [{
-			"items": {"results": [{"type": "show", "title": "S", "url": "s"}]},
+			"items": {"results": [{"title": "S", "url": "s"}]},
 			"lineups": [
 				{"seasonNumber": 1, "items": [
 					{"idMedia": 101, "title": "First"},
@@ -465,6 +472,13 @@ func TestGetEpisodeStreams(t *testing.T) {
 func TestGetEpisodeStreamLocator_dash(t *testing.T) {
 	var ts *httptest.Server
 	mux := http.NewServeMux()
+	mux.HandleFunc("/media/validation/v2/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"url":     ts.URL + "/manifest.mpd",
+			"message": "ok",
+		})
+	})
 	mux.HandleFunc("/manifest.mpd", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/dash+xml")
 		w.Write([]byte(`<?xml version="1.0"?><MPD></MPD>`))
@@ -475,7 +489,7 @@ func TestGetEpisodeStreamLocator_dash(t *testing.T) {
 	p := newTestProvider(ts.URL)
 	locator, err := p.GetEpisodeStreamLocator(t.Context(), "s", "s01", "101", "manifest.mpd")
 	if err != nil {
-		t.Skipf("skipping: live API unavailable: %v", err)
+		t.Fatalf("GetEpisodeStreamLocator() error: %v", err)
 	}
 	if locator.EncodingFormat != "application/dash+xml" {
 		t.Errorf("encoding = %q, want %q", locator.EncodingFormat, "application/dash+xml")
@@ -511,10 +525,11 @@ func TestGetEpisodeThumbnail(t *testing.T) {
 	mux.HandleFunc("/ott/catalog/v2/gem/show/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
+			"title": "S",
 			"content": []map[string]any{
 				{
 					"items": map[string]any{
-						"results": []map[string]any{{"type": "show", "title": "S", "url": "s"}},
+						"results": []map[string]any{{"title": "S", "url": "s"}},
 					},
 					"lineups": []map[string]any{
 						{
@@ -560,9 +575,9 @@ func TestSearch(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]any{
 			"totalRecords": 3,
 			"results": []map[string]any{
-				{"type": "show", "title": "Schitt's Creek", "url": "schitts-creek", "description": "A show"},
-				{"type": "media", "title": "A Movie", "url": "movie-999001", "description": "A film"},
-				{"type": "liveevent", "title": "Live News", "url": "live-999002"},
+				{"type": "Show", "title": "Schitt's Creek", "url": "schitts-creek", "description": "A show"},
+				{"type": "Show", "title": "A Movie", "url": "movie-999001", "description": "A film", "infoTitle": "Documentary | 23 min"},
+				{"type": "Show", "title": "Live News", "url": "live-999002", "infoTitle": "News | 1 h 30 min"},
 			},
 		})
 	})
@@ -581,15 +596,12 @@ func TestSearch(t *testing.T) {
 		t.Fatalf("got %d results, want 3", len(results))
 	}
 
-	// First should be a series
 	if results[0].Resource.Type != oas.SeriesSearchResultItemResource {
 		t.Errorf("result[0].Type = %q, want Series", results[0].Resource.Type)
 	}
-	// Second should be a movie
 	if results[1].Resource.Type != oas.MovieSearchResultItemResource {
 		t.Errorf("result[1].Type = %q, want Movie", results[1].Resource.Type)
 	}
-	// Third should also be a movie (liveevent maps to Movie)
 	if results[2].Resource.Type != oas.MovieSearchResultItemResource {
 		t.Errorf("result[2].Type = %q, want Movie", results[2].Resource.Type)
 	}
@@ -602,9 +614,9 @@ func TestSearch_pagination(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]any{
 			"totalRecords": 3,
 			"results": []map[string]any{
-				{"type": "show", "title": "A", "url": "a"},
-				{"type": "show", "title": "B", "url": "b"},
-				{"type": "show", "title": "C", "url": "c"},
+				{"type": "Show", "title": "A", "url": "a"},
+				{"type": "Show", "title": "B", "url": "b"},
+				{"type": "Show", "title": "C", "url": "c"},
 			},
 		})
 	})
@@ -647,7 +659,7 @@ func TestSearch_pagination(t *testing.T) {
 func TestGetMovies(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ott/catalog/v2/gem/category/all-films", func(w http.ResponseWriter, r *http.Request) {
-		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+		page, _ := strconv.Atoi(r.URL.Query().Get("pageNumber"))
 		pageSize, _ := strconv.Atoi(r.URL.Query().Get("pageSize"))
 		w.Header().Set("Content-Type", "application/json")
 		switch {
@@ -661,8 +673,8 @@ func TestGetMovies(t *testing.T) {
 							"pageNumber":   1,
 							"pageSize":     2,
 							"results": []map[string]any{
-								{"type": "show", "title": "Film A", "url": "film-a", "description": "Desc A", "infoTitle": "Documentary | 23 min"},
-								{"type": "show", "title": "Film B", "url": "film-b", "description": "Desc B", "infoTitle": "Drama | 1 h 32 min"},
+								{"title": "Film A", "url": "film-a", "description": "Desc A", "infoTitle": "Documentary | 23 min"},
+								{"title": "Film B", "url": "film-b", "description": "Desc B", "infoTitle": "Drama | 1 h 32 min"},
 							},
 						},
 					},
@@ -678,7 +690,7 @@ func TestGetMovies(t *testing.T) {
 							"pageNumber":   2,
 							"pageSize":     2,
 							"results": []map[string]any{
-								{"type": "show", "title": "Film C", "url": "film-c", "description": "Desc C", "infoTitle": "Comedy | 45 min"},
+								{"title": "Film C", "url": "film-c", "description": "Desc C", "infoTitle": "Comedy | 45 min"},
 							},
 						},
 					},
@@ -764,26 +776,33 @@ func TestGetMovies(t *testing.T) {
 }
 
 func TestMovieEndpoints_unsupported(t *testing.T) {
-	p := cbc.New(cbc.Config{Tag: "CBC"})
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ott/catalog/v2/gem/show/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	p := newTestProvider(ts.URL)
 
 	t.Run("GetMovieById", func(t *testing.T) {
 		_, err := p.GetMovieById(t.Context(), "x")
-		if err != provider.ErrNotSupported {
-			t.Errorf("GetMovieById() error = %v, want ErrNotSupported", err)
+		if err == nil {
+			t.Error("GetMovieById() expected error for nonexistent movie")
 		}
 	})
 
 	t.Run("GetMoviePoster", func(t *testing.T) {
 		_, _, err := p.GetMoviePoster(t.Context(), "x")
-		if err != provider.ErrNotSupported {
-			t.Errorf("GetMoviePoster() error = %v, want ErrNotSupported", err)
+		if err == nil {
+			t.Error("GetMoviePoster() expected error for nonexistent movie")
 		}
 	})
 
 	t.Run("GetMovieBackdrop", func(t *testing.T) {
 		_, _, err := p.GetMovieBackdrop(t.Context(), "x")
-		if err != provider.ErrNotSupported {
-			t.Errorf("GetMovieBackdrop() error = %v, want ErrNotSupported", err)
+		if err == nil {
+			t.Error("GetMovieBackdrop() expected error for nonexistent movie")
 		}
 	})
 }
@@ -794,22 +813,10 @@ func TestSeriesImages(t *testing.T) {
 	mux.HandleFunc("/ott/catalog/v2/gem/show/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"content": []map[string]any{
-				{
-					"items": map[string]any{
-						"results": []map[string]any{
-							{
-								"type":  "show",
-								"title": "S",
-								"url":   "s",
-								"images": map[string]any{
-									"card":       map[string]any{"url": ts.URL + "/poster.jpg"},
-									"background": map[string]any{"url": ts.URL + "/backdrop.jpg"},
-								},
-							},
-						},
-					},
-				},
+			"title": "S",
+			"images": map[string]any{
+				"card":       map[string]any{"url": ts.URL + "/poster.jpg"},
+				"background": map[string]any{"url": ts.URL + "/backdrop.jpg"},
 			},
 		})
 	})
@@ -861,9 +868,12 @@ func TestEmptyShow(t *testing.T) {
 	defer ts.Close()
 
 	p := newTestProvider(ts.URL)
-	_, err := p.GetSeriesByID(t.Context(), "empty")
-	if err != provider.ErrNotSupported {
-		t.Errorf("GetSeriesByID() error = %v, want ErrNotSupported", err)
+	s, err := p.GetSeriesByID(t.Context(), "empty")
+	if err != nil {
+		t.Fatalf("GetSeriesByID() unexpected error: %v", err)
+	}
+	if s.GetID() != "empty" {
+		t.Errorf("ID = %q, want %q", s.GetID(), "empty")
 	}
 }
 
@@ -893,8 +903,6 @@ func TestUnimplementedMethods(t *testing.T) {
 	})
 }
 
-// showTestServer creates an httptest.Server that responds to
-// /ott/catalog/v2/gem/show/{id} with the given JSON body.
 func showTestServer(t *testing.T, body string) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
@@ -905,7 +913,6 @@ func showTestServer(t *testing.T, body string) *httptest.Server {
 	return httptest.NewServer(mux)
 }
 
-// newTestProvider creates a CBC provider pointed at tsURL.
 func newTestProvider(tsURL string) *cbc.Provider {
 	return cbc.New(cbc.Config{
 		Tag:       "CBC",

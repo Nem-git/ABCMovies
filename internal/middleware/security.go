@@ -60,9 +60,10 @@ func buildCSP(nonce string) string {
 			"script-src-elem 'self' 'nonce-%s'; "+
 			"style-src 'self' 'nonce-%s'; "+
 			"style-src-attr 'unsafe-inline'; "+
-			"img-src 'self'; "+
+			"img-src 'self' data: blob:; "+
 			"font-src 'self'; "+
-			"connect-src 'self'; "+
+			"media-src 'self' blob: data:; "+
+			"connect-src 'self' blob:; "+
 			"frame-ancestors 'none'; "+
 			"base-uri 'self'; "+
 			"form-action 'self'",

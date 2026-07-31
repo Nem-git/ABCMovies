@@ -93,7 +93,7 @@ type StructuredMetadata struct {
 	Genres           []string         `json:"genre"`
 	InLanguage       string           `json:"inLanguage"`
 	DatePublished    time.Time        `json:"datePublished"`
-	DateCreated      string           `json:"dateCreated"` // unsure
+	DateCreated      string           `json:"dateCreated"`
 	AtContext        string           `json:"@context"`
 	Name             string           `json:"name"`
 	AlternateName    string           `json:"alternateName"`

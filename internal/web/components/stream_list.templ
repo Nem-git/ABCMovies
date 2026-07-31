@@ -1,6 +1,9 @@
 package components
 
-import "github.com/nem-git/abcmovies/internal/oas"
+import (
+	"github.com/nem-git/abcmovies/internal/oas"
+	"github.com/nem-git/abcmovies/internal/streamfmt"
+)
 
 templ StreamList(streams []oas.Stream, baseURL string) {
 	if len(streams) > 0 {
@@ -8,40 +11,14 @@ templ StreamList(streams []oas.Stream, baseURL string) {
 			<h2 class="text-xl font-semibold mb-4">Streams</h2>
 			<div class="grid gap-2">
 				for _, s := range streams {
-					<a href={ baseURL + "/" + s.ID } class="flex items-center justify-between bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition">
+					<a href={ baseURL + "/" + streamfmt.ShortName(s.EncodingFormat) + "/" + s.ID } class="flex items-center justify-between bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition">
 						<span class="font-medium">{ s.Name }</span>
-						<span class={ "text-xs font-medium px-2 py-1 rounded", streamBadgeColor(string(s.EncodingFormat)) }>
-							{ streamBadgeLabel(string(s.EncodingFormat)) }
+						<span class={ "text-xs font-medium px-2 py-1 rounded", streamfmt.BadgeColor(s.EncodingFormat) }>
+							{ streamfmt.Label(s.EncodingFormat) }
 						</span>
 					</a>
 				}
 			</div>
 		</div>
-	}
-}
-
-func streamBadgeColor(format string) string {
-	switch format {
-	case "application/dash+xml":
-		return "bg-green-900/60 text-green-300"
-	case "application/vnd.apple.mpegurl":
-		return "bg-blue-900/60 text-blue-300"
-	case "video/mp4":
-		return "bg-purple-900/60 text-purple-300"
-	default:
-		return "bg-gray-700 text-gray-300"
-	}
-}
-
-func streamBadgeLabel(format string) string {
-	switch format {
-	case "application/dash+xml":
-		return "DASH"
-	case "application/vnd.apple.mpegurl":
-		return "HLS"
-	case "video/mp4":
-		return "MP4"
-	default:
-		return format
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/nem-git/abcmovies/internal/provider"
 	"github.com/nem-git/abcmovies/internal/providers/cbc"
 	"github.com/nem-git/abcmovies/internal/providers/stub"
+	"github.com/nem-git/abcmovies/internal/providers/toutv"
 )
 
 func Build(cfg config.ServiceEntry, baseURL, apiPrefix string) (provider.Provider, error) {
@@ -17,6 +18,8 @@ func Build(cfg config.ServiceEntry, baseURL, apiPrefix string) (provider.Provide
 		return buildStub(cfg, baseURL, apiPrefix), nil
 	case "cbc":
 		return buildCBC(cfg, baseURL, apiPrefix), nil
+	case "toutv":
+		return buildTouTV(cfg, baseURL, apiPrefix), nil
 	default:
 		return nil, fmt.Errorf("unknown provider type: %q", cfg.Type)
 	}
@@ -125,5 +128,34 @@ func buildCBC(cfg config.ServiceEntry, baseURL, apiPrefix string) *cbc.Provider 
 		Service:   &srv,
 		BaseURL:   baseURL,
 		APIPrefix: apiPrefix,
+	})
+}
+
+func buildTouTV(cfg config.ServiceEntry, baseURL, apiPrefix string) *toutv.Provider {
+	srv := oas.Service{
+		Tag:  cfg.Tag,
+		Name: cfg.Name,
+	}
+	if cfg.Description != "" {
+		srv.Description = oas.NewOptString(cfg.Description)
+	}
+	if cfg.Country != "" {
+		srv.Country = oas.NewOptString(cfg.Country)
+	}
+	if len(cfg.Languages) > 0 {
+		srv.Languages = cfg.Languages
+	}
+	if cfg.URL != "" {
+		if u, err := url.Parse(cfg.URL); err == nil {
+			srv.Website = oas.NewOptURI(*u)
+		}
+	}
+	return toutv.New(toutv.Config{
+		Tag:              cfg.Tag,
+		Service:          &srv,
+		SeriesCategoryID: "serie",
+		MovieCategoryID:  "film",
+		BaseURL:          baseURL,
+		APIPrefix:        apiPrefix,
 	})
 }

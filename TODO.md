@@ -2,7 +2,7 @@
 
 - Check if there would be a standard for content ratings, and see if a library exists to parse them. Also check if ISO for it exists
 
-### CBC Gem
+### RCMedia
 
 - Parse country name to country code
 - Check if it would be interesting to add navigationFilters as Genres
@@ -15,6 +15,8 @@
 - Have a better way of determining if content is movie/series when searching
 - Maybe creating the image url would give better results, as the API doesn't return every image type, but they all exist (background, logo, program, network)
 - Parse the time to show it in a good way in the web ui (ex: https://github.com/sosodev/duration)
+- Add Smooth support
+- Make the urls use e01 instead of the mediaid. So need to add support for getting mediaid from showid, season and eid
 
 ## DASH Proxy
 
