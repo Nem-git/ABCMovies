@@ -123,10 +123,10 @@ func buildCBC(cfg config.ServiceEntry, baseURL, apiPrefix string) *cbc.Provider 
 			srv.Website = oas.NewOptURI(*u)
 		}
 	}
+	// FIXME: Remove or uncomment
 	return cbc.New(cbc.Config{
 		Tag:       cfg.Tag,
 		Service:   &srv,
-		BaseURL:   baseURL,
 		APIPrefix: apiPrefix,
 	})
 }
@@ -155,7 +155,6 @@ func buildTouTV(cfg config.ServiceEntry, baseURL, apiPrefix string) *toutv.Provi
 		Service:          &srv,
 		SeriesCategoryID: "serie",
 		MovieCategoryID:  "film",
-		BaseURL:          baseURL,
 		APIPrefix:        apiPrefix,
 	})
 }

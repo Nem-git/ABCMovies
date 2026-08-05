@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nem-git/abcmovies/internal/proxy"
+	"github.com/nem-git/abcmovies/internal/stream"
 )
 
 func TestMemoryStore_PutGet(t *testing.T) {
@@ -16,11 +17,11 @@ func TestMemoryStore_PutGet(t *testing.T) {
 	ctx := context.Background()
 
 	meta := proxy.StreamMeta{
-		ProviderTag:    "TEST",
-		ContentKey:     "movies:123",
-		Format:         "hls",
+		ProviderTag:     "TEST",
+		ContentKey:      "movies:123",
+		Format:          "hls",
 		UpstreamBaseURL: "https://cdn.example.com/movie/720p/",
-		ExpiresAt:      time.Now().Add(time.Minute),
+		ExpiresAt:       time.Now().Add(time.Minute),
 	}
 
 	if err := s.Put(ctx, "key1", meta); err != nil {
@@ -200,7 +201,7 @@ func TestHTTPFetcher_HeadersAndQuery(t *testing.T) {
 	}
 }
 
-func TestBuildContentKey(t *testing.T) {
+func TestBuildStateKey(t *testing.T) {
 	tests := []struct {
 		contentType string
 		ids         []string
@@ -210,9 +211,9 @@ func TestBuildContentKey(t *testing.T) {
 		{"series", []string{"456", "789", "101"}, "series:456:789:101"},
 	}
 	for _, tt := range tests {
-		got := proxy.BuildContentKey(tt.contentType, tt.ids...)
+		got := proxy.BuildStateKey(append([]string{tt.contentType}, tt.ids...)...)
 		if got != tt.want {
-			t.Errorf("BuildContentKey(%q, %v) = %q, want %q", tt.contentType, tt.ids, got, tt.want)
+			t.Errorf("BuildStateKey(%q, %v) = %q, want %q", tt.contentType, tt.ids, got, tt.want)
 		}
 	}
 }
@@ -231,5 +232,113 @@ func TestResolveBaseURL(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("ResolveBaseURL(%q) = %q, want %q", tt.input, got, tt.want)
 		}
+	}
+}
+
+func TestProxy_ServeDASHSegmentReconstructsFromFilename(t *testing.T) {
+	var fetchedURL string
+	fetch := newFetcherMock(func(url string) (io.ReadCloser, http.Header, error) {
+		fetchedURL = url
+		return bytesReader("segment-data"), nil, nil
+	})
+	store := proxy.NewMemoryStore(time.Minute)
+	p := proxy.New(proxy.Dependencies{
+		Fetcher: fetch,
+		State:   store,
+		Configs: map[string]*proxy.Config{"test": {Strategy: "dash"}},
+	})
+
+	ctx := t.Context()
+	key := proxy.DASHStateKey("test", "movies:1", 0, 0, "v1")
+	store.Put(ctx, key, proxy.StreamMeta{
+		ProviderTag:           "test",
+		ContentKey:            "movies:1",
+		Format:                "dash",
+		UpstreamMediaTemplate: "https://cdn.example.com/movie/v1/seg_$Number%05d$.m4s",
+		UpstreamRepID:         "v1",
+		UpstreamBandwidth:     "5000000",
+		Headers:               http.Header{},
+		ExpiresAt:             time.Now().Add(5 * time.Minute),
+	})
+
+	reader, _, err := p.ServeDASHSegment(ctx, "test", "movies:1", "dash", 0, 0, "v1", "seg_00007.m4s")
+	if err != nil {
+		t.Fatalf("ServeDASHSegment() error: %v", err)
+	}
+	defer reader.Close()
+	io.Copy(io.Discard, reader) // drain to ensure the upstream fetch ran
+
+	want := "https://cdn.example.com/movie/v1/seg_00007.m4s"
+	if fetchedURL != want {
+		t.Errorf("fetched upstream URL = %q, want %q", fetchedURL, want)
+	}
+}
+
+func TestProxy_ServeManifestStoresStateWithoutFile(t *testing.T) {
+	fetch := newFetcherMock(func(url string) (io.ReadCloser, http.Header, error) {
+		return bytesReader(testDASHNumberMPD), nil, nil
+	})
+	store := proxy.NewMemoryStore(time.Minute)
+	p := proxy.New(proxy.Dependencies{
+		Fetcher: fetch,
+		State:   store,
+		Configs: map[string]*proxy.Config{"test": {Strategy: "dash"}},
+	})
+
+	locator := stream.Locator{URL: "https://cdn.example.com/movie/manifest.mpd"}
+	reader, _, err := p.ServeManifest(t.Context(), "test", "movies:1", "dash", "manifest.mpd", locator, "/api/v1alpha/services/test/movies/1/streams/dash")
+	if err != nil {
+		t.Fatalf("ServeManifest() error: %v", err)
+	}
+	defer reader.Close()
+	io.Copy(io.Discard, reader)
+
+	key := proxy.BuildStateKey("test", "movies:1", "dash")
+	_, found, err := store.Get(t.Context(), key)
+	if err != nil {
+		t.Fatalf("state.Get(%q) error: %v", key, err)
+	}
+	if !found {
+		t.Errorf("state not stored at %q (no file component)", key)
+	}
+}
+
+func TestProxy_ServeDASHInitStripsSegmentPlaceholders(t *testing.T) {
+	var fetchedURL string
+	fetch := newFetcherMock(func(url string) (io.ReadCloser, http.Header, error) {
+		fetchedURL = url
+		return bytesReader("init-data"), nil, nil
+	})
+	store := proxy.NewMemoryStore(time.Minute)
+	p := proxy.New(proxy.Dependencies{
+		Fetcher: fetch,
+		State:   store,
+		Configs: map[string]*proxy.Config{"test": {Strategy: "dash"}},
+	})
+
+	ctx := t.Context()
+	key := proxy.DASHStateKey("test", "movies:1", 0, 0, "v1")
+	// Nonconformant init template carrying $Number$/$Time$ must not leak into the fetched URL.
+	store.Put(ctx, key, proxy.StreamMeta{
+		ProviderTag:          "test",
+		ContentKey:           "movies:1",
+		Format:               "dash",
+		UpstreamInitTemplate: "https://cdn.example.com/movie/$RepresentationID$_$Bandwidth$/$Number%05d$_init.mp4",
+		UpstreamRepID:        "v1",
+		UpstreamBandwidth:    "5000000",
+		Headers:              http.Header{},
+		ExpiresAt:            time.Now().Add(5 * time.Minute),
+	})
+
+	reader, _, err := p.ServeDASHInit(ctx, "test", "movies:1", "dash", 0, 0, "v1")
+	if err != nil {
+		t.Fatalf("ServeDASHInit() error: %v", err)
+	}
+	defer reader.Close()
+	io.Copy(io.Discard, reader)
+
+	want := "https://cdn.example.com/movie/v1_5000000/_init.mp4"
+	if fetchedURL != want {
+		t.Errorf("fetched upstream URL = %q, want %q", fetchedURL, want)
 	}
 }

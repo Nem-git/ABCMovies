@@ -11,7 +11,7 @@ templ StreamList(streams []oas.Stream, baseURL string) {
 			<h2 class="text-xl font-semibold mb-4">Streams</h2>
 			<div class="grid gap-2">
 				for _, s := range streams {
-					<a href={ baseURL + "/" + streamfmt.ShortName(s.EncodingFormat) + "/" + s.ID } class="flex items-center justify-between bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition">
+					<a href={ baseURL + "/" + streamfmt.ShortName(s.EncodingFormat) } class="flex items-center justify-between bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition">
 						<span class="font-medium">{ s.Name }</span>
 						<span class={ "text-xs font-medium px-2 py-1 rounded", streamfmt.BadgeColor(s.EncodingFormat) }>
 							{ streamfmt.Label(s.EncodingFormat) }

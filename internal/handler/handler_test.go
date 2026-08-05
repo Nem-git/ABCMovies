@@ -18,7 +18,7 @@ func TestGetServices(t *testing.T) {
 	})
 	r.Register(p)
 
-	h := handler.New(r)
+	h := handler.New(r, "", "")
 	res, err := h.GetServices(t.Context(), oas.GetServicesParams{
 		Limit:  oas.NewOptInt(20),
 		Offset: oas.NewOptInt(0),
@@ -51,7 +51,7 @@ func TestGetServicesMultipleProviders(t *testing.T) {
 	r.Register(p1)
 	r.Register(p2)
 
-	h := handler.New(r)
+	h := handler.New(r, "", "")
 	res, err := h.GetServices(t.Context(), oas.GetServicesParams{
 		Limit:  oas.NewOptInt(20),
 		Offset: oas.NewOptInt(0),
@@ -77,7 +77,7 @@ func TestGetServicesProviderError(t *testing.T) {
 	})
 	r.Register(p)
 
-	h := handler.New(r)
+	h := handler.New(r, "", "")
 	_, err := h.GetServices(t.Context(), oas.GetServicesParams{
 		Limit:  oas.NewOptInt(20),
 		Offset: oas.NewOptInt(0),
@@ -100,7 +100,7 @@ func TestGetServicesProviderError(t *testing.T) {
 
 func TestGetServicesEmpty(t *testing.T) {
 	r := registry.New()
-	h := handler.New(r)
+	h := handler.New(r, "", "")
 
 	res, err := h.GetServices(t.Context(), oas.GetServicesParams{
 		Limit:  oas.NewOptInt(20),
@@ -127,7 +127,7 @@ func TestGetServicesPagination(t *testing.T) {
 	})
 	r.Register(p)
 
-	h := handler.New(r)
+	h := handler.New(r, "", "")
 
 	t.Run("offset zero returns service", func(t *testing.T) {
 		res, err := h.GetServices(t.Context(), oas.GetServicesParams{
@@ -169,7 +169,7 @@ func TestGetServiceByTag(t *testing.T) {
 	})
 	r.Register(p)
 
-	h := handler.New(r)
+	h := handler.New(r, "", "")
 
 	t.Run("found", func(t *testing.T) {
 		res, err := h.GetServiceByTag(t.Context(), oas.GetServiceByTagParams{ServiceTag: "test"})
@@ -208,7 +208,7 @@ func TestGetHealth(t *testing.T) {
 			Health: &oas.Health{Status: oas.HealthStatusOk},
 		})
 		r.Register(p)
-		h := handler.New(r)
+		h := handler.New(r, "", "")
 
 		health, err := h.GetHealth(t.Context())
 		if err != nil {
@@ -226,7 +226,7 @@ func TestGetHealth(t *testing.T) {
 			Error: provider.ErrNotSupported,
 		})
 		r.Register(p)
-		h := handler.New(r)
+		h := handler.New(r, "", "")
 
 		health, err := h.GetHealth(t.Context())
 		if err != nil {
@@ -238,7 +238,7 @@ func TestGetHealth(t *testing.T) {
 	})
 
 	t.Run("empty registry", func(t *testing.T) {
-		h := handler.New(registry.New())
+		h := handler.New(registry.New(), "", "")
 		health, err := h.GetHealth(t.Context())
 		if err != nil {
 			t.Fatalf("GetHealth() error: %v", err)
@@ -262,11 +262,11 @@ func TestGlobalSearch(t *testing.T) {
 	})
 	r.Register(p)
 
-	h := handler.New(r)
+	h := handler.New(r, "", "")
 
 	t.Run("no results", func(t *testing.T) {
 		r2 := registry.New()
-		h2 := handler.New(r2)
+		h2 := handler.New(r2, "", "")
 
 		res, err := h2.GlobalSearch(t.Context(), oas.GlobalSearchParams{Q: "nothing"})
 		if err != nil {
@@ -309,7 +309,7 @@ func TestGlobalSearch(t *testing.T) {
 			},
 		})
 		r2.Register(p2)
-		h2 := handler.New(r2)
+		h2 := handler.New(r2, "", "")
 
 		res, err := h2.GlobalSearch(t.Context(), oas.GlobalSearchParams{Q: "Batman", Limit: oas.NewOptInt(10), Offset: oas.NewOptInt(0)})
 		if err != nil {
@@ -335,7 +335,7 @@ func TestGlobalSearch(t *testing.T) {
 			},
 		})
 		r2.Register(p2)
-		h2 := handler.New(r2)
+		h2 := handler.New(r2, "", "")
 
 		res, err := h2.GlobalSearch(t.Context(), oas.GlobalSearchParams{
 			Q:    "Batman",
@@ -355,7 +355,7 @@ func TestGlobalSearch(t *testing.T) {
 }
 
 func TestProviderNotFound(t *testing.T) {
-	h := handler.New(registry.New())
+	h := handler.New(registry.New(), "", "")
 
 	t.Run("GetMovies", func(t *testing.T) {
 		_, err := h.GetMovies(t.Context(), oas.GetMoviesParams{ServiceTag: "nope"})
@@ -382,7 +382,7 @@ func TestProviderError(t *testing.T) {
 		},
 	})
 	r.Register(p)
-	h := handler.New(r)
+	h := handler.New(r, "", "")
 
 	t.Run("GetMovies", func(t *testing.T) {
 		_, err := h.GetMovies(t.Context(), oas.GetMoviesParams{ServiceTag: "broken"})
@@ -411,7 +411,7 @@ func TestGetMovieById(t *testing.T) {
 		},
 	})
 	r.Register(p)
-	h := handler.New(r)
+	h := handler.New(r, "", "")
 
 	t.Run("found", func(t *testing.T) {
 		res, err := h.GetMovieById(t.Context(), oas.GetMovieByIdParams{ServiceTag: "test", MovieId: "m1"})
@@ -423,7 +423,7 @@ func TestGetMovieById(t *testing.T) {
 			t.Fatalf("returned %T, want *oas.Movie", res)
 		}
 		if movie.ID != "m1" {
-			t.Errorf("ID = %q, want %q", movie.ID, "m1")
+			t.Errorf("Id = %q, want %q", movie.ID, "m1")
 		}
 	})
 
@@ -449,7 +449,7 @@ func TestGetMovieStreams(t *testing.T) {
 		Streams: []oas.Stream{{ID: "manifest.mpd", Name: "DASH", EncodingFormat: oas.StreamEncodingFormatApplicationDashXML}},
 	})
 	r.Register(p)
-	h := handler.New(r)
+	h := handler.New(r, "", "")
 
 	res, err := h.GetMovieStreams(t.Context(), oas.GetMovieStreamsParams{ServiceTag: "test", MovieId: "m1"})
 	if err != nil {
@@ -475,7 +475,7 @@ func TestGetMoviePoster(t *testing.T) {
 		ImageMIME:       "image/png",
 	})
 	r.Register(p)
-	h := handler.New(r)
+	h := handler.New(r, "", "")
 
 	res, err := h.GetMoviePoster(t.Context(), oas.GetMoviePosterParams{ServiceTag: "test", MovieId: "m1"})
 	if err != nil {

@@ -18,25 +18,46 @@ type Handler interface {
 	//
 	// Returns the initialization segment for a DASH Representation.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/init
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/init
 	GetEpisodeDASHInit(ctx context.Context, params GetEpisodeDASHInitParams) (GetEpisodeDASHInitRes, error)
 	// GetEpisodeDASHSegment implements getEpisodeDASHSegment operation.
 	//
 	// Returns a single DASH media segment.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/{segment}
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/{segment}
 	GetEpisodeDASHSegment(ctx context.Context, params GetEpisodeDASHSegmentParams) (GetEpisodeDASHSegmentRes, error)
+	// GetEpisodeHLSKey implements getEpisodeHLSKey operation.
+	//
+	// Returns an AES-128 encryption key referenced by an EXT-X-KEY tag. The key is identified by a hash of
+	// its upstream URL and is fetched from the upstream CDN and proxied through.
+	//
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/keys/{file}
+	GetEpisodeHLSKey(ctx context.Context, params GetEpisodeHLSKeyParams) (GetEpisodeHLSKeyRes, error)
+	// GetEpisodeHLSPartial implements getEpisodeHLSPartial operation.
+	//
+	// Returns a low-latency HLS partial segment (EXT-X-PART). The partial is identified by a hash of its
+	// upstream URL and is fetched from the upstream CDN and proxied through.
+	//
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/partials/{file}
+	GetEpisodeHLSPartial(ctx context.Context, params GetEpisodeHLSPartialParams) (GetEpisodeHLSPartialRes, error)
+	// GetEpisodeHLSPreloadHint implements getEpisodeHLSPreloadHint operation.
+	//
+	// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag. The hint is identified by a hash of
+	// its upstream URL and is fetched from the upstream CDN and proxied through.
+	//
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/preload-hints/{file}
+	GetEpisodeHLSPreloadHint(ctx context.Context, params GetEpisodeHLSPreloadHintParams) (GetEpisodeHLSPreloadHintRes, error)
 	// GetEpisodeHLSRendition implements getEpisodeHLSRendition operation.
 	//
 	// Returns a rewritten HLS media playlist for a specific rendition identified by GROUP-ID and NAME.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/groups/{groupId}/renditions/{renditionName}
 	GetEpisodeHLSRendition(ctx context.Context, params GetEpisodeHLSRenditionParams) (GetEpisodeHLSRenditionRes, error)
 	// GetEpisodeHLSRenditionSegment implements getEpisodeHLSRenditionSegment operation.
 	//
 	// Returns a single media segment from an HLS rendition sub-playlist.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/segments/{segment}
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/groups/{groupId}/renditions/{renditionName}/segments/{segment}
 	GetEpisodeHLSRenditionSegment(ctx context.Context, params GetEpisodeHLSRenditionSegmentParams) (GetEpisodeHLSRenditionSegmentRes, error)
 	// GetEpisodeHLSSessionData implements getEpisodeHLSSessionData operation.
 	//
@@ -61,52 +82,25 @@ type Handler interface {
 	GetEpisodeHLSSteering(ctx context.Context, params GetEpisodeHLSSteeringParams) (GetEpisodeHLSSteeringRes, error)
 	// GetEpisodeHLSVariant implements getEpisodeHLSVariant operation.
 	//
-	// Returns a rewritten HLS media playlist for a specific variant. The variant is identified by its
-	// zero-based index in the master playlist.
+	// Returns a rewritten HLS media playlist for a specific variant. The variant is identified by a hash
+	// of its upstream playlist URL.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantId}
 	GetEpisodeHLSVariant(ctx context.Context, params GetEpisodeHLSVariantParams) (GetEpisodeHLSVariantRes, error)
 	// GetEpisodeHLSVariantSegment implements getEpisodeHLSVariantSegment operation.
 	//
 	// Returns a single media segment from an HLS variant sub-playlist.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/segments/{segment}
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantId}/segments/{segment}
 	GetEpisodeHLSVariantSegment(ctx context.Context, params GetEpisodeHLSVariantSegmentParams) (GetEpisodeHLSVariantSegmentRes, error)
-	// GetEpisodeRenditionKey implements getEpisodeRenditionKey operation.
-	//
-	// Returns an AES-128 encryption key from a rendition sub-playlist. The key file is fetched from the
-	// upstream CDN and proxied through.
-	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/keys/{file}
-	GetEpisodeRenditionKey(ctx context.Context, params GetEpisodeRenditionKeyParams) (GetEpisodeRenditionKeyRes, error)
-	// GetEpisodeRenditionPartial implements getEpisodeRenditionPartial operation.
-	//
-	// Returns a low-latency HLS partial segment (EXT-X-PART) from a rendition sub-playlist. Fetched from
-	// the upstream CDN.
-	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/partials/{file}
-	GetEpisodeRenditionPartial(ctx context.Context, params GetEpisodeRenditionPartialParams) (GetEpisodeRenditionPartialRes, error)
-	// GetEpisodeRenditionPreloadHint implements getEpisodeRenditionPreloadHint operation.
-	//
-	// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag from a rendition sub-playlist. Fetched
-	// from the upstream CDN.
-	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/preload-hints/{file}
-	GetEpisodeRenditionPreloadHint(ctx context.Context, params GetEpisodeRenditionPreloadHintParams) (GetEpisodeRenditionPreloadHintRes, error)
 	// GetEpisodeStreamFile implements getEpisodeStreamFile operation.
 	//
-	// Returns the raw stream manifest or playlist binary content. The response Content-Type matches the
+	// Returns the raw stream manifest binary content for the given format. Episodes expose exactly one
+	// canonical manifest per format, so no file name is required. The response Content-Type matches the
 	// stream's encoding format.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{file}
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}
 	GetEpisodeStreamFile(ctx context.Context, params GetEpisodeStreamFileParams) (GetEpisodeStreamFileRes, error)
-	// GetEpisodeStreamSegment implements getEpisodeStreamSegment operation.
-	//
-	// Returns a single media segment (HLS .ts/.m4s, DASH .m4s/.mp4) or an initialization segment for a
-	// given rendition.
-	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{rendition}/{segment}
-	GetEpisodeStreamSegment(ctx context.Context, params GetEpisodeStreamSegmentParams) (GetEpisodeStreamSegmentRes, error)
 	// GetEpisodeStreams implements getEpisodeStreams operation.
 	//
 	// Retrieve all available video stream manifests for an episode. The listing returns metadata only;
@@ -114,12 +108,12 @@ type Handler interface {
 	//
 	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams
 	GetEpisodeStreams(ctx context.Context, params GetEpisodeStreamsParams) (GetEpisodeStreamsRes, error)
-	// GetEpisodeSubtitleFile implements getEpisodeSubtitleFile operation.
+	// GetEpisodeSubtitle implements getEpisodeSubtitle operation.
 	//
 	// Returns the raw subtitle file content. The response Content-Type matches the subtitle format.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/subtitles/{subtitleFile}
-	GetEpisodeSubtitleFile(ctx context.Context, params GetEpisodeSubtitleFileParams) (GetEpisodeSubtitleFileRes, error)
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/subtitles/{subtitleId}
+	GetEpisodeSubtitle(ctx context.Context, params GetEpisodeSubtitleParams) (GetEpisodeSubtitleRes, error)
 	// GetEpisodeSubtitles implements getEpisodeSubtitles operation.
 	//
 	// Retrieve all external subtitle files available for an episode. Only subtitles that exist as
@@ -133,27 +127,6 @@ type Handler interface {
 	//
 	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail
 	GetEpisodeThumbnail(ctx context.Context, params GetEpisodeThumbnailParams) (GetEpisodeThumbnailRes, error)
-	// GetEpisodeVariantKey implements getEpisodeVariantKey operation.
-	//
-	// Returns an AES-128 encryption key from a variant sub-playlist. The key file is fetched from the
-	// upstream CDN and proxied through.
-	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/keys/{file}
-	GetEpisodeVariantKey(ctx context.Context, params GetEpisodeVariantKeyParams) (GetEpisodeVariantKeyRes, error)
-	// GetEpisodeVariantPartial implements getEpisodeVariantPartial operation.
-	//
-	// Returns a low-latency HLS partial segment (EXT-X-PART) from a variant sub-playlist. Fetched from the
-	// upstream CDN.
-	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/partials/{file}
-	GetEpisodeVariantPartial(ctx context.Context, params GetEpisodeVariantPartialParams) (GetEpisodeVariantPartialRes, error)
-	// GetEpisodeVariantPreloadHint implements getEpisodeVariantPreloadHint operation.
-	//
-	// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag from a variant sub-playlist. Fetched
-	// from the upstream CDN.
-	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/preload-hints/{file}
-	GetEpisodeVariantPreloadHint(ctx context.Context, params GetEpisodeVariantPreloadHintParams) (GetEpisodeVariantPreloadHintRes, error)
 	// GetEpisodes implements getEpisodes operation.
 	//
 	// Retrieve all episodes for a given season.
@@ -183,27 +156,48 @@ type Handler interface {
 	// Returns the initialization segment for a DASH Representation. The init segment URL is resolved from
 	// the upstream SegmentTemplate stored in state, with $RepresentationID$ and $Bandwidth$ resolved.
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/init
+	// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/init
 	GetMovieDASHInit(ctx context.Context, params GetMovieDASHInitParams) (GetMovieDASHInitRes, error)
 	// GetMovieDASHSegment implements getMovieDASHSegment operation.
 	//
 	// Returns a single DASH media segment. The segment number or time is passed as the {segment} parameter
 	// and resolved against the upstream SegmentTemplate stored in state.
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/{segment}
+	// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/{segment}
 	GetMovieDASHSegment(ctx context.Context, params GetMovieDASHSegmentParams) (GetMovieDASHSegmentRes, error)
+	// GetMovieHLSKey implements getMovieHLSKey operation.
+	//
+	// Returns an AES-128 encryption key referenced by an EXT-X-KEY tag. The key is identified by a hash of
+	// its upstream URL and is fetched from the upstream CDN and proxied through.
+	//
+	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/keys/{file}
+	GetMovieHLSKey(ctx context.Context, params GetMovieHLSKeyParams) (GetMovieHLSKeyRes, error)
+	// GetMovieHLSPartial implements getMovieHLSPartial operation.
+	//
+	// Returns a low-latency HLS partial segment (EXT-X-PART). The partial is identified by a hash of its
+	// upstream URL and is fetched from the upstream CDN and proxied through.
+	//
+	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/partials/{file}
+	GetMovieHLSPartial(ctx context.Context, params GetMovieHLSPartialParams) (GetMovieHLSPartialRes, error)
+	// GetMovieHLSPreloadHint implements getMovieHLSPreloadHint operation.
+	//
+	// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag. The hint is identified by a hash of
+	// its upstream URL and is fetched from the upstream CDN and proxied through.
+	//
+	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/preload-hints/{file}
+	GetMovieHLSPreloadHint(ctx context.Context, params GetMovieHLSPreloadHintParams) (GetMovieHLSPreloadHintRes, error)
 	// GetMovieHLSRendition implements getMovieHLSRendition operation.
 	//
 	// Returns a rewritten HLS media playlist for a specific rendition identified by GROUP-ID and NAME.
 	// Typically used for audio or subtitle renditions. Segment URLs are rewritten to the proxy.
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}
+	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/groups/{groupId}/renditions/{renditionName}
 	GetMovieHLSRendition(ctx context.Context, params GetMovieHLSRenditionParams) (GetMovieHLSRenditionRes, error)
 	// GetMovieHLSRenditionSegment implements getMovieHLSRenditionSegment operation.
 	//
 	// Returns a single media segment from an HLS rendition sub-playlist.
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/segments/{segment}
+	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/groups/{groupId}/renditions/{renditionName}/segments/{segment}
 	GetMovieHLSRenditionSegment(ctx context.Context, params GetMovieHLSRenditionSegmentParams) (GetMovieHLSRenditionSegmentRes, error)
 	// GetMovieHLSSessionData implements getMovieHLSSessionData operation.
 	//
@@ -228,18 +222,17 @@ type Handler interface {
 	GetMovieHLSSteering(ctx context.Context, params GetMovieHLSSteeringParams) (GetMovieHLSSteeringRes, error)
 	// GetMovieHLSVariant implements getMovieHLSVariant operation.
 	//
-	// Returns a rewritten HLS media playlist for a specific variant. The variant is identified by its
-	// zero-based index in the master playlist. Segment URLs in the response are rewritten to point back to
-	// the proxy.
+	// Returns a rewritten HLS media playlist for a specific variant. The variant is identified by a hash
+	// of its upstream playlist URL. Segment URLs in the response are rewritten to point back to the proxy.
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}
+	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantId}
 	GetMovieHLSVariant(ctx context.Context, params GetMovieHLSVariantParams) (GetMovieHLSVariantRes, error)
 	// GetMovieHLSVariantSegment implements getMovieHLSVariantSegment operation.
 	//
 	// Returns a single media segment from an HLS variant sub-playlist. The segment filename is passed
 	// through and resolved against the upstream base URL stored in state.
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/segments/{segment}
+	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantId}/segments/{segment}
 	GetMovieHLSVariantSegment(ctx context.Context, params GetMovieHLSVariantSegmentParams) (GetMovieHLSVariantSegmentRes, error)
 	// GetMoviePoster implements getMoviePoster operation.
 	//
@@ -247,41 +240,13 @@ type Handler interface {
 	//
 	// GET /services/{serviceTag}/movies/{movieId}/poster
 	GetMoviePoster(ctx context.Context, params GetMoviePosterParams) (GetMoviePosterRes, error)
-	// GetMovieRenditionKey implements getMovieRenditionKey operation.
-	//
-	// Returns an AES-128 encryption key from a rendition sub-playlist. The key file is fetched from the
-	// upstream CDN and proxied through.
-	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/keys/{file}
-	GetMovieRenditionKey(ctx context.Context, params GetMovieRenditionKeyParams) (GetMovieRenditionKeyRes, error)
-	// GetMovieRenditionPartial implements getMovieRenditionPartial operation.
-	//
-	// Returns a low-latency HLS partial segment (EXT-X-PART) from a rendition sub-playlist. Fetched from
-	// the upstream CDN.
-	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/partials/{file}
-	GetMovieRenditionPartial(ctx context.Context, params GetMovieRenditionPartialParams) (GetMovieRenditionPartialRes, error)
-	// GetMovieRenditionPreloadHint implements getMovieRenditionPreloadHint operation.
-	//
-	// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag from a rendition sub-playlist. Fetched
-	// from the upstream CDN.
-	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/preload-hints/{file}
-	GetMovieRenditionPreloadHint(ctx context.Context, params GetMovieRenditionPreloadHintParams) (GetMovieRenditionPreloadHintRes, error)
 	// GetMovieStreamFile implements getMovieStreamFile operation.
 	//
 	// Returns the raw stream manifest or playlist binary content. The response Content-Type matches the
 	// stream's encoding format (e.g. `application/dash+xml`, `application/vnd.apple.mpegurl`).
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/{file}
+	// GET /services/{serviceTag}/movies/{movieId}/streams/{format}
 	GetMovieStreamFile(ctx context.Context, params GetMovieStreamFileParams) (GetMovieStreamFileRes, error)
-	// GetMovieStreamSegment implements getMovieStreamSegment operation.
-	//
-	// Returns a single media segment (HLS .ts/.m4s, DASH .m4s/.mp4) or an initialization segment for a
-	// given rendition.
-	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/{rendition}/{segment}
-	GetMovieStreamSegment(ctx context.Context, params GetMovieStreamSegmentParams) (GetMovieStreamSegmentRes, error)
 	// GetMovieStreams implements getMovieStreams operation.
 	//
 	// Retrieve all available video stream manifests (DASH, HLS, etc.) for a movie. The listing returns
@@ -289,13 +254,13 @@ type Handler interface {
 	//
 	// GET /services/{serviceTag}/movies/{movieId}/streams
 	GetMovieStreams(ctx context.Context, params GetMovieStreamsParams) (GetMovieStreamsRes, error)
-	// GetMovieSubtitleFile implements getMovieSubtitleFile operation.
+	// GetMovieSubtitle implements getMovieSubtitle operation.
 	//
 	// Returns the raw subtitle file content. The response Content-Type matches the subtitle format (e.g.
 	// `text/vtt`, `application/x-subrip`).
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/subtitles/{subtitleFile}
-	GetMovieSubtitleFile(ctx context.Context, params GetMovieSubtitleFileParams) (GetMovieSubtitleFileRes, error)
+	// GET /services/{serviceTag}/movies/{movieId}/subtitles/{subtitleId}
+	GetMovieSubtitle(ctx context.Context, params GetMovieSubtitleParams) (GetMovieSubtitleRes, error)
 	// GetMovieSubtitles implements getMovieSubtitles operation.
 	//
 	// Retrieve all external subtitle files available for a movie. Only subtitles that exist as standalone
@@ -303,27 +268,6 @@ type Handler interface {
 	//
 	// GET /services/{serviceTag}/movies/{movieId}/subtitles
 	GetMovieSubtitles(ctx context.Context, params GetMovieSubtitlesParams) (GetMovieSubtitlesRes, error)
-	// GetMovieVariantKey implements getMovieVariantKey operation.
-	//
-	// Returns an AES-128 encryption key from a variant sub-playlist. The key file is fetched from the
-	// upstream CDN and proxied through.
-	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/keys/{file}
-	GetMovieVariantKey(ctx context.Context, params GetMovieVariantKeyParams) (GetMovieVariantKeyRes, error)
-	// GetMovieVariantPartial implements getMovieVariantPartial operation.
-	//
-	// Returns a low-latency HLS partial segment (EXT-X-PART) from a variant sub-playlist. Fetched from the
-	// upstream CDN.
-	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/partials/{file}
-	GetMovieVariantPartial(ctx context.Context, params GetMovieVariantPartialParams) (GetMovieVariantPartialRes, error)
-	// GetMovieVariantPreloadHint implements getMovieVariantPreloadHint operation.
-	//
-	// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag from a variant sub-playlist. Fetched
-	// from the upstream CDN.
-	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/preload-hints/{file}
-	GetMovieVariantPreloadHint(ctx context.Context, params GetMovieVariantPreloadHintParams) (GetMovieVariantPreloadHintRes, error)
 	// GetMovies implements getMovies operation.
 	//
 	// Retrieve all movies available on the given streaming service.

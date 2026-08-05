@@ -13,9 +13,7 @@ templ EpisodeDetail(tag string, seriesID string, seasonID string, episode *oas.E
 			@components.BackLink("/services/"+tag+"/series/"+seriesID+"/seasons/"+seasonID, "Season")
 			<div class="mt-4">
 				<div class="flex items-center gap-3 text-sm text-gray-500 mb-2">
-					if episode.EpisodeNumber.IsSet() {
-						<span>Episode { episode.EpisodeNumber.Value }</span>
-					}
+					<span>Episode { episode.EpisodeNumber }</span>
 					if episode.Duration != "" {
 						<span>· { episode.Duration }</span>
 					}

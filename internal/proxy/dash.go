@@ -43,7 +43,7 @@ func (s *DASHStrategy) ServeManifest(ctx context.Context, w io.Writer, locator s
 		return "", fmt.Errorf("parse DASH MPD: %w", err)
 	}
 
-	upstreamBaseURL := resolveBaseURL(locator.URL)
+	upstreamBaseURL := ResolveBaseURL(locator.URL)
 
 	// Rewrite SegmentTemplate URLs per Representation
 	for periodIdx, period := range m.Periods {
@@ -70,7 +70,7 @@ func (s *DASHStrategy) ServeManifest(ctx context.Context, w io.Writer, locator s
 
 				repID := rep.Id
 				bandwidth := strconv.FormatUint(uint64(rep.Bandwidth), 10)
-				periodPrefix := path.Join("periods", strconv.Itoa(periodIdx), "adaptationSets", strconv.Itoa(asIdx), "representations", repID)
+				periodPrefix := path.Join(meta.ProxyBaseURL, "periods", strconv.Itoa(periodIdx), "adaptation-sets", strconv.Itoa(asIdx), "representations", repID)
 
 				// Use shared snapshot if template is inherited from AS/Period
 				rawMedia := sharedRawMedia
@@ -94,17 +94,17 @@ func (s *DASHStrategy) ServeManifest(ctx context.Context, w io.Writer, locator s
 				// Build rewritten templates
 				var newMedia, newInit string
 				if rawMedia != "" {
-					newMedia = path.Join(periodPrefix, s.rewriteTemplate(rawMedia, repID, bandwidth, true))
+					newMedia = path.Join(periodPrefix, "segments", path.Base(s.rewriteTemplate(rawMedia, repID, bandwidth)))
 				}
 				if rawInit != "" {
-					newInit = path.Join(periodPrefix, s.rewriteTemplate(rawInit, repID, bandwidth, false))
+					newInit = path.Join(periodPrefix, "segments", "init")
 				}
 
 				if hasSharedTemplate {
 					// Create a per-representation SegmentTemplate to avoid mutating the shared one
 					repST := &mpd.SegmentTemplateType{
-						Media:          newMedia,
-						Initialization: newInit,
+						Media:                   newMedia,
+						Initialization:          newInit,
 						MultipleSegmentBaseType: st.MultipleSegmentBaseType,
 					}
 					rep.SegmentTemplate = repST
@@ -164,34 +164,29 @@ func (s *DASHStrategy) ServeManifest(ctx context.Context, w io.Writer, locator s
 }
 
 // rewriteTemplate prepares a SegmentTemplate URL for the proxy response.
-// For media templates (isMedia=true): resolves $RepresentationID$ to the literal rep ID.
-// $Bandwidth$ is left as a placeholder — the player resolves it per ISO/IEC 23009-1.
-// $Number$ and $Time$ are left as placeholders — the player resolves them.
-// For init templates (isMedia=false): resolves both $RepresentationID$ and $Bandwidth$,
-// and strips $Number$ and $Time$ (init segments never use them per ISO 23009-1, Section 5.3.9.4.2).
-func (s *DASHStrategy) rewriteTemplate(template, repID, bandwidth string, isMedia bool) string {
+// $RepresentationID$ and $Bandwidth$ are resolved to their literal values so the
+// rewritten template is deterministic. $Number$ and $Time$ are left as placeholders —
+// the player resolves them per ISO/IEC 23009-1.
+func (s *DASHStrategy) rewriteTemplate(template, repID, bandwidth string) string {
 	result := template
 	result = strings.ReplaceAll(result, "$RepresentationID$", repID)
+	result = strings.ReplaceAll(result, "$Bandwidth$", bandwidth)
+	return result
+}
 
-	if !isMedia {
-		result = strings.ReplaceAll(result, "$Bandwidth$", bandwidth)
-		// Strip $Number$ and any format suffix (e.g. $Number%05d$)
-		if idx := strings.Index(result, "$Number"); idx != -1 {
-			rest := result[idx+len("$Number"):]
+// stripSegmentPlaceholders removes $Number...$ and $Time...$ tokens (including any
+// format suffix such as %05d) from a template URL. Used when reconstructing init
+// URLs, which never carry segment-specific placeholders.
+func stripSegmentPlaceholders(s string) string {
+	for _, marker := range []string{"$Number", "$Time"} {
+		if idx := strings.Index(s, marker); idx != -1 {
+			rest := s[idx+len(marker):]
 			if end := strings.Index(rest, "$"); end != -1 {
-				result = result[:idx] + rest[end+1:]
-			}
-		}
-		// Strip $Time$ and any format suffix
-		if idx := strings.Index(result, "$Time"); idx != -1 {
-			rest := result[idx+len("$Time"):]
-			if end := strings.Index(rest, "$"); end != -1 {
-				result = result[:idx] + rest[end+1:]
+				s = s[:idx] + rest[end+1:]
 			}
 		}
 	}
-
-	return result
+	return s
 }
 
 // ServeSegment fetches a DASH segment by reconstructing the upstream URL from the template.

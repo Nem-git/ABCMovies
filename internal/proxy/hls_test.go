@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -78,6 +77,22 @@ https://cdn.example.com/movie/720p/variant.m3u8
 #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="English"
 `
 
+// URL hashes (hashid.URLHash) of the fixture upstream URLs. Variant, key,
+// partial and preload-hint ids in rewritten playlists and state keys are
+// derived from these.
+const (
+	hashVariant720p  = "519b56211507" // https://cdn.example.com/movie/720p/variant.m3u8
+	hashVariant1080p = "adab5ed53e98" // https://cdn.example.com/movie/1080p/variant.m3u8
+	hashSingleMedia  = "5e9df985a118" // https://cdn.example.com/movie/single.m3u8
+	hashMedia        = "1f7a3d3655b6" // https://cdn.example.com/movie/media.m3u8
+	hashEncKey       = "04b8a7dc02b6" // https://cdn.example.com/movie/keys/enc.key
+	hashEncKeyQuery  = "ce360f978db4" // https://cdn.example.com/keys/enc.key?token=abc123&expires=9999999999
+	hashPart001      = "cec64031059f" // https://cdn.example.com/movie/part001.ts
+	hashHintM4S      = "c95b5a8788dc" // https://cdn.example.com/movie/hint.m4s
+	hashSessionKey   = "b9339784a76a" // https://cdn.example.com/movie/keys/session.key
+	hashSessionData  = "c6cbda48b7aa" // https://cdn.example.com/movie/session/data.json
+)
+
 func testMeta(proxyBase string) *proxy.StreamMeta {
 	return &proxy.StreamMeta{
 		ProviderTag:  "test",
@@ -119,11 +134,11 @@ func TestHLSStrategy_MasterPlaylistRewrite(t *testing.T) {
 	result := buf.String()
 
 	// Variant URIs rewritten to relative proxy paths
-	if !strings.Contains(result, "variants/0") {
-		t.Errorf("master playlist missing variants/0, got:\n%s", result)
+	if !strings.Contains(result, "variants/"+hashVariant720p) {
+		t.Errorf("master playlist missing variants/%s, got:\n%s", hashVariant720p, result)
 	}
-	if !strings.Contains(result, "variants/1") {
-		t.Errorf("master playlist missing variants/1, got:\n%s", result)
+	if !strings.Contains(result, "variants/"+hashVariant1080p) {
+		t.Errorf("master playlist missing variants/%s, got:\n%s", hashVariant1080p, result)
 	}
 	// Rendition URIs are stored in state (if GetAllAlternatives() returns them).
 	// The hls-m3u8 library may not encode EXT-X-MEDIA tags back into the output,
@@ -135,21 +150,23 @@ func TestHLSStrategy_MasterPlaylistRewrite(t *testing.T) {
 
 	// Check playlist state stored per variant
 	ctx := t.Context()
-	for i, wantBase := range []string{
-		"https://cdn.example.com/movie/720p/variant.m3u8",
-		"https://cdn.example.com/movie/1080p/variant.m3u8",
+	for _, tc := range []struct {
+		hash, wantBase string
+	}{
+		{hashVariant720p, "https://cdn.example.com/movie/720p/variant.m3u8"},
+		{hashVariant1080p, "https://cdn.example.com/movie/1080p/variant.m3u8"},
 	} {
-		key := proxy.HLSPlaylistStateKey("test", "movies:1", "variants", strconv.Itoa(i))
+		key := proxy.HLSPlaylistStateKey("test", "movies:1", "variants", tc.hash)
 		got, found, err := store.Get(ctx, key)
 		if err != nil {
 			t.Fatalf("state.Get(%q) error: %v", key, err)
 		}
 		if !found {
-			t.Errorf("playlist state not found for variant %d", i)
+			t.Errorf("playlist state not found for variant %s", tc.hash)
 			continue
 		}
-		if got.UpstreamBaseURL != wantBase {
-			t.Errorf("variant %d UpstreamBaseURL = %q, want %q", i, got.UpstreamBaseURL, wantBase)
+		if got.UpstreamBaseURL != tc.wantBase {
+			t.Errorf("variant %s UpstreamBaseURL = %q, want %q", tc.hash, got.UpstreamBaseURL, tc.wantBase)
 		}
 	}
 
@@ -204,23 +221,23 @@ func TestHLSStrategy_SingleMediaPlaylist(t *testing.T) {
 	if !strings.Contains(result, "#EXT-X-STREAM-INF:BANDWIDTH=1") {
 		t.Errorf("synthetic master missing BANDWIDTH=1, got:\n%s", result)
 	}
-	if !strings.Contains(result, "variants/0") {
-		t.Errorf("synthetic master missing variants/0, got:\n%s", result)
+	if !strings.Contains(result, "variants/"+hashSingleMedia) {
+		t.Errorf("synthetic master missing variants/%s, got:\n%s", hashSingleMedia, result)
 	}
 
-	// Playlist state for variant 0
+	// Playlist state for the single variant
 	ctx := t.Context()
-	playlistKey := proxy.HLSPlaylistStateKey("test", "movies:1", "variants", "0")
+	playlistKey := proxy.HLSPlaylistStateKey("test", "movies:1", "variants", hashSingleMedia)
 	_, found, err := store.Get(ctx, playlistKey)
 	if err != nil {
 		t.Fatalf("state.Get(%q) error: %v", playlistKey, err)
 	}
 	if !found {
-		t.Error("playlist state not found for variant 0")
+		t.Error("playlist state not found for the single variant")
 	}
 
-	// Segment state for variant 0
-	segmentKey := proxy.HLSSegmentStateKey("test", "movies:1", "variants", "0")
+	// Segment state for the single variant
+	segmentKey := proxy.HLSSegmentStateKey("test", "movies:1", "variants", hashSingleMedia)
 	segMeta, found, err := store.Get(ctx, segmentKey)
 	if err != nil {
 		t.Fatalf("state.Get(%q) error: %v", segmentKey, err)
@@ -443,26 +460,26 @@ func TestHLSStrategy_PlaylistStateTwoPass(t *testing.T) {
 		t.Fatalf("ServeManifest() error: %v", err)
 	}
 
-	// Verify playlist state exists for variant 0
-	playlistKey := proxy.HLSPlaylistStateKey("test", "movies:1", "variants", "0")
+	// Verify playlist state exists for the 720p variant
+	playlistKey := proxy.HLSPlaylistStateKey("test", "movies:1", "variants", hashVariant720p)
 	playlistMeta, found, err := store.Get(ctx, playlistKey)
 	if err != nil || !found {
-		t.Fatalf("playlist state not found for variant 0 after pass 1")
+		t.Fatalf("playlist state not found for variant %s after pass 1", hashVariant720p)
 	}
 	if playlistMeta.UpstreamBaseURL != "https://cdn.example.com/movie/720p/variant.m3u8" {
 		t.Errorf("playlist UpstreamBaseURL = %q, want %q", playlistMeta.UpstreamBaseURL, "https://cdn.example.com/movie/720p/variant.m3u8")
 	}
 
 	// Verify NO segment state yet
-	segmentKey := proxy.HLSSegmentStateKey("test", "movies:1", "variants", "0")
+	segmentKey := proxy.HLSSegmentStateKey("test", "movies:1", "variants", hashVariant720p)
 	_, found, _ = store.Get(ctx, segmentKey)
 	if found {
 		t.Error("segment state should not exist before pass 2")
 	}
 
-	// Pass 2: Serve sub-playlist for variant 0
+	// Pass 2: Serve sub-playlist for the 720p variant
 	var subBuf strings.Builder
-	err = s.ServeSubPlaylist(ctx, &subBuf, stream.Locator{URL: playlistMeta.UpstreamBaseURL}, &playlistMeta, "variants", "0")
+	err = s.ServeSubPlaylist(ctx, &subBuf, stream.Locator{URL: playlistMeta.UpstreamBaseURL}, &playlistMeta, "variants", hashVariant720p)
 	if err != nil {
 		t.Fatalf("ServeSubPlaylist() error: %v", err)
 	}
@@ -470,7 +487,7 @@ func TestHLSStrategy_PlaylistStateTwoPass(t *testing.T) {
 	// Verify segment state now exists
 	segMeta, found, err := store.Get(ctx, segmentKey)
 	if err != nil || !found {
-		t.Fatalf("segment state not found for variant 0 after pass 2")
+		t.Fatalf("segment state not found for variant %s after pass 2", hashVariant720p)
 	}
 	if !strings.HasPrefix(segMeta.UpstreamBaseURL, "https://cdn.example.com/movie/720p/") {
 		t.Errorf("segment UpstreamBaseURL = %q, want prefix https://cdn.example.com/movie/720p/", segMeta.UpstreamBaseURL)
@@ -516,8 +533,8 @@ func TestHLSStrategy_KeyRewriteInMediaPlaylist(t *testing.T) {
 		t.Fatalf("ServeManifest() error: %v", err)
 	}
 
-	// Check key state stored with scoped ID
-	resourceKey := "test:movies:1:hls:resource:key:0/enc.key"
+	// Check key state stored with hash-derived Id
+	resourceKey := "test:movies:1:hls:resource:key:" + hashEncKey
 	gotMeta, found, err := store.Get(ctx, resourceKey)
 	if err != nil {
 		t.Fatalf("state.Get(%q) error: %v", resourceKey, err)
@@ -534,7 +551,7 @@ func TestHLSStrategy_KeyRewriteInMediaPlaylist(t *testing.T) {
 	// We need to check via ServeSubPlaylist instead — but that's a 2-pass flow.
 
 	// Verify segment state exists with correct upstream base for keys resolution
-	segmentKey := proxy.HLSSegmentStateKey("test", "movies:1", "variants", "0")
+	segmentKey := proxy.HLSSegmentStateKey("test", "movies:1", "variants", hashMedia)
 	segMeta, found, err := store.Get(ctx, segmentKey)
 	if err != nil {
 		t.Fatalf("state.Get(%q) error: %v", segmentKey, err)
@@ -576,8 +593,8 @@ func TestHLSStrategy_MediaPlaylistKeyRewriteSubPlaylist(t *testing.T) {
 	result := buf.String()
 	t.Logf("Rewritten sub-playlist:\n%s", result)
 
-	// Key URI should be rewritten to proxy path
-	if !strings.Contains(result, "keys/enc.key") {
+	// Key URI should be rewritten to a flat proxy path (hash id, no extension)
+	if !strings.Contains(result, "keys/"+hashEncKey) {
 		t.Errorf("sub-playlist missing rewritten key URI, got:\n%s", result)
 	}
 
@@ -591,8 +608,8 @@ func TestHLSStrategy_MediaPlaylistKeyRewriteSubPlaylist(t *testing.T) {
 		t.Errorf("sub-playlist still contains upstream URLs, got:\n%s", result)
 	}
 
-	// Key state stored with scoped ID
-	resourceKey := "test:movies:1:hls:resource:key:0/enc.key"
+	// Key state stored with hash-derived Id
+	resourceKey := "test:movies:1:hls:resource:key:" + hashEncKey
 	keyMeta, found, err := store.Get(ctx, resourceKey)
 	if err != nil {
 		t.Fatalf("state.Get(%q) error: %v", resourceKey, err)
@@ -636,13 +653,13 @@ func TestHLSStrategy_PartialSegmentRewrite(t *testing.T) {
 	result := buf.String()
 	t.Logf("Rewritten sub-playlist (partials):\n%s", result)
 
-	// Partial segment URI should be rewritten
-	if !strings.Contains(result, "partials/part001.ts") {
+	// Partial segment URI should be rewritten to a flat proxy path (hash id)
+	if !strings.Contains(result, "partials/"+hashPart001) {
 		t.Errorf("sub-playlist missing rewritten partial segment URI, got:\n%s", result)
 	}
 
 	// Partial state stored
-	resourceKey := "test:movies:1:hls:resource:partial:0/part001.ts"
+	resourceKey := "test:movies:1:hls:resource:partial:" + hashPart001
 	_, found, err := store.Get(ctx, resourceKey)
 	if err != nil {
 		t.Fatalf("state.Get(%q) error: %v", resourceKey, err)
@@ -687,7 +704,7 @@ func TestHLSStrategy_PreloadHintRewrite(t *testing.T) {
 	// Note: the hls-m3u8 library encodes PreloadHint only in the full encoder;
 	// it may or may not appear in output depending on library version.
 	// We check state storage instead.
-	resourceKey := "test:movies:1:hls:resource:preload-hint:0/hint.m4s"
+	resourceKey := "test:movies:1:hls:resource:preload-hint:" + hashHintM4S
 	preloadMeta, found, err := store.Get(ctx, resourceKey)
 	if err != nil {
 		t.Fatalf("state.Get(%q) error: %v", resourceKey, err)
@@ -722,12 +739,12 @@ func TestHLSStrategy_SessionKeyRewriteInMaster(t *testing.T) {
 	t.Logf("Master playlist:\n%s", result)
 
 	// Session key URI rewritten
-	if !strings.Contains(result, "session-keys/session.key") {
+	if !strings.Contains(result, "session-keys/"+hashSessionKey) {
 		t.Errorf("master missing rewritten session key URI, got:\n%s", result)
 	}
 
 	// Session key state stored
-	resourceKey := "test:movies:1:hls:resource:session-key:session.key"
+	resourceKey := "test:movies:1:hls:resource:session-key:" + hashSessionKey
 	keyMeta, found, err := store.Get(ctx, resourceKey)
 	if err != nil {
 		t.Fatalf("state.Get(%q) error: %v", resourceKey, err)
@@ -766,12 +783,12 @@ func TestHLSStrategy_SessionDataRewriteInMaster(t *testing.T) {
 	t.Logf("Master playlist:\n%s", result)
 
 	// Session data URI rewritten
-	if !strings.Contains(result, "session-data/data.json") {
+	if !strings.Contains(result, "session-data/"+hashSessionData) {
 		t.Errorf("master missing rewritten session data URI, got:\n%s", result)
 	}
 
 	// Session data state stored
-	resourceKey := "test:movies:1:hls:resource:session-data:data.json"
+	resourceKey := "test:movies:1:hls:resource:session-data:" + hashSessionData
 	sdMeta, found, err := store.Get(ctx, resourceKey)
 	if err != nil {
 		t.Fatalf("state.Get(%q) error: %v", resourceKey, err)
@@ -804,12 +821,12 @@ func TestHLSStrategy_ContentSteeringRewriteInMaster(t *testing.T) {
 	result := buf.String()
 	t.Logf("Master playlist:\n%s", result)
 
-	// Content steering URI rewritten to just "steering"
-	if !strings.Contains(result, `SERVER-URI="steering"`) {
+	// Content steering URI rewritten to an absolute proxy path
+	if !strings.Contains(result, `SERVER-URI="`+proxyBase+`/steering"`) {
 		t.Errorf("master missing rewritten content steering URI, got:\n%s", result)
 	}
 
-	// Content steering state stored (empty ID since only one steering entry)
+	// Content steering state stored (empty Id since only one steering entry)
 	resourceKey := "test:movies:1:hls:resource:steering:"
 	csMeta, found, err := store.Get(ctx, resourceKey)
 	if err != nil {
@@ -855,8 +872,8 @@ func TestHLSStrategy_AllResourcesRewriteTwoPass(t *testing.T) {
 	for _, tc := range []struct {
 		resourceType, resourceID, wantURL string
 	}{
-		{"session-key", "session.key", "https://cdn.example.com/movie/keys/session.key"},
-		{"session-data", "data.json", "https://cdn.example.com/movie/session/data.json"},
+		{"session-key", hashSessionKey, "https://cdn.example.com/movie/keys/session.key"},
+		{"session-data", hashSessionData, "https://cdn.example.com/movie/session/data.json"},
 		{"steering", "", "https://cdn.example.com/movie/steering.json"},
 	} {
 		key := "test:movies:1:hls:resource:" + tc.resourceType + ":" + tc.resourceID
@@ -901,9 +918,9 @@ func TestHLSStrategy_AllResourcesRewriteTwoPass(t *testing.T) {
 	for _, tc := range []struct {
 		resourceType, resourceID, wantURL string
 	}{
-		{"key", "0/enc.key", "https://cdn.example.com/movie/keys/enc.key"},
-		{"partial", "0/part001.ts", "https://cdn.example.com/movie/part001.ts"},
-		{"preload-hint", "0/hint.m4s", "https://cdn.example.com/movie/hint.m4s"},
+		{"key", hashEncKey, "https://cdn.example.com/movie/keys/enc.key"},
+		{"partial", hashPart001, "https://cdn.example.com/movie/part001.ts"},
+		{"preload-hint", hashHintM4S, "https://cdn.example.com/movie/hint.m4s"},
 	} {
 		key := "test:movies:1:hls:resource:" + tc.resourceType + ":" + tc.resourceID
 		rm, found, err := store.Get(ctx, key)
@@ -937,27 +954,6 @@ func TestHLSResourceStateKey(t *testing.T) {
 		key := proxy.HLSResourceStateKey(tt.tag, tt.contentKey, tt.resourceType, tt.id)
 		if key != tt.want {
 			t.Errorf("HLSResourceStateKey(%q, %q, %q, %q) = %q, want %q", tt.tag, tt.contentKey, tt.resourceType, tt.id, key, tt.want)
-		}
-	}
-}
-
-func TestHLSResourceFilenameHelper(t *testing.T) {
-	tests := []struct {
-		rawURL   string
-		wantFile string
-	}{
-		{"https://cdn.example.com/keys/enc.key", "enc.key"},
-		{"https://cdn.example.com/keys/enc.key?exp=123&sig=abc", "enc.key"},
-		{"https://cdn.example.com/session/data.json", "data.json"},
-		{"https://cdn.example.com/steering.json", "steering.json"},
-		{"https://cdn.example.com/partials/part001.ts", "part001.ts"},
-		{"https://cdn.example.com/hint.m4s", "hint.m4s"},
-		{"https://cdn.example.com/key.bin?token=xyz&expires=9999999999", "key.bin"},
-	}
-	for _, tt := range tests {
-		got := proxy.ResourceFilename(tt.rawURL)
-		if got != tt.wantFile {
-			t.Errorf("ResourceFilename(%q) = %q, want %q", tt.rawURL, got, tt.wantFile)
 		}
 	}
 }
@@ -1019,8 +1015,8 @@ seg001.ts
 	result := buf.String()
 	t.Logf("Rewritten playlist:\n%s", result)
 
-	// Key URI should have query params stripped (use filename without query)
-	if !strings.Contains(result, "keys/enc.key") {
+	// Key URI should be rewritten to a flat proxy path (hash id, no query params)
+	if !strings.Contains(result, "keys/"+hashEncKeyQuery) {
 		t.Errorf("sub-playlist missing rewritten key URI, got:\n%s", result)
 	}
 	if strings.Contains(result, "?token=") {
@@ -1028,7 +1024,7 @@ seg001.ts
 	}
 
 	// Verify state stores the full URL with query params
-	resourceKey := "test:movies:1:hls:resource:key:0/enc.key"
+	resourceKey := "test:movies:1:hls:resource:key:" + hashEncKeyQuery
 	keyMeta, found, err := store.Get(ctx, resourceKey)
 	if err != nil {
 		t.Fatalf("state.Get(%q) error: %v", resourceKey, err)
@@ -1172,7 +1168,7 @@ func TestHLSStrategy_MasterSkipsRenditionWithoutURI(t *testing.T) {
 	}
 
 	// Variant should still be rewritten
-	if !strings.Contains(result, "variants/0") {
-		t.Errorf("master playlist missing variants/0, got:\n%s", result)
+	if !strings.Contains(result, "variants/"+hashVariant720p) {
+		t.Errorf("master playlist missing variants/%s, got:\n%s", hashVariant720p, result)
 	}
 }

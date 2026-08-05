@@ -27,25 +27,18 @@ func (s *Episode) Validate() error {
 		})
 	}
 	if err := func() error {
-		if value, ok := s.EpisodeNumber.Get(); ok {
-			if err := func() error {
-				if err := (validate.Int{
-					MinSet:        true,
-					Min:           1,
-					MaxSet:        false,
-					Max:           0,
-					MinExclusive:  false,
-					MaxExclusive:  false,
-					MultipleOfSet: false,
-					MultipleOf:    0,
-					Pattern:       nil,
-				}).Validate(int64(value)); err != nil {
-					return errors.Wrap(err, "int")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
+		if err := (validate.Int{
+			MinSet:        true,
+			Min:           1,
+			MaxSet:        false,
+			Max:           0,
+			MinExclusive:  false,
+			MaxExclusive:  false,
+			MultipleOfSet: false,
+			MultipleOf:    0,
+			Pattern:       nil,
+		}).Validate(int64(s.EpisodeNumber)); err != nil {
+			return errors.Wrap(err, "int")
 		}
 		return nil
 	}(); err != nil {
@@ -1245,25 +1238,18 @@ func (s *Season) Validate() error {
 		})
 	}
 	if err := func() error {
-		if value, ok := s.SeasonNumber.Get(); ok {
-			if err := func() error {
-				if err := (validate.Int{
-					MinSet:        true,
-					Min:           1,
-					MaxSet:        false,
-					Max:           0,
-					MinExclusive:  false,
-					MaxExclusive:  false,
-					MultipleOfSet: false,
-					MultipleOf:    0,
-					Pattern:       nil,
-				}).Validate(int64(value)); err != nil {
-					return errors.Wrap(err, "int")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
+		if err := (validate.Int{
+			MinSet:        true,
+			Min:           1,
+			MaxSet:        false,
+			Max:           0,
+			MinExclusive:  false,
+			MaxExclusive:  false,
+			MultipleOfSet: false,
+			MultipleOf:    0,
+			Pattern:       nil,
+		}).Validate(int64(s.SeasonNumber)); err != nil {
+			return errors.Wrap(err, "int")
 		}
 		return nil
 	}(); err != nil {
@@ -1714,7 +1700,7 @@ func (s *Subtitle) Validate() error {
 			MaxLengthSet:  false,
 			Email:         false,
 			Hostname:      false,
-			Regex:         regexMap["^[a-z]{2}(?:-(?:sdh|cc|forced))?\\.(?:vtt|srt|ttml|ass)$"],
+			Regex:         regexMap["^[a-f0-9]{12}$"],
 			MinNumeric:    0,
 			MinNumericSet: false,
 			MaxNumeric:    0,

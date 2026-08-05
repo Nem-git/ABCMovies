@@ -10,9 +10,7 @@ templ EpisodeCard(tag string, seriesID string, seasonID string, episode oas.Epis
 			</div>
 			<div class="min-w-0 flex-1">
 				<div class="flex items-center gap-2">
-					if episode.EpisodeNumber.IsSet() {
-						<span class="text-xs text-gray-500">Ep { episode.EpisodeNumber.Value }</span>
-					}
+					<span class="text-xs text-gray-500">Ep { episode.EpisodeNumber }</span>
 					if episode.Duration != "" {
 						<span class="text-xs text-gray-500">{ episode.Duration }</span>
 					}

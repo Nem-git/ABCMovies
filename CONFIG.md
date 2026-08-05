@@ -35,6 +35,12 @@ server:
 | `base_url`   | string | `""`           | Base URL for absolute link generation. Set to your public URL.              |
 | `api_prefix` | string | `/api/v1` | URL path prefix for the JSON API endpoints.                                 |
 
+> **Absolute URLs in API responses**: Media URLs returned by the API (posters,
+> backdrops, trailers, etc.) are always absolute. The scheme + host is taken from
+> `server.base_url` when set; otherwise it falls back to the `Host` of the
+> incoming request (honoring `X-Forwarded-Proto` / `X-Forwarded-Host` when
+> deployed behind a reverse proxy).
+
 ### Environment Variable Overrides
 
 | Variable    | Overrides        |

@@ -185,7 +185,7 @@ func TestGetSeries(t *testing.T) {
 			t.Errorf("series[0].Name = %q, want %q", series[0].GetName(), "Show A")
 		}
 		if series[0].GetID() != "show-a" {
-			t.Errorf("series[0].ID = %q, want %q", series[0].GetID(), "show-a")
+			t.Errorf("series[0].Id = %q, want %q", series[0].GetID(), "show-a")
 		}
 		if series[0].Description.Value != "Desc A" {
 			t.Errorf("series[0].Description = %q, want %q", series[0].Description.Value, "Desc A")
@@ -254,8 +254,8 @@ func TestGetSeasons(t *testing.T) {
 	if seasons[0].GetName() != "Season 1" {
 		t.Errorf("season[0].Name = %q, want %q", seasons[0].GetName(), "Season 1")
 	}
-	if seasons[0].SeasonNumber.Value != 1 {
-		t.Errorf("season[0].SeasonNumber = %d, want 1", seasons[0].SeasonNumber.Value)
+	if seasons[0].SeasonNumber != 1 {
+		t.Errorf("season[0].SeasonNumber = %d, want 1", seasons[0].SeasonNumber)
 	}
 }
 
@@ -289,8 +289,8 @@ func TestGetSeasons_pagination(t *testing.T) {
 		if len(seasons) != 2 {
 			t.Fatalf("got %d seasons, want 2", len(seasons))
 		}
-		if seasons[0].SeasonNumber.Value != 1 {
-			t.Errorf("first season number = %d, want 1", seasons[0].SeasonNumber.Value)
+		if seasons[0].SeasonNumber != 1 {
+			t.Errorf("first season number = %d, want 1", seasons[0].SeasonNumber)
 		}
 	})
 
@@ -305,8 +305,8 @@ func TestGetSeasons_pagination(t *testing.T) {
 		if len(seasons) != 2 {
 			t.Fatalf("got %d seasons, want 2", len(seasons))
 		}
-		if seasons[0].SeasonNumber.Value != 3 {
-			t.Errorf("first season number = %d, want 3", seasons[0].SeasonNumber.Value)
+		if seasons[0].SeasonNumber != 3 {
+			t.Errorf("first season number = %d, want 3", seasons[0].SeasonNumber)
 		}
 	})
 
@@ -345,8 +345,8 @@ func TestGetSeasonById(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetSeasonById() error: %v", err)
 		}
-		if s.SeasonNumber.Value != 2 {
-			t.Errorf("SeasonNumber = %d, want 2", s.SeasonNumber.Value)
+		if s.SeasonNumber != 2 {
+			t.Errorf("SeasonNumber = %d, want 2", s.SeasonNumber)
 		}
 	})
 
@@ -368,8 +368,8 @@ func TestGetEpisodes(t *testing.T) {
 				{
 					"seasonNumber": 1,
 					"items": [
-						{"idMedia": 101, "title": "Episode 1", "description": "First ep", "metadata": {"duration": 1800}},
-						{"idMedia": 102, "title": "Episode 2", "metadata": {"duration": 1860}}
+						{"idMedia": 101, "episodeNumber": 1, "type": "Media", "title": "Episode 1", "description": "First ep", "metadata": {"duration": 1800}},
+						{"idMedia": 102, "episodeNumber": 2, "type": "Media", "title": "Episode 2", "metadata": {"duration": 1860}}
 					]
 				}
 			]
@@ -391,8 +391,8 @@ func TestGetEpisodes(t *testing.T) {
 	if eps[0].GetName() != "Episode 1" {
 		t.Errorf("episode[0].Name = %q, want %q", eps[0].GetName(), "Episode 1")
 	}
-	if eps[0].GetID() != "101" {
-		t.Errorf("episode[0].ID = %q, want %q", eps[0].GetID(), "101")
+	if eps[0].GetID() != "e01" {
+		t.Errorf("episode[0].Id = %q, want %q", eps[0].GetID(), "e01")
 	}
 	if eps[0].Duration != "PT30M" {
 		t.Errorf("episode[0].Duration = %q, want %q", eps[0].Duration, "PT30M")
@@ -407,8 +407,8 @@ func TestGetEpisodeById(t *testing.T) {
 			"items": {"results": [{"title": "S", "url": "s"}]},
 			"lineups": [
 				{"seasonNumber": 1, "items": [
-					{"idMedia": 101, "title": "First"},
-					{"idMedia": 102, "title": "Second"}
+					{"idMedia": 101, "episodeNumber": 1, "type": "Media", "title": "First"},
+					{"idMedia": 102, "episodeNumber": 2, "type": "Media", "title": "Second"}
 				]}
 			]
 		}]
@@ -418,7 +418,7 @@ func TestGetEpisodeById(t *testing.T) {
 	p := newTestProvider(ts.URL)
 
 	t.Run("found", func(t *testing.T) {
-		ep, err := p.GetEpisodeById(t.Context(), "s", "s01", "102")
+		ep, err := p.GetEpisodeById(t.Context(), "s", "s01", "e02")
 		if err != nil {
 			t.Fatalf("GetEpisodeById() error: %v", err)
 		}
@@ -428,7 +428,7 @@ func TestGetEpisodeById(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		_, err := p.GetEpisodeById(t.Context(), "s", "s01", "999")
+		_, err := p.GetEpisodeById(t.Context(), "s", "s01", "e99")
 		if err != provider.ErrNotSupported {
 			t.Errorf("GetEpisodeById() error = %v, want ErrNotSupported", err)
 		}
@@ -437,6 +437,24 @@ func TestGetEpisodeById(t *testing.T) {
 
 func TestGetEpisodeStreams(t *testing.T) {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/ott/catalog/v2/gem/show/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"title": "S",
+			"content": []map[string]any{
+				{
+					"lineups": []map[string]any{
+						{
+							"seasonNumber": 1,
+							"items": []map[string]any{
+								{"idMedia": 101, "episodeNumber": 1, "type": "Media", "title": "Episode 1"},
+							},
+						},
+					},
+				},
+			},
+		})
+	})
 	mux.HandleFunc("/media/meta/v1/index.ashx", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
@@ -451,7 +469,7 @@ func TestGetEpisodeStreams(t *testing.T) {
 	defer ts.Close()
 
 	p := newTestProvider(ts.URL)
-	streams, total, err := p.GetEpisodeStreams(t.Context(), "s", "s01", "101")
+	streams, total, err := p.GetEpisodeStreams(t.Context(), "s", "s01", "e01")
 	if err != nil {
 		t.Fatalf("GetEpisodeStreams() error: %v", err)
 	}
@@ -462,16 +480,34 @@ func TestGetEpisodeStreams(t *testing.T) {
 		t.Fatalf("got %d streams, want 2", len(streams))
 	}
 	if streams[0].GetID() != "manifest.mpd" {
-		t.Errorf("stream[0].ID = %q, want %q", streams[0].GetID(), "manifest.mpd")
+		t.Errorf("stream[0].Id = %q, want %q", streams[0].GetID(), "manifest.mpd")
 	}
 	if streams[1].GetID() != "master.m3u8" {
-		t.Errorf("stream[1].ID = %q, want %q", streams[1].GetID(), "master.m3u8")
+		t.Errorf("stream[1].Id = %q, want %q", streams[1].GetID(), "master.m3u8")
 	}
 }
 
 func TestGetEpisodeStreamLocator_dash(t *testing.T) {
 	var ts *httptest.Server
 	mux := http.NewServeMux()
+	mux.HandleFunc("/ott/catalog/v2/gem/show/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"title": "S",
+			"content": []map[string]any{
+				{
+					"lineups": []map[string]any{
+						{
+							"seasonNumber": 1,
+							"items": []map[string]any{
+								{"idMedia": 101, "episodeNumber": 1, "type": "Media", "title": "Episode 1"},
+							},
+						},
+					},
+				},
+			},
+		})
+	})
 	mux.HandleFunc("/media/validation/v2/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
@@ -487,7 +523,7 @@ func TestGetEpisodeStreamLocator_dash(t *testing.T) {
 	defer ts.Close()
 
 	p := newTestProvider(ts.URL)
-	locator, err := p.GetEpisodeStreamLocator(t.Context(), "s", "s01", "101", "manifest.mpd")
+	locator, err := p.GetEpisodeStreamLocator(t.Context(), "s", "s01", "e01", "manifest.mpd")
 	if err != nil {
 		t.Fatalf("GetEpisodeStreamLocator() error: %v", err)
 	}
@@ -501,7 +537,7 @@ func TestGetEpisodeStreamLocator_dash(t *testing.T) {
 
 func TestGetEpisodeStreamLocator_unknown(t *testing.T) {
 	p := cbc.New(cbc.Config{Tag: "CBC"})
-	_, err := p.GetEpisodeStreamLocator(t.Context(), "s", "s01", "101", "unknown.mpd")
+	_, err := p.GetEpisodeStreamLocator(t.Context(), "s", "s01", "e01", "unknown.mpd")
 	if err == nil {
 		t.Fatal("expected error for unknown stream file")
 	}
@@ -509,11 +545,11 @@ func TestGetEpisodeStreamLocator_unknown(t *testing.T) {
 
 func TestGetEpisodeSubtitle(t *testing.T) {
 	p := cbc.New(cbc.Config{Tag: "CBC"})
-	_, _, err := p.GetEpisodeSubtitles(t.Context(), "s", "s01", "101")
+	_, _, err := p.GetEpisodeSubtitles(t.Context(), "s", "s01", "e01")
 	if err != provider.ErrNotSupported {
 		t.Errorf("GetEpisodeSubtitles() error = %v, want ErrNotSupported", err)
 	}
-	_, _, err = p.GetEpisodeSubtitleFile(t.Context(), "s", "s01", "101", "en.vtt")
+	_, _, err = p.GetEpisodeSubtitleFile(t.Context(), "s", "s01", "e01", "en.vtt")
 	if err != provider.ErrNotSupported {
 		t.Errorf("GetEpisodeSubtitleFile() error = %v, want ErrNotSupported", err)
 	}
@@ -536,8 +572,10 @@ func TestGetEpisodeThumbnail(t *testing.T) {
 							"seasonNumber": 1,
 							"items": []map[string]any{
 								{
-									"idMedia": 101,
-									"title":   "Episode 1",
+									"idMedia":        101,
+									"episodeNumber":  1,
+									"type":           "Media",
+									"title":          "Episode 1",
 									"images": map[string]any{
 										"card": map[string]any{"url": ts.URL + "/thumb.jpg"},
 									},
@@ -557,7 +595,7 @@ func TestGetEpisodeThumbnail(t *testing.T) {
 	defer ts.Close()
 
 	p := newTestProvider(ts.URL)
-	rc, _, err := p.GetEpisodeThumbnail(t.Context(), "s", "s01", "101")
+	rc, _, err := p.GetEpisodeThumbnail(t.Context(), "s", "s01", "e01")
 	if err != nil {
 		t.Fatalf("GetEpisodeThumbnail() error: %v", err)
 	}
@@ -732,7 +770,7 @@ func TestGetMovies(t *testing.T) {
 			t.Errorf("movies[0].Name = %q, want %q", movies[0].GetName(), "Film A")
 		}
 		if movies[0].GetID() != "film-a" {
-			t.Errorf("movies[0].ID = %q, want %q", movies[0].GetID(), "film-a")
+			t.Errorf("movies[0].Id = %q, want %q", movies[0].GetID(), "film-a")
 		}
 		if movies[0].Duration.Value != "PT23M" {
 			t.Errorf("movies[0].Duration = %q, want %q", movies[0].Duration.Value, "PT23M")
@@ -873,7 +911,7 @@ func TestEmptyShow(t *testing.T) {
 		t.Fatalf("GetSeriesByID() unexpected error: %v", err)
 	}
 	if s.GetID() != "empty" {
-		t.Errorf("ID = %q, want %q", s.GetID(), "empty")
+		t.Errorf("Id = %q, want %q", s.GetID(), "empty")
 	}
 }
 

@@ -39,14 +39,16 @@ func New(r *registry.Registry, baseURL, apiPrefix string) *Handler {
 	mux.HandleFunc("GET /services", h.handleServiceList)
 	mux.HandleFunc("GET /search", h.handleSearch)
 	mux.HandleFunc("GET /services/{tag}", h.handleServiceByTag)
+	
 	mux.HandleFunc("GET /services/{tag}/movies", h.handleServiceMovies)
-	mux.HandleFunc("GET /services/{tag}/movies/{id}/player", h.handleServiceMoviePlayer)
-	mux.HandleFunc("GET /services/{tag}/series/{id}/seasons/{sid}/episodes/{eid}/player", h.handleServiceEpisodePlayer)
 	mux.HandleFunc("GET /services/{tag}/movies/{id}", h.handleServiceMovieByID)
+	mux.HandleFunc("GET /services/{tag}/movies/{id}/player", h.handleServiceMoviePlayer)
+
 	mux.HandleFunc("GET /services/{tag}/series", h.handleServiceSeries)
 	mux.HandleFunc("GET /services/{tag}/series/{id}", h.handleServiceSeriesByID)
 	mux.HandleFunc("GET /services/{tag}/series/{id}/seasons/{sid}", h.handleServiceSeasonByID)
 	mux.HandleFunc("GET /services/{tag}/series/{id}/seasons/{sid}/episodes/{eid}", h.handleServiceEpisodeByID)
+	mux.HandleFunc("GET /services/{tag}/series/{id}/seasons/{sid}/episodes/{eid}/player", h.handleServiceEpisodePlayer)
 
 	h.mux = mux
 	return h
@@ -468,7 +470,7 @@ func (h *Handler) handleServiceMoviePlayer(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	streamURL := h.apiBaseURL() + "/services/" + tag + "/movies/" + id + "/streams/" + streamfmt.ShortName(best.EncodingFormat) + "/" + best.ID
+	streamURL := h.apiBaseURL() + "/services/" + tag + "/movies/" + id + "/streams/" + streamfmt.ShortName(best.EncodingFormat)
 	h.servePage(w, r, pages.MoviePlayer(tag, id, movie, streamURL))
 }
 
@@ -521,7 +523,7 @@ func (h *Handler) handleServiceEpisodePlayer(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	streamURL := h.apiBaseURL() + "/services/" + tag + "/series/" + id + "/seasons/" + sid + "/episodes/" + eid + "/streams/" + streamfmt.ShortName(best.EncodingFormat) + "/" + best.ID
+	streamURL := h.apiBaseURL() + "/services/" + tag + "/series/" + id + "/seasons/" + sid + "/episodes/" + eid + "/streams/" + streamfmt.ShortName(best.EncodingFormat)
 	h.servePage(w, r, pages.EpisodePlayer(tag, id, sid, episode, streamURL))
 }
 

@@ -387,9 +387,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 															break
 														}
 														switch elem[0] {
-														case 'r': // Prefix: "renditions/"
+														case 'g': // Prefix: "groups/"
 
-															if l := len("renditions/"); len(elem) >= l && elem[0:l] == "renditions/" {
+															if l := len("groups/"); len(elem) >= l && elem[0:l] == "groups/" {
 																elem = elem[l:]
 															} else {
 																break
@@ -408,9 +408,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 																break
 															}
 															switch elem[0] {
-															case '/': // Prefix: "/"
+															case '/': // Prefix: "/renditions/"
 
-																if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																if l := len("/renditions/"); len(elem) >= l && elem[0:l] == "/renditions/" {
 																	elem = elem[l:]
 																} else {
 																	break
@@ -446,194 +446,174 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 																	return
 																}
 																switch elem[0] {
-																case '/': // Prefix: "/"
+																case '/': // Prefix: "/segments/"
 
-																	if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																	if l := len("/segments/"); len(elem) >= l && elem[0:l] == "/segments/" {
 																		elem = elem[l:]
 																	} else {
 																		break
 																	}
 
-																	if len(elem) == 0 {
+																	// Param: "segment"
+																	// Leaf parameter, slashes are prohibited
+																	idx := strings.IndexByte(elem, '/')
+																	if idx >= 0 {
 																		break
 																	}
-																	switch elem[0] {
-																	case 'k': // Prefix: "keys/"
+																	args[4] = elem
+																	elem = ""
 
-																		if l := len("keys/"); len(elem) >= l && elem[0:l] == "keys/" {
-																			elem = elem[l:]
-																		} else {
-																			break
+																	if len(elem) == 0 {
+																		// Leaf node.
+																		switch r.Method {
+																		case "GET":
+																			s.handleGetMovieHLSRenditionSegmentRequest([5]string{
+																				args[0],
+																				args[1],
+																				args[2],
+																				args[3],
+																				args[4],
+																			}, elemIsEscaped, w, r)
+																		default:
+																			s.notAllowed(w, r, notAllowedParams{
+																				allowedMethods: "GET",
+																				allowedHeaders: nil,
+																				acceptPost:     "",
+																				acceptPatch:    "",
+																			})
 																		}
 
-																		// Param: "file"
-																		// Leaf parameter, slashes are prohibited
-																		idx := strings.IndexByte(elem, '/')
-																		if idx >= 0 {
-																			break
-																		}
-																		args[4] = elem
-																		elem = ""
-
-																		if len(elem) == 0 {
-																			// Leaf node.
-																			switch r.Method {
-																			case "GET":
-																				s.handleGetMovieRenditionKeyRequest([5]string{
-																					args[0],
-																					args[1],
-																					args[2],
-																					args[3],
-																					args[4],
-																				}, elemIsEscaped, w, r)
-																			default:
-																				s.notAllowed(w, r, notAllowedParams{
-																					allowedMethods: "GET",
-																					allowedHeaders: nil,
-																					acceptPost:     "",
-																					acceptPatch:    "",
-																				})
-																			}
-
-																			return
-																		}
-
-																	case 'p': // Prefix: "p"
-
-																		if l := len("p"); len(elem) >= l && elem[0:l] == "p" {
-																			elem = elem[l:]
-																		} else {
-																			break
-																		}
-
-																		if len(elem) == 0 {
-																			break
-																		}
-																		switch elem[0] {
-																		case 'a': // Prefix: "artials/"
-
-																			if l := len("artials/"); len(elem) >= l && elem[0:l] == "artials/" {
-																				elem = elem[l:]
-																			} else {
-																				break
-																			}
-
-																			// Param: "file"
-																			// Leaf parameter, slashes are prohibited
-																			idx := strings.IndexByte(elem, '/')
-																			if idx >= 0 {
-																				break
-																			}
-																			args[4] = elem
-																			elem = ""
-
-																			if len(elem) == 0 {
-																				// Leaf node.
-																				switch r.Method {
-																				case "GET":
-																					s.handleGetMovieRenditionPartialRequest([5]string{
-																						args[0],
-																						args[1],
-																						args[2],
-																						args[3],
-																						args[4],
-																					}, elemIsEscaped, w, r)
-																				default:
-																					s.notAllowed(w, r, notAllowedParams{
-																						allowedMethods: "GET",
-																						allowedHeaders: nil,
-																						acceptPost:     "",
-																						acceptPatch:    "",
-																					})
-																				}
-
-																				return
-																			}
-
-																		case 'r': // Prefix: "reload-hints/"
-
-																			if l := len("reload-hints/"); len(elem) >= l && elem[0:l] == "reload-hints/" {
-																				elem = elem[l:]
-																			} else {
-																				break
-																			}
-
-																			// Param: "file"
-																			// Leaf parameter, slashes are prohibited
-																			idx := strings.IndexByte(elem, '/')
-																			if idx >= 0 {
-																				break
-																			}
-																			args[4] = elem
-																			elem = ""
-
-																			if len(elem) == 0 {
-																				// Leaf node.
-																				switch r.Method {
-																				case "GET":
-																					s.handleGetMovieRenditionPreloadHintRequest([5]string{
-																						args[0],
-																						args[1],
-																						args[2],
-																						args[3],
-																						args[4],
-																					}, elemIsEscaped, w, r)
-																				default:
-																					s.notAllowed(w, r, notAllowedParams{
-																						allowedMethods: "GET",
-																						allowedHeaders: nil,
-																						acceptPost:     "",
-																						acceptPatch:    "",
-																					})
-																				}
-
-																				return
-																			}
-
-																		}
-
-																	case 's': // Prefix: "segments/"
-
-																		if l := len("segments/"); len(elem) >= l && elem[0:l] == "segments/" {
-																			elem = elem[l:]
-																		} else {
-																			break
-																		}
-
-																		// Param: "segment"
-																		// Leaf parameter, slashes are prohibited
-																		idx := strings.IndexByte(elem, '/')
-																		if idx >= 0 {
-																			break
-																		}
-																		args[4] = elem
-																		elem = ""
-
-																		if len(elem) == 0 {
-																			// Leaf node.
-																			switch r.Method {
-																			case "GET":
-																				s.handleGetMovieHLSRenditionSegmentRequest([5]string{
-																					args[0],
-																					args[1],
-																					args[2],
-																					args[3],
-																					args[4],
-																				}, elemIsEscaped, w, r)
-																			default:
-																				s.notAllowed(w, r, notAllowedParams{
-																					allowedMethods: "GET",
-																					allowedHeaders: nil,
-																					acceptPost:     "",
-																					acceptPatch:    "",
-																				})
-																			}
-
-																			return
-																		}
-
+																		return
 																	}
 
+																}
+
+															}
+
+														case 'k': // Prefix: "keys/"
+
+															if l := len("keys/"); len(elem) >= l && elem[0:l] == "keys/" {
+																elem = elem[l:]
+															} else {
+																break
+															}
+
+															// Param: "file"
+															// Leaf parameter, slashes are prohibited
+															idx := strings.IndexByte(elem, '/')
+															if idx >= 0 {
+																break
+															}
+															args[2] = elem
+															elem = ""
+
+															if len(elem) == 0 {
+																// Leaf node.
+																switch r.Method {
+																case "GET":
+																	s.handleGetMovieHLSKeyRequest([3]string{
+																		args[0],
+																		args[1],
+																		args[2],
+																	}, elemIsEscaped, w, r)
+																default:
+																	s.notAllowed(w, r, notAllowedParams{
+																		allowedMethods: "GET",
+																		allowedHeaders: nil,
+																		acceptPost:     "",
+																		acceptPatch:    "",
+																	})
+																}
+
+																return
+															}
+
+														case 'p': // Prefix: "p"
+
+															if l := len("p"); len(elem) >= l && elem[0:l] == "p" {
+																elem = elem[l:]
+															} else {
+																break
+															}
+
+															if len(elem) == 0 {
+																break
+															}
+															switch elem[0] {
+															case 'a': // Prefix: "artials/"
+
+																if l := len("artials/"); len(elem) >= l && elem[0:l] == "artials/" {
+																	elem = elem[l:]
+																} else {
+																	break
+																}
+
+																// Param: "file"
+																// Leaf parameter, slashes are prohibited
+																idx := strings.IndexByte(elem, '/')
+																if idx >= 0 {
+																	break
+																}
+																args[2] = elem
+																elem = ""
+
+																if len(elem) == 0 {
+																	// Leaf node.
+																	switch r.Method {
+																	case "GET":
+																		s.handleGetMovieHLSPartialRequest([3]string{
+																			args[0],
+																			args[1],
+																			args[2],
+																		}, elemIsEscaped, w, r)
+																	default:
+																		s.notAllowed(w, r, notAllowedParams{
+																			allowedMethods: "GET",
+																			allowedHeaders: nil,
+																			acceptPost:     "",
+																			acceptPatch:    "",
+																		})
+																	}
+
+																	return
+																}
+
+															case 'r': // Prefix: "reload-hints/"
+
+																if l := len("reload-hints/"); len(elem) >= l && elem[0:l] == "reload-hints/" {
+																	elem = elem[l:]
+																} else {
+																	break
+																}
+
+																// Param: "file"
+																// Leaf parameter, slashes are prohibited
+																idx := strings.IndexByte(elem, '/')
+																if idx >= 0 {
+																	break
+																}
+																args[2] = elem
+																elem = ""
+
+																if len(elem) == 0 {
+																	// Leaf node.
+																	switch r.Method {
+																	case "GET":
+																		s.handleGetMovieHLSPreloadHintRequest([3]string{
+																			args[0],
+																			args[1],
+																			args[2],
+																		}, elemIsEscaped, w, r)
+																	default:
+																		s.notAllowed(w, r, notAllowedParams{
+																			allowedMethods: "GET",
+																			allowedHeaders: nil,
+																			acceptPost:     "",
+																			acceptPatch:    "",
+																		})
+																	}
+
+																	return
 																}
 
 															}
@@ -778,7 +758,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 																break
 															}
 
-															// Param: "variantIndex"
+															// Param: "variantId"
 															// Match until "/"
 															idx := strings.IndexByte(elem, '/')
 															if idx < 0 {
@@ -807,188 +787,43 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 																return
 															}
 															switch elem[0] {
-															case '/': // Prefix: "/"
+															case '/': // Prefix: "/segments/"
 
-																if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																if l := len("/segments/"); len(elem) >= l && elem[0:l] == "/segments/" {
 																	elem = elem[l:]
 																} else {
 																	break
 																}
 
-																if len(elem) == 0 {
+																// Param: "segment"
+																// Leaf parameter, slashes are prohibited
+																idx := strings.IndexByte(elem, '/')
+																if idx >= 0 {
 																	break
 																}
-																switch elem[0] {
-																case 'k': // Prefix: "keys/"
+																args[3] = elem
+																elem = ""
 
-																	if l := len("keys/"); len(elem) >= l && elem[0:l] == "keys/" {
-																		elem = elem[l:]
-																	} else {
-																		break
+																if len(elem) == 0 {
+																	// Leaf node.
+																	switch r.Method {
+																	case "GET":
+																		s.handleGetMovieHLSVariantSegmentRequest([4]string{
+																			args[0],
+																			args[1],
+																			args[2],
+																			args[3],
+																		}, elemIsEscaped, w, r)
+																	default:
+																		s.notAllowed(w, r, notAllowedParams{
+																			allowedMethods: "GET",
+																			allowedHeaders: nil,
+																			acceptPost:     "",
+																			acceptPatch:    "",
+																		})
 																	}
 
-																	// Param: "file"
-																	// Leaf parameter, slashes are prohibited
-																	idx := strings.IndexByte(elem, '/')
-																	if idx >= 0 {
-																		break
-																	}
-																	args[3] = elem
-																	elem = ""
-
-																	if len(elem) == 0 {
-																		// Leaf node.
-																		switch r.Method {
-																		case "GET":
-																			s.handleGetMovieVariantKeyRequest([4]string{
-																				args[0],
-																				args[1],
-																				args[2],
-																				args[3],
-																			}, elemIsEscaped, w, r)
-																		default:
-																			s.notAllowed(w, r, notAllowedParams{
-																				allowedMethods: "GET",
-																				allowedHeaders: nil,
-																				acceptPost:     "",
-																				acceptPatch:    "",
-																			})
-																		}
-
-																		return
-																	}
-
-																case 'p': // Prefix: "p"
-
-																	if l := len("p"); len(elem) >= l && elem[0:l] == "p" {
-																		elem = elem[l:]
-																	} else {
-																		break
-																	}
-
-																	if len(elem) == 0 {
-																		break
-																	}
-																	switch elem[0] {
-																	case 'a': // Prefix: "artials/"
-
-																		if l := len("artials/"); len(elem) >= l && elem[0:l] == "artials/" {
-																			elem = elem[l:]
-																		} else {
-																			break
-																		}
-
-																		// Param: "file"
-																		// Leaf parameter, slashes are prohibited
-																		idx := strings.IndexByte(elem, '/')
-																		if idx >= 0 {
-																			break
-																		}
-																		args[3] = elem
-																		elem = ""
-
-																		if len(elem) == 0 {
-																			// Leaf node.
-																			switch r.Method {
-																			case "GET":
-																				s.handleGetMovieVariantPartialRequest([4]string{
-																					args[0],
-																					args[1],
-																					args[2],
-																					args[3],
-																				}, elemIsEscaped, w, r)
-																			default:
-																				s.notAllowed(w, r, notAllowedParams{
-																					allowedMethods: "GET",
-																					allowedHeaders: nil,
-																					acceptPost:     "",
-																					acceptPatch:    "",
-																				})
-																			}
-
-																			return
-																		}
-
-																	case 'r': // Prefix: "reload-hints/"
-
-																		if l := len("reload-hints/"); len(elem) >= l && elem[0:l] == "reload-hints/" {
-																			elem = elem[l:]
-																		} else {
-																			break
-																		}
-
-																		// Param: "file"
-																		// Leaf parameter, slashes are prohibited
-																		idx := strings.IndexByte(elem, '/')
-																		if idx >= 0 {
-																			break
-																		}
-																		args[3] = elem
-																		elem = ""
-
-																		if len(elem) == 0 {
-																			// Leaf node.
-																			switch r.Method {
-																			case "GET":
-																				s.handleGetMovieVariantPreloadHintRequest([4]string{
-																					args[0],
-																					args[1],
-																					args[2],
-																					args[3],
-																				}, elemIsEscaped, w, r)
-																			default:
-																				s.notAllowed(w, r, notAllowedParams{
-																					allowedMethods: "GET",
-																					allowedHeaders: nil,
-																					acceptPost:     "",
-																					acceptPatch:    "",
-																				})
-																			}
-
-																			return
-																		}
-
-																	}
-
-																case 's': // Prefix: "segments/"
-
-																	if l := len("segments/"); len(elem) >= l && elem[0:l] == "segments/" {
-																		elem = elem[l:]
-																	} else {
-																		break
-																	}
-
-																	// Param: "segment"
-																	// Leaf parameter, slashes are prohibited
-																	idx := strings.IndexByte(elem, '/')
-																	if idx >= 0 {
-																		break
-																	}
-																	args[3] = elem
-																	elem = ""
-
-																	if len(elem) == 0 {
-																		// Leaf node.
-																		switch r.Method {
-																		case "GET":
-																			s.handleGetMovieHLSVariantSegmentRequest([4]string{
-																				args[0],
-																				args[1],
-																				args[2],
-																				args[3],
-																			}, elemIsEscaped, w, r)
-																		default:
-																			s.notAllowed(w, r, notAllowedParams{
-																				allowedMethods: "GET",
-																				allowedHeaders: nil,
-																				acceptPost:     "",
-																				acceptPatch:    "",
-																			})
-																		}
-
-																		return
-																	}
-
+																	return
 																}
 
 															}
@@ -1007,151 +842,119 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 													elem = elem[idx:]
 
 													if len(elem) == 0 {
-														break
+														switch r.Method {
+														case "GET":
+															s.handleGetMovieStreamFileRequest([3]string{
+																args[0],
+																args[1],
+																args[2],
+															}, elemIsEscaped, w, r)
+														default:
+															s.notAllowed(w, r, notAllowedParams{
+																allowedMethods: "GET",
+																allowedHeaders: nil,
+																acceptPost:     "",
+																acceptPatch:    "",
+															})
+														}
+
+														return
 													}
 													switch elem[0] {
-													case '/': // Prefix: "/"
+													case '/': // Prefix: "/periods/"
 
-														if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+														if l := len("/periods/"); len(elem) >= l && elem[0:l] == "/periods/" {
 															elem = elem[l:]
 														} else {
 															break
 														}
 
+														// Param: "period"
+														// Match until "/"
+														idx := strings.IndexByte(elem, '/')
+														if idx < 0 {
+															idx = len(elem)
+														}
+														args[3] = elem[:idx]
+														elem = elem[idx:]
+
 														if len(elem) == 0 {
 															break
 														}
 														switch elem[0] {
-														case 'p': // Prefix: "periods/"
-															origElem := elem
-															if l := len("periods/"); len(elem) >= l && elem[0:l] == "periods/" {
+														case '/': // Prefix: "/adaptation-sets/"
+
+															if l := len("/adaptation-sets/"); len(elem) >= l && elem[0:l] == "/adaptation-sets/" {
 																elem = elem[l:]
 															} else {
 																break
 															}
 
-															// Param: "period"
+															// Param: "adaptationSet"
 															// Match until "/"
 															idx := strings.IndexByte(elem, '/')
 															if idx < 0 {
 																idx = len(elem)
 															}
-															args[3] = elem[:idx]
+															args[4] = elem[:idx]
 															elem = elem[idx:]
 
 															if len(elem) == 0 {
 																break
 															}
 															switch elem[0] {
-															case '/': // Prefix: "/adaptation-sets/"
+															case '/': // Prefix: "/representations/"
 
-																if l := len("/adaptation-sets/"); len(elem) >= l && elem[0:l] == "/adaptation-sets/" {
+																if l := len("/representations/"); len(elem) >= l && elem[0:l] == "/representations/" {
 																	elem = elem[l:]
 																} else {
 																	break
 																}
 
-																// Param: "adaptationSet"
+																// Param: "representation"
 																// Match until "/"
 																idx := strings.IndexByte(elem, '/')
 																if idx < 0 {
 																	idx = len(elem)
 																}
-																args[4] = elem[:idx]
+																args[5] = elem[:idx]
 																elem = elem[idx:]
 
 																if len(elem) == 0 {
 																	break
 																}
 																switch elem[0] {
-																case '/': // Prefix: "/representations/"
+																case '/': // Prefix: "/segments/"
 
-																	if l := len("/representations/"); len(elem) >= l && elem[0:l] == "/representations/" {
+																	if l := len("/segments/"); len(elem) >= l && elem[0:l] == "/segments/" {
 																		elem = elem[l:]
 																	} else {
 																		break
 																	}
 
-																	// Param: "representation"
-																	// Match until "/"
-																	idx := strings.IndexByte(elem, '/')
-																	if idx < 0 {
-																		idx = len(elem)
-																	}
-																	args[5] = elem[:idx]
-																	elem = elem[idx:]
-
 																	if len(elem) == 0 {
 																		break
 																	}
 																	switch elem[0] {
-																	case '/': // Prefix: "/"
-
-																		if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																	case 'i': // Prefix: "init"
+																		origElem := elem
+																		if l := len("init"); len(elem) >= l && elem[0:l] == "init" {
 																			elem = elem[l:]
 																		} else {
 																			break
 																		}
 
 																		if len(elem) == 0 {
-																			break
-																		}
-																		switch elem[0] {
-																		case 'i': // Prefix: "init"
-																			origElem := elem
-																			if l := len("init"); len(elem) >= l && elem[0:l] == "init" {
-																				elem = elem[l:]
-																			} else {
-																				break
-																			}
-
-																			if len(elem) == 0 {
-																				// Leaf node.
-																				switch r.Method {
-																				case "GET":
-																					s.handleGetMovieDASHInitRequest([6]string{
-																						args[0],
-																						args[1],
-																						args[2],
-																						args[3],
-																						args[4],
-																						args[5],
-																					}, elemIsEscaped, w, r)
-																				default:
-																					s.notAllowed(w, r, notAllowedParams{
-																						allowedMethods: "GET",
-																						allowedHeaders: nil,
-																						acceptPost:     "",
-																						acceptPatch:    "",
-																					})
-																				}
-
-																				return
-																			}
-
-																			elem = origElem
-																		}
-																		// Param: "segment"
-																		// Leaf parameter, slashes are prohibited
-																		idx := strings.IndexByte(elem, '/')
-																		if idx >= 0 {
-																			break
-																		}
-																		args[6] = elem
-																		elem = ""
-
-																		if len(elem) == 0 {
 																			// Leaf node.
 																			switch r.Method {
 																			case "GET":
-																				s.handleGetMovieDASHSegmentRequest([7]string{
+																				s.handleGetMovieDASHInitRequest([6]string{
 																					args[0],
 																					args[1],
 																					args[2],
 																					args[3],
 																					args[4],
 																					args[5],
-																					args[6],
 																				}, elemIsEscaped, w, r)
 																			default:
 																				s.notAllowed(w, r, notAllowedParams{
@@ -1165,82 +968,44 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 																			return
 																		}
 
+																		elem = origElem
+																	}
+																	// Param: "segment"
+																	// Leaf parameter, slashes are prohibited
+																	idx := strings.IndexByte(elem, '/')
+																	if idx >= 0 {
+																		break
+																	}
+																	args[6] = elem
+																	elem = ""
+
+																	if len(elem) == 0 {
+																		// Leaf node.
+																		switch r.Method {
+																		case "GET":
+																			s.handleGetMovieDASHSegmentRequest([7]string{
+																				args[0],
+																				args[1],
+																				args[2],
+																				args[3],
+																				args[4],
+																				args[5],
+																				args[6],
+																			}, elemIsEscaped, w, r)
+																		default:
+																			s.notAllowed(w, r, notAllowedParams{
+																				allowedMethods: "GET",
+																				allowedHeaders: nil,
+																				acceptPost:     "",
+																				acceptPatch:    "",
+																			})
+																		}
+
+																		return
 																	}
 
 																}
 
-															}
-
-															elem = origElem
-														}
-														// Param: "file"
-														// Match until "/"
-														idx := strings.IndexByte(elem, '/')
-														if idx < 0 {
-															idx = len(elem)
-														}
-														args[3] = elem[:idx]
-														elem = elem[idx:]
-
-														if len(elem) == 0 {
-															switch r.Method {
-															case "GET":
-																s.handleGetMovieStreamFileRequest([4]string{
-																	args[0],
-																	args[1],
-																	args[2],
-																	args[3],
-																}, elemIsEscaped, w, r)
-															default:
-																s.notAllowed(w, r, notAllowedParams{
-																	allowedMethods: "GET",
-																	allowedHeaders: nil,
-																	acceptPost:     "",
-																	acceptPatch:    "",
-																})
-															}
-
-															return
-														}
-														switch elem[0] {
-														case '/': // Prefix: "/"
-
-															if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
-																elem = elem[l:]
-															} else {
-																break
-															}
-
-															// Param: "segment"
-															// Leaf parameter, slashes are prohibited
-															idx := strings.IndexByte(elem, '/')
-															if idx >= 0 {
-																break
-															}
-															args[4] = elem
-															elem = ""
-
-															if len(elem) == 0 {
-																// Leaf node.
-																switch r.Method {
-																case "GET":
-																	s.handleGetMovieStreamSegmentRequest([5]string{
-																		args[0],
-																		args[1],
-																		args[2],
-																		args[3],
-																		args[4],
-																	}, elemIsEscaped, w, r)
-																default:
-																	s.notAllowed(w, r, notAllowedParams{
-																		allowedMethods: "GET",
-																		allowedHeaders: nil,
-																		acceptPost:     "",
-																		acceptPatch:    "",
-																	})
-																}
-
-																return
 															}
 
 														}
@@ -1284,7 +1049,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 														break
 													}
 
-													// Param: "subtitleFile"
+													// Param: "subtitleId"
 													// Leaf parameter, slashes are prohibited
 													idx := strings.IndexByte(elem, '/')
 													if idx >= 0 {
@@ -1297,7 +1062,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 														// Leaf node.
 														switch r.Method {
 														case "GET":
-															s.handleGetMovieSubtitleFileRequest([3]string{
+															s.handleGetMovieSubtitleRequest([3]string{
 																args[0],
 																args[1],
 																args[2],
@@ -1702,9 +1467,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 																					break
 																				}
 																				switch elem[0] {
-																				case 'r': // Prefix: "renditions/"
+																				case 'g': // Prefix: "groups/"
 
-																					if l := len("renditions/"); len(elem) >= l && elem[0:l] == "renditions/" {
+																					if l := len("groups/"); len(elem) >= l && elem[0:l] == "groups/" {
 																						elem = elem[l:]
 																					} else {
 																						break
@@ -1723,9 +1488,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 																						break
 																					}
 																					switch elem[0] {
-																					case '/': // Prefix: "/"
+																					case '/': // Prefix: "/renditions/"
 
-																						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																						if l := len("/renditions/"); len(elem) >= l && elem[0:l] == "/renditions/" {
 																							elem = elem[l:]
 																						} else {
 																							break
@@ -1763,202 +1528,182 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 																							return
 																						}
 																						switch elem[0] {
-																						case '/': // Prefix: "/"
+																						case '/': // Prefix: "/segments/"
 
-																							if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																							if l := len("/segments/"); len(elem) >= l && elem[0:l] == "/segments/" {
 																								elem = elem[l:]
 																							} else {
 																								break
 																							}
 
-																							if len(elem) == 0 {
+																							// Param: "segment"
+																							// Leaf parameter, slashes are prohibited
+																							idx := strings.IndexByte(elem, '/')
+																							if idx >= 0 {
 																								break
 																							}
-																							switch elem[0] {
-																							case 'k': // Prefix: "keys/"
+																							args[6] = elem
+																							elem = ""
 
-																								if l := len("keys/"); len(elem) >= l && elem[0:l] == "keys/" {
-																									elem = elem[l:]
-																								} else {
-																									break
+																							if len(elem) == 0 {
+																								// Leaf node.
+																								switch r.Method {
+																								case "GET":
+																									s.handleGetEpisodeHLSRenditionSegmentRequest([7]string{
+																										args[0],
+																										args[1],
+																										args[2],
+																										args[3],
+																										args[4],
+																										args[5],
+																										args[6],
+																									}, elemIsEscaped, w, r)
+																								default:
+																									s.notAllowed(w, r, notAllowedParams{
+																										allowedMethods: "GET",
+																										allowedHeaders: nil,
+																										acceptPost:     "",
+																										acceptPatch:    "",
+																									})
 																								}
 
-																								// Param: "file"
-																								// Leaf parameter, slashes are prohibited
-																								idx := strings.IndexByte(elem, '/')
-																								if idx >= 0 {
-																									break
-																								}
-																								args[6] = elem
-																								elem = ""
-
-																								if len(elem) == 0 {
-																									// Leaf node.
-																									switch r.Method {
-																									case "GET":
-																										s.handleGetEpisodeRenditionKeyRequest([7]string{
-																											args[0],
-																											args[1],
-																											args[2],
-																											args[3],
-																											args[4],
-																											args[5],
-																											args[6],
-																										}, elemIsEscaped, w, r)
-																									default:
-																										s.notAllowed(w, r, notAllowedParams{
-																											allowedMethods: "GET",
-																											allowedHeaders: nil,
-																											acceptPost:     "",
-																											acceptPatch:    "",
-																										})
-																									}
-
-																									return
-																								}
-
-																							case 'p': // Prefix: "p"
-
-																								if l := len("p"); len(elem) >= l && elem[0:l] == "p" {
-																									elem = elem[l:]
-																								} else {
-																									break
-																								}
-
-																								if len(elem) == 0 {
-																									break
-																								}
-																								switch elem[0] {
-																								case 'a': // Prefix: "artials/"
-
-																									if l := len("artials/"); len(elem) >= l && elem[0:l] == "artials/" {
-																										elem = elem[l:]
-																									} else {
-																										break
-																									}
-
-																									// Param: "file"
-																									// Leaf parameter, slashes are prohibited
-																									idx := strings.IndexByte(elem, '/')
-																									if idx >= 0 {
-																										break
-																									}
-																									args[6] = elem
-																									elem = ""
-
-																									if len(elem) == 0 {
-																										// Leaf node.
-																										switch r.Method {
-																										case "GET":
-																											s.handleGetEpisodeRenditionPartialRequest([7]string{
-																												args[0],
-																												args[1],
-																												args[2],
-																												args[3],
-																												args[4],
-																												args[5],
-																												args[6],
-																											}, elemIsEscaped, w, r)
-																										default:
-																											s.notAllowed(w, r, notAllowedParams{
-																												allowedMethods: "GET",
-																												allowedHeaders: nil,
-																												acceptPost:     "",
-																												acceptPatch:    "",
-																											})
-																										}
-
-																										return
-																									}
-
-																								case 'r': // Prefix: "reload-hints/"
-
-																									if l := len("reload-hints/"); len(elem) >= l && elem[0:l] == "reload-hints/" {
-																										elem = elem[l:]
-																									} else {
-																										break
-																									}
-
-																									// Param: "file"
-																									// Leaf parameter, slashes are prohibited
-																									idx := strings.IndexByte(elem, '/')
-																									if idx >= 0 {
-																										break
-																									}
-																									args[6] = elem
-																									elem = ""
-
-																									if len(elem) == 0 {
-																										// Leaf node.
-																										switch r.Method {
-																										case "GET":
-																											s.handleGetEpisodeRenditionPreloadHintRequest([7]string{
-																												args[0],
-																												args[1],
-																												args[2],
-																												args[3],
-																												args[4],
-																												args[5],
-																												args[6],
-																											}, elemIsEscaped, w, r)
-																										default:
-																											s.notAllowed(w, r, notAllowedParams{
-																												allowedMethods: "GET",
-																												allowedHeaders: nil,
-																												acceptPost:     "",
-																												acceptPatch:    "",
-																											})
-																										}
-
-																										return
-																									}
-
-																								}
-
-																							case 's': // Prefix: "segments/"
-
-																								if l := len("segments/"); len(elem) >= l && elem[0:l] == "segments/" {
-																									elem = elem[l:]
-																								} else {
-																									break
-																								}
-
-																								// Param: "segment"
-																								// Leaf parameter, slashes are prohibited
-																								idx := strings.IndexByte(elem, '/')
-																								if idx >= 0 {
-																									break
-																								}
-																								args[6] = elem
-																								elem = ""
-
-																								if len(elem) == 0 {
-																									// Leaf node.
-																									switch r.Method {
-																									case "GET":
-																										s.handleGetEpisodeHLSRenditionSegmentRequest([7]string{
-																											args[0],
-																											args[1],
-																											args[2],
-																											args[3],
-																											args[4],
-																											args[5],
-																											args[6],
-																										}, elemIsEscaped, w, r)
-																									default:
-																										s.notAllowed(w, r, notAllowedParams{
-																											allowedMethods: "GET",
-																											allowedHeaders: nil,
-																											acceptPost:     "",
-																											acceptPatch:    "",
-																										})
-																									}
-
-																									return
-																								}
-
+																								return
 																							}
 
+																						}
+
+																					}
+
+																				case 'k': // Prefix: "keys/"
+
+																					if l := len("keys/"); len(elem) >= l && elem[0:l] == "keys/" {
+																						elem = elem[l:]
+																					} else {
+																						break
+																					}
+
+																					// Param: "file"
+																					// Leaf parameter, slashes are prohibited
+																					idx := strings.IndexByte(elem, '/')
+																					if idx >= 0 {
+																						break
+																					}
+																					args[4] = elem
+																					elem = ""
+
+																					if len(elem) == 0 {
+																						// Leaf node.
+																						switch r.Method {
+																						case "GET":
+																							s.handleGetEpisodeHLSKeyRequest([5]string{
+																								args[0],
+																								args[1],
+																								args[2],
+																								args[3],
+																								args[4],
+																							}, elemIsEscaped, w, r)
+																						default:
+																							s.notAllowed(w, r, notAllowedParams{
+																								allowedMethods: "GET",
+																								allowedHeaders: nil,
+																								acceptPost:     "",
+																								acceptPatch:    "",
+																							})
+																						}
+
+																						return
+																					}
+
+																				case 'p': // Prefix: "p"
+
+																					if l := len("p"); len(elem) >= l && elem[0:l] == "p" {
+																						elem = elem[l:]
+																					} else {
+																						break
+																					}
+
+																					if len(elem) == 0 {
+																						break
+																					}
+																					switch elem[0] {
+																					case 'a': // Prefix: "artials/"
+
+																						if l := len("artials/"); len(elem) >= l && elem[0:l] == "artials/" {
+																							elem = elem[l:]
+																						} else {
+																							break
+																						}
+
+																						// Param: "file"
+																						// Leaf parameter, slashes are prohibited
+																						idx := strings.IndexByte(elem, '/')
+																						if idx >= 0 {
+																							break
+																						}
+																						args[4] = elem
+																						elem = ""
+
+																						if len(elem) == 0 {
+																							// Leaf node.
+																							switch r.Method {
+																							case "GET":
+																								s.handleGetEpisodeHLSPartialRequest([5]string{
+																									args[0],
+																									args[1],
+																									args[2],
+																									args[3],
+																									args[4],
+																								}, elemIsEscaped, w, r)
+																							default:
+																								s.notAllowed(w, r, notAllowedParams{
+																									allowedMethods: "GET",
+																									allowedHeaders: nil,
+																									acceptPost:     "",
+																									acceptPatch:    "",
+																								})
+																							}
+
+																							return
+																						}
+
+																					case 'r': // Prefix: "reload-hints/"
+
+																						if l := len("reload-hints/"); len(elem) >= l && elem[0:l] == "reload-hints/" {
+																							elem = elem[l:]
+																						} else {
+																							break
+																						}
+
+																						// Param: "file"
+																						// Leaf parameter, slashes are prohibited
+																						idx := strings.IndexByte(elem, '/')
+																						if idx >= 0 {
+																							break
+																						}
+																						args[4] = elem
+																						elem = ""
+
+																						if len(elem) == 0 {
+																							// Leaf node.
+																							switch r.Method {
+																							case "GET":
+																								s.handleGetEpisodeHLSPreloadHintRequest([5]string{
+																									args[0],
+																									args[1],
+																									args[2],
+																									args[3],
+																									args[4],
+																								}, elemIsEscaped, w, r)
+																							default:
+																								s.notAllowed(w, r, notAllowedParams{
+																									allowedMethods: "GET",
+																									allowedHeaders: nil,
+																									acceptPost:     "",
+																									acceptPatch:    "",
+																								})
+																							}
+
+																							return
 																						}
 
 																					}
@@ -2109,7 +1854,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 																						break
 																					}
 
-																					// Param: "variantIndex"
+																					// Param: "variantId"
 																					// Match until "/"
 																					idx := strings.IndexByte(elem, '/')
 																					if idx < 0 {
@@ -2140,196 +1885,45 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 																						return
 																					}
 																					switch elem[0] {
-																					case '/': // Prefix: "/"
+																					case '/': // Prefix: "/segments/"
 
-																						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																						if l := len("/segments/"); len(elem) >= l && elem[0:l] == "/segments/" {
 																							elem = elem[l:]
 																						} else {
 																							break
 																						}
 
-																						if len(elem) == 0 {
+																						// Param: "segment"
+																						// Leaf parameter, slashes are prohibited
+																						idx := strings.IndexByte(elem, '/')
+																						if idx >= 0 {
 																							break
 																						}
-																						switch elem[0] {
-																						case 'k': // Prefix: "keys/"
+																						args[5] = elem
+																						elem = ""
 
-																							if l := len("keys/"); len(elem) >= l && elem[0:l] == "keys/" {
-																								elem = elem[l:]
-																							} else {
-																								break
+																						if len(elem) == 0 {
+																							// Leaf node.
+																							switch r.Method {
+																							case "GET":
+																								s.handleGetEpisodeHLSVariantSegmentRequest([6]string{
+																									args[0],
+																									args[1],
+																									args[2],
+																									args[3],
+																									args[4],
+																									args[5],
+																								}, elemIsEscaped, w, r)
+																							default:
+																								s.notAllowed(w, r, notAllowedParams{
+																									allowedMethods: "GET",
+																									allowedHeaders: nil,
+																									acceptPost:     "",
+																									acceptPatch:    "",
+																								})
 																							}
 
-																							// Param: "file"
-																							// Leaf parameter, slashes are prohibited
-																							idx := strings.IndexByte(elem, '/')
-																							if idx >= 0 {
-																								break
-																							}
-																							args[5] = elem
-																							elem = ""
-
-																							if len(elem) == 0 {
-																								// Leaf node.
-																								switch r.Method {
-																								case "GET":
-																									s.handleGetEpisodeVariantKeyRequest([6]string{
-																										args[0],
-																										args[1],
-																										args[2],
-																										args[3],
-																										args[4],
-																										args[5],
-																									}, elemIsEscaped, w, r)
-																								default:
-																									s.notAllowed(w, r, notAllowedParams{
-																										allowedMethods: "GET",
-																										allowedHeaders: nil,
-																										acceptPost:     "",
-																										acceptPatch:    "",
-																									})
-																								}
-
-																								return
-																							}
-
-																						case 'p': // Prefix: "p"
-
-																							if l := len("p"); len(elem) >= l && elem[0:l] == "p" {
-																								elem = elem[l:]
-																							} else {
-																								break
-																							}
-
-																							if len(elem) == 0 {
-																								break
-																							}
-																							switch elem[0] {
-																							case 'a': // Prefix: "artials/"
-
-																								if l := len("artials/"); len(elem) >= l && elem[0:l] == "artials/" {
-																									elem = elem[l:]
-																								} else {
-																									break
-																								}
-
-																								// Param: "file"
-																								// Leaf parameter, slashes are prohibited
-																								idx := strings.IndexByte(elem, '/')
-																								if idx >= 0 {
-																									break
-																								}
-																								args[5] = elem
-																								elem = ""
-
-																								if len(elem) == 0 {
-																									// Leaf node.
-																									switch r.Method {
-																									case "GET":
-																										s.handleGetEpisodeVariantPartialRequest([6]string{
-																											args[0],
-																											args[1],
-																											args[2],
-																											args[3],
-																											args[4],
-																											args[5],
-																										}, elemIsEscaped, w, r)
-																									default:
-																										s.notAllowed(w, r, notAllowedParams{
-																											allowedMethods: "GET",
-																											allowedHeaders: nil,
-																											acceptPost:     "",
-																											acceptPatch:    "",
-																										})
-																									}
-
-																									return
-																								}
-
-																							case 'r': // Prefix: "reload-hints/"
-
-																								if l := len("reload-hints/"); len(elem) >= l && elem[0:l] == "reload-hints/" {
-																									elem = elem[l:]
-																								} else {
-																									break
-																								}
-
-																								// Param: "file"
-																								// Leaf parameter, slashes are prohibited
-																								idx := strings.IndexByte(elem, '/')
-																								if idx >= 0 {
-																									break
-																								}
-																								args[5] = elem
-																								elem = ""
-
-																								if len(elem) == 0 {
-																									// Leaf node.
-																									switch r.Method {
-																									case "GET":
-																										s.handleGetEpisodeVariantPreloadHintRequest([6]string{
-																											args[0],
-																											args[1],
-																											args[2],
-																											args[3],
-																											args[4],
-																											args[5],
-																										}, elemIsEscaped, w, r)
-																									default:
-																										s.notAllowed(w, r, notAllowedParams{
-																											allowedMethods: "GET",
-																											allowedHeaders: nil,
-																											acceptPost:     "",
-																											acceptPatch:    "",
-																										})
-																									}
-
-																									return
-																								}
-
-																							}
-
-																						case 's': // Prefix: "segments/"
-
-																							if l := len("segments/"); len(elem) >= l && elem[0:l] == "segments/" {
-																								elem = elem[l:]
-																							} else {
-																								break
-																							}
-
-																							// Param: "segment"
-																							// Leaf parameter, slashes are prohibited
-																							idx := strings.IndexByte(elem, '/')
-																							if idx >= 0 {
-																								break
-																							}
-																							args[5] = elem
-																							elem = ""
-
-																							if len(elem) == 0 {
-																								// Leaf node.
-																								switch r.Method {
-																								case "GET":
-																									s.handleGetEpisodeHLSVariantSegmentRequest([6]string{
-																										args[0],
-																										args[1],
-																										args[2],
-																										args[3],
-																										args[4],
-																										args[5],
-																									}, elemIsEscaped, w, r)
-																								default:
-																									s.notAllowed(w, r, notAllowedParams{
-																										allowedMethods: "GET",
-																										allowedHeaders: nil,
-																										acceptPost:     "",
-																										acceptPatch:    "",
-																									})
-																								}
-
-																								return
-																							}
-
+																							return
 																						}
 
 																					}
@@ -2348,146 +1942,115 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 																			elem = elem[idx:]
 
 																			if len(elem) == 0 {
-																				break
+																				switch r.Method {
+																				case "GET":
+																					s.handleGetEpisodeStreamFileRequest([5]string{
+																						args[0],
+																						args[1],
+																						args[2],
+																						args[3],
+																						args[4],
+																					}, elemIsEscaped, w, r)
+																				default:
+																					s.notAllowed(w, r, notAllowedParams{
+																						allowedMethods: "GET",
+																						allowedHeaders: nil,
+																						acceptPost:     "",
+																						acceptPatch:    "",
+																					})
+																				}
+
+																				return
 																			}
 																			switch elem[0] {
-																			case '/': // Prefix: "/"
+																			case '/': // Prefix: "/periods/"
 
-																				if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																				if l := len("/periods/"); len(elem) >= l && elem[0:l] == "/periods/" {
 																					elem = elem[l:]
 																				} else {
 																					break
 																				}
 
+																				// Param: "period"
+																				// Match until "/"
+																				idx := strings.IndexByte(elem, '/')
+																				if idx < 0 {
+																					idx = len(elem)
+																				}
+																				args[5] = elem[:idx]
+																				elem = elem[idx:]
+
 																				if len(elem) == 0 {
 																					break
 																				}
 																				switch elem[0] {
-																				case 'p': // Prefix: "periods/"
-																					origElem := elem
-																					if l := len("periods/"); len(elem) >= l && elem[0:l] == "periods/" {
+																				case '/': // Prefix: "/adaptation-sets/"
+
+																					if l := len("/adaptation-sets/"); len(elem) >= l && elem[0:l] == "/adaptation-sets/" {
 																						elem = elem[l:]
 																					} else {
 																						break
 																					}
 
-																					// Param: "period"
+																					// Param: "adaptationSet"
 																					// Match until "/"
 																					idx := strings.IndexByte(elem, '/')
 																					if idx < 0 {
 																						idx = len(elem)
 																					}
-																					args[5] = elem[:idx]
+																					args[6] = elem[:idx]
 																					elem = elem[idx:]
 
 																					if len(elem) == 0 {
 																						break
 																					}
 																					switch elem[0] {
-																					case '/': // Prefix: "/adaptation-sets/"
+																					case '/': // Prefix: "/representations/"
 
-																						if l := len("/adaptation-sets/"); len(elem) >= l && elem[0:l] == "/adaptation-sets/" {
+																						if l := len("/representations/"); len(elem) >= l && elem[0:l] == "/representations/" {
 																							elem = elem[l:]
 																						} else {
 																							break
 																						}
 
-																						// Param: "adaptationSet"
+																						// Param: "representation"
 																						// Match until "/"
 																						idx := strings.IndexByte(elem, '/')
 																						if idx < 0 {
 																							idx = len(elem)
 																						}
-																						args[6] = elem[:idx]
+																						args[7] = elem[:idx]
 																						elem = elem[idx:]
 
 																						if len(elem) == 0 {
 																							break
 																						}
 																						switch elem[0] {
-																						case '/': // Prefix: "/representations/"
+																						case '/': // Prefix: "/segments/"
 
-																							if l := len("/representations/"); len(elem) >= l && elem[0:l] == "/representations/" {
+																							if l := len("/segments/"); len(elem) >= l && elem[0:l] == "/segments/" {
 																								elem = elem[l:]
 																							} else {
 																								break
 																							}
 
-																							// Param: "representation"
-																							// Match until "/"
-																							idx := strings.IndexByte(elem, '/')
-																							if idx < 0 {
-																								idx = len(elem)
-																							}
-																							args[7] = elem[:idx]
-																							elem = elem[idx:]
-
 																							if len(elem) == 0 {
 																								break
 																							}
 																							switch elem[0] {
-																							case '/': // Prefix: "/"
-
-																								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																							case 'i': // Prefix: "init"
+																								origElem := elem
+																								if l := len("init"); len(elem) >= l && elem[0:l] == "init" {
 																									elem = elem[l:]
 																								} else {
 																									break
 																								}
 
 																								if len(elem) == 0 {
-																									break
-																								}
-																								switch elem[0] {
-																								case 'i': // Prefix: "init"
-																									origElem := elem
-																									if l := len("init"); len(elem) >= l && elem[0:l] == "init" {
-																										elem = elem[l:]
-																									} else {
-																										break
-																									}
-
-																									if len(elem) == 0 {
-																										// Leaf node.
-																										switch r.Method {
-																										case "GET":
-																											s.handleGetEpisodeDASHInitRequest([8]string{
-																												args[0],
-																												args[1],
-																												args[2],
-																												args[3],
-																												args[4],
-																												args[5],
-																												args[6],
-																												args[7],
-																											}, elemIsEscaped, w, r)
-																										default:
-																											s.notAllowed(w, r, notAllowedParams{
-																												allowedMethods: "GET",
-																												allowedHeaders: nil,
-																												acceptPost:     "",
-																												acceptPatch:    "",
-																											})
-																										}
-
-																										return
-																									}
-
-																									elem = origElem
-																								}
-																								// Param: "segment"
-																								// Leaf parameter, slashes are prohibited
-																								idx := strings.IndexByte(elem, '/')
-																								if idx >= 0 {
-																									break
-																								}
-																								args[8] = elem
-																								elem = ""
-
-																								if len(elem) == 0 {
 																									// Leaf node.
 																									switch r.Method {
 																									case "GET":
-																										s.handleGetEpisodeDASHSegmentRequest([9]string{
+																										s.handleGetEpisodeDASHInitRequest([8]string{
 																											args[0],
 																											args[1],
 																											args[2],
@@ -2496,7 +2059,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 																											args[5],
 																											args[6],
 																											args[7],
-																											args[8],
 																										}, elemIsEscaped, w, r)
 																									default:
 																										s.notAllowed(w, r, notAllowedParams{
@@ -2510,86 +2072,46 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 																									return
 																								}
 
+																								elem = origElem
+																							}
+																							// Param: "segment"
+																							// Leaf parameter, slashes are prohibited
+																							idx := strings.IndexByte(elem, '/')
+																							if idx >= 0 {
+																								break
+																							}
+																							args[8] = elem
+																							elem = ""
+
+																							if len(elem) == 0 {
+																								// Leaf node.
+																								switch r.Method {
+																								case "GET":
+																									s.handleGetEpisodeDASHSegmentRequest([9]string{
+																										args[0],
+																										args[1],
+																										args[2],
+																										args[3],
+																										args[4],
+																										args[5],
+																										args[6],
+																										args[7],
+																										args[8],
+																									}, elemIsEscaped, w, r)
+																								default:
+																									s.notAllowed(w, r, notAllowedParams{
+																										allowedMethods: "GET",
+																										allowedHeaders: nil,
+																										acceptPost:     "",
+																										acceptPatch:    "",
+																									})
+																								}
+
+																								return
 																							}
 
 																						}
 
-																					}
-
-																					elem = origElem
-																				}
-																				// Param: "file"
-																				// Match until "/"
-																				idx := strings.IndexByte(elem, '/')
-																				if idx < 0 {
-																					idx = len(elem)
-																				}
-																				args[5] = elem[:idx]
-																				elem = elem[idx:]
-
-																				if len(elem) == 0 {
-																					switch r.Method {
-																					case "GET":
-																						s.handleGetEpisodeStreamFileRequest([6]string{
-																							args[0],
-																							args[1],
-																							args[2],
-																							args[3],
-																							args[4],
-																							args[5],
-																						}, elemIsEscaped, w, r)
-																					default:
-																						s.notAllowed(w, r, notAllowedParams{
-																							allowedMethods: "GET",
-																							allowedHeaders: nil,
-																							acceptPost:     "",
-																							acceptPatch:    "",
-																						})
-																					}
-
-																					return
-																				}
-																				switch elem[0] {
-																				case '/': // Prefix: "/"
-
-																					if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
-																						elem = elem[l:]
-																					} else {
-																						break
-																					}
-
-																					// Param: "segment"
-																					// Leaf parameter, slashes are prohibited
-																					idx := strings.IndexByte(elem, '/')
-																					if idx >= 0 {
-																						break
-																					}
-																					args[6] = elem
-																					elem = ""
-
-																					if len(elem) == 0 {
-																						// Leaf node.
-																						switch r.Method {
-																						case "GET":
-																							s.handleGetEpisodeStreamSegmentRequest([7]string{
-																								args[0],
-																								args[1],
-																								args[2],
-																								args[3],
-																								args[4],
-																								args[5],
-																								args[6],
-																							}, elemIsEscaped, w, r)
-																						default:
-																							s.notAllowed(w, r, notAllowedParams{
-																								allowedMethods: "GET",
-																								allowedHeaders: nil,
-																								acceptPost:     "",
-																								acceptPatch:    "",
-																							})
-																						}
-
-																						return
 																					}
 
 																				}
@@ -2635,7 +2157,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 																				break
 																			}
 
-																			// Param: "subtitleFile"
+																			// Param: "subtitleId"
 																			// Leaf parameter, slashes are prohibited
 																			idx := strings.IndexByte(elem, '/')
 																			if idx >= 0 {
@@ -2648,7 +2170,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 																				// Leaf node.
 																				switch r.Method {
 																				case "GET":
-																					s.handleGetEpisodeSubtitleFileRequest([5]string{
+																					s.handleGetEpisodeSubtitleRequest([5]string{
 																						args[0],
 																						args[1],
 																						args[2],
@@ -3166,9 +2688,9 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 															break
 														}
 														switch elem[0] {
-														case 'r': // Prefix: "renditions/"
+														case 'g': // Prefix: "groups/"
 
-															if l := len("renditions/"); len(elem) >= l && elem[0:l] == "renditions/" {
+															if l := len("groups/"); len(elem) >= l && elem[0:l] == "groups/" {
 																elem = elem[l:]
 															} else {
 																break
@@ -3187,9 +2709,9 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																break
 															}
 															switch elem[0] {
-															case '/': // Prefix: "/"
+															case '/': // Prefix: "/renditions/"
 
-																if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																if l := len("/renditions/"); len(elem) >= l && elem[0:l] == "/renditions/" {
 																	elem = elem[l:]
 																} else {
 																	break
@@ -3211,7 +2733,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																		r.summary = "Get an HLS rendition sub-playlist for a movie"
 																		r.operationID = "getMovieHLSRendition"
 																		r.operationGroup = ""
-																		r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}"
+																		r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/hls/groups/{groupId}/renditions/{renditionName}"
 																		r.args = args
 																		r.count = 4
 																		return r, true
@@ -3220,170 +2742,156 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																	}
 																}
 																switch elem[0] {
-																case '/': // Prefix: "/"
+																case '/': // Prefix: "/segments/"
 
-																	if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																	if l := len("/segments/"); len(elem) >= l && elem[0:l] == "/segments/" {
 																		elem = elem[l:]
 																	} else {
 																		break
 																	}
 
-																	if len(elem) == 0 {
+																	// Param: "segment"
+																	// Leaf parameter, slashes are prohibited
+																	idx := strings.IndexByte(elem, '/')
+																	if idx >= 0 {
 																		break
 																	}
-																	switch elem[0] {
-																	case 'k': // Prefix: "keys/"
+																	args[4] = elem
+																	elem = ""
 
-																		if l := len("keys/"); len(elem) >= l && elem[0:l] == "keys/" {
-																			elem = elem[l:]
-																		} else {
-																			break
+																	if len(elem) == 0 {
+																		// Leaf node.
+																		switch method {
+																		case "GET":
+																			r.name = GetMovieHLSRenditionSegmentOperation
+																			r.summary = "Get an HLS rendition segment for a movie"
+																			r.operationID = "getMovieHLSRenditionSegment"
+																			r.operationGroup = ""
+																			r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/hls/groups/{groupId}/renditions/{renditionName}/segments/{segment}"
+																			r.args = args
+																			r.count = 5
+																			return r, true
+																		default:
+																			return
 																		}
-
-																		// Param: "file"
-																		// Leaf parameter, slashes are prohibited
-																		idx := strings.IndexByte(elem, '/')
-																		if idx >= 0 {
-																			break
-																		}
-																		args[4] = elem
-																		elem = ""
-
-																		if len(elem) == 0 {
-																			// Leaf node.
-																			switch method {
-																			case "GET":
-																				r.name = GetMovieRenditionKeyOperation
-																				r.summary = "Get an HLS encryption key for a movie rendition"
-																				r.operationID = "getMovieRenditionKey"
-																				r.operationGroup = ""
-																				r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/keys/{file}"
-																				r.args = args
-																				r.count = 5
-																				return r, true
-																			default:
-																				return
-																			}
-																		}
-
-																	case 'p': // Prefix: "p"
-
-																		if l := len("p"); len(elem) >= l && elem[0:l] == "p" {
-																			elem = elem[l:]
-																		} else {
-																			break
-																		}
-
-																		if len(elem) == 0 {
-																			break
-																		}
-																		switch elem[0] {
-																		case 'a': // Prefix: "artials/"
-
-																			if l := len("artials/"); len(elem) >= l && elem[0:l] == "artials/" {
-																				elem = elem[l:]
-																			} else {
-																				break
-																			}
-
-																			// Param: "file"
-																			// Leaf parameter, slashes are prohibited
-																			idx := strings.IndexByte(elem, '/')
-																			if idx >= 0 {
-																				break
-																			}
-																			args[4] = elem
-																			elem = ""
-
-																			if len(elem) == 0 {
-																				// Leaf node.
-																				switch method {
-																				case "GET":
-																					r.name = GetMovieRenditionPartialOperation
-																					r.summary = "Get an HLS partial segment for a movie rendition"
-																					r.operationID = "getMovieRenditionPartial"
-																					r.operationGroup = ""
-																					r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/partials/{file}"
-																					r.args = args
-																					r.count = 5
-																					return r, true
-																				default:
-																					return
-																				}
-																			}
-
-																		case 'r': // Prefix: "reload-hints/"
-
-																			if l := len("reload-hints/"); len(elem) >= l && elem[0:l] == "reload-hints/" {
-																				elem = elem[l:]
-																			} else {
-																				break
-																			}
-
-																			// Param: "file"
-																			// Leaf parameter, slashes are prohibited
-																			idx := strings.IndexByte(elem, '/')
-																			if idx >= 0 {
-																				break
-																			}
-																			args[4] = elem
-																			elem = ""
-
-																			if len(elem) == 0 {
-																				// Leaf node.
-																				switch method {
-																				case "GET":
-																					r.name = GetMovieRenditionPreloadHintOperation
-																					r.summary = "Get an HLS preload hint for a movie rendition"
-																					r.operationID = "getMovieRenditionPreloadHint"
-																					r.operationGroup = ""
-																					r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/preload-hints/{file}"
-																					r.args = args
-																					r.count = 5
-																					return r, true
-																				default:
-																					return
-																				}
-																			}
-
-																		}
-
-																	case 's': // Prefix: "segments/"
-
-																		if l := len("segments/"); len(elem) >= l && elem[0:l] == "segments/" {
-																			elem = elem[l:]
-																		} else {
-																			break
-																		}
-
-																		// Param: "segment"
-																		// Leaf parameter, slashes are prohibited
-																		idx := strings.IndexByte(elem, '/')
-																		if idx >= 0 {
-																			break
-																		}
-																		args[4] = elem
-																		elem = ""
-
-																		if len(elem) == 0 {
-																			// Leaf node.
-																			switch method {
-																			case "GET":
-																				r.name = GetMovieHLSRenditionSegmentOperation
-																				r.summary = "Get an HLS rendition segment for a movie"
-																				r.operationID = "getMovieHLSRenditionSegment"
-																				r.operationGroup = ""
-																				r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/segments/{segment}"
-																				r.args = args
-																				r.count = 5
-																				return r, true
-																			default:
-																				return
-																			}
-																		}
-
 																	}
 
+																}
+
+															}
+
+														case 'k': // Prefix: "keys/"
+
+															if l := len("keys/"); len(elem) >= l && elem[0:l] == "keys/" {
+																elem = elem[l:]
+															} else {
+																break
+															}
+
+															// Param: "file"
+															// Leaf parameter, slashes are prohibited
+															idx := strings.IndexByte(elem, '/')
+															if idx >= 0 {
+																break
+															}
+															args[2] = elem
+															elem = ""
+
+															if len(elem) == 0 {
+																// Leaf node.
+																switch method {
+																case "GET":
+																	r.name = GetMovieHLSKeyOperation
+																	r.summary = "Get an HLS encryption key for a movie"
+																	r.operationID = "getMovieHLSKey"
+																	r.operationGroup = ""
+																	r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/hls/keys/{file}"
+																	r.args = args
+																	r.count = 3
+																	return r, true
+																default:
+																	return
+																}
+															}
+
+														case 'p': // Prefix: "p"
+
+															if l := len("p"); len(elem) >= l && elem[0:l] == "p" {
+																elem = elem[l:]
+															} else {
+																break
+															}
+
+															if len(elem) == 0 {
+																break
+															}
+															switch elem[0] {
+															case 'a': // Prefix: "artials/"
+
+																if l := len("artials/"); len(elem) >= l && elem[0:l] == "artials/" {
+																	elem = elem[l:]
+																} else {
+																	break
+																}
+
+																// Param: "file"
+																// Leaf parameter, slashes are prohibited
+																idx := strings.IndexByte(elem, '/')
+																if idx >= 0 {
+																	break
+																}
+																args[2] = elem
+																elem = ""
+
+																if len(elem) == 0 {
+																	// Leaf node.
+																	switch method {
+																	case "GET":
+																		r.name = GetMovieHLSPartialOperation
+																		r.summary = "Get an HLS partial segment for a movie"
+																		r.operationID = "getMovieHLSPartial"
+																		r.operationGroup = ""
+																		r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/hls/partials/{file}"
+																		r.args = args
+																		r.count = 3
+																		return r, true
+																	default:
+																		return
+																	}
+																}
+
+															case 'r': // Prefix: "reload-hints/"
+
+																if l := len("reload-hints/"); len(elem) >= l && elem[0:l] == "reload-hints/" {
+																	elem = elem[l:]
+																} else {
+																	break
+																}
+
+																// Param: "file"
+																// Leaf parameter, slashes are prohibited
+																idx := strings.IndexByte(elem, '/')
+																if idx >= 0 {
+																	break
+																}
+																args[2] = elem
+																elem = ""
+
+																if len(elem) == 0 {
+																	// Leaf node.
+																	switch method {
+																	case "GET":
+																		r.name = GetMovieHLSPreloadHintOperation
+																		r.summary = "Get an HLS preload hint for a movie"
+																		r.operationID = "getMovieHLSPreloadHint"
+																		r.operationGroup = ""
+																		r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/hls/preload-hints/{file}"
+																		r.args = args
+																		r.count = 3
+																		return r, true
+																	default:
+																		return
+																	}
 																}
 
 															}
@@ -3517,7 +3025,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																break
 															}
 
-															// Param: "variantIndex"
+															// Param: "variantId"
 															// Match until "/"
 															idx := strings.IndexByte(elem, '/')
 															if idx < 0 {
@@ -3533,7 +3041,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																	r.summary = "Get an HLS variant sub-playlist for a movie"
 																	r.operationID = "getMovieHLSVariant"
 																	r.operationGroup = ""
-																	r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}"
+																	r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantId}"
 																	r.args = args
 																	r.count = 3
 																	return r, true
@@ -3542,168 +3050,38 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																}
 															}
 															switch elem[0] {
-															case '/': // Prefix: "/"
+															case '/': // Prefix: "/segments/"
 
-																if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																if l := len("/segments/"); len(elem) >= l && elem[0:l] == "/segments/" {
 																	elem = elem[l:]
 																} else {
 																	break
 																}
 
-																if len(elem) == 0 {
+																// Param: "segment"
+																// Leaf parameter, slashes are prohibited
+																idx := strings.IndexByte(elem, '/')
+																if idx >= 0 {
 																	break
 																}
-																switch elem[0] {
-																case 'k': // Prefix: "keys/"
+																args[3] = elem
+																elem = ""
 
-																	if l := len("keys/"); len(elem) >= l && elem[0:l] == "keys/" {
-																		elem = elem[l:]
-																	} else {
-																		break
+																if len(elem) == 0 {
+																	// Leaf node.
+																	switch method {
+																	case "GET":
+																		r.name = GetMovieHLSVariantSegmentOperation
+																		r.summary = "Get an HLS variant segment for a movie"
+																		r.operationID = "getMovieHLSVariantSegment"
+																		r.operationGroup = ""
+																		r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantId}/segments/{segment}"
+																		r.args = args
+																		r.count = 4
+																		return r, true
+																	default:
+																		return
 																	}
-
-																	// Param: "file"
-																	// Leaf parameter, slashes are prohibited
-																	idx := strings.IndexByte(elem, '/')
-																	if idx >= 0 {
-																		break
-																	}
-																	args[3] = elem
-																	elem = ""
-
-																	if len(elem) == 0 {
-																		// Leaf node.
-																		switch method {
-																		case "GET":
-																			r.name = GetMovieVariantKeyOperation
-																			r.summary = "Get an HLS encryption key for a movie variant"
-																			r.operationID = "getMovieVariantKey"
-																			r.operationGroup = ""
-																			r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/keys/{file}"
-																			r.args = args
-																			r.count = 4
-																			return r, true
-																		default:
-																			return
-																		}
-																	}
-
-																case 'p': // Prefix: "p"
-
-																	if l := len("p"); len(elem) >= l && elem[0:l] == "p" {
-																		elem = elem[l:]
-																	} else {
-																		break
-																	}
-
-																	if len(elem) == 0 {
-																		break
-																	}
-																	switch elem[0] {
-																	case 'a': // Prefix: "artials/"
-
-																		if l := len("artials/"); len(elem) >= l && elem[0:l] == "artials/" {
-																			elem = elem[l:]
-																		} else {
-																			break
-																		}
-
-																		// Param: "file"
-																		// Leaf parameter, slashes are prohibited
-																		idx := strings.IndexByte(elem, '/')
-																		if idx >= 0 {
-																			break
-																		}
-																		args[3] = elem
-																		elem = ""
-
-																		if len(elem) == 0 {
-																			// Leaf node.
-																			switch method {
-																			case "GET":
-																				r.name = GetMovieVariantPartialOperation
-																				r.summary = "Get an HLS partial segment for a movie variant"
-																				r.operationID = "getMovieVariantPartial"
-																				r.operationGroup = ""
-																				r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/partials/{file}"
-																				r.args = args
-																				r.count = 4
-																				return r, true
-																			default:
-																				return
-																			}
-																		}
-
-																	case 'r': // Prefix: "reload-hints/"
-
-																		if l := len("reload-hints/"); len(elem) >= l && elem[0:l] == "reload-hints/" {
-																			elem = elem[l:]
-																		} else {
-																			break
-																		}
-
-																		// Param: "file"
-																		// Leaf parameter, slashes are prohibited
-																		idx := strings.IndexByte(elem, '/')
-																		if idx >= 0 {
-																			break
-																		}
-																		args[3] = elem
-																		elem = ""
-
-																		if len(elem) == 0 {
-																			// Leaf node.
-																			switch method {
-																			case "GET":
-																				r.name = GetMovieVariantPreloadHintOperation
-																				r.summary = "Get an HLS preload hint for a movie variant"
-																				r.operationID = "getMovieVariantPreloadHint"
-																				r.operationGroup = ""
-																				r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/preload-hints/{file}"
-																				r.args = args
-																				r.count = 4
-																				return r, true
-																			default:
-																				return
-																			}
-																		}
-
-																	}
-
-																case 's': // Prefix: "segments/"
-
-																	if l := len("segments/"); len(elem) >= l && elem[0:l] == "segments/" {
-																		elem = elem[l:]
-																	} else {
-																		break
-																	}
-
-																	// Param: "segment"
-																	// Leaf parameter, slashes are prohibited
-																	idx := strings.IndexByte(elem, '/')
-																	if idx >= 0 {
-																		break
-																	}
-																	args[3] = elem
-																	elem = ""
-
-																	if len(elem) == 0 {
-																		// Leaf node.
-																		switch method {
-																		case "GET":
-																			r.name = GetMovieHLSVariantSegmentOperation
-																			r.summary = "Get an HLS variant segment for a movie"
-																			r.operationID = "getMovieHLSVariantSegment"
-																			r.operationGroup = ""
-																			r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/segments/{segment}"
-																			r.args = args
-																			r.count = 4
-																			return r, true
-																		default:
-																			return
-																		}
-																	}
-
 																}
 
 															}
@@ -3722,158 +3100,30 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 													elem = elem[idx:]
 
 													if len(elem) == 0 {
-														break
+														switch method {
+														case "GET":
+															r.name = GetMovieStreamFileOperation
+															r.summary = "Get a stream manifest file"
+															r.operationID = "getMovieStreamFile"
+															r.operationGroup = ""
+															r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/{format}"
+															r.args = args
+															r.count = 3
+															return r, true
+														default:
+															return
+														}
 													}
 													switch elem[0] {
-													case '/': // Prefix: "/"
+													case '/': // Prefix: "/periods/"
 
-														if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+														if l := len("/periods/"); len(elem) >= l && elem[0:l] == "/periods/" {
 															elem = elem[l:]
 														} else {
 															break
 														}
 
-														if len(elem) == 0 {
-															break
-														}
-														switch elem[0] {
-														case 'p': // Prefix: "periods/"
-															origElem := elem
-															if l := len("periods/"); len(elem) >= l && elem[0:l] == "periods/" {
-																elem = elem[l:]
-															} else {
-																break
-															}
-
-															// Param: "period"
-															// Match until "/"
-															idx := strings.IndexByte(elem, '/')
-															if idx < 0 {
-																idx = len(elem)
-															}
-															args[3] = elem[:idx]
-															elem = elem[idx:]
-
-															if len(elem) == 0 {
-																break
-															}
-															switch elem[0] {
-															case '/': // Prefix: "/adaptation-sets/"
-
-																if l := len("/adaptation-sets/"); len(elem) >= l && elem[0:l] == "/adaptation-sets/" {
-																	elem = elem[l:]
-																} else {
-																	break
-																}
-
-																// Param: "adaptationSet"
-																// Match until "/"
-																idx := strings.IndexByte(elem, '/')
-																if idx < 0 {
-																	idx = len(elem)
-																}
-																args[4] = elem[:idx]
-																elem = elem[idx:]
-
-																if len(elem) == 0 {
-																	break
-																}
-																switch elem[0] {
-																case '/': // Prefix: "/representations/"
-
-																	if l := len("/representations/"); len(elem) >= l && elem[0:l] == "/representations/" {
-																		elem = elem[l:]
-																	} else {
-																		break
-																	}
-
-																	// Param: "representation"
-																	// Match until "/"
-																	idx := strings.IndexByte(elem, '/')
-																	if idx < 0 {
-																		idx = len(elem)
-																	}
-																	args[5] = elem[:idx]
-																	elem = elem[idx:]
-
-																	if len(elem) == 0 {
-																		break
-																	}
-																	switch elem[0] {
-																	case '/': // Prefix: "/"
-
-																		if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
-																			elem = elem[l:]
-																		} else {
-																			break
-																		}
-
-																		if len(elem) == 0 {
-																			break
-																		}
-																		switch elem[0] {
-																		case 'i': // Prefix: "init"
-																			origElem := elem
-																			if l := len("init"); len(elem) >= l && elem[0:l] == "init" {
-																				elem = elem[l:]
-																			} else {
-																				break
-																			}
-
-																			if len(elem) == 0 {
-																				// Leaf node.
-																				switch method {
-																				case "GET":
-																					r.name = GetMovieDASHInitOperation
-																					r.summary = "Get a DASH init segment for a movie"
-																					r.operationID = "getMovieDASHInit"
-																					r.operationGroup = ""
-																					r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/init"
-																					r.args = args
-																					r.count = 6
-																					return r, true
-																				default:
-																					return
-																				}
-																			}
-
-																			elem = origElem
-																		}
-																		// Param: "segment"
-																		// Leaf parameter, slashes are prohibited
-																		idx := strings.IndexByte(elem, '/')
-																		if idx >= 0 {
-																			break
-																		}
-																		args[6] = elem
-																		elem = ""
-
-																		if len(elem) == 0 {
-																			// Leaf node.
-																			switch method {
-																			case "GET":
-																				r.name = GetMovieDASHSegmentOperation
-																				r.summary = "Get a DASH segment for a movie"
-																				r.operationID = "getMovieDASHSegment"
-																				r.operationGroup = ""
-																				r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/{segment}"
-																				r.args = args
-																				r.count = 7
-																				return r, true
-																			default:
-																				return
-																			}
-																		}
-
-																	}
-
-																}
-
-															}
-
-															elem = origElem
-														}
-														// Param: "file"
+														// Param: "period"
 														// Match until "/"
 														idx := strings.IndexByte(elem, '/')
 														if idx < 0 {
@@ -3883,53 +3133,118 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 														elem = elem[idx:]
 
 														if len(elem) == 0 {
-															switch method {
-															case "GET":
-																r.name = GetMovieStreamFileOperation
-																r.summary = "Get a stream manifest file"
-																r.operationID = "getMovieStreamFile"
-																r.operationGroup = ""
-																r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/{format}/{file}"
-																r.args = args
-																r.count = 4
-																return r, true
-															default:
-																return
-															}
+															break
 														}
 														switch elem[0] {
-														case '/': // Prefix: "/"
+														case '/': // Prefix: "/adaptation-sets/"
 
-															if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+															if l := len("/adaptation-sets/"); len(elem) >= l && elem[0:l] == "/adaptation-sets/" {
 																elem = elem[l:]
 															} else {
 																break
 															}
 
-															// Param: "segment"
-															// Leaf parameter, slashes are prohibited
+															// Param: "adaptationSet"
+															// Match until "/"
 															idx := strings.IndexByte(elem, '/')
-															if idx >= 0 {
-																break
+															if idx < 0 {
+																idx = len(elem)
 															}
-															args[4] = elem
-															elem = ""
+															args[4] = elem[:idx]
+															elem = elem[idx:]
 
 															if len(elem) == 0 {
-																// Leaf node.
-																switch method {
-																case "GET":
-																	r.name = GetMovieStreamSegmentOperation
-																	r.summary = "Get a stream segment for a movie"
-																	r.operationID = "getMovieStreamSegment"
-																	r.operationGroup = ""
-																	r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/{format}/{rendition}/{segment}"
-																	r.args = args
-																	r.count = 5
-																	return r, true
-																default:
-																	return
+																break
+															}
+															switch elem[0] {
+															case '/': // Prefix: "/representations/"
+
+																if l := len("/representations/"); len(elem) >= l && elem[0:l] == "/representations/" {
+																	elem = elem[l:]
+																} else {
+																	break
 																}
+
+																// Param: "representation"
+																// Match until "/"
+																idx := strings.IndexByte(elem, '/')
+																if idx < 0 {
+																	idx = len(elem)
+																}
+																args[5] = elem[:idx]
+																elem = elem[idx:]
+
+																if len(elem) == 0 {
+																	break
+																}
+																switch elem[0] {
+																case '/': // Prefix: "/segments/"
+
+																	if l := len("/segments/"); len(elem) >= l && elem[0:l] == "/segments/" {
+																		elem = elem[l:]
+																	} else {
+																		break
+																	}
+
+																	if len(elem) == 0 {
+																		break
+																	}
+																	switch elem[0] {
+																	case 'i': // Prefix: "init"
+																		origElem := elem
+																		if l := len("init"); len(elem) >= l && elem[0:l] == "init" {
+																			elem = elem[l:]
+																		} else {
+																			break
+																		}
+
+																		if len(elem) == 0 {
+																			// Leaf node.
+																			switch method {
+																			case "GET":
+																				r.name = GetMovieDASHInitOperation
+																				r.summary = "Get a DASH init segment for a movie"
+																				r.operationID = "getMovieDASHInit"
+																				r.operationGroup = ""
+																				r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/init"
+																				r.args = args
+																				r.count = 6
+																				return r, true
+																			default:
+																				return
+																			}
+																		}
+
+																		elem = origElem
+																	}
+																	// Param: "segment"
+																	// Leaf parameter, slashes are prohibited
+																	idx := strings.IndexByte(elem, '/')
+																	if idx >= 0 {
+																		break
+																	}
+																	args[6] = elem
+																	elem = ""
+
+																	if len(elem) == 0 {
+																		// Leaf node.
+																		switch method {
+																		case "GET":
+																			r.name = GetMovieDASHSegmentOperation
+																			r.summary = "Get a DASH segment for a movie"
+																			r.operationID = "getMovieDASHSegment"
+																			r.operationGroup = ""
+																			r.pathPattern = "/services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/{segment}"
+																			r.args = args
+																			r.count = 7
+																			return r, true
+																		default:
+																			return
+																		}
+																	}
+
+																}
+
 															}
 
 														}
@@ -3970,7 +3285,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 														break
 													}
 
-													// Param: "subtitleFile"
+													// Param: "subtitleId"
 													// Leaf parameter, slashes are prohibited
 													idx := strings.IndexByte(elem, '/')
 													if idx >= 0 {
@@ -3983,11 +3298,11 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 														// Leaf node.
 														switch method {
 														case "GET":
-															r.name = GetMovieSubtitleFileOperation
+															r.name = GetMovieSubtitleOperation
 															r.summary = "Get a subtitle file"
-															r.operationID = "getMovieSubtitleFile"
+															r.operationID = "getMovieSubtitle"
 															r.operationGroup = ""
-															r.pathPattern = "/services/{serviceTag}/movies/{movieId}/subtitles/{subtitleFile}"
+															r.pathPattern = "/services/{serviceTag}/movies/{movieId}/subtitles/{subtitleId}"
 															r.args = args
 															r.count = 3
 															return r, true
@@ -4348,9 +3663,9 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																					break
 																				}
 																				switch elem[0] {
-																				case 'r': // Prefix: "renditions/"
+																				case 'g': // Prefix: "groups/"
 
-																					if l := len("renditions/"); len(elem) >= l && elem[0:l] == "renditions/" {
+																					if l := len("groups/"); len(elem) >= l && elem[0:l] == "groups/" {
 																						elem = elem[l:]
 																					} else {
 																						break
@@ -4369,9 +3684,9 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																						break
 																					}
 																					switch elem[0] {
-																					case '/': // Prefix: "/"
+																					case '/': // Prefix: "/renditions/"
 
-																						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																						if l := len("/renditions/"); len(elem) >= l && elem[0:l] == "/renditions/" {
 																							elem = elem[l:]
 																						} else {
 																							break
@@ -4393,7 +3708,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																								r.summary = "Get an HLS rendition sub-playlist for an episode"
 																								r.operationID = "getEpisodeHLSRendition"
 																								r.operationGroup = ""
-																								r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}"
+																								r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/groups/{groupId}/renditions/{renditionName}"
 																								r.args = args
 																								r.count = 6
 																								return r, true
@@ -4402,170 +3717,156 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																							}
 																						}
 																						switch elem[0] {
-																						case '/': // Prefix: "/"
+																						case '/': // Prefix: "/segments/"
 
-																							if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																							if l := len("/segments/"); len(elem) >= l && elem[0:l] == "/segments/" {
 																								elem = elem[l:]
 																							} else {
 																								break
 																							}
 
-																							if len(elem) == 0 {
+																							// Param: "segment"
+																							// Leaf parameter, slashes are prohibited
+																							idx := strings.IndexByte(elem, '/')
+																							if idx >= 0 {
 																								break
 																							}
-																							switch elem[0] {
-																							case 'k': // Prefix: "keys/"
+																							args[6] = elem
+																							elem = ""
 
-																								if l := len("keys/"); len(elem) >= l && elem[0:l] == "keys/" {
-																									elem = elem[l:]
-																								} else {
-																									break
+																							if len(elem) == 0 {
+																								// Leaf node.
+																								switch method {
+																								case "GET":
+																									r.name = GetEpisodeHLSRenditionSegmentOperation
+																									r.summary = "Get an HLS rendition segment for an episode"
+																									r.operationID = "getEpisodeHLSRenditionSegment"
+																									r.operationGroup = ""
+																									r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/groups/{groupId}/renditions/{renditionName}/segments/{segment}"
+																									r.args = args
+																									r.count = 7
+																									return r, true
+																								default:
+																									return
 																								}
-
-																								// Param: "file"
-																								// Leaf parameter, slashes are prohibited
-																								idx := strings.IndexByte(elem, '/')
-																								if idx >= 0 {
-																									break
-																								}
-																								args[6] = elem
-																								elem = ""
-
-																								if len(elem) == 0 {
-																									// Leaf node.
-																									switch method {
-																									case "GET":
-																										r.name = GetEpisodeRenditionKeyOperation
-																										r.summary = "Get an HLS encryption key for an episode rendition"
-																										r.operationID = "getEpisodeRenditionKey"
-																										r.operationGroup = ""
-																										r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/keys/{file}"
-																										r.args = args
-																										r.count = 7
-																										return r, true
-																									default:
-																										return
-																									}
-																								}
-
-																							case 'p': // Prefix: "p"
-
-																								if l := len("p"); len(elem) >= l && elem[0:l] == "p" {
-																									elem = elem[l:]
-																								} else {
-																									break
-																								}
-
-																								if len(elem) == 0 {
-																									break
-																								}
-																								switch elem[0] {
-																								case 'a': // Prefix: "artials/"
-
-																									if l := len("artials/"); len(elem) >= l && elem[0:l] == "artials/" {
-																										elem = elem[l:]
-																									} else {
-																										break
-																									}
-
-																									// Param: "file"
-																									// Leaf parameter, slashes are prohibited
-																									idx := strings.IndexByte(elem, '/')
-																									if idx >= 0 {
-																										break
-																									}
-																									args[6] = elem
-																									elem = ""
-
-																									if len(elem) == 0 {
-																										// Leaf node.
-																										switch method {
-																										case "GET":
-																											r.name = GetEpisodeRenditionPartialOperation
-																											r.summary = "Get an HLS partial segment for an episode rendition"
-																											r.operationID = "getEpisodeRenditionPartial"
-																											r.operationGroup = ""
-																											r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/partials/{file}"
-																											r.args = args
-																											r.count = 7
-																											return r, true
-																										default:
-																											return
-																										}
-																									}
-
-																								case 'r': // Prefix: "reload-hints/"
-
-																									if l := len("reload-hints/"); len(elem) >= l && elem[0:l] == "reload-hints/" {
-																										elem = elem[l:]
-																									} else {
-																										break
-																									}
-
-																									// Param: "file"
-																									// Leaf parameter, slashes are prohibited
-																									idx := strings.IndexByte(elem, '/')
-																									if idx >= 0 {
-																										break
-																									}
-																									args[6] = elem
-																									elem = ""
-
-																									if len(elem) == 0 {
-																										// Leaf node.
-																										switch method {
-																										case "GET":
-																											r.name = GetEpisodeRenditionPreloadHintOperation
-																											r.summary = "Get an HLS preload hint for an episode rendition"
-																											r.operationID = "getEpisodeRenditionPreloadHint"
-																											r.operationGroup = ""
-																											r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/preload-hints/{file}"
-																											r.args = args
-																											r.count = 7
-																											return r, true
-																										default:
-																											return
-																										}
-																									}
-
-																								}
-
-																							case 's': // Prefix: "segments/"
-
-																								if l := len("segments/"); len(elem) >= l && elem[0:l] == "segments/" {
-																									elem = elem[l:]
-																								} else {
-																									break
-																								}
-
-																								// Param: "segment"
-																								// Leaf parameter, slashes are prohibited
-																								idx := strings.IndexByte(elem, '/')
-																								if idx >= 0 {
-																									break
-																								}
-																								args[6] = elem
-																								elem = ""
-
-																								if len(elem) == 0 {
-																									// Leaf node.
-																									switch method {
-																									case "GET":
-																										r.name = GetEpisodeHLSRenditionSegmentOperation
-																										r.summary = "Get an HLS rendition segment for an episode"
-																										r.operationID = "getEpisodeHLSRenditionSegment"
-																										r.operationGroup = ""
-																										r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/segments/{segment}"
-																										r.args = args
-																										r.count = 7
-																										return r, true
-																									default:
-																										return
-																									}
-																								}
-
 																							}
 
+																						}
+
+																					}
+
+																				case 'k': // Prefix: "keys/"
+
+																					if l := len("keys/"); len(elem) >= l && elem[0:l] == "keys/" {
+																						elem = elem[l:]
+																					} else {
+																						break
+																					}
+
+																					// Param: "file"
+																					// Leaf parameter, slashes are prohibited
+																					idx := strings.IndexByte(elem, '/')
+																					if idx >= 0 {
+																						break
+																					}
+																					args[4] = elem
+																					elem = ""
+
+																					if len(elem) == 0 {
+																						// Leaf node.
+																						switch method {
+																						case "GET":
+																							r.name = GetEpisodeHLSKeyOperation
+																							r.summary = "Get an HLS encryption key for an episode"
+																							r.operationID = "getEpisodeHLSKey"
+																							r.operationGroup = ""
+																							r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/keys/{file}"
+																							r.args = args
+																							r.count = 5
+																							return r, true
+																						default:
+																							return
+																						}
+																					}
+
+																				case 'p': // Prefix: "p"
+
+																					if l := len("p"); len(elem) >= l && elem[0:l] == "p" {
+																						elem = elem[l:]
+																					} else {
+																						break
+																					}
+
+																					if len(elem) == 0 {
+																						break
+																					}
+																					switch elem[0] {
+																					case 'a': // Prefix: "artials/"
+
+																						if l := len("artials/"); len(elem) >= l && elem[0:l] == "artials/" {
+																							elem = elem[l:]
+																						} else {
+																							break
+																						}
+
+																						// Param: "file"
+																						// Leaf parameter, slashes are prohibited
+																						idx := strings.IndexByte(elem, '/')
+																						if idx >= 0 {
+																							break
+																						}
+																						args[4] = elem
+																						elem = ""
+
+																						if len(elem) == 0 {
+																							// Leaf node.
+																							switch method {
+																							case "GET":
+																								r.name = GetEpisodeHLSPartialOperation
+																								r.summary = "Get an HLS partial segment for an episode"
+																								r.operationID = "getEpisodeHLSPartial"
+																								r.operationGroup = ""
+																								r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/partials/{file}"
+																								r.args = args
+																								r.count = 5
+																								return r, true
+																							default:
+																								return
+																							}
+																						}
+
+																					case 'r': // Prefix: "reload-hints/"
+
+																						if l := len("reload-hints/"); len(elem) >= l && elem[0:l] == "reload-hints/" {
+																							elem = elem[l:]
+																						} else {
+																							break
+																						}
+
+																						// Param: "file"
+																						// Leaf parameter, slashes are prohibited
+																						idx := strings.IndexByte(elem, '/')
+																						if idx >= 0 {
+																							break
+																						}
+																						args[4] = elem
+																						elem = ""
+
+																						if len(elem) == 0 {
+																							// Leaf node.
+																							switch method {
+																							case "GET":
+																								r.name = GetEpisodeHLSPreloadHintOperation
+																								r.summary = "Get an HLS preload hint for an episode"
+																								r.operationID = "getEpisodeHLSPreloadHint"
+																								r.operationGroup = ""
+																								r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/preload-hints/{file}"
+																								r.args = args
+																								r.count = 5
+																								return r, true
+																							default:
+																								return
+																							}
 																						}
 
 																					}
@@ -4699,7 +4000,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																						break
 																					}
 
-																					// Param: "variantIndex"
+																					// Param: "variantId"
 																					// Match until "/"
 																					idx := strings.IndexByte(elem, '/')
 																					if idx < 0 {
@@ -4715,7 +4016,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																							r.summary = "Get an HLS variant sub-playlist for an episode"
 																							r.operationID = "getEpisodeHLSVariant"
 																							r.operationGroup = ""
-																							r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}"
+																							r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantId}"
 																							r.args = args
 																							r.count = 5
 																							return r, true
@@ -4724,168 +4025,38 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																						}
 																					}
 																					switch elem[0] {
-																					case '/': // Prefix: "/"
+																					case '/': // Prefix: "/segments/"
 
-																						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																						if l := len("/segments/"); len(elem) >= l && elem[0:l] == "/segments/" {
 																							elem = elem[l:]
 																						} else {
 																							break
 																						}
 
-																						if len(elem) == 0 {
+																						// Param: "segment"
+																						// Leaf parameter, slashes are prohibited
+																						idx := strings.IndexByte(elem, '/')
+																						if idx >= 0 {
 																							break
 																						}
-																						switch elem[0] {
-																						case 'k': // Prefix: "keys/"
+																						args[5] = elem
+																						elem = ""
 
-																							if l := len("keys/"); len(elem) >= l && elem[0:l] == "keys/" {
-																								elem = elem[l:]
-																							} else {
-																								break
+																						if len(elem) == 0 {
+																							// Leaf node.
+																							switch method {
+																							case "GET":
+																								r.name = GetEpisodeHLSVariantSegmentOperation
+																								r.summary = "Get an HLS variant segment for an episode"
+																								r.operationID = "getEpisodeHLSVariantSegment"
+																								r.operationGroup = ""
+																								r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantId}/segments/{segment}"
+																								r.args = args
+																								r.count = 6
+																								return r, true
+																							default:
+																								return
 																							}
-
-																							// Param: "file"
-																							// Leaf parameter, slashes are prohibited
-																							idx := strings.IndexByte(elem, '/')
-																							if idx >= 0 {
-																								break
-																							}
-																							args[5] = elem
-																							elem = ""
-
-																							if len(elem) == 0 {
-																								// Leaf node.
-																								switch method {
-																								case "GET":
-																									r.name = GetEpisodeVariantKeyOperation
-																									r.summary = "Get an HLS encryption key for an episode variant"
-																									r.operationID = "getEpisodeVariantKey"
-																									r.operationGroup = ""
-																									r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/keys/{file}"
-																									r.args = args
-																									r.count = 6
-																									return r, true
-																								default:
-																									return
-																								}
-																							}
-
-																						case 'p': // Prefix: "p"
-
-																							if l := len("p"); len(elem) >= l && elem[0:l] == "p" {
-																								elem = elem[l:]
-																							} else {
-																								break
-																							}
-
-																							if len(elem) == 0 {
-																								break
-																							}
-																							switch elem[0] {
-																							case 'a': // Prefix: "artials/"
-
-																								if l := len("artials/"); len(elem) >= l && elem[0:l] == "artials/" {
-																									elem = elem[l:]
-																								} else {
-																									break
-																								}
-
-																								// Param: "file"
-																								// Leaf parameter, slashes are prohibited
-																								idx := strings.IndexByte(elem, '/')
-																								if idx >= 0 {
-																									break
-																								}
-																								args[5] = elem
-																								elem = ""
-
-																								if len(elem) == 0 {
-																									// Leaf node.
-																									switch method {
-																									case "GET":
-																										r.name = GetEpisodeVariantPartialOperation
-																										r.summary = "Get an HLS partial segment for an episode variant"
-																										r.operationID = "getEpisodeVariantPartial"
-																										r.operationGroup = ""
-																										r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/partials/{file}"
-																										r.args = args
-																										r.count = 6
-																										return r, true
-																									default:
-																										return
-																									}
-																								}
-
-																							case 'r': // Prefix: "reload-hints/"
-
-																								if l := len("reload-hints/"); len(elem) >= l && elem[0:l] == "reload-hints/" {
-																									elem = elem[l:]
-																								} else {
-																									break
-																								}
-
-																								// Param: "file"
-																								// Leaf parameter, slashes are prohibited
-																								idx := strings.IndexByte(elem, '/')
-																								if idx >= 0 {
-																									break
-																								}
-																								args[5] = elem
-																								elem = ""
-
-																								if len(elem) == 0 {
-																									// Leaf node.
-																									switch method {
-																									case "GET":
-																										r.name = GetEpisodeVariantPreloadHintOperation
-																										r.summary = "Get an HLS preload hint for an episode variant"
-																										r.operationID = "getEpisodeVariantPreloadHint"
-																										r.operationGroup = ""
-																										r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/preload-hints/{file}"
-																										r.args = args
-																										r.count = 6
-																										return r, true
-																									default:
-																										return
-																									}
-																								}
-
-																							}
-
-																						case 's': // Prefix: "segments/"
-
-																							if l := len("segments/"); len(elem) >= l && elem[0:l] == "segments/" {
-																								elem = elem[l:]
-																							} else {
-																								break
-																							}
-
-																							// Param: "segment"
-																							// Leaf parameter, slashes are prohibited
-																							idx := strings.IndexByte(elem, '/')
-																							if idx >= 0 {
-																								break
-																							}
-																							args[5] = elem
-																							elem = ""
-
-																							if len(elem) == 0 {
-																								// Leaf node.
-																								switch method {
-																								case "GET":
-																									r.name = GetEpisodeHLSVariantSegmentOperation
-																									r.summary = "Get an HLS variant segment for an episode"
-																									r.operationID = "getEpisodeHLSVariantSegment"
-																									r.operationGroup = ""
-																									r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/segments/{segment}"
-																									r.args = args
-																									r.count = 6
-																									return r, true
-																								default:
-																									return
-																								}
-																							}
-
 																						}
 
 																					}
@@ -4904,158 +4075,30 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																			elem = elem[idx:]
 
 																			if len(elem) == 0 {
-																				break
+																				switch method {
+																				case "GET":
+																					r.name = GetEpisodeStreamFileOperation
+																					r.summary = "Get a stream manifest file for an episode"
+																					r.operationID = "getEpisodeStreamFile"
+																					r.operationGroup = ""
+																					r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}"
+																					r.args = args
+																					r.count = 5
+																					return r, true
+																				default:
+																					return
+																				}
 																			}
 																			switch elem[0] {
-																			case '/': // Prefix: "/"
+																			case '/': // Prefix: "/periods/"
 
-																				if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																				if l := len("/periods/"); len(elem) >= l && elem[0:l] == "/periods/" {
 																					elem = elem[l:]
 																				} else {
 																					break
 																				}
 
-																				if len(elem) == 0 {
-																					break
-																				}
-																				switch elem[0] {
-																				case 'p': // Prefix: "periods/"
-																					origElem := elem
-																					if l := len("periods/"); len(elem) >= l && elem[0:l] == "periods/" {
-																						elem = elem[l:]
-																					} else {
-																						break
-																					}
-
-																					// Param: "period"
-																					// Match until "/"
-																					idx := strings.IndexByte(elem, '/')
-																					if idx < 0 {
-																						idx = len(elem)
-																					}
-																					args[5] = elem[:idx]
-																					elem = elem[idx:]
-
-																					if len(elem) == 0 {
-																						break
-																					}
-																					switch elem[0] {
-																					case '/': // Prefix: "/adaptation-sets/"
-
-																						if l := len("/adaptation-sets/"); len(elem) >= l && elem[0:l] == "/adaptation-sets/" {
-																							elem = elem[l:]
-																						} else {
-																							break
-																						}
-
-																						// Param: "adaptationSet"
-																						// Match until "/"
-																						idx := strings.IndexByte(elem, '/')
-																						if idx < 0 {
-																							idx = len(elem)
-																						}
-																						args[6] = elem[:idx]
-																						elem = elem[idx:]
-
-																						if len(elem) == 0 {
-																							break
-																						}
-																						switch elem[0] {
-																						case '/': // Prefix: "/representations/"
-
-																							if l := len("/representations/"); len(elem) >= l && elem[0:l] == "/representations/" {
-																								elem = elem[l:]
-																							} else {
-																								break
-																							}
-
-																							// Param: "representation"
-																							// Match until "/"
-																							idx := strings.IndexByte(elem, '/')
-																							if idx < 0 {
-																								idx = len(elem)
-																							}
-																							args[7] = elem[:idx]
-																							elem = elem[idx:]
-
-																							if len(elem) == 0 {
-																								break
-																							}
-																							switch elem[0] {
-																							case '/': // Prefix: "/"
-
-																								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
-																									elem = elem[l:]
-																								} else {
-																									break
-																								}
-
-																								if len(elem) == 0 {
-																									break
-																								}
-																								switch elem[0] {
-																								case 'i': // Prefix: "init"
-																									origElem := elem
-																									if l := len("init"); len(elem) >= l && elem[0:l] == "init" {
-																										elem = elem[l:]
-																									} else {
-																										break
-																									}
-
-																									if len(elem) == 0 {
-																										// Leaf node.
-																										switch method {
-																										case "GET":
-																											r.name = GetEpisodeDASHInitOperation
-																											r.summary = "Get a DASH init segment for an episode"
-																											r.operationID = "getEpisodeDASHInit"
-																											r.operationGroup = ""
-																											r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/init"
-																											r.args = args
-																											r.count = 8
-																											return r, true
-																										default:
-																											return
-																										}
-																									}
-
-																									elem = origElem
-																								}
-																								// Param: "segment"
-																								// Leaf parameter, slashes are prohibited
-																								idx := strings.IndexByte(elem, '/')
-																								if idx >= 0 {
-																									break
-																								}
-																								args[8] = elem
-																								elem = ""
-
-																								if len(elem) == 0 {
-																									// Leaf node.
-																									switch method {
-																									case "GET":
-																										r.name = GetEpisodeDASHSegmentOperation
-																										r.summary = "Get a DASH segment for an episode"
-																										r.operationID = "getEpisodeDASHSegment"
-																										r.operationGroup = ""
-																										r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/{segment}"
-																										r.args = args
-																										r.count = 9
-																										return r, true
-																									default:
-																										return
-																									}
-																								}
-
-																							}
-
-																						}
-
-																					}
-
-																					elem = origElem
-																				}
-																				// Param: "file"
+																				// Param: "period"
 																				// Match until "/"
 																				idx := strings.IndexByte(elem, '/')
 																				if idx < 0 {
@@ -5065,53 +4108,118 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																				elem = elem[idx:]
 
 																				if len(elem) == 0 {
-																					switch method {
-																					case "GET":
-																						r.name = GetEpisodeStreamFileOperation
-																						r.summary = "Get a stream manifest file for an episode"
-																						r.operationID = "getEpisodeStreamFile"
-																						r.operationGroup = ""
-																						r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{file}"
-																						r.args = args
-																						r.count = 6
-																						return r, true
-																					default:
-																						return
-																					}
+																					break
 																				}
 																				switch elem[0] {
-																				case '/': // Prefix: "/"
+																				case '/': // Prefix: "/adaptation-sets/"
 
-																					if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+																					if l := len("/adaptation-sets/"); len(elem) >= l && elem[0:l] == "/adaptation-sets/" {
 																						elem = elem[l:]
 																					} else {
 																						break
 																					}
 
-																					// Param: "segment"
-																					// Leaf parameter, slashes are prohibited
+																					// Param: "adaptationSet"
+																					// Match until "/"
 																					idx := strings.IndexByte(elem, '/')
-																					if idx >= 0 {
-																						break
+																					if idx < 0 {
+																						idx = len(elem)
 																					}
-																					args[6] = elem
-																					elem = ""
+																					args[6] = elem[:idx]
+																					elem = elem[idx:]
 
 																					if len(elem) == 0 {
-																						// Leaf node.
-																						switch method {
-																						case "GET":
-																							r.name = GetEpisodeStreamSegmentOperation
-																							r.summary = "Get a stream segment for an episode"
-																							r.operationID = "getEpisodeStreamSegment"
-																							r.operationGroup = ""
-																							r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{rendition}/{segment}"
-																							r.args = args
-																							r.count = 7
-																							return r, true
-																						default:
-																							return
+																						break
+																					}
+																					switch elem[0] {
+																					case '/': // Prefix: "/representations/"
+
+																						if l := len("/representations/"); len(elem) >= l && elem[0:l] == "/representations/" {
+																							elem = elem[l:]
+																						} else {
+																							break
 																						}
+
+																						// Param: "representation"
+																						// Match until "/"
+																						idx := strings.IndexByte(elem, '/')
+																						if idx < 0 {
+																							idx = len(elem)
+																						}
+																						args[7] = elem[:idx]
+																						elem = elem[idx:]
+
+																						if len(elem) == 0 {
+																							break
+																						}
+																						switch elem[0] {
+																						case '/': // Prefix: "/segments/"
+
+																							if l := len("/segments/"); len(elem) >= l && elem[0:l] == "/segments/" {
+																								elem = elem[l:]
+																							} else {
+																								break
+																							}
+
+																							if len(elem) == 0 {
+																								break
+																							}
+																							switch elem[0] {
+																							case 'i': // Prefix: "init"
+																								origElem := elem
+																								if l := len("init"); len(elem) >= l && elem[0:l] == "init" {
+																									elem = elem[l:]
+																								} else {
+																									break
+																								}
+
+																								if len(elem) == 0 {
+																									// Leaf node.
+																									switch method {
+																									case "GET":
+																										r.name = GetEpisodeDASHInitOperation
+																										r.summary = "Get a DASH init segment for an episode"
+																										r.operationID = "getEpisodeDASHInit"
+																										r.operationGroup = ""
+																										r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/init"
+																										r.args = args
+																										r.count = 8
+																										return r, true
+																									default:
+																										return
+																									}
+																								}
+
+																								elem = origElem
+																							}
+																							// Param: "segment"
+																							// Leaf parameter, slashes are prohibited
+																							idx := strings.IndexByte(elem, '/')
+																							if idx >= 0 {
+																								break
+																							}
+																							args[8] = elem
+																							elem = ""
+
+																							if len(elem) == 0 {
+																								// Leaf node.
+																								switch method {
+																								case "GET":
+																									r.name = GetEpisodeDASHSegmentOperation
+																									r.summary = "Get a DASH segment for an episode"
+																									r.operationID = "getEpisodeDASHSegment"
+																									r.operationGroup = ""
+																									r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/{segment}"
+																									r.args = args
+																									r.count = 9
+																									return r, true
+																								default:
+																									return
+																								}
+																							}
+
+																						}
+
 																					}
 
 																				}
@@ -5152,7 +4260,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																				break
 																			}
 
-																			// Param: "subtitleFile"
+																			// Param: "subtitleId"
 																			// Leaf parameter, slashes are prohibited
 																			idx := strings.IndexByte(elem, '/')
 																			if idx >= 0 {
@@ -5165,11 +4273,11 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 																				// Leaf node.
 																				switch method {
 																				case "GET":
-																					r.name = GetEpisodeSubtitleFileOperation
+																					r.name = GetEpisodeSubtitleOperation
 																					r.summary = "Get a subtitle file for an episode"
-																					r.operationID = "getEpisodeSubtitleFile"
+																					r.operationID = "getEpisodeSubtitle"
 																					r.operationGroup = ""
-																					r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/subtitles/{subtitleFile}"
+																					r.pathPattern = "/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/subtitles/{subtitleId}"
 																					r.args = args
 																					r.count = 5
 																					return r, true

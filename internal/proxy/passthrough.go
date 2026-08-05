@@ -20,7 +20,7 @@ func (s *PassthroughStrategy) ServeManifest(ctx context.Context, w io.Writer, lo
 	defer body.Close()
 
 	io.Copy(w, body)
-	return resolveBaseURL(locator.URL), nil
+	return ResolveBaseURL(locator.URL), nil
 }
 
 func (s *PassthroughStrategy) ServeSegment(ctx context.Context, w io.Writer, locator stream.Locator, segmentPath string) error {

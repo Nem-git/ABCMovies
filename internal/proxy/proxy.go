@@ -7,12 +7,14 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 
 	"github.com/nem-git/abcmovies/internal/stream"
 )
+
+const defaultStateKeySeparator string = ":"
 
 // CacheBucketConfig configures caching for a category of content.
 type CacheBucketConfig struct {
@@ -60,28 +62,18 @@ func New(deps Dependencies) *Proxy {
 	return &Proxy{deps: deps}
 }
 
-// buildStateKey builds a deterministic state key from metadata.
-func buildStateKey(tag, contentKey, format, rendition string) string {
-	return tag + ":" + contentKey + ":" + format + ":" + rendition
-}
-
-// BuildContentKey builds a content key from type and ID parts.
-func BuildContentKey(contentType string, ids ...string) string {
-	return contentType + ":" + strings.Join(ids, ":")
+// BuildStateKey builds a deterministic state key.
+func BuildStateKey(values ...string) string {
+	return strings.Join(values, defaultStateKeySeparator)
 }
 
 // ResolveBaseURL extracts the base URL (directory) from a full URL.
 func ResolveBaseURL(rawURL string) string {
-	return resolveBaseURL(rawURL)
-}
-
-// resolveBaseURL is the unexported version for internal use.
-func resolveBaseURL(rawURL string) string {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return ""
 	}
-	dir := filepath.Dir(u.Path)
+	dir := path.Dir(u.Path)
 	if dir == "/" {
 		u.Path = "/"
 	} else {
@@ -152,52 +144,13 @@ func (p *Proxy) ServeManifest(ctx context.Context, tag, contentKey, format, file
 		return nil, "", err
 	}
 
-	// Store state for legacy segment resolution (used by passthrough)
-	stateKey := buildStateKey(tag, contentKey, format, filepath.Base(file))
+	// Store state for segment resolution
+	stateKey := BuildStateKey(tag, contentKey, format)
 	meta.UpstreamBaseURL = upstreamBaseURL
 	meta.ExpiresAt = time.Now().Add(5 * time.Minute)
 	_ = p.deps.State.Put(ctx, stateKey, meta)
 
 	return io.NopCloser(&buf), ManifestContentType(format), nil
-}
-
-// ServeSegment fetches a segment from upstream and streams it through a pipe.
-// The caller receives a reader that streams the segment data.
-func (p *Proxy) ServeSegment(ctx context.Context, tag, contentKey, format, rendition, segment string) (io.ReadCloser, string, error) {
-	stateKey := buildStateKey(tag, contentKey, format, rendition)
-	meta, found, err := p.deps.State.Get(ctx, stateKey)
-	if err != nil {
-		return nil, "", err
-	}
-	if !found {
-		return nil, "", &httpError{code: 404, msg: "segment state not found"}
-	}
-
-	cfg := p.deps.Configs[tag]
-
-	baseURL, err := url.Parse(meta.UpstreamBaseURL)
-	if err != nil {
-		return nil, "", &httpError{code: 500, msg: "invalid upstream base URL"}
-	}
-
-	locator := stream.Locator{
-		URL:            baseURL.JoinPath(segment).String(),
-		Headers:        meta.Headers,
-		Query:          meta.Query,
-		EncodingFormat: meta.EncodingFormat,
-	}
-
-	strategy := newStrategy(format, cfg, p.deps)
-
-	pr, pw := io.Pipe()
-	go func() {
-		defer pw.Close()
-		if err := strategy.ServeSegment(ctx, pw, locator, segment); err != nil {
-			pw.CloseWithError(err)
-		}
-	}()
-
-	return pr, SegmentContentType(format, segment), nil
 }
 
 // ServeHLSSubPlaylist fetches an upstream HLS sub-playlist, rewrites it, and returns it.
@@ -290,12 +243,17 @@ func (p *Proxy) ServeHLSResource(ctx context.Context, tag, contentKey, format, r
 		Query:   meta.Query,
 	}
 
-	body, _, err := p.deps.Fetcher.Fetch(ctx, locator.URL, locator.Headers, locator.Query)
+	body, header, err := p.deps.Fetcher.Fetch(ctx, locator.URL, locator.Headers, locator.Query)
 	if err != nil {
 		return nil, "", err
 	}
 
-	return body, resourceContentType(format, resourceID), nil
+	contentType := resourceContentType(format, resourceID)
+	if ct := header.Get("Content-Type"); ct != "" {
+		contentType = ct
+	}
+
+	return body, contentType, nil
 }
 
 // ResourceContentType returns the Content-Type for an HLS resource file.
@@ -341,17 +299,7 @@ func (p *Proxy) ServeDASHSegment(ctx context.Context, tag, contentKey, format st
 	upstreamURL := meta.UpstreamMediaTemplate
 	upstreamURL = strings.ReplaceAll(upstreamURL, "$RepresentationID$", meta.UpstreamRepID)
 	upstreamURL = strings.ReplaceAll(upstreamURL, "$Bandwidth$", meta.UpstreamBandwidth)
-	if idx := strings.Index(upstreamURL, "$Number"); idx != -1 {
-		rest := upstreamURL[idx+len("$Number"):]
-		if end := strings.Index(rest, "$"); end != -1 {
-			upstreamURL = upstreamURL[:idx] + segment + rest[end+1:]
-		}
-	} else if idx := strings.Index(upstreamURL, "$Time"); idx != -1 {
-		rest := upstreamURL[idx+len("$Time"):]
-		if end := strings.Index(rest, "$"); end != -1 {
-			upstreamURL = upstreamURL[:idx] + segment + rest[end+1:]
-		}
-	}
+	upstreamURL = resolveDASHSegmentTemplate(upstreamURL, segment)
 
 	locator := stream.Locator{
 		URL:     upstreamURL,
@@ -388,6 +336,7 @@ func (p *Proxy) ServeDASHInit(ctx context.Context, tag, contentKey, format strin
 	upstreamURL := meta.UpstreamInitTemplate
 	upstreamURL = strings.ReplaceAll(upstreamURL, "$RepresentationID$", meta.UpstreamRepID)
 	upstreamURL = strings.ReplaceAll(upstreamURL, "$Bandwidth$", meta.UpstreamBandwidth)
+	upstreamURL = stripSegmentPlaceholders(upstreamURL)
 
 	locator := stream.Locator{
 		URL:     upstreamURL,
@@ -407,6 +356,35 @@ func (p *Proxy) ServeDASHInit(ctx context.Context, tag, contentKey, format strin
 	}()
 
 	return pr, "video/mp4", nil
+}
+
+// resolveDASHSegmentTemplate replaces the $Number$/$Time$ placeholder in an upstream
+// media template with the value embedded in the proxied segment filename.
+func resolveDASHSegmentTemplate(tpl, segment string) string {
+	idx, placeholder := dashTemplatePlaceholder(tpl)
+	if placeholder == "" {
+		return tpl
+	}
+	before := tpl[:idx]
+	after := tpl[idx+len(placeholder):]
+	value := strings.TrimSuffix(segment, after)
+	value = strings.TrimPrefix(value, path.Base(before))
+	return before + value + after
+}
+
+// dashTemplatePlaceholder returns the index and full token (e.g. "$Number%05d$")
+// of the segment placeholder in a DASH SegmentTemplate, if present.
+func dashTemplatePlaceholder(tpl string) (int, string) {
+	for _, marker := range []string{"$Number", "$Time"} {
+		if idx := strings.Index(tpl, marker); idx != -1 {
+			rest := tpl[idx+len(marker):]
+			if end := strings.Index(rest, "$"); end != -1 {
+				return idx, tpl[idx : idx+len(marker)+end+1]
+			}
+			return idx, marker + "$"
+		}
+	}
+	return -1, ""
 }
 
 // unwrapHLS traverses decorators to find the inner HLSStrategy.

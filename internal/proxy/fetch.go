@@ -1,10 +1,10 @@
 package proxy
 
 import (
-	"maps"
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,6 +20,10 @@ type Fetcher interface {
 type HTTPFetcher struct {
 	Client *http.Client
 }
+
+// defaultUserAgent is used for upstream requests that don't specify one; some
+// CDNs reject requests with no User-Agent.
+const defaultUserAgent = "ABCMovies/1.0"
 
 func NewHTTPFetcher(client *http.Client) *HTTPFetcher {
 	return &HTTPFetcher{Client: client}
@@ -44,6 +48,10 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, rawURL string, headers http.Hea
 
 	for k, vs := range headers {
 		req.Header[k] = vs
+	}
+
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", defaultUserAgent)
 	}
 
 	resp, err := f.Client.Do(req)

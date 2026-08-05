@@ -45,9 +45,9 @@ func StreamList(streams []oas.Stream, baseURL string) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var2 templ.SafeURL
-				templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinURLErrs(baseURL + "/" + streamfmt.ShortName(s.EncodingFormat) + "/" + s.ID)
+				templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinURLErrs(baseURL + "/" + streamfmt.ShortName(s.EncodingFormat))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/stream_list.templ`, Line: 14, Col: 81}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/stream_list.templ`, Line: 14, Col: 68}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 				if templ_7745c5c3_Err != nil {

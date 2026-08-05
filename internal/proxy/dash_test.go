@@ -134,16 +134,12 @@ func TestDASHStrategy_SegmentTemplateRewrite_Number(t *testing.T) {
 	result := buf.String()
 
 	// Media template rewritten with period prefix and $RepresentationID$ resolved
-	if !strings.Contains(result, "periods/0/adaptationSets/0/representations/v1/v1/seg_$Number$.m4s") {
+	if !strings.Contains(result, "periods/0/adaptation-sets/0/representations/v1/segments/seg_$Number$.m4s") {
 		t.Errorf("v1 media template not rewritten correctly, got:\n%s", result)
-	}
-	// $Bandwidth$ should NOT be resolved in media template (player resolves it)
-	if strings.Contains(result, "periods/0/adaptationSets/0/representations/v1/v1_seg_") && strings.Contains(result, "_5000000_") {
-		t.Errorf("$Bandwidth$ should not be resolved in media template")
 	}
 
 	// Init template rewritten with $RepresentationID$ resolved, $Number$ stripped
-	if !strings.Contains(result, "periods/0/adaptationSets/0/representations/v1/v1/init.mp4") {
+	if !strings.Contains(result, "periods/0/adaptation-sets/0/representations/v1/segments/init") {
 		t.Errorf("v1 init template not rewritten correctly, got:\n%s", result)
 	}
 
@@ -202,7 +198,7 @@ func TestDASHStrategy_SegmentTemplateRewrite_Time(t *testing.T) {
 	result := buf.String()
 
 	// Media template has $Time$ as placeholder
-	if !strings.Contains(result, "periods/0/adaptationSets/0/representations/v1/v1/$Time$.m4s") {
+	if !strings.Contains(result, "periods/0/adaptation-sets/0/representations/v1/segments/$Time$.m4s") {
 		t.Errorf("v1 media template missing $Time$ placeholder, got:\n%s", result)
 	}
 	// $RepresentationID$ resolved in media template
@@ -231,18 +227,18 @@ func TestDASHStrategy_PeriodLevelInheritance(t *testing.T) {
 	result := buf.String()
 
 	// Video representation (v1 in AS 0)
-	if !strings.Contains(result, "periods/0/adaptationSets/0/representations/v1/chunks/v1_$Number$.m4s") {
+	if !strings.Contains(result, "periods/0/adaptation-sets/0/representations/v1/segments/v1_$Number$.m4s") {
 		t.Errorf("v1 media template not rewritten correctly from Period inheritance, got:\n%s", result)
 	}
 	// Audio representation (a1 in AS 1)
-	if !strings.Contains(result, "periods/0/adaptationSets/1/representations/a1/chunks/a1_$Number$.m4s") {
+	if !strings.Contains(result, "periods/0/adaptation-sets/1/representations/a1/segments/a1_$Number$.m4s") {
 		t.Errorf("a1 media template not rewritten correctly from Period inheritance, got:\n%s", result)
 	}
 	// Init templates
-	if !strings.Contains(result, "periods/0/adaptationSets/0/representations/v1/v1_init.mp4") {
+	if !strings.Contains(result, "periods/0/adaptation-sets/0/representations/v1/segments/init") {
 		t.Errorf("v1 init template not rewritten, got:\n%s", result)
 	}
-	if !strings.Contains(result, "periods/0/adaptationSets/1/representations/a1/a1_init.mp4") {
+	if !strings.Contains(result, "periods/0/adaptation-sets/1/representations/a1/segments/init") {
 		t.Errorf("a1 init template not rewritten, got:\n%s", result)
 	}
 }
@@ -267,12 +263,12 @@ func TestDASHStrategy_NumberFormatSuffix(t *testing.T) {
 	result := buf.String()
 
 	// Media template preserves format suffix
-	if !strings.Contains(result, "periods/0/adaptationSets/0/representations/v1/v1/seg_$Number%05d$.m4s") {
+	if !strings.Contains(result, "periods/0/adaptation-sets/0/representations/v1/segments/seg_$Number%05d$.m4s") {
 		t.Errorf("media template format suffix not preserved, got:\n%s", result)
 	}
-	// Init template has suffix stripped
-	if !strings.Contains(result, "periods/0/adaptationSets/0/representations/v1/v1/init.mp4") {
-		t.Errorf("init template should have format suffix stripped, got:\n%s", result)
+	// Init template stripped of filename
+	if !strings.Contains(result, "periods/0/adaptation-sets/0/representations/v1/segments/init") {
+		t.Errorf("init template should use the fixed /segments/init path, got:\n%s", result)
 	}
 
 	// Verify original template stored with suffix intact
@@ -414,13 +410,13 @@ func TestDASHStrategy_InitServing(t *testing.T) {
 	ctx := t.Context()
 	key := proxy.DASHStateKey("test", "movies:1", 0, 0, "v1")
 	store.Put(ctx, key, proxy.StreamMeta{
-		ProviderTag:           "test",
-		ContentKey:            "movies:1",
-		UpstreamInitTemplate:  "https://cdn.example.com/movie/$RepresentationID$/init.mp4",
-		UpstreamRepID:         "v1",
-		UpstreamBandwidth:     "5000000",
-		Headers:               http.Header{"X-Auth": []string{"token123"}},
-		ExpiresAt:             time.Now().Add(5 * time.Minute),
+		ProviderTag:          "test",
+		ContentKey:           "movies:1",
+		UpstreamInitTemplate: "https://cdn.example.com/movie/$RepresentationID$/init.mp4",
+		UpstreamRepID:        "v1",
+		UpstreamBandwidth:    "5000000",
+		Headers:              http.Header{"X-Auth": []string{"token123"}},
+		ExpiresAt:            time.Now().Add(5 * time.Minute),
 	})
 
 	// Strategy's ServeInitSegment is a passthrough — reconstruct URL as the proxy would
@@ -506,9 +502,9 @@ func TestDASHStrategy_BandwidthInMediaTemplate(t *testing.T) {
 
 	result := buf.String()
 
-	// $Bandwidth$ should remain as placeholder in media template (player resolves)
-	if !strings.Contains(result, "$Bandwidth$") {
-		t.Errorf("$Bandwidth$ should remain in media template, got:\n%s", result)
+	// $Bandwidth$ should be resolved to the representation's literal value
+	if !strings.Contains(result, "periods/0/adaptation-sets/0/representations/v1/segments/v1_5000000_$Number$.m4s") {
+		t.Errorf("$Bandwidth$ should be resolved in media template, got:\n%s", result)
 	}
 	// $RepresentationID$ resolved in media template
 	if strings.Contains(result, "$RepresentationID$") {

@@ -146,6 +146,169 @@ func encodeGetEpisodeDASHSegmentResponse(response GetEpisodeDASHSegmentRes, w ht
 	}
 }
 
+func encodeGetEpisodeHLSKeyResponse(response GetEpisodeHLSKeyRes, w http.ResponseWriter, span trace.Span) error {
+	switch response := response.(type) {
+	case *GetEpisodeHLSKeyOK:
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetEpisodeHLSKeyBadRequest:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(400)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetEpisodeHLSKeyNotFound:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(404)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	default:
+		return errors.Errorf("unexpected response type: %T", response)
+	}
+}
+
+func encodeGetEpisodeHLSPartialResponse(response GetEpisodeHLSPartialRes, w http.ResponseWriter, span trace.Span) error {
+	switch response := response.(type) {
+	case *GetEpisodeHLSPartialOKVideoMp2t:
+		w.Header().Set("Content-Type", "video/mp2t")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetEpisodeHLSPartialOKVideoMP4:
+		w.Header().Set("Content-Type", "video/mp4")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetEpisodeHLSPartialBadRequest:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(400)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetEpisodeHLSPartialNotFound:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(404)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	default:
+		return errors.Errorf("unexpected response type: %T", response)
+	}
+}
+
+func encodeGetEpisodeHLSPreloadHintResponse(response GetEpisodeHLSPreloadHintRes, w http.ResponseWriter, span trace.Span) error {
+	switch response := response.(type) {
+	case *GetEpisodeHLSPreloadHintOKVideoMp2t:
+		w.Header().Set("Content-Type", "video/mp2t")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetEpisodeHLSPreloadHintOKVideoMP4:
+		w.Header().Set("Content-Type", "video/mp4")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetEpisodeHLSPreloadHintBadRequest:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(400)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetEpisodeHLSPreloadHintNotFound:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(404)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	default:
+		return errors.Errorf("unexpected response type: %T", response)
+	}
+}
+
 func encodeGetEpisodeHLSRenditionResponse(response GetEpisodeHLSRenditionRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
 	case *GetEpisodeHLSRenditionOK:
@@ -513,169 +676,6 @@ func encodeGetEpisodeHLSVariantSegmentResponse(response GetEpisodeHLSVariantSegm
 	}
 }
 
-func encodeGetEpisodeRenditionKeyResponse(response GetEpisodeRenditionKeyRes, w http.ResponseWriter, span trace.Span) error {
-	switch response := response.(type) {
-	case *GetEpisodeRenditionKeyOK:
-		w.Header().Set("Content-Type", "application/octet-stream")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeRenditionKeyBadRequest:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(400)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeRenditionKeyNotFound:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(404)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	default:
-		return errors.Errorf("unexpected response type: %T", response)
-	}
-}
-
-func encodeGetEpisodeRenditionPartialResponse(response GetEpisodeRenditionPartialRes, w http.ResponseWriter, span trace.Span) error {
-	switch response := response.(type) {
-	case *GetEpisodeRenditionPartialOKVideoMp2t:
-		w.Header().Set("Content-Type", "video/mp2t")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeRenditionPartialOKVideoMP4:
-		w.Header().Set("Content-Type", "video/mp4")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeRenditionPartialBadRequest:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(400)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeRenditionPartialNotFound:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(404)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	default:
-		return errors.Errorf("unexpected response type: %T", response)
-	}
-}
-
-func encodeGetEpisodeRenditionPreloadHintResponse(response GetEpisodeRenditionPreloadHintRes, w http.ResponseWriter, span trace.Span) error {
-	switch response := response.(type) {
-	case *GetEpisodeRenditionPreloadHintOKVideoMp2t:
-		w.Header().Set("Content-Type", "video/mp2t")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeRenditionPreloadHintOKVideoMP4:
-		w.Header().Set("Content-Type", "video/mp4")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeRenditionPreloadHintBadRequest:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(400)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeRenditionPreloadHintNotFound:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(404)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	default:
-		return errors.Errorf("unexpected response type: %T", response)
-	}
-}
-
 func encodeGetEpisodeStreamFileResponse(response GetEpisodeStreamFileRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
 	case *GetEpisodeStreamFileOKApplicationDashXML:
@@ -749,65 +749,6 @@ func encodeGetEpisodeStreamFileResponse(response GetEpisodeStreamFileRes, w http
 	}
 }
 
-func encodeGetEpisodeStreamSegmentResponse(response GetEpisodeStreamSegmentRes, w http.ResponseWriter, span trace.Span) error {
-	switch response := response.(type) {
-	case *GetEpisodeStreamSegmentOKVideoMp2t:
-		w.Header().Set("Content-Type", "video/mp2t")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeStreamSegmentOKVideoMP4:
-		w.Header().Set("Content-Type", "video/mp4")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeStreamSegmentBadRequest:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(400)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeStreamSegmentNotFound:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(404)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	default:
-		return errors.Errorf("unexpected response type: %T", response)
-	}
-}
-
 func encodeGetEpisodeStreamsResponse(response GetEpisodeStreamsRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
 	case *PageStream:
@@ -851,9 +792,9 @@ func encodeGetEpisodeStreamsResponse(response GetEpisodeStreamsRes, w http.Respo
 	}
 }
 
-func encodeGetEpisodeSubtitleFileResponse(response GetEpisodeSubtitleFileRes, w http.ResponseWriter, span trace.Span) error {
+func encodeGetEpisodeSubtitleResponse(response GetEpisodeSubtitleRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *GetEpisodeSubtitleFileOKApplicationTtmlXML:
+	case *GetEpisodeSubtitleOKApplicationTtmlXML:
 		w.Header().Set("Content-Type", "application/ttml+xml")
 		w.WriteHeader(200)
 
@@ -867,7 +808,7 @@ func encodeGetEpisodeSubtitleFileResponse(response GetEpisodeSubtitleFileRes, w 
 
 		return nil
 
-	case *GetEpisodeSubtitleFileOKApplicationXSubrip:
+	case *GetEpisodeSubtitleOKApplicationXSubrip:
 		w.Header().Set("Content-Type", "application/x-subrip")
 		w.WriteHeader(200)
 
@@ -881,7 +822,7 @@ func encodeGetEpisodeSubtitleFileResponse(response GetEpisodeSubtitleFileRes, w 
 
 		return nil
 
-	case *GetEpisodeSubtitleFileOKTextPlain:
+	case *GetEpisodeSubtitleOKTextPlain:
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(200)
 
@@ -895,7 +836,7 @@ func encodeGetEpisodeSubtitleFileResponse(response GetEpisodeSubtitleFileRes, w 
 
 		return nil
 
-	case *GetEpisodeSubtitleFileOKTextVtt:
+	case *GetEpisodeSubtitleOKTextVtt:
 		w.Header().Set("Content-Type", "text/vtt")
 		w.WriteHeader(200)
 
@@ -909,7 +850,7 @@ func encodeGetEpisodeSubtitleFileResponse(response GetEpisodeSubtitleFileRes, w 
 
 		return nil
 
-	case *GetEpisodeSubtitleFileBadRequest:
+	case *GetEpisodeSubtitleBadRequest:
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(400)
 
@@ -921,7 +862,7 @@ func encodeGetEpisodeSubtitleFileResponse(response GetEpisodeSubtitleFileRes, w 
 
 		return nil
 
-	case *GetEpisodeSubtitleFileNotFound:
+	case *GetEpisodeSubtitleNotFound:
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(404)
 
@@ -1026,169 +967,6 @@ func encodeGetEpisodeThumbnailResponse(response GetEpisodeThumbnailRes, w http.R
 		return nil
 
 	case *Error:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(404)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	default:
-		return errors.Errorf("unexpected response type: %T", response)
-	}
-}
-
-func encodeGetEpisodeVariantKeyResponse(response GetEpisodeVariantKeyRes, w http.ResponseWriter, span trace.Span) error {
-	switch response := response.(type) {
-	case *GetEpisodeVariantKeyOK:
-		w.Header().Set("Content-Type", "application/octet-stream")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeVariantKeyBadRequest:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(400)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeVariantKeyNotFound:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(404)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	default:
-		return errors.Errorf("unexpected response type: %T", response)
-	}
-}
-
-func encodeGetEpisodeVariantPartialResponse(response GetEpisodeVariantPartialRes, w http.ResponseWriter, span trace.Span) error {
-	switch response := response.(type) {
-	case *GetEpisodeVariantPartialOKVideoMp2t:
-		w.Header().Set("Content-Type", "video/mp2t")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeVariantPartialOKVideoMP4:
-		w.Header().Set("Content-Type", "video/mp4")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeVariantPartialBadRequest:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(400)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeVariantPartialNotFound:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(404)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	default:
-		return errors.Errorf("unexpected response type: %T", response)
-	}
-}
-
-func encodeGetEpisodeVariantPreloadHintResponse(response GetEpisodeVariantPreloadHintRes, w http.ResponseWriter, span trace.Span) error {
-	switch response := response.(type) {
-	case *GetEpisodeVariantPreloadHintOKVideoMp2t:
-		w.Header().Set("Content-Type", "video/mp2t")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeVariantPreloadHintOKVideoMP4:
-		w.Header().Set("Content-Type", "video/mp4")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeVariantPreloadHintBadRequest:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(400)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetEpisodeVariantPreloadHintNotFound:
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(404)
 
@@ -1439,6 +1217,169 @@ func encodeGetMovieDASHSegmentResponse(response GetMovieDASHSegmentRes, w http.R
 		return nil
 
 	case *GetMovieDASHSegmentNotFound:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(404)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	default:
+		return errors.Errorf("unexpected response type: %T", response)
+	}
+}
+
+func encodeGetMovieHLSKeyResponse(response GetMovieHLSKeyRes, w http.ResponseWriter, span trace.Span) error {
+	switch response := response.(type) {
+	case *GetMovieHLSKeyOK:
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetMovieHLSKeyBadRequest:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(400)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetMovieHLSKeyNotFound:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(404)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	default:
+		return errors.Errorf("unexpected response type: %T", response)
+	}
+}
+
+func encodeGetMovieHLSPartialResponse(response GetMovieHLSPartialRes, w http.ResponseWriter, span trace.Span) error {
+	switch response := response.(type) {
+	case *GetMovieHLSPartialOKVideoMp2t:
+		w.Header().Set("Content-Type", "video/mp2t")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetMovieHLSPartialOKVideoMP4:
+		w.Header().Set("Content-Type", "video/mp4")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetMovieHLSPartialBadRequest:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(400)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetMovieHLSPartialNotFound:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(404)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	default:
+		return errors.Errorf("unexpected response type: %T", response)
+	}
+}
+
+func encodeGetMovieHLSPreloadHintResponse(response GetMovieHLSPreloadHintRes, w http.ResponseWriter, span trace.Span) error {
+	switch response := response.(type) {
+	case *GetMovieHLSPreloadHintOKVideoMp2t:
+		w.Header().Set("Content-Type", "video/mp2t")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetMovieHLSPreloadHintOKVideoMP4:
+		w.Header().Set("Content-Type", "video/mp4")
+		w.WriteHeader(200)
+
+		writer := w
+		if closer, ok := response.Data.(io.Closer); ok {
+			defer closer.Close()
+		}
+		if _, err := io.Copy(writer, response); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetMovieHLSPreloadHintBadRequest:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(400)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *GetMovieHLSPreloadHintNotFound:
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(404)
 
@@ -1883,169 +1824,6 @@ func encodeGetMoviePosterResponse(response GetMoviePosterRes, w http.ResponseWri
 	}
 }
 
-func encodeGetMovieRenditionKeyResponse(response GetMovieRenditionKeyRes, w http.ResponseWriter, span trace.Span) error {
-	switch response := response.(type) {
-	case *GetMovieRenditionKeyOK:
-		w.Header().Set("Content-Type", "application/octet-stream")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieRenditionKeyBadRequest:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(400)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieRenditionKeyNotFound:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(404)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	default:
-		return errors.Errorf("unexpected response type: %T", response)
-	}
-}
-
-func encodeGetMovieRenditionPartialResponse(response GetMovieRenditionPartialRes, w http.ResponseWriter, span trace.Span) error {
-	switch response := response.(type) {
-	case *GetMovieRenditionPartialOKVideoMp2t:
-		w.Header().Set("Content-Type", "video/mp2t")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieRenditionPartialOKVideoMP4:
-		w.Header().Set("Content-Type", "video/mp4")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieRenditionPartialBadRequest:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(400)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieRenditionPartialNotFound:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(404)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	default:
-		return errors.Errorf("unexpected response type: %T", response)
-	}
-}
-
-func encodeGetMovieRenditionPreloadHintResponse(response GetMovieRenditionPreloadHintRes, w http.ResponseWriter, span trace.Span) error {
-	switch response := response.(type) {
-	case *GetMovieRenditionPreloadHintOKVideoMp2t:
-		w.Header().Set("Content-Type", "video/mp2t")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieRenditionPreloadHintOKVideoMP4:
-		w.Header().Set("Content-Type", "video/mp4")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieRenditionPreloadHintBadRequest:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(400)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieRenditionPreloadHintNotFound:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(404)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	default:
-		return errors.Errorf("unexpected response type: %T", response)
-	}
-}
-
 func encodeGetMovieStreamFileResponse(response GetMovieStreamFileRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
 	case *GetMovieStreamFileOKApplicationDashXML:
@@ -2119,65 +1897,6 @@ func encodeGetMovieStreamFileResponse(response GetMovieStreamFileRes, w http.Res
 	}
 }
 
-func encodeGetMovieStreamSegmentResponse(response GetMovieStreamSegmentRes, w http.ResponseWriter, span trace.Span) error {
-	switch response := response.(type) {
-	case *GetMovieStreamSegmentOKVideoMp2t:
-		w.Header().Set("Content-Type", "video/mp2t")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieStreamSegmentOKVideoMP4:
-		w.Header().Set("Content-Type", "video/mp4")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieStreamSegmentBadRequest:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(400)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieStreamSegmentNotFound:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(404)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	default:
-		return errors.Errorf("unexpected response type: %T", response)
-	}
-}
-
 func encodeGetMovieStreamsResponse(response GetMovieStreamsRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
 	case *PageStream:
@@ -2221,9 +1940,9 @@ func encodeGetMovieStreamsResponse(response GetMovieStreamsRes, w http.ResponseW
 	}
 }
 
-func encodeGetMovieSubtitleFileResponse(response GetMovieSubtitleFileRes, w http.ResponseWriter, span trace.Span) error {
+func encodeGetMovieSubtitleResponse(response GetMovieSubtitleRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *GetMovieSubtitleFileOKApplicationTtmlXML:
+	case *GetMovieSubtitleOKApplicationTtmlXML:
 		w.Header().Set("Content-Type", "application/ttml+xml")
 		w.WriteHeader(200)
 
@@ -2237,7 +1956,7 @@ func encodeGetMovieSubtitleFileResponse(response GetMovieSubtitleFileRes, w http
 
 		return nil
 
-	case *GetMovieSubtitleFileOKApplicationXSubrip:
+	case *GetMovieSubtitleOKApplicationXSubrip:
 		w.Header().Set("Content-Type", "application/x-subrip")
 		w.WriteHeader(200)
 
@@ -2251,7 +1970,7 @@ func encodeGetMovieSubtitleFileResponse(response GetMovieSubtitleFileRes, w http
 
 		return nil
 
-	case *GetMovieSubtitleFileOKTextPlain:
+	case *GetMovieSubtitleOKTextPlain:
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(200)
 
@@ -2265,7 +1984,7 @@ func encodeGetMovieSubtitleFileResponse(response GetMovieSubtitleFileRes, w http
 
 		return nil
 
-	case *GetMovieSubtitleFileOKTextVtt:
+	case *GetMovieSubtitleOKTextVtt:
 		w.Header().Set("Content-Type", "text/vtt")
 		w.WriteHeader(200)
 
@@ -2279,7 +1998,7 @@ func encodeGetMovieSubtitleFileResponse(response GetMovieSubtitleFileRes, w http
 
 		return nil
 
-	case *GetMovieSubtitleFileBadRequest:
+	case *GetMovieSubtitleBadRequest:
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(400)
 
@@ -2291,7 +2010,7 @@ func encodeGetMovieSubtitleFileResponse(response GetMovieSubtitleFileRes, w http
 
 		return nil
 
-	case *GetMovieSubtitleFileNotFound:
+	case *GetMovieSubtitleNotFound:
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(404)
 
@@ -2335,169 +2054,6 @@ func encodeGetMovieSubtitlesResponse(response GetMovieSubtitlesRes, w http.Respo
 		return nil
 
 	case *GetMovieSubtitlesNotFound:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(404)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	default:
-		return errors.Errorf("unexpected response type: %T", response)
-	}
-}
-
-func encodeGetMovieVariantKeyResponse(response GetMovieVariantKeyRes, w http.ResponseWriter, span trace.Span) error {
-	switch response := response.(type) {
-	case *GetMovieVariantKeyOK:
-		w.Header().Set("Content-Type", "application/octet-stream")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieVariantKeyBadRequest:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(400)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieVariantKeyNotFound:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(404)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	default:
-		return errors.Errorf("unexpected response type: %T", response)
-	}
-}
-
-func encodeGetMovieVariantPartialResponse(response GetMovieVariantPartialRes, w http.ResponseWriter, span trace.Span) error {
-	switch response := response.(type) {
-	case *GetMovieVariantPartialOKVideoMp2t:
-		w.Header().Set("Content-Type", "video/mp2t")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieVariantPartialOKVideoMP4:
-		w.Header().Set("Content-Type", "video/mp4")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieVariantPartialBadRequest:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(400)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieVariantPartialNotFound:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(404)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	default:
-		return errors.Errorf("unexpected response type: %T", response)
-	}
-}
-
-func encodeGetMovieVariantPreloadHintResponse(response GetMovieVariantPreloadHintRes, w http.ResponseWriter, span trace.Span) error {
-	switch response := response.(type) {
-	case *GetMovieVariantPreloadHintOKVideoMp2t:
-		w.Header().Set("Content-Type", "video/mp2t")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieVariantPreloadHintOKVideoMP4:
-		w.Header().Set("Content-Type", "video/mp4")
-		w.WriteHeader(200)
-
-		writer := w
-		if closer, ok := response.Data.(io.Closer); ok {
-			defer closer.Close()
-		}
-		if _, err := io.Copy(writer, response); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieVariantPreloadHintBadRequest:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(400)
-
-		e := new(jx.Encoder)
-		response.Encode(e)
-		if _, err := e.WriteTo(w); err != nil {
-			return errors.Wrap(err, "write")
-		}
-
-		return nil
-
-	case *GetMovieVariantPreloadHintNotFound:
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(404)
 

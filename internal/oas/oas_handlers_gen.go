@@ -203,14 +203,14 @@ func (s *Server) handleGetEpisodeByIdRequest(args [4]string, argsEscaped bool, w
 //
 // Returns the initialization segment for a DASH Representation.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/init
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/init
 func (s *Server) handleGetEpisodeDASHInitRequest(args [8]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getEpisodeDASHInit"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/init"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/init"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -385,14 +385,14 @@ func (s *Server) handleGetEpisodeDASHInitRequest(args [8]string, argsEscaped boo
 //
 // Returns a single DASH media segment.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/{segment}
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/{segment}
 func (s *Server) handleGetEpisodeDASHSegmentRequest(args [9]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getEpisodeDASHSegment"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/{segment}"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/{segment}"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -567,18 +567,531 @@ func (s *Server) handleGetEpisodeDASHSegmentRequest(args [9]string, argsEscaped 
 	}
 }
 
+// handleGetEpisodeHLSKeyRequest handles getEpisodeHLSKey operation.
+//
+// Returns an AES-128 encryption key referenced by an EXT-X-KEY tag. The key is identified by a hash of
+// its upstream URL and is fetched from the upstream CDN and proxied through.
+//
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/keys/{file}
+func (s *Server) handleGetEpisodeHLSKeyRequest(args [5]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("getEpisodeHLSKey"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/keys/{file}"),
+	}
+	// Add attributes from config.
+	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), GetEpisodeHLSKeyOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(attrs...)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code < 100 || code >= 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: GetEpisodeHLSKeyOperation,
+			ID:   "getEpisodeHLSKey",
+		}
+	)
+	params, err := decodeGetEpisodeHLSKeyParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	var rawBody []byte
+
+	var response GetEpisodeHLSKeyRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    GetEpisodeHLSKeyOperation,
+			OperationSummary: "Get an HLS encryption key for an episode",
+			OperationID:      "getEpisodeHLSKey",
+			Body:             nil,
+			RawBody:          rawBody,
+			Params: middleware.Parameters{
+				{
+					Name: "serviceTag",
+					In:   "path",
+				}: params.ServiceTag,
+				{
+					Name: "seriesId",
+					In:   "path",
+				}: params.SeriesId,
+				{
+					Name: "seasonId",
+					In:   "path",
+				}: params.SeasonId,
+				{
+					Name: "episodeId",
+					In:   "path",
+				}: params.EpisodeId,
+				{
+					Name: "file",
+					In:   "path",
+				}: params.File,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = struct{}
+			Params   = GetEpisodeHLSKeyParams
+			Response = GetEpisodeHLSKeyRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackGetEpisodeHLSKeyParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.GetEpisodeHLSKey(ctx, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.GetEpisodeHLSKey(ctx, params)
+	}
+	if err != nil {
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
+		return
+	}
+
+	if err := encodeGetEpisodeHLSKeyResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
+// handleGetEpisodeHLSPartialRequest handles getEpisodeHLSPartial operation.
+//
+// Returns a low-latency HLS partial segment (EXT-X-PART). The partial is identified by a hash of its
+// upstream URL and is fetched from the upstream CDN and proxied through.
+//
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/partials/{file}
+func (s *Server) handleGetEpisodeHLSPartialRequest(args [5]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("getEpisodeHLSPartial"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/partials/{file}"),
+	}
+	// Add attributes from config.
+	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), GetEpisodeHLSPartialOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(attrs...)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code < 100 || code >= 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: GetEpisodeHLSPartialOperation,
+			ID:   "getEpisodeHLSPartial",
+		}
+	)
+	params, err := decodeGetEpisodeHLSPartialParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	var rawBody []byte
+
+	var response GetEpisodeHLSPartialRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    GetEpisodeHLSPartialOperation,
+			OperationSummary: "Get an HLS partial segment for an episode",
+			OperationID:      "getEpisodeHLSPartial",
+			Body:             nil,
+			RawBody:          rawBody,
+			Params: middleware.Parameters{
+				{
+					Name: "serviceTag",
+					In:   "path",
+				}: params.ServiceTag,
+				{
+					Name: "seriesId",
+					In:   "path",
+				}: params.SeriesId,
+				{
+					Name: "seasonId",
+					In:   "path",
+				}: params.SeasonId,
+				{
+					Name: "episodeId",
+					In:   "path",
+				}: params.EpisodeId,
+				{
+					Name: "file",
+					In:   "path",
+				}: params.File,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = struct{}
+			Params   = GetEpisodeHLSPartialParams
+			Response = GetEpisodeHLSPartialRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackGetEpisodeHLSPartialParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.GetEpisodeHLSPartial(ctx, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.GetEpisodeHLSPartial(ctx, params)
+	}
+	if err != nil {
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
+		return
+	}
+
+	if err := encodeGetEpisodeHLSPartialResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
+// handleGetEpisodeHLSPreloadHintRequest handles getEpisodeHLSPreloadHint operation.
+//
+// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag. The hint is identified by a hash of
+// its upstream URL and is fetched from the upstream CDN and proxied through.
+//
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/preload-hints/{file}
+func (s *Server) handleGetEpisodeHLSPreloadHintRequest(args [5]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("getEpisodeHLSPreloadHint"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/preload-hints/{file}"),
+	}
+	// Add attributes from config.
+	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), GetEpisodeHLSPreloadHintOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(attrs...)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code < 100 || code >= 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: GetEpisodeHLSPreloadHintOperation,
+			ID:   "getEpisodeHLSPreloadHint",
+		}
+	)
+	params, err := decodeGetEpisodeHLSPreloadHintParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	var rawBody []byte
+
+	var response GetEpisodeHLSPreloadHintRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    GetEpisodeHLSPreloadHintOperation,
+			OperationSummary: "Get an HLS preload hint for an episode",
+			OperationID:      "getEpisodeHLSPreloadHint",
+			Body:             nil,
+			RawBody:          rawBody,
+			Params: middleware.Parameters{
+				{
+					Name: "serviceTag",
+					In:   "path",
+				}: params.ServiceTag,
+				{
+					Name: "seriesId",
+					In:   "path",
+				}: params.SeriesId,
+				{
+					Name: "seasonId",
+					In:   "path",
+				}: params.SeasonId,
+				{
+					Name: "episodeId",
+					In:   "path",
+				}: params.EpisodeId,
+				{
+					Name: "file",
+					In:   "path",
+				}: params.File,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = struct{}
+			Params   = GetEpisodeHLSPreloadHintParams
+			Response = GetEpisodeHLSPreloadHintRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackGetEpisodeHLSPreloadHintParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.GetEpisodeHLSPreloadHint(ctx, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.GetEpisodeHLSPreloadHint(ctx, params)
+	}
+	if err != nil {
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
+		return
+	}
+
+	if err := encodeGetEpisodeHLSPreloadHintResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
 // handleGetEpisodeHLSRenditionRequest handles getEpisodeHLSRendition operation.
 //
 // Returns a rewritten HLS media playlist for a specific rendition identified by GROUP-ID and NAME.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/groups/{groupId}/renditions/{renditionName}
 func (s *Server) handleGetEpisodeHLSRenditionRequest(args [6]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getEpisodeHLSRendition"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/groups/{groupId}/renditions/{renditionName}"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -745,14 +1258,14 @@ func (s *Server) handleGetEpisodeHLSRenditionRequest(args [6]string, argsEscaped
 //
 // Returns a single media segment from an HLS rendition sub-playlist.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/segments/{segment}
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/groups/{groupId}/renditions/{renditionName}/segments/{segment}
 func (s *Server) handleGetEpisodeHLSRenditionSegmentRequest(args [7]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getEpisodeHLSRenditionSegment"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/segments/{segment}"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/groups/{groupId}/renditions/{renditionName}/segments/{segment}"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -1430,17 +1943,17 @@ func (s *Server) handleGetEpisodeHLSSteeringRequest(args [4]string, argsEscaped 
 
 // handleGetEpisodeHLSVariantRequest handles getEpisodeHLSVariant operation.
 //
-// Returns a rewritten HLS media playlist for a specific variant. The variant is identified by its
-// zero-based index in the master playlist.
+// Returns a rewritten HLS media playlist for a specific variant. The variant is identified by a hash
+// of its upstream playlist URL.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantId}
 func (s *Server) handleGetEpisodeHLSVariantRequest(args [5]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getEpisodeHLSVariant"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantId}"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -1545,9 +2058,9 @@ func (s *Server) handleGetEpisodeHLSVariantRequest(args [5]string, argsEscaped b
 					In:   "path",
 				}: params.EpisodeId,
 				{
-					Name: "variantIndex",
+					Name: "variantId",
 					In:   "path",
-				}: params.VariantIndex,
+				}: params.VariantId,
 			},
 			Raw: r,
 		}
@@ -1603,14 +2116,14 @@ func (s *Server) handleGetEpisodeHLSVariantRequest(args [5]string, argsEscaped b
 //
 // Returns a single media segment from an HLS variant sub-playlist.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/segments/{segment}
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantId}/segments/{segment}
 func (s *Server) handleGetEpisodeHLSVariantSegmentRequest(args [6]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getEpisodeHLSVariantSegment"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/segments/{segment}"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantId}/segments/{segment}"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -1715,9 +2228,9 @@ func (s *Server) handleGetEpisodeHLSVariantSegmentRequest(args [6]string, argsEs
 					In:   "path",
 				}: params.EpisodeId,
 				{
-					Name: "variantIndex",
+					Name: "variantId",
 					In:   "path",
-				}: params.VariantIndex,
+				}: params.VariantId,
 				{
 					Name: "segment",
 					In:   "path",
@@ -1773,556 +2286,20 @@ func (s *Server) handleGetEpisodeHLSVariantSegmentRequest(args [6]string, argsEs
 	}
 }
 
-// handleGetEpisodeRenditionKeyRequest handles getEpisodeRenditionKey operation.
-//
-// Returns an AES-128 encryption key from a rendition sub-playlist. The key file is fetched from the
-// upstream CDN and proxied through.
-//
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/keys/{file}
-func (s *Server) handleGetEpisodeRenditionKeyRequest(args [7]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
-	statusWriter := &codeRecorder{ResponseWriter: w}
-	w = statusWriter
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getEpisodeRenditionKey"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/keys/{file}"),
-	}
-	// Add attributes from config.
-	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
-
-	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), GetEpisodeRenditionKeyOperation,
-		trace.WithAttributes(otelAttrs...),
-		serverSpanKind,
-	)
-	defer span.End()
-
-	// Add Labeler to context.
-	labeler := &Labeler{attrs: otelAttrs}
-	ctx = contextWithLabeler(ctx, labeler)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		elapsedDuration := time.Since(startTime)
-
-		attrSet := labeler.AttributeSet()
-		attrs := attrSet.ToSlice()
-		code := statusWriter.status
-		if code != 0 {
-			codeAttr := semconv.HTTPResponseStatusCode(code)
-			attrs = append(attrs, codeAttr)
-			span.SetAttributes(attrs...)
-		}
-		attrOpt := metric.WithAttributes(attrs...)
-
-		// Increment request counter.
-		s.requests.Add(ctx, 1, attrOpt)
-
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
-	}()
-
-	var (
-		recordError = func(stage string, err error) {
-			span.RecordError(err)
-
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
-			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
-			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
-			// max redirects exceeded), in which case status MUST be set to Error.
-			code := statusWriter.status
-			if code < 100 || code >= 500 {
-				span.SetStatus(codes.Error, stage)
-			}
-
-			attrSet := labeler.AttributeSet()
-			attrs := attrSet.ToSlice()
-			if code != 0 {
-				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
-			}
-
-			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
-		}
-		err          error
-		opErrContext = ogenerrors.OperationContext{
-			Name: GetEpisodeRenditionKeyOperation,
-			ID:   "getEpisodeRenditionKey",
-		}
-	)
-	params, err := decodeGetEpisodeRenditionKeyParams(args, argsEscaped, r)
-	if err != nil {
-		err = &ogenerrors.DecodeParamsError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeParams", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	var rawBody []byte
-
-	var response GetEpisodeRenditionKeyRes
-	if m := s.cfg.Middleware; m != nil {
-		mreq := middleware.Request{
-			Context:          ctx,
-			OperationName:    GetEpisodeRenditionKeyOperation,
-			OperationSummary: "Get an HLS encryption key for an episode rendition",
-			OperationID:      "getEpisodeRenditionKey",
-			Body:             nil,
-			RawBody:          rawBody,
-			Params: middleware.Parameters{
-				{
-					Name: "serviceTag",
-					In:   "path",
-				}: params.ServiceTag,
-				{
-					Name: "seriesId",
-					In:   "path",
-				}: params.SeriesId,
-				{
-					Name: "seasonId",
-					In:   "path",
-				}: params.SeasonId,
-				{
-					Name: "episodeId",
-					In:   "path",
-				}: params.EpisodeId,
-				{
-					Name: "groupId",
-					In:   "path",
-				}: params.GroupId,
-				{
-					Name: "renditionName",
-					In:   "path",
-				}: params.RenditionName,
-				{
-					Name: "file",
-					In:   "path",
-				}: params.File,
-			},
-			Raw: r,
-		}
-
-		type (
-			Request  = struct{}
-			Params   = GetEpisodeRenditionKeyParams
-			Response = GetEpisodeRenditionKeyRes
-		)
-		response, err = middleware.HookMiddleware[
-			Request,
-			Params,
-			Response,
-		](
-			m,
-			mreq,
-			unpackGetEpisodeRenditionKeyParams,
-			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.GetEpisodeRenditionKey(ctx, params)
-				return response, err
-			},
-		)
-	} else {
-		response, err = s.h.GetEpisodeRenditionKey(ctx, params)
-	}
-	if err != nil {
-		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
-			if err := encodeErrorResponse(errRes, w, span); err != nil {
-				defer recordError("Internal", err)
-			}
-			return
-		}
-		if errors.Is(err, ht.ErrNotImplemented) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-			return
-		}
-		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
-			defer recordError("Internal", err)
-		}
-		return
-	}
-
-	if err := encodeGetEpisodeRenditionKeyResponse(response, w, span); err != nil {
-		defer recordError("EncodeResponse", err)
-		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-		}
-		return
-	}
-}
-
-// handleGetEpisodeRenditionPartialRequest handles getEpisodeRenditionPartial operation.
-//
-// Returns a low-latency HLS partial segment (EXT-X-PART) from a rendition sub-playlist. Fetched from
-// the upstream CDN.
-//
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/partials/{file}
-func (s *Server) handleGetEpisodeRenditionPartialRequest(args [7]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
-	statusWriter := &codeRecorder{ResponseWriter: w}
-	w = statusWriter
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getEpisodeRenditionPartial"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/partials/{file}"),
-	}
-	// Add attributes from config.
-	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
-
-	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), GetEpisodeRenditionPartialOperation,
-		trace.WithAttributes(otelAttrs...),
-		serverSpanKind,
-	)
-	defer span.End()
-
-	// Add Labeler to context.
-	labeler := &Labeler{attrs: otelAttrs}
-	ctx = contextWithLabeler(ctx, labeler)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		elapsedDuration := time.Since(startTime)
-
-		attrSet := labeler.AttributeSet()
-		attrs := attrSet.ToSlice()
-		code := statusWriter.status
-		if code != 0 {
-			codeAttr := semconv.HTTPResponseStatusCode(code)
-			attrs = append(attrs, codeAttr)
-			span.SetAttributes(attrs...)
-		}
-		attrOpt := metric.WithAttributes(attrs...)
-
-		// Increment request counter.
-		s.requests.Add(ctx, 1, attrOpt)
-
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
-	}()
-
-	var (
-		recordError = func(stage string, err error) {
-			span.RecordError(err)
-
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
-			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
-			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
-			// max redirects exceeded), in which case status MUST be set to Error.
-			code := statusWriter.status
-			if code < 100 || code >= 500 {
-				span.SetStatus(codes.Error, stage)
-			}
-
-			attrSet := labeler.AttributeSet()
-			attrs := attrSet.ToSlice()
-			if code != 0 {
-				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
-			}
-
-			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
-		}
-		err          error
-		opErrContext = ogenerrors.OperationContext{
-			Name: GetEpisodeRenditionPartialOperation,
-			ID:   "getEpisodeRenditionPartial",
-		}
-	)
-	params, err := decodeGetEpisodeRenditionPartialParams(args, argsEscaped, r)
-	if err != nil {
-		err = &ogenerrors.DecodeParamsError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeParams", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	var rawBody []byte
-
-	var response GetEpisodeRenditionPartialRes
-	if m := s.cfg.Middleware; m != nil {
-		mreq := middleware.Request{
-			Context:          ctx,
-			OperationName:    GetEpisodeRenditionPartialOperation,
-			OperationSummary: "Get an HLS partial segment for an episode rendition",
-			OperationID:      "getEpisodeRenditionPartial",
-			Body:             nil,
-			RawBody:          rawBody,
-			Params: middleware.Parameters{
-				{
-					Name: "serviceTag",
-					In:   "path",
-				}: params.ServiceTag,
-				{
-					Name: "seriesId",
-					In:   "path",
-				}: params.SeriesId,
-				{
-					Name: "seasonId",
-					In:   "path",
-				}: params.SeasonId,
-				{
-					Name: "episodeId",
-					In:   "path",
-				}: params.EpisodeId,
-				{
-					Name: "groupId",
-					In:   "path",
-				}: params.GroupId,
-				{
-					Name: "renditionName",
-					In:   "path",
-				}: params.RenditionName,
-				{
-					Name: "file",
-					In:   "path",
-				}: params.File,
-			},
-			Raw: r,
-		}
-
-		type (
-			Request  = struct{}
-			Params   = GetEpisodeRenditionPartialParams
-			Response = GetEpisodeRenditionPartialRes
-		)
-		response, err = middleware.HookMiddleware[
-			Request,
-			Params,
-			Response,
-		](
-			m,
-			mreq,
-			unpackGetEpisodeRenditionPartialParams,
-			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.GetEpisodeRenditionPartial(ctx, params)
-				return response, err
-			},
-		)
-	} else {
-		response, err = s.h.GetEpisodeRenditionPartial(ctx, params)
-	}
-	if err != nil {
-		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
-			if err := encodeErrorResponse(errRes, w, span); err != nil {
-				defer recordError("Internal", err)
-			}
-			return
-		}
-		if errors.Is(err, ht.ErrNotImplemented) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-			return
-		}
-		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
-			defer recordError("Internal", err)
-		}
-		return
-	}
-
-	if err := encodeGetEpisodeRenditionPartialResponse(response, w, span); err != nil {
-		defer recordError("EncodeResponse", err)
-		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-		}
-		return
-	}
-}
-
-// handleGetEpisodeRenditionPreloadHintRequest handles getEpisodeRenditionPreloadHint operation.
-//
-// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag from a rendition sub-playlist. Fetched
-// from the upstream CDN.
-//
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/preload-hints/{file}
-func (s *Server) handleGetEpisodeRenditionPreloadHintRequest(args [7]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
-	statusWriter := &codeRecorder{ResponseWriter: w}
-	w = statusWriter
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getEpisodeRenditionPreloadHint"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/preload-hints/{file}"),
-	}
-	// Add attributes from config.
-	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
-
-	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), GetEpisodeRenditionPreloadHintOperation,
-		trace.WithAttributes(otelAttrs...),
-		serverSpanKind,
-	)
-	defer span.End()
-
-	// Add Labeler to context.
-	labeler := &Labeler{attrs: otelAttrs}
-	ctx = contextWithLabeler(ctx, labeler)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		elapsedDuration := time.Since(startTime)
-
-		attrSet := labeler.AttributeSet()
-		attrs := attrSet.ToSlice()
-		code := statusWriter.status
-		if code != 0 {
-			codeAttr := semconv.HTTPResponseStatusCode(code)
-			attrs = append(attrs, codeAttr)
-			span.SetAttributes(attrs...)
-		}
-		attrOpt := metric.WithAttributes(attrs...)
-
-		// Increment request counter.
-		s.requests.Add(ctx, 1, attrOpt)
-
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
-	}()
-
-	var (
-		recordError = func(stage string, err error) {
-			span.RecordError(err)
-
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
-			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
-			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
-			// max redirects exceeded), in which case status MUST be set to Error.
-			code := statusWriter.status
-			if code < 100 || code >= 500 {
-				span.SetStatus(codes.Error, stage)
-			}
-
-			attrSet := labeler.AttributeSet()
-			attrs := attrSet.ToSlice()
-			if code != 0 {
-				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
-			}
-
-			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
-		}
-		err          error
-		opErrContext = ogenerrors.OperationContext{
-			Name: GetEpisodeRenditionPreloadHintOperation,
-			ID:   "getEpisodeRenditionPreloadHint",
-		}
-	)
-	params, err := decodeGetEpisodeRenditionPreloadHintParams(args, argsEscaped, r)
-	if err != nil {
-		err = &ogenerrors.DecodeParamsError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeParams", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	var rawBody []byte
-
-	var response GetEpisodeRenditionPreloadHintRes
-	if m := s.cfg.Middleware; m != nil {
-		mreq := middleware.Request{
-			Context:          ctx,
-			OperationName:    GetEpisodeRenditionPreloadHintOperation,
-			OperationSummary: "Get an HLS preload hint for an episode rendition",
-			OperationID:      "getEpisodeRenditionPreloadHint",
-			Body:             nil,
-			RawBody:          rawBody,
-			Params: middleware.Parameters{
-				{
-					Name: "serviceTag",
-					In:   "path",
-				}: params.ServiceTag,
-				{
-					Name: "seriesId",
-					In:   "path",
-				}: params.SeriesId,
-				{
-					Name: "seasonId",
-					In:   "path",
-				}: params.SeasonId,
-				{
-					Name: "episodeId",
-					In:   "path",
-				}: params.EpisodeId,
-				{
-					Name: "groupId",
-					In:   "path",
-				}: params.GroupId,
-				{
-					Name: "renditionName",
-					In:   "path",
-				}: params.RenditionName,
-				{
-					Name: "file",
-					In:   "path",
-				}: params.File,
-			},
-			Raw: r,
-		}
-
-		type (
-			Request  = struct{}
-			Params   = GetEpisodeRenditionPreloadHintParams
-			Response = GetEpisodeRenditionPreloadHintRes
-		)
-		response, err = middleware.HookMiddleware[
-			Request,
-			Params,
-			Response,
-		](
-			m,
-			mreq,
-			unpackGetEpisodeRenditionPreloadHintParams,
-			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.GetEpisodeRenditionPreloadHint(ctx, params)
-				return response, err
-			},
-		)
-	} else {
-		response, err = s.h.GetEpisodeRenditionPreloadHint(ctx, params)
-	}
-	if err != nil {
-		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
-			if err := encodeErrorResponse(errRes, w, span); err != nil {
-				defer recordError("Internal", err)
-			}
-			return
-		}
-		if errors.Is(err, ht.ErrNotImplemented) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-			return
-		}
-		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
-			defer recordError("Internal", err)
-		}
-		return
-	}
-
-	if err := encodeGetEpisodeRenditionPreloadHintResponse(response, w, span); err != nil {
-		defer recordError("EncodeResponse", err)
-		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-		}
-		return
-	}
-}
-
 // handleGetEpisodeStreamFileRequest handles getEpisodeStreamFile operation.
 //
-// Returns the raw stream manifest or playlist binary content. The response Content-Type matches the
+// Returns the raw stream manifest binary content for the given format. Episodes expose exactly one
+// canonical manifest per format, so no file name is required. The response Content-Type matches the
 // stream's encoding format.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{file}
-func (s *Server) handleGetEpisodeStreamFileRequest(args [6]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}
+func (s *Server) handleGetEpisodeStreamFileRequest(args [5]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getEpisodeStreamFile"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{file}"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -2430,10 +2407,6 @@ func (s *Server) handleGetEpisodeStreamFileRequest(args [6]string, argsEscaped b
 					Name: "format",
 					In:   "path",
 				}: params.Format,
-				{
-					Name: "file",
-					In:   "path",
-				}: params.File,
 			},
 			Raw: r,
 		}
@@ -2477,185 +2450,6 @@ func (s *Server) handleGetEpisodeStreamFileRequest(args [6]string, argsEscaped b
 	}
 
 	if err := encodeGetEpisodeStreamFileResponse(response, w, span); err != nil {
-		defer recordError("EncodeResponse", err)
-		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-		}
-		return
-	}
-}
-
-// handleGetEpisodeStreamSegmentRequest handles getEpisodeStreamSegment operation.
-//
-// Returns a single media segment (HLS .ts/.m4s, DASH .m4s/.mp4) or an initialization segment for a
-// given rendition.
-//
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{rendition}/{segment}
-func (s *Server) handleGetEpisodeStreamSegmentRequest(args [7]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
-	statusWriter := &codeRecorder{ResponseWriter: w}
-	w = statusWriter
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getEpisodeStreamSegment"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{rendition}/{segment}"),
-	}
-	// Add attributes from config.
-	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
-
-	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), GetEpisodeStreamSegmentOperation,
-		trace.WithAttributes(otelAttrs...),
-		serverSpanKind,
-	)
-	defer span.End()
-
-	// Add Labeler to context.
-	labeler := &Labeler{attrs: otelAttrs}
-	ctx = contextWithLabeler(ctx, labeler)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		elapsedDuration := time.Since(startTime)
-
-		attrSet := labeler.AttributeSet()
-		attrs := attrSet.ToSlice()
-		code := statusWriter.status
-		if code != 0 {
-			codeAttr := semconv.HTTPResponseStatusCode(code)
-			attrs = append(attrs, codeAttr)
-			span.SetAttributes(attrs...)
-		}
-		attrOpt := metric.WithAttributes(attrs...)
-
-		// Increment request counter.
-		s.requests.Add(ctx, 1, attrOpt)
-
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
-	}()
-
-	var (
-		recordError = func(stage string, err error) {
-			span.RecordError(err)
-
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
-			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
-			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
-			// max redirects exceeded), in which case status MUST be set to Error.
-			code := statusWriter.status
-			if code < 100 || code >= 500 {
-				span.SetStatus(codes.Error, stage)
-			}
-
-			attrSet := labeler.AttributeSet()
-			attrs := attrSet.ToSlice()
-			if code != 0 {
-				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
-			}
-
-			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
-		}
-		err          error
-		opErrContext = ogenerrors.OperationContext{
-			Name: GetEpisodeStreamSegmentOperation,
-			ID:   "getEpisodeStreamSegment",
-		}
-	)
-	params, err := decodeGetEpisodeStreamSegmentParams(args, argsEscaped, r)
-	if err != nil {
-		err = &ogenerrors.DecodeParamsError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeParams", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	var rawBody []byte
-
-	var response GetEpisodeStreamSegmentRes
-	if m := s.cfg.Middleware; m != nil {
-		mreq := middleware.Request{
-			Context:          ctx,
-			OperationName:    GetEpisodeStreamSegmentOperation,
-			OperationSummary: "Get a stream segment for an episode",
-			OperationID:      "getEpisodeStreamSegment",
-			Body:             nil,
-			RawBody:          rawBody,
-			Params: middleware.Parameters{
-				{
-					Name: "serviceTag",
-					In:   "path",
-				}: params.ServiceTag,
-				{
-					Name: "seriesId",
-					In:   "path",
-				}: params.SeriesId,
-				{
-					Name: "seasonId",
-					In:   "path",
-				}: params.SeasonId,
-				{
-					Name: "episodeId",
-					In:   "path",
-				}: params.EpisodeId,
-				{
-					Name: "format",
-					In:   "path",
-				}: params.Format,
-				{
-					Name: "rendition",
-					In:   "path",
-				}: params.Rendition,
-				{
-					Name: "segment",
-					In:   "path",
-				}: params.Segment,
-			},
-			Raw: r,
-		}
-
-		type (
-			Request  = struct{}
-			Params   = GetEpisodeStreamSegmentParams
-			Response = GetEpisodeStreamSegmentRes
-		)
-		response, err = middleware.HookMiddleware[
-			Request,
-			Params,
-			Response,
-		](
-			m,
-			mreq,
-			unpackGetEpisodeStreamSegmentParams,
-			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.GetEpisodeStreamSegment(ctx, params)
-				return response, err
-			},
-		)
-	} else {
-		response, err = s.h.GetEpisodeStreamSegment(ctx, params)
-	}
-	if err != nil {
-		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
-			if err := encodeErrorResponse(errRes, w, span); err != nil {
-				defer recordError("Internal", err)
-			}
-			return
-		}
-		if errors.Is(err, ht.ErrNotImplemented) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-			return
-		}
-		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
-			defer recordError("Internal", err)
-		}
-		return
-	}
-
-	if err := encodeGetEpisodeStreamSegmentResponse(response, w, span); err != nil {
 		defer recordError("EncodeResponse", err)
 		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
 			s.cfg.ErrorHandler(ctx, w, r, err)
@@ -2839,24 +2633,24 @@ func (s *Server) handleGetEpisodeStreamsRequest(args [4]string, argsEscaped bool
 	}
 }
 
-// handleGetEpisodeSubtitleFileRequest handles getEpisodeSubtitleFile operation.
+// handleGetEpisodeSubtitleRequest handles getEpisodeSubtitle operation.
 //
 // Returns the raw subtitle file content. The response Content-Type matches the subtitle format.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/subtitles/{subtitleFile}
-func (s *Server) handleGetEpisodeSubtitleFileRequest(args [5]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/subtitles/{subtitleId}
+func (s *Server) handleGetEpisodeSubtitleRequest(args [5]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getEpisodeSubtitleFile"),
+		otelogen.OperationID("getEpisodeSubtitle"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/subtitles/{subtitleFile}"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/subtitles/{subtitleId}"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
 
 	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), GetEpisodeSubtitleFileOperation,
+	ctx, span := s.cfg.Tracer.Start(r.Context(), GetEpisodeSubtitleOperation,
 		trace.WithAttributes(otelAttrs...),
 		serverSpanKind,
 	)
@@ -2911,11 +2705,11 @@ func (s *Server) handleGetEpisodeSubtitleFileRequest(args [5]string, argsEscaped
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
-			Name: GetEpisodeSubtitleFileOperation,
-			ID:   "getEpisodeSubtitleFile",
+			Name: GetEpisodeSubtitleOperation,
+			ID:   "getEpisodeSubtitle",
 		}
 	)
-	params, err := decodeGetEpisodeSubtitleFileParams(args, argsEscaped, r)
+	params, err := decodeGetEpisodeSubtitleParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
@@ -2928,13 +2722,13 @@ func (s *Server) handleGetEpisodeSubtitleFileRequest(args [5]string, argsEscaped
 
 	var rawBody []byte
 
-	var response GetEpisodeSubtitleFileRes
+	var response GetEpisodeSubtitleRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
 			Context:          ctx,
-			OperationName:    GetEpisodeSubtitleFileOperation,
+			OperationName:    GetEpisodeSubtitleOperation,
 			OperationSummary: "Get a subtitle file for an episode",
-			OperationID:      "getEpisodeSubtitleFile",
+			OperationID:      "getEpisodeSubtitle",
 			Body:             nil,
 			RawBody:          rawBody,
 			Params: middleware.Parameters{
@@ -2955,17 +2749,17 @@ func (s *Server) handleGetEpisodeSubtitleFileRequest(args [5]string, argsEscaped
 					In:   "path",
 				}: params.EpisodeId,
 				{
-					Name: "subtitleFile",
+					Name: "subtitleId",
 					In:   "path",
-				}: params.SubtitleFile,
+				}: params.SubtitleId,
 			},
 			Raw: r,
 		}
 
 		type (
 			Request  = struct{}
-			Params   = GetEpisodeSubtitleFileParams
-			Response = GetEpisodeSubtitleFileRes
+			Params   = GetEpisodeSubtitleParams
+			Response = GetEpisodeSubtitleRes
 		)
 		response, err = middleware.HookMiddleware[
 			Request,
@@ -2974,14 +2768,14 @@ func (s *Server) handleGetEpisodeSubtitleFileRequest(args [5]string, argsEscaped
 		](
 			m,
 			mreq,
-			unpackGetEpisodeSubtitleFileParams,
+			unpackGetEpisodeSubtitleParams,
 			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.GetEpisodeSubtitleFile(ctx, params)
+				response, err = s.h.GetEpisodeSubtitle(ctx, params)
 				return response, err
 			},
 		)
 	} else {
-		response, err = s.h.GetEpisodeSubtitleFile(ctx, params)
+		response, err = s.h.GetEpisodeSubtitle(ctx, params)
 	}
 	if err != nil {
 		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
@@ -3000,7 +2794,7 @@ func (s *Server) handleGetEpisodeSubtitleFileRequest(args [5]string, argsEscaped
 		return
 	}
 
-	if err := encodeGetEpisodeSubtitleFileResponse(response, w, span); err != nil {
+	if err := encodeGetEpisodeSubtitleResponse(response, w, span); err != nil {
 		defer recordError("EncodeResponse", err)
 		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
 			s.cfg.ErrorHandler(ctx, w, r, err)
@@ -3342,531 +3136,6 @@ func (s *Server) handleGetEpisodeThumbnailRequest(args [4]string, argsEscaped bo
 	}
 
 	if err := encodeGetEpisodeThumbnailResponse(response, w, span); err != nil {
-		defer recordError("EncodeResponse", err)
-		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-		}
-		return
-	}
-}
-
-// handleGetEpisodeVariantKeyRequest handles getEpisodeVariantKey operation.
-//
-// Returns an AES-128 encryption key from a variant sub-playlist. The key file is fetched from the
-// upstream CDN and proxied through.
-//
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/keys/{file}
-func (s *Server) handleGetEpisodeVariantKeyRequest(args [6]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
-	statusWriter := &codeRecorder{ResponseWriter: w}
-	w = statusWriter
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getEpisodeVariantKey"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/keys/{file}"),
-	}
-	// Add attributes from config.
-	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
-
-	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), GetEpisodeVariantKeyOperation,
-		trace.WithAttributes(otelAttrs...),
-		serverSpanKind,
-	)
-	defer span.End()
-
-	// Add Labeler to context.
-	labeler := &Labeler{attrs: otelAttrs}
-	ctx = contextWithLabeler(ctx, labeler)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		elapsedDuration := time.Since(startTime)
-
-		attrSet := labeler.AttributeSet()
-		attrs := attrSet.ToSlice()
-		code := statusWriter.status
-		if code != 0 {
-			codeAttr := semconv.HTTPResponseStatusCode(code)
-			attrs = append(attrs, codeAttr)
-			span.SetAttributes(attrs...)
-		}
-		attrOpt := metric.WithAttributes(attrs...)
-
-		// Increment request counter.
-		s.requests.Add(ctx, 1, attrOpt)
-
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
-	}()
-
-	var (
-		recordError = func(stage string, err error) {
-			span.RecordError(err)
-
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
-			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
-			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
-			// max redirects exceeded), in which case status MUST be set to Error.
-			code := statusWriter.status
-			if code < 100 || code >= 500 {
-				span.SetStatus(codes.Error, stage)
-			}
-
-			attrSet := labeler.AttributeSet()
-			attrs := attrSet.ToSlice()
-			if code != 0 {
-				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
-			}
-
-			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
-		}
-		err          error
-		opErrContext = ogenerrors.OperationContext{
-			Name: GetEpisodeVariantKeyOperation,
-			ID:   "getEpisodeVariantKey",
-		}
-	)
-	params, err := decodeGetEpisodeVariantKeyParams(args, argsEscaped, r)
-	if err != nil {
-		err = &ogenerrors.DecodeParamsError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeParams", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	var rawBody []byte
-
-	var response GetEpisodeVariantKeyRes
-	if m := s.cfg.Middleware; m != nil {
-		mreq := middleware.Request{
-			Context:          ctx,
-			OperationName:    GetEpisodeVariantKeyOperation,
-			OperationSummary: "Get an HLS encryption key for an episode variant",
-			OperationID:      "getEpisodeVariantKey",
-			Body:             nil,
-			RawBody:          rawBody,
-			Params: middleware.Parameters{
-				{
-					Name: "serviceTag",
-					In:   "path",
-				}: params.ServiceTag,
-				{
-					Name: "seriesId",
-					In:   "path",
-				}: params.SeriesId,
-				{
-					Name: "seasonId",
-					In:   "path",
-				}: params.SeasonId,
-				{
-					Name: "episodeId",
-					In:   "path",
-				}: params.EpisodeId,
-				{
-					Name: "variantIndex",
-					In:   "path",
-				}: params.VariantIndex,
-				{
-					Name: "file",
-					In:   "path",
-				}: params.File,
-			},
-			Raw: r,
-		}
-
-		type (
-			Request  = struct{}
-			Params   = GetEpisodeVariantKeyParams
-			Response = GetEpisodeVariantKeyRes
-		)
-		response, err = middleware.HookMiddleware[
-			Request,
-			Params,
-			Response,
-		](
-			m,
-			mreq,
-			unpackGetEpisodeVariantKeyParams,
-			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.GetEpisodeVariantKey(ctx, params)
-				return response, err
-			},
-		)
-	} else {
-		response, err = s.h.GetEpisodeVariantKey(ctx, params)
-	}
-	if err != nil {
-		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
-			if err := encodeErrorResponse(errRes, w, span); err != nil {
-				defer recordError("Internal", err)
-			}
-			return
-		}
-		if errors.Is(err, ht.ErrNotImplemented) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-			return
-		}
-		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
-			defer recordError("Internal", err)
-		}
-		return
-	}
-
-	if err := encodeGetEpisodeVariantKeyResponse(response, w, span); err != nil {
-		defer recordError("EncodeResponse", err)
-		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-		}
-		return
-	}
-}
-
-// handleGetEpisodeVariantPartialRequest handles getEpisodeVariantPartial operation.
-//
-// Returns a low-latency HLS partial segment (EXT-X-PART) from a variant sub-playlist. Fetched from the
-// upstream CDN.
-//
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/partials/{file}
-func (s *Server) handleGetEpisodeVariantPartialRequest(args [6]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
-	statusWriter := &codeRecorder{ResponseWriter: w}
-	w = statusWriter
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getEpisodeVariantPartial"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/partials/{file}"),
-	}
-	// Add attributes from config.
-	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
-
-	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), GetEpisodeVariantPartialOperation,
-		trace.WithAttributes(otelAttrs...),
-		serverSpanKind,
-	)
-	defer span.End()
-
-	// Add Labeler to context.
-	labeler := &Labeler{attrs: otelAttrs}
-	ctx = contextWithLabeler(ctx, labeler)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		elapsedDuration := time.Since(startTime)
-
-		attrSet := labeler.AttributeSet()
-		attrs := attrSet.ToSlice()
-		code := statusWriter.status
-		if code != 0 {
-			codeAttr := semconv.HTTPResponseStatusCode(code)
-			attrs = append(attrs, codeAttr)
-			span.SetAttributes(attrs...)
-		}
-		attrOpt := metric.WithAttributes(attrs...)
-
-		// Increment request counter.
-		s.requests.Add(ctx, 1, attrOpt)
-
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
-	}()
-
-	var (
-		recordError = func(stage string, err error) {
-			span.RecordError(err)
-
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
-			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
-			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
-			// max redirects exceeded), in which case status MUST be set to Error.
-			code := statusWriter.status
-			if code < 100 || code >= 500 {
-				span.SetStatus(codes.Error, stage)
-			}
-
-			attrSet := labeler.AttributeSet()
-			attrs := attrSet.ToSlice()
-			if code != 0 {
-				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
-			}
-
-			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
-		}
-		err          error
-		opErrContext = ogenerrors.OperationContext{
-			Name: GetEpisodeVariantPartialOperation,
-			ID:   "getEpisodeVariantPartial",
-		}
-	)
-	params, err := decodeGetEpisodeVariantPartialParams(args, argsEscaped, r)
-	if err != nil {
-		err = &ogenerrors.DecodeParamsError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeParams", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	var rawBody []byte
-
-	var response GetEpisodeVariantPartialRes
-	if m := s.cfg.Middleware; m != nil {
-		mreq := middleware.Request{
-			Context:          ctx,
-			OperationName:    GetEpisodeVariantPartialOperation,
-			OperationSummary: "Get an HLS partial segment for an episode variant",
-			OperationID:      "getEpisodeVariantPartial",
-			Body:             nil,
-			RawBody:          rawBody,
-			Params: middleware.Parameters{
-				{
-					Name: "serviceTag",
-					In:   "path",
-				}: params.ServiceTag,
-				{
-					Name: "seriesId",
-					In:   "path",
-				}: params.SeriesId,
-				{
-					Name: "seasonId",
-					In:   "path",
-				}: params.SeasonId,
-				{
-					Name: "episodeId",
-					In:   "path",
-				}: params.EpisodeId,
-				{
-					Name: "variantIndex",
-					In:   "path",
-				}: params.VariantIndex,
-				{
-					Name: "file",
-					In:   "path",
-				}: params.File,
-			},
-			Raw: r,
-		}
-
-		type (
-			Request  = struct{}
-			Params   = GetEpisodeVariantPartialParams
-			Response = GetEpisodeVariantPartialRes
-		)
-		response, err = middleware.HookMiddleware[
-			Request,
-			Params,
-			Response,
-		](
-			m,
-			mreq,
-			unpackGetEpisodeVariantPartialParams,
-			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.GetEpisodeVariantPartial(ctx, params)
-				return response, err
-			},
-		)
-	} else {
-		response, err = s.h.GetEpisodeVariantPartial(ctx, params)
-	}
-	if err != nil {
-		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
-			if err := encodeErrorResponse(errRes, w, span); err != nil {
-				defer recordError("Internal", err)
-			}
-			return
-		}
-		if errors.Is(err, ht.ErrNotImplemented) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-			return
-		}
-		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
-			defer recordError("Internal", err)
-		}
-		return
-	}
-
-	if err := encodeGetEpisodeVariantPartialResponse(response, w, span); err != nil {
-		defer recordError("EncodeResponse", err)
-		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-		}
-		return
-	}
-}
-
-// handleGetEpisodeVariantPreloadHintRequest handles getEpisodeVariantPreloadHint operation.
-//
-// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag from a variant sub-playlist. Fetched
-// from the upstream CDN.
-//
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/preload-hints/{file}
-func (s *Server) handleGetEpisodeVariantPreloadHintRequest(args [6]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
-	statusWriter := &codeRecorder{ResponseWriter: w}
-	w = statusWriter
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getEpisodeVariantPreloadHint"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/preload-hints/{file}"),
-	}
-	// Add attributes from config.
-	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
-
-	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), GetEpisodeVariantPreloadHintOperation,
-		trace.WithAttributes(otelAttrs...),
-		serverSpanKind,
-	)
-	defer span.End()
-
-	// Add Labeler to context.
-	labeler := &Labeler{attrs: otelAttrs}
-	ctx = contextWithLabeler(ctx, labeler)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		elapsedDuration := time.Since(startTime)
-
-		attrSet := labeler.AttributeSet()
-		attrs := attrSet.ToSlice()
-		code := statusWriter.status
-		if code != 0 {
-			codeAttr := semconv.HTTPResponseStatusCode(code)
-			attrs = append(attrs, codeAttr)
-			span.SetAttributes(attrs...)
-		}
-		attrOpt := metric.WithAttributes(attrs...)
-
-		// Increment request counter.
-		s.requests.Add(ctx, 1, attrOpt)
-
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
-	}()
-
-	var (
-		recordError = func(stage string, err error) {
-			span.RecordError(err)
-
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
-			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
-			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
-			// max redirects exceeded), in which case status MUST be set to Error.
-			code := statusWriter.status
-			if code < 100 || code >= 500 {
-				span.SetStatus(codes.Error, stage)
-			}
-
-			attrSet := labeler.AttributeSet()
-			attrs := attrSet.ToSlice()
-			if code != 0 {
-				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
-			}
-
-			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
-		}
-		err          error
-		opErrContext = ogenerrors.OperationContext{
-			Name: GetEpisodeVariantPreloadHintOperation,
-			ID:   "getEpisodeVariantPreloadHint",
-		}
-	)
-	params, err := decodeGetEpisodeVariantPreloadHintParams(args, argsEscaped, r)
-	if err != nil {
-		err = &ogenerrors.DecodeParamsError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeParams", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	var rawBody []byte
-
-	var response GetEpisodeVariantPreloadHintRes
-	if m := s.cfg.Middleware; m != nil {
-		mreq := middleware.Request{
-			Context:          ctx,
-			OperationName:    GetEpisodeVariantPreloadHintOperation,
-			OperationSummary: "Get an HLS preload hint for an episode variant",
-			OperationID:      "getEpisodeVariantPreloadHint",
-			Body:             nil,
-			RawBody:          rawBody,
-			Params: middleware.Parameters{
-				{
-					Name: "serviceTag",
-					In:   "path",
-				}: params.ServiceTag,
-				{
-					Name: "seriesId",
-					In:   "path",
-				}: params.SeriesId,
-				{
-					Name: "seasonId",
-					In:   "path",
-				}: params.SeasonId,
-				{
-					Name: "episodeId",
-					In:   "path",
-				}: params.EpisodeId,
-				{
-					Name: "variantIndex",
-					In:   "path",
-				}: params.VariantIndex,
-				{
-					Name: "file",
-					In:   "path",
-				}: params.File,
-			},
-			Raw: r,
-		}
-
-		type (
-			Request  = struct{}
-			Params   = GetEpisodeVariantPreloadHintParams
-			Response = GetEpisodeVariantPreloadHintRes
-		)
-		response, err = middleware.HookMiddleware[
-			Request,
-			Params,
-			Response,
-		](
-			m,
-			mreq,
-			unpackGetEpisodeVariantPreloadHintParams,
-			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.GetEpisodeVariantPreloadHint(ctx, params)
-				return response, err
-			},
-		)
-	} else {
-		response, err = s.h.GetEpisodeVariantPreloadHint(ctx, params)
-	}
-	if err != nil {
-		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
-			if err := encodeErrorResponse(errRes, w, span); err != nil {
-				defer recordError("Internal", err)
-			}
-			return
-		}
-		if errors.Is(err, ht.ErrNotImplemented) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-			return
-		}
-		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
-			defer recordError("Internal", err)
-		}
-		return
-	}
-
-	if err := encodeGetEpisodeVariantPreloadHintResponse(response, w, span); err != nil {
 		defer recordError("EncodeResponse", err)
 		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
 			s.cfg.ErrorHandler(ctx, w, r, err)
@@ -4501,14 +3770,14 @@ func (s *Server) handleGetMovieByIdRequest(args [2]string, argsEscaped bool, w h
 // Returns the initialization segment for a DASH Representation. The init segment URL is resolved from
 // the upstream SegmentTemplate stored in state, with $RepresentationID$ and $Bandwidth$ resolved.
 //
-// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/init
+// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/init
 func (s *Server) handleGetMovieDASHInitRequest(args [6]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getMovieDASHInit"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/init"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/init"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -4676,14 +3945,14 @@ func (s *Server) handleGetMovieDASHInitRequest(args [6]string, argsEscaped bool,
 // Returns a single DASH media segment. The segment number or time is passed as the {segment} parameter
 // and resolved against the upstream SegmentTemplate stored in state.
 //
-// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/{segment}
+// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/{segment}
 func (s *Server) handleGetMovieDASHSegmentRequest(args [7]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getMovieDASHSegment"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/{segment}"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/{segment}"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -4850,19 +4119,508 @@ func (s *Server) handleGetMovieDASHSegmentRequest(args [7]string, argsEscaped bo
 	}
 }
 
+// handleGetMovieHLSKeyRequest handles getMovieHLSKey operation.
+//
+// Returns an AES-128 encryption key referenced by an EXT-X-KEY tag. The key is identified by a hash of
+// its upstream URL and is fetched from the upstream CDN and proxied through.
+//
+// GET /services/{serviceTag}/movies/{movieId}/streams/hls/keys/{file}
+func (s *Server) handleGetMovieHLSKeyRequest(args [3]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("getMovieHLSKey"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/keys/{file}"),
+	}
+	// Add attributes from config.
+	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), GetMovieHLSKeyOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(attrs...)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code < 100 || code >= 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: GetMovieHLSKeyOperation,
+			ID:   "getMovieHLSKey",
+		}
+	)
+	params, err := decodeGetMovieHLSKeyParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	var rawBody []byte
+
+	var response GetMovieHLSKeyRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    GetMovieHLSKeyOperation,
+			OperationSummary: "Get an HLS encryption key for a movie",
+			OperationID:      "getMovieHLSKey",
+			Body:             nil,
+			RawBody:          rawBody,
+			Params: middleware.Parameters{
+				{
+					Name: "serviceTag",
+					In:   "path",
+				}: params.ServiceTag,
+				{
+					Name: "movieId",
+					In:   "path",
+				}: params.MovieId,
+				{
+					Name: "file",
+					In:   "path",
+				}: params.File,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = struct{}
+			Params   = GetMovieHLSKeyParams
+			Response = GetMovieHLSKeyRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackGetMovieHLSKeyParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.GetMovieHLSKey(ctx, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.GetMovieHLSKey(ctx, params)
+	}
+	if err != nil {
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
+		return
+	}
+
+	if err := encodeGetMovieHLSKeyResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
+// handleGetMovieHLSPartialRequest handles getMovieHLSPartial operation.
+//
+// Returns a low-latency HLS partial segment (EXT-X-PART). The partial is identified by a hash of its
+// upstream URL and is fetched from the upstream CDN and proxied through.
+//
+// GET /services/{serviceTag}/movies/{movieId}/streams/hls/partials/{file}
+func (s *Server) handleGetMovieHLSPartialRequest(args [3]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("getMovieHLSPartial"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/partials/{file}"),
+	}
+	// Add attributes from config.
+	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), GetMovieHLSPartialOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(attrs...)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code < 100 || code >= 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: GetMovieHLSPartialOperation,
+			ID:   "getMovieHLSPartial",
+		}
+	)
+	params, err := decodeGetMovieHLSPartialParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	var rawBody []byte
+
+	var response GetMovieHLSPartialRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    GetMovieHLSPartialOperation,
+			OperationSummary: "Get an HLS partial segment for a movie",
+			OperationID:      "getMovieHLSPartial",
+			Body:             nil,
+			RawBody:          rawBody,
+			Params: middleware.Parameters{
+				{
+					Name: "serviceTag",
+					In:   "path",
+				}: params.ServiceTag,
+				{
+					Name: "movieId",
+					In:   "path",
+				}: params.MovieId,
+				{
+					Name: "file",
+					In:   "path",
+				}: params.File,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = struct{}
+			Params   = GetMovieHLSPartialParams
+			Response = GetMovieHLSPartialRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackGetMovieHLSPartialParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.GetMovieHLSPartial(ctx, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.GetMovieHLSPartial(ctx, params)
+	}
+	if err != nil {
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
+		return
+	}
+
+	if err := encodeGetMovieHLSPartialResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
+// handleGetMovieHLSPreloadHintRequest handles getMovieHLSPreloadHint operation.
+//
+// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag. The hint is identified by a hash of
+// its upstream URL and is fetched from the upstream CDN and proxied through.
+//
+// GET /services/{serviceTag}/movies/{movieId}/streams/hls/preload-hints/{file}
+func (s *Server) handleGetMovieHLSPreloadHintRequest(args [3]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("getMovieHLSPreloadHint"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/preload-hints/{file}"),
+	}
+	// Add attributes from config.
+	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), GetMovieHLSPreloadHintOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(attrs...)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code < 100 || code >= 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: GetMovieHLSPreloadHintOperation,
+			ID:   "getMovieHLSPreloadHint",
+		}
+	)
+	params, err := decodeGetMovieHLSPreloadHintParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	var rawBody []byte
+
+	var response GetMovieHLSPreloadHintRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    GetMovieHLSPreloadHintOperation,
+			OperationSummary: "Get an HLS preload hint for a movie",
+			OperationID:      "getMovieHLSPreloadHint",
+			Body:             nil,
+			RawBody:          rawBody,
+			Params: middleware.Parameters{
+				{
+					Name: "serviceTag",
+					In:   "path",
+				}: params.ServiceTag,
+				{
+					Name: "movieId",
+					In:   "path",
+				}: params.MovieId,
+				{
+					Name: "file",
+					In:   "path",
+				}: params.File,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = struct{}
+			Params   = GetMovieHLSPreloadHintParams
+			Response = GetMovieHLSPreloadHintRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackGetMovieHLSPreloadHintParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.GetMovieHLSPreloadHint(ctx, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.GetMovieHLSPreloadHint(ctx, params)
+	}
+	if err != nil {
+		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
+		return
+	}
+
+	if err := encodeGetMovieHLSPreloadHintResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
 // handleGetMovieHLSRenditionRequest handles getMovieHLSRendition operation.
 //
 // Returns a rewritten HLS media playlist for a specific rendition identified by GROUP-ID and NAME.
 // Typically used for audio or subtitle renditions. Segment URLs are rewritten to the proxy.
 //
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}
+// GET /services/{serviceTag}/movies/{movieId}/streams/hls/groups/{groupId}/renditions/{renditionName}
 func (s *Server) handleGetMovieHLSRenditionRequest(args [4]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getMovieHLSRendition"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/groups/{groupId}/renditions/{renditionName}"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -5021,14 +4779,14 @@ func (s *Server) handleGetMovieHLSRenditionRequest(args [4]string, argsEscaped b
 //
 // Returns a single media segment from an HLS rendition sub-playlist.
 //
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/segments/{segment}
+// GET /services/{serviceTag}/movies/{movieId}/streams/hls/groups/{groupId}/renditions/{renditionName}/segments/{segment}
 func (s *Server) handleGetMovieHLSRenditionSegmentRequest(args [5]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getMovieHLSRenditionSegment"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/segments/{segment}"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/groups/{groupId}/renditions/{renditionName}/segments/{segment}"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -5674,18 +5432,17 @@ func (s *Server) handleGetMovieHLSSteeringRequest(args [2]string, argsEscaped bo
 
 // handleGetMovieHLSVariantRequest handles getMovieHLSVariant operation.
 //
-// Returns a rewritten HLS media playlist for a specific variant. The variant is identified by its
-// zero-based index in the master playlist. Segment URLs in the response are rewritten to point back to
-// the proxy.
+// Returns a rewritten HLS media playlist for a specific variant. The variant is identified by a hash
+// of its upstream playlist URL. Segment URLs in the response are rewritten to point back to the proxy.
 //
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}
+// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantId}
 func (s *Server) handleGetMovieHLSVariantRequest(args [3]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getMovieHLSVariant"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantId}"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -5782,9 +5539,9 @@ func (s *Server) handleGetMovieHLSVariantRequest(args [3]string, argsEscaped boo
 					In:   "path",
 				}: params.MovieId,
 				{
-					Name: "variantIndex",
+					Name: "variantId",
 					In:   "path",
-				}: params.VariantIndex,
+				}: params.VariantId,
 			},
 			Raw: r,
 		}
@@ -5841,14 +5598,14 @@ func (s *Server) handleGetMovieHLSVariantRequest(args [3]string, argsEscaped boo
 // Returns a single media segment from an HLS variant sub-playlist. The segment filename is passed
 // through and resolved against the upstream base URL stored in state.
 //
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/segments/{segment}
+// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantId}/segments/{segment}
 func (s *Server) handleGetMovieHLSVariantSegmentRequest(args [4]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getMovieHLSVariantSegment"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/segments/{segment}"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantId}/segments/{segment}"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -5945,9 +5702,9 @@ func (s *Server) handleGetMovieHLSVariantSegmentRequest(args [4]string, argsEsca
 					In:   "path",
 				}: params.MovieId,
 				{
-					Name: "variantIndex",
+					Name: "variantId",
 					In:   "path",
-				}: params.VariantIndex,
+				}: params.VariantId,
 				{
 					Name: "segment",
 					In:   "path",
@@ -6161,532 +5918,19 @@ func (s *Server) handleGetMoviePosterRequest(args [2]string, argsEscaped bool, w
 	}
 }
 
-// handleGetMovieRenditionKeyRequest handles getMovieRenditionKey operation.
-//
-// Returns an AES-128 encryption key from a rendition sub-playlist. The key file is fetched from the
-// upstream CDN and proxied through.
-//
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/keys/{file}
-func (s *Server) handleGetMovieRenditionKeyRequest(args [5]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
-	statusWriter := &codeRecorder{ResponseWriter: w}
-	w = statusWriter
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getMovieRenditionKey"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/keys/{file}"),
-	}
-	// Add attributes from config.
-	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
-
-	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), GetMovieRenditionKeyOperation,
-		trace.WithAttributes(otelAttrs...),
-		serverSpanKind,
-	)
-	defer span.End()
-
-	// Add Labeler to context.
-	labeler := &Labeler{attrs: otelAttrs}
-	ctx = contextWithLabeler(ctx, labeler)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		elapsedDuration := time.Since(startTime)
-
-		attrSet := labeler.AttributeSet()
-		attrs := attrSet.ToSlice()
-		code := statusWriter.status
-		if code != 0 {
-			codeAttr := semconv.HTTPResponseStatusCode(code)
-			attrs = append(attrs, codeAttr)
-			span.SetAttributes(attrs...)
-		}
-		attrOpt := metric.WithAttributes(attrs...)
-
-		// Increment request counter.
-		s.requests.Add(ctx, 1, attrOpt)
-
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
-	}()
-
-	var (
-		recordError = func(stage string, err error) {
-			span.RecordError(err)
-
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
-			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
-			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
-			// max redirects exceeded), in which case status MUST be set to Error.
-			code := statusWriter.status
-			if code < 100 || code >= 500 {
-				span.SetStatus(codes.Error, stage)
-			}
-
-			attrSet := labeler.AttributeSet()
-			attrs := attrSet.ToSlice()
-			if code != 0 {
-				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
-			}
-
-			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
-		}
-		err          error
-		opErrContext = ogenerrors.OperationContext{
-			Name: GetMovieRenditionKeyOperation,
-			ID:   "getMovieRenditionKey",
-		}
-	)
-	params, err := decodeGetMovieRenditionKeyParams(args, argsEscaped, r)
-	if err != nil {
-		err = &ogenerrors.DecodeParamsError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeParams", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	var rawBody []byte
-
-	var response GetMovieRenditionKeyRes
-	if m := s.cfg.Middleware; m != nil {
-		mreq := middleware.Request{
-			Context:          ctx,
-			OperationName:    GetMovieRenditionKeyOperation,
-			OperationSummary: "Get an HLS encryption key for a movie rendition",
-			OperationID:      "getMovieRenditionKey",
-			Body:             nil,
-			RawBody:          rawBody,
-			Params: middleware.Parameters{
-				{
-					Name: "serviceTag",
-					In:   "path",
-				}: params.ServiceTag,
-				{
-					Name: "movieId",
-					In:   "path",
-				}: params.MovieId,
-				{
-					Name: "groupId",
-					In:   "path",
-				}: params.GroupId,
-				{
-					Name: "renditionName",
-					In:   "path",
-				}: params.RenditionName,
-				{
-					Name: "file",
-					In:   "path",
-				}: params.File,
-			},
-			Raw: r,
-		}
-
-		type (
-			Request  = struct{}
-			Params   = GetMovieRenditionKeyParams
-			Response = GetMovieRenditionKeyRes
-		)
-		response, err = middleware.HookMiddleware[
-			Request,
-			Params,
-			Response,
-		](
-			m,
-			mreq,
-			unpackGetMovieRenditionKeyParams,
-			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.GetMovieRenditionKey(ctx, params)
-				return response, err
-			},
-		)
-	} else {
-		response, err = s.h.GetMovieRenditionKey(ctx, params)
-	}
-	if err != nil {
-		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
-			if err := encodeErrorResponse(errRes, w, span); err != nil {
-				defer recordError("Internal", err)
-			}
-			return
-		}
-		if errors.Is(err, ht.ErrNotImplemented) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-			return
-		}
-		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
-			defer recordError("Internal", err)
-		}
-		return
-	}
-
-	if err := encodeGetMovieRenditionKeyResponse(response, w, span); err != nil {
-		defer recordError("EncodeResponse", err)
-		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-		}
-		return
-	}
-}
-
-// handleGetMovieRenditionPartialRequest handles getMovieRenditionPartial operation.
-//
-// Returns a low-latency HLS partial segment (EXT-X-PART) from a rendition sub-playlist. Fetched from
-// the upstream CDN.
-//
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/partials/{file}
-func (s *Server) handleGetMovieRenditionPartialRequest(args [5]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
-	statusWriter := &codeRecorder{ResponseWriter: w}
-	w = statusWriter
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getMovieRenditionPartial"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/partials/{file}"),
-	}
-	// Add attributes from config.
-	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
-
-	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), GetMovieRenditionPartialOperation,
-		trace.WithAttributes(otelAttrs...),
-		serverSpanKind,
-	)
-	defer span.End()
-
-	// Add Labeler to context.
-	labeler := &Labeler{attrs: otelAttrs}
-	ctx = contextWithLabeler(ctx, labeler)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		elapsedDuration := time.Since(startTime)
-
-		attrSet := labeler.AttributeSet()
-		attrs := attrSet.ToSlice()
-		code := statusWriter.status
-		if code != 0 {
-			codeAttr := semconv.HTTPResponseStatusCode(code)
-			attrs = append(attrs, codeAttr)
-			span.SetAttributes(attrs...)
-		}
-		attrOpt := metric.WithAttributes(attrs...)
-
-		// Increment request counter.
-		s.requests.Add(ctx, 1, attrOpt)
-
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
-	}()
-
-	var (
-		recordError = func(stage string, err error) {
-			span.RecordError(err)
-
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
-			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
-			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
-			// max redirects exceeded), in which case status MUST be set to Error.
-			code := statusWriter.status
-			if code < 100 || code >= 500 {
-				span.SetStatus(codes.Error, stage)
-			}
-
-			attrSet := labeler.AttributeSet()
-			attrs := attrSet.ToSlice()
-			if code != 0 {
-				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
-			}
-
-			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
-		}
-		err          error
-		opErrContext = ogenerrors.OperationContext{
-			Name: GetMovieRenditionPartialOperation,
-			ID:   "getMovieRenditionPartial",
-		}
-	)
-	params, err := decodeGetMovieRenditionPartialParams(args, argsEscaped, r)
-	if err != nil {
-		err = &ogenerrors.DecodeParamsError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeParams", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	var rawBody []byte
-
-	var response GetMovieRenditionPartialRes
-	if m := s.cfg.Middleware; m != nil {
-		mreq := middleware.Request{
-			Context:          ctx,
-			OperationName:    GetMovieRenditionPartialOperation,
-			OperationSummary: "Get an HLS partial segment for a movie rendition",
-			OperationID:      "getMovieRenditionPartial",
-			Body:             nil,
-			RawBody:          rawBody,
-			Params: middleware.Parameters{
-				{
-					Name: "serviceTag",
-					In:   "path",
-				}: params.ServiceTag,
-				{
-					Name: "movieId",
-					In:   "path",
-				}: params.MovieId,
-				{
-					Name: "groupId",
-					In:   "path",
-				}: params.GroupId,
-				{
-					Name: "renditionName",
-					In:   "path",
-				}: params.RenditionName,
-				{
-					Name: "file",
-					In:   "path",
-				}: params.File,
-			},
-			Raw: r,
-		}
-
-		type (
-			Request  = struct{}
-			Params   = GetMovieRenditionPartialParams
-			Response = GetMovieRenditionPartialRes
-		)
-		response, err = middleware.HookMiddleware[
-			Request,
-			Params,
-			Response,
-		](
-			m,
-			mreq,
-			unpackGetMovieRenditionPartialParams,
-			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.GetMovieRenditionPartial(ctx, params)
-				return response, err
-			},
-		)
-	} else {
-		response, err = s.h.GetMovieRenditionPartial(ctx, params)
-	}
-	if err != nil {
-		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
-			if err := encodeErrorResponse(errRes, w, span); err != nil {
-				defer recordError("Internal", err)
-			}
-			return
-		}
-		if errors.Is(err, ht.ErrNotImplemented) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-			return
-		}
-		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
-			defer recordError("Internal", err)
-		}
-		return
-	}
-
-	if err := encodeGetMovieRenditionPartialResponse(response, w, span); err != nil {
-		defer recordError("EncodeResponse", err)
-		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-		}
-		return
-	}
-}
-
-// handleGetMovieRenditionPreloadHintRequest handles getMovieRenditionPreloadHint operation.
-//
-// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag from a rendition sub-playlist. Fetched
-// from the upstream CDN.
-//
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/preload-hints/{file}
-func (s *Server) handleGetMovieRenditionPreloadHintRequest(args [5]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
-	statusWriter := &codeRecorder{ResponseWriter: w}
-	w = statusWriter
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getMovieRenditionPreloadHint"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/preload-hints/{file}"),
-	}
-	// Add attributes from config.
-	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
-
-	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), GetMovieRenditionPreloadHintOperation,
-		trace.WithAttributes(otelAttrs...),
-		serverSpanKind,
-	)
-	defer span.End()
-
-	// Add Labeler to context.
-	labeler := &Labeler{attrs: otelAttrs}
-	ctx = contextWithLabeler(ctx, labeler)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		elapsedDuration := time.Since(startTime)
-
-		attrSet := labeler.AttributeSet()
-		attrs := attrSet.ToSlice()
-		code := statusWriter.status
-		if code != 0 {
-			codeAttr := semconv.HTTPResponseStatusCode(code)
-			attrs = append(attrs, codeAttr)
-			span.SetAttributes(attrs...)
-		}
-		attrOpt := metric.WithAttributes(attrs...)
-
-		// Increment request counter.
-		s.requests.Add(ctx, 1, attrOpt)
-
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
-	}()
-
-	var (
-		recordError = func(stage string, err error) {
-			span.RecordError(err)
-
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
-			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
-			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
-			// max redirects exceeded), in which case status MUST be set to Error.
-			code := statusWriter.status
-			if code < 100 || code >= 500 {
-				span.SetStatus(codes.Error, stage)
-			}
-
-			attrSet := labeler.AttributeSet()
-			attrs := attrSet.ToSlice()
-			if code != 0 {
-				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
-			}
-
-			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
-		}
-		err          error
-		opErrContext = ogenerrors.OperationContext{
-			Name: GetMovieRenditionPreloadHintOperation,
-			ID:   "getMovieRenditionPreloadHint",
-		}
-	)
-	params, err := decodeGetMovieRenditionPreloadHintParams(args, argsEscaped, r)
-	if err != nil {
-		err = &ogenerrors.DecodeParamsError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeParams", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	var rawBody []byte
-
-	var response GetMovieRenditionPreloadHintRes
-	if m := s.cfg.Middleware; m != nil {
-		mreq := middleware.Request{
-			Context:          ctx,
-			OperationName:    GetMovieRenditionPreloadHintOperation,
-			OperationSummary: "Get an HLS preload hint for a movie rendition",
-			OperationID:      "getMovieRenditionPreloadHint",
-			Body:             nil,
-			RawBody:          rawBody,
-			Params: middleware.Parameters{
-				{
-					Name: "serviceTag",
-					In:   "path",
-				}: params.ServiceTag,
-				{
-					Name: "movieId",
-					In:   "path",
-				}: params.MovieId,
-				{
-					Name: "groupId",
-					In:   "path",
-				}: params.GroupId,
-				{
-					Name: "renditionName",
-					In:   "path",
-				}: params.RenditionName,
-				{
-					Name: "file",
-					In:   "path",
-				}: params.File,
-			},
-			Raw: r,
-		}
-
-		type (
-			Request  = struct{}
-			Params   = GetMovieRenditionPreloadHintParams
-			Response = GetMovieRenditionPreloadHintRes
-		)
-		response, err = middleware.HookMiddleware[
-			Request,
-			Params,
-			Response,
-		](
-			m,
-			mreq,
-			unpackGetMovieRenditionPreloadHintParams,
-			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.GetMovieRenditionPreloadHint(ctx, params)
-				return response, err
-			},
-		)
-	} else {
-		response, err = s.h.GetMovieRenditionPreloadHint(ctx, params)
-	}
-	if err != nil {
-		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
-			if err := encodeErrorResponse(errRes, w, span); err != nil {
-				defer recordError("Internal", err)
-			}
-			return
-		}
-		if errors.Is(err, ht.ErrNotImplemented) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-			return
-		}
-		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
-			defer recordError("Internal", err)
-		}
-		return
-	}
-
-	if err := encodeGetMovieRenditionPreloadHintResponse(response, w, span); err != nil {
-		defer recordError("EncodeResponse", err)
-		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-		}
-		return
-	}
-}
-
 // handleGetMovieStreamFileRequest handles getMovieStreamFile operation.
 //
 // Returns the raw stream manifest or playlist binary content. The response Content-Type matches the
 // stream's encoding format (e.g. `application/dash+xml`, `application/vnd.apple.mpegurl`).
 //
-// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/{file}
-func (s *Server) handleGetMovieStreamFileRequest(args [4]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+// GET /services/{serviceTag}/movies/{movieId}/streams/{format}
+func (s *Server) handleGetMovieStreamFileRequest(args [3]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getMovieStreamFile"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/{format}/{file}"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/{format}"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
@@ -6786,10 +6030,6 @@ func (s *Server) handleGetMovieStreamFileRequest(args [4]string, argsEscaped boo
 					Name: "format",
 					In:   "path",
 				}: params.Format,
-				{
-					Name: "file",
-					In:   "path",
-				}: params.File,
 			},
 			Raw: r,
 		}
@@ -6833,177 +6073,6 @@ func (s *Server) handleGetMovieStreamFileRequest(args [4]string, argsEscaped boo
 	}
 
 	if err := encodeGetMovieStreamFileResponse(response, w, span); err != nil {
-		defer recordError("EncodeResponse", err)
-		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-		}
-		return
-	}
-}
-
-// handleGetMovieStreamSegmentRequest handles getMovieStreamSegment operation.
-//
-// Returns a single media segment (HLS .ts/.m4s, DASH .m4s/.mp4) or an initialization segment for a
-// given rendition.
-//
-// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/{rendition}/{segment}
-func (s *Server) handleGetMovieStreamSegmentRequest(args [5]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
-	statusWriter := &codeRecorder{ResponseWriter: w}
-	w = statusWriter
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getMovieStreamSegment"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/{format}/{rendition}/{segment}"),
-	}
-	// Add attributes from config.
-	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
-
-	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), GetMovieStreamSegmentOperation,
-		trace.WithAttributes(otelAttrs...),
-		serverSpanKind,
-	)
-	defer span.End()
-
-	// Add Labeler to context.
-	labeler := &Labeler{attrs: otelAttrs}
-	ctx = contextWithLabeler(ctx, labeler)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		elapsedDuration := time.Since(startTime)
-
-		attrSet := labeler.AttributeSet()
-		attrs := attrSet.ToSlice()
-		code := statusWriter.status
-		if code != 0 {
-			codeAttr := semconv.HTTPResponseStatusCode(code)
-			attrs = append(attrs, codeAttr)
-			span.SetAttributes(attrs...)
-		}
-		attrOpt := metric.WithAttributes(attrs...)
-
-		// Increment request counter.
-		s.requests.Add(ctx, 1, attrOpt)
-
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
-	}()
-
-	var (
-		recordError = func(stage string, err error) {
-			span.RecordError(err)
-
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
-			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
-			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
-			// max redirects exceeded), in which case status MUST be set to Error.
-			code := statusWriter.status
-			if code < 100 || code >= 500 {
-				span.SetStatus(codes.Error, stage)
-			}
-
-			attrSet := labeler.AttributeSet()
-			attrs := attrSet.ToSlice()
-			if code != 0 {
-				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
-			}
-
-			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
-		}
-		err          error
-		opErrContext = ogenerrors.OperationContext{
-			Name: GetMovieStreamSegmentOperation,
-			ID:   "getMovieStreamSegment",
-		}
-	)
-	params, err := decodeGetMovieStreamSegmentParams(args, argsEscaped, r)
-	if err != nil {
-		err = &ogenerrors.DecodeParamsError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeParams", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	var rawBody []byte
-
-	var response GetMovieStreamSegmentRes
-	if m := s.cfg.Middleware; m != nil {
-		mreq := middleware.Request{
-			Context:          ctx,
-			OperationName:    GetMovieStreamSegmentOperation,
-			OperationSummary: "Get a stream segment for a movie",
-			OperationID:      "getMovieStreamSegment",
-			Body:             nil,
-			RawBody:          rawBody,
-			Params: middleware.Parameters{
-				{
-					Name: "serviceTag",
-					In:   "path",
-				}: params.ServiceTag,
-				{
-					Name: "movieId",
-					In:   "path",
-				}: params.MovieId,
-				{
-					Name: "format",
-					In:   "path",
-				}: params.Format,
-				{
-					Name: "rendition",
-					In:   "path",
-				}: params.Rendition,
-				{
-					Name: "segment",
-					In:   "path",
-				}: params.Segment,
-			},
-			Raw: r,
-		}
-
-		type (
-			Request  = struct{}
-			Params   = GetMovieStreamSegmentParams
-			Response = GetMovieStreamSegmentRes
-		)
-		response, err = middleware.HookMiddleware[
-			Request,
-			Params,
-			Response,
-		](
-			m,
-			mreq,
-			unpackGetMovieStreamSegmentParams,
-			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.GetMovieStreamSegment(ctx, params)
-				return response, err
-			},
-		)
-	} else {
-		response, err = s.h.GetMovieStreamSegment(ctx, params)
-	}
-	if err != nil {
-		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
-			if err := encodeErrorResponse(errRes, w, span); err != nil {
-				defer recordError("Internal", err)
-			}
-			return
-		}
-		if errors.Is(err, ht.ErrNotImplemented) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-			return
-		}
-		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
-			defer recordError("Internal", err)
-		}
-		return
-	}
-
-	if err := encodeGetMovieStreamSegmentResponse(response, w, span); err != nil {
 		defer recordError("EncodeResponse", err)
 		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
 			s.cfg.ErrorHandler(ctx, w, r, err)
@@ -7179,25 +6248,25 @@ func (s *Server) handleGetMovieStreamsRequest(args [2]string, argsEscaped bool, 
 	}
 }
 
-// handleGetMovieSubtitleFileRequest handles getMovieSubtitleFile operation.
+// handleGetMovieSubtitleRequest handles getMovieSubtitle operation.
 //
 // Returns the raw subtitle file content. The response Content-Type matches the subtitle format (e.g.
 // `text/vtt`, `application/x-subrip`).
 //
-// GET /services/{serviceTag}/movies/{movieId}/subtitles/{subtitleFile}
-func (s *Server) handleGetMovieSubtitleFileRequest(args [3]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+// GET /services/{serviceTag}/movies/{movieId}/subtitles/{subtitleId}
+func (s *Server) handleGetMovieSubtitleRequest(args [3]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getMovieSubtitleFile"),
+		otelogen.OperationID("getMovieSubtitle"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/subtitles/{subtitleFile}"),
+		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/subtitles/{subtitleId}"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
 
 	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), GetMovieSubtitleFileOperation,
+	ctx, span := s.cfg.Tracer.Start(r.Context(), GetMovieSubtitleOperation,
 		trace.WithAttributes(otelAttrs...),
 		serverSpanKind,
 	)
@@ -7252,11 +6321,11 @@ func (s *Server) handleGetMovieSubtitleFileRequest(args [3]string, argsEscaped b
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
-			Name: GetMovieSubtitleFileOperation,
-			ID:   "getMovieSubtitleFile",
+			Name: GetMovieSubtitleOperation,
+			ID:   "getMovieSubtitle",
 		}
 	)
-	params, err := decodeGetMovieSubtitleFileParams(args, argsEscaped, r)
+	params, err := decodeGetMovieSubtitleParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
@@ -7269,13 +6338,13 @@ func (s *Server) handleGetMovieSubtitleFileRequest(args [3]string, argsEscaped b
 
 	var rawBody []byte
 
-	var response GetMovieSubtitleFileRes
+	var response GetMovieSubtitleRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
 			Context:          ctx,
-			OperationName:    GetMovieSubtitleFileOperation,
+			OperationName:    GetMovieSubtitleOperation,
 			OperationSummary: "Get a subtitle file",
-			OperationID:      "getMovieSubtitleFile",
+			OperationID:      "getMovieSubtitle",
 			Body:             nil,
 			RawBody:          rawBody,
 			Params: middleware.Parameters{
@@ -7288,17 +6357,17 @@ func (s *Server) handleGetMovieSubtitleFileRequest(args [3]string, argsEscaped b
 					In:   "path",
 				}: params.MovieId,
 				{
-					Name: "subtitleFile",
+					Name: "subtitleId",
 					In:   "path",
-				}: params.SubtitleFile,
+				}: params.SubtitleId,
 			},
 			Raw: r,
 		}
 
 		type (
 			Request  = struct{}
-			Params   = GetMovieSubtitleFileParams
-			Response = GetMovieSubtitleFileRes
+			Params   = GetMovieSubtitleParams
+			Response = GetMovieSubtitleRes
 		)
 		response, err = middleware.HookMiddleware[
 			Request,
@@ -7307,14 +6376,14 @@ func (s *Server) handleGetMovieSubtitleFileRequest(args [3]string, argsEscaped b
 		](
 			m,
 			mreq,
-			unpackGetMovieSubtitleFileParams,
+			unpackGetMovieSubtitleParams,
 			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.GetMovieSubtitleFile(ctx, params)
+				response, err = s.h.GetMovieSubtitle(ctx, params)
 				return response, err
 			},
 		)
 	} else {
-		response, err = s.h.GetMovieSubtitleFile(ctx, params)
+		response, err = s.h.GetMovieSubtitle(ctx, params)
 	}
 	if err != nil {
 		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
@@ -7333,7 +6402,7 @@ func (s *Server) handleGetMovieSubtitleFileRequest(args [3]string, argsEscaped b
 		return
 	}
 
-	if err := encodeGetMovieSubtitleFileResponse(response, w, span); err != nil {
+	if err := encodeGetMovieSubtitleResponse(response, w, span); err != nil {
 		defer recordError("EncodeResponse", err)
 		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
 			s.cfg.ErrorHandler(ctx, w, r, err)
@@ -7501,507 +6570,6 @@ func (s *Server) handleGetMovieSubtitlesRequest(args [2]string, argsEscaped bool
 	}
 
 	if err := encodeGetMovieSubtitlesResponse(response, w, span); err != nil {
-		defer recordError("EncodeResponse", err)
-		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-		}
-		return
-	}
-}
-
-// handleGetMovieVariantKeyRequest handles getMovieVariantKey operation.
-//
-// Returns an AES-128 encryption key from a variant sub-playlist. The key file is fetched from the
-// upstream CDN and proxied through.
-//
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/keys/{file}
-func (s *Server) handleGetMovieVariantKeyRequest(args [4]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
-	statusWriter := &codeRecorder{ResponseWriter: w}
-	w = statusWriter
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getMovieVariantKey"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/keys/{file}"),
-	}
-	// Add attributes from config.
-	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
-
-	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), GetMovieVariantKeyOperation,
-		trace.WithAttributes(otelAttrs...),
-		serverSpanKind,
-	)
-	defer span.End()
-
-	// Add Labeler to context.
-	labeler := &Labeler{attrs: otelAttrs}
-	ctx = contextWithLabeler(ctx, labeler)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		elapsedDuration := time.Since(startTime)
-
-		attrSet := labeler.AttributeSet()
-		attrs := attrSet.ToSlice()
-		code := statusWriter.status
-		if code != 0 {
-			codeAttr := semconv.HTTPResponseStatusCode(code)
-			attrs = append(attrs, codeAttr)
-			span.SetAttributes(attrs...)
-		}
-		attrOpt := metric.WithAttributes(attrs...)
-
-		// Increment request counter.
-		s.requests.Add(ctx, 1, attrOpt)
-
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
-	}()
-
-	var (
-		recordError = func(stage string, err error) {
-			span.RecordError(err)
-
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
-			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
-			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
-			// max redirects exceeded), in which case status MUST be set to Error.
-			code := statusWriter.status
-			if code < 100 || code >= 500 {
-				span.SetStatus(codes.Error, stage)
-			}
-
-			attrSet := labeler.AttributeSet()
-			attrs := attrSet.ToSlice()
-			if code != 0 {
-				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
-			}
-
-			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
-		}
-		err          error
-		opErrContext = ogenerrors.OperationContext{
-			Name: GetMovieVariantKeyOperation,
-			ID:   "getMovieVariantKey",
-		}
-	)
-	params, err := decodeGetMovieVariantKeyParams(args, argsEscaped, r)
-	if err != nil {
-		err = &ogenerrors.DecodeParamsError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeParams", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	var rawBody []byte
-
-	var response GetMovieVariantKeyRes
-	if m := s.cfg.Middleware; m != nil {
-		mreq := middleware.Request{
-			Context:          ctx,
-			OperationName:    GetMovieVariantKeyOperation,
-			OperationSummary: "Get an HLS encryption key for a movie variant",
-			OperationID:      "getMovieVariantKey",
-			Body:             nil,
-			RawBody:          rawBody,
-			Params: middleware.Parameters{
-				{
-					Name: "serviceTag",
-					In:   "path",
-				}: params.ServiceTag,
-				{
-					Name: "movieId",
-					In:   "path",
-				}: params.MovieId,
-				{
-					Name: "variantIndex",
-					In:   "path",
-				}: params.VariantIndex,
-				{
-					Name: "file",
-					In:   "path",
-				}: params.File,
-			},
-			Raw: r,
-		}
-
-		type (
-			Request  = struct{}
-			Params   = GetMovieVariantKeyParams
-			Response = GetMovieVariantKeyRes
-		)
-		response, err = middleware.HookMiddleware[
-			Request,
-			Params,
-			Response,
-		](
-			m,
-			mreq,
-			unpackGetMovieVariantKeyParams,
-			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.GetMovieVariantKey(ctx, params)
-				return response, err
-			},
-		)
-	} else {
-		response, err = s.h.GetMovieVariantKey(ctx, params)
-	}
-	if err != nil {
-		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
-			if err := encodeErrorResponse(errRes, w, span); err != nil {
-				defer recordError("Internal", err)
-			}
-			return
-		}
-		if errors.Is(err, ht.ErrNotImplemented) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-			return
-		}
-		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
-			defer recordError("Internal", err)
-		}
-		return
-	}
-
-	if err := encodeGetMovieVariantKeyResponse(response, w, span); err != nil {
-		defer recordError("EncodeResponse", err)
-		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-		}
-		return
-	}
-}
-
-// handleGetMovieVariantPartialRequest handles getMovieVariantPartial operation.
-//
-// Returns a low-latency HLS partial segment (EXT-X-PART) from a variant sub-playlist. Fetched from the
-// upstream CDN.
-//
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/partials/{file}
-func (s *Server) handleGetMovieVariantPartialRequest(args [4]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
-	statusWriter := &codeRecorder{ResponseWriter: w}
-	w = statusWriter
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getMovieVariantPartial"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/partials/{file}"),
-	}
-	// Add attributes from config.
-	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
-
-	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), GetMovieVariantPartialOperation,
-		trace.WithAttributes(otelAttrs...),
-		serverSpanKind,
-	)
-	defer span.End()
-
-	// Add Labeler to context.
-	labeler := &Labeler{attrs: otelAttrs}
-	ctx = contextWithLabeler(ctx, labeler)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		elapsedDuration := time.Since(startTime)
-
-		attrSet := labeler.AttributeSet()
-		attrs := attrSet.ToSlice()
-		code := statusWriter.status
-		if code != 0 {
-			codeAttr := semconv.HTTPResponseStatusCode(code)
-			attrs = append(attrs, codeAttr)
-			span.SetAttributes(attrs...)
-		}
-		attrOpt := metric.WithAttributes(attrs...)
-
-		// Increment request counter.
-		s.requests.Add(ctx, 1, attrOpt)
-
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
-	}()
-
-	var (
-		recordError = func(stage string, err error) {
-			span.RecordError(err)
-
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
-			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
-			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
-			// max redirects exceeded), in which case status MUST be set to Error.
-			code := statusWriter.status
-			if code < 100 || code >= 500 {
-				span.SetStatus(codes.Error, stage)
-			}
-
-			attrSet := labeler.AttributeSet()
-			attrs := attrSet.ToSlice()
-			if code != 0 {
-				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
-			}
-
-			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
-		}
-		err          error
-		opErrContext = ogenerrors.OperationContext{
-			Name: GetMovieVariantPartialOperation,
-			ID:   "getMovieVariantPartial",
-		}
-	)
-	params, err := decodeGetMovieVariantPartialParams(args, argsEscaped, r)
-	if err != nil {
-		err = &ogenerrors.DecodeParamsError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeParams", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	var rawBody []byte
-
-	var response GetMovieVariantPartialRes
-	if m := s.cfg.Middleware; m != nil {
-		mreq := middleware.Request{
-			Context:          ctx,
-			OperationName:    GetMovieVariantPartialOperation,
-			OperationSummary: "Get an HLS partial segment for a movie variant",
-			OperationID:      "getMovieVariantPartial",
-			Body:             nil,
-			RawBody:          rawBody,
-			Params: middleware.Parameters{
-				{
-					Name: "serviceTag",
-					In:   "path",
-				}: params.ServiceTag,
-				{
-					Name: "movieId",
-					In:   "path",
-				}: params.MovieId,
-				{
-					Name: "variantIndex",
-					In:   "path",
-				}: params.VariantIndex,
-				{
-					Name: "file",
-					In:   "path",
-				}: params.File,
-			},
-			Raw: r,
-		}
-
-		type (
-			Request  = struct{}
-			Params   = GetMovieVariantPartialParams
-			Response = GetMovieVariantPartialRes
-		)
-		response, err = middleware.HookMiddleware[
-			Request,
-			Params,
-			Response,
-		](
-			m,
-			mreq,
-			unpackGetMovieVariantPartialParams,
-			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.GetMovieVariantPartial(ctx, params)
-				return response, err
-			},
-		)
-	} else {
-		response, err = s.h.GetMovieVariantPartial(ctx, params)
-	}
-	if err != nil {
-		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
-			if err := encodeErrorResponse(errRes, w, span); err != nil {
-				defer recordError("Internal", err)
-			}
-			return
-		}
-		if errors.Is(err, ht.ErrNotImplemented) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-			return
-		}
-		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
-			defer recordError("Internal", err)
-		}
-		return
-	}
-
-	if err := encodeGetMovieVariantPartialResponse(response, w, span); err != nil {
-		defer recordError("EncodeResponse", err)
-		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-		}
-		return
-	}
-}
-
-// handleGetMovieVariantPreloadHintRequest handles getMovieVariantPreloadHint operation.
-//
-// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag from a variant sub-playlist. Fetched
-// from the upstream CDN.
-//
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/preload-hints/{file}
-func (s *Server) handleGetMovieVariantPreloadHintRequest(args [4]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
-	statusWriter := &codeRecorder{ResponseWriter: w}
-	w = statusWriter
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getMovieVariantPreloadHint"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/preload-hints/{file}"),
-	}
-	// Add attributes from config.
-	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
-
-	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), GetMovieVariantPreloadHintOperation,
-		trace.WithAttributes(otelAttrs...),
-		serverSpanKind,
-	)
-	defer span.End()
-
-	// Add Labeler to context.
-	labeler := &Labeler{attrs: otelAttrs}
-	ctx = contextWithLabeler(ctx, labeler)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		elapsedDuration := time.Since(startTime)
-
-		attrSet := labeler.AttributeSet()
-		attrs := attrSet.ToSlice()
-		code := statusWriter.status
-		if code != 0 {
-			codeAttr := semconv.HTTPResponseStatusCode(code)
-			attrs = append(attrs, codeAttr)
-			span.SetAttributes(attrs...)
-		}
-		attrOpt := metric.WithAttributes(attrs...)
-
-		// Increment request counter.
-		s.requests.Add(ctx, 1, attrOpt)
-
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
-	}()
-
-	var (
-		recordError = func(stage string, err error) {
-			span.RecordError(err)
-
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
-			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
-			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
-			// max redirects exceeded), in which case status MUST be set to Error.
-			code := statusWriter.status
-			if code < 100 || code >= 500 {
-				span.SetStatus(codes.Error, stage)
-			}
-
-			attrSet := labeler.AttributeSet()
-			attrs := attrSet.ToSlice()
-			if code != 0 {
-				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
-			}
-
-			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
-		}
-		err          error
-		opErrContext = ogenerrors.OperationContext{
-			Name: GetMovieVariantPreloadHintOperation,
-			ID:   "getMovieVariantPreloadHint",
-		}
-	)
-	params, err := decodeGetMovieVariantPreloadHintParams(args, argsEscaped, r)
-	if err != nil {
-		err = &ogenerrors.DecodeParamsError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeParams", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	var rawBody []byte
-
-	var response GetMovieVariantPreloadHintRes
-	if m := s.cfg.Middleware; m != nil {
-		mreq := middleware.Request{
-			Context:          ctx,
-			OperationName:    GetMovieVariantPreloadHintOperation,
-			OperationSummary: "Get an HLS preload hint for a movie variant",
-			OperationID:      "getMovieVariantPreloadHint",
-			Body:             nil,
-			RawBody:          rawBody,
-			Params: middleware.Parameters{
-				{
-					Name: "serviceTag",
-					In:   "path",
-				}: params.ServiceTag,
-				{
-					Name: "movieId",
-					In:   "path",
-				}: params.MovieId,
-				{
-					Name: "variantIndex",
-					In:   "path",
-				}: params.VariantIndex,
-				{
-					Name: "file",
-					In:   "path",
-				}: params.File,
-			},
-			Raw: r,
-		}
-
-		type (
-			Request  = struct{}
-			Params   = GetMovieVariantPreloadHintParams
-			Response = GetMovieVariantPreloadHintRes
-		)
-		response, err = middleware.HookMiddleware[
-			Request,
-			Params,
-			Response,
-		](
-			m,
-			mreq,
-			unpackGetMovieVariantPreloadHintParams,
-			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.GetMovieVariantPreloadHint(ctx, params)
-				return response, err
-			},
-		)
-	} else {
-		response, err = s.h.GetMovieVariantPreloadHint(ctx, params)
-	}
-	if err != nil {
-		if errRes, ok := errors.Into[*ErrorStatusCode](err); ok {
-			if err := encodeErrorResponse(errRes, w, span); err != nil {
-				defer recordError("Internal", err)
-			}
-			return
-		}
-		if errors.Is(err, ht.ErrNotImplemented) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-			return
-		}
-		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
-			defer recordError("Internal", err)
-		}
-		return
-	}
-
-	if err := encodeGetMovieVariantPreloadHintResponse(response, w, span); err != nil {
 		defer recordError("EncodeResponse", err)
 		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
 			s.cfg.ErrorHandler(ctx, w, r, err)

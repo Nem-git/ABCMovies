@@ -17,7 +17,7 @@ type StreamMeta struct {
 	UpstreamBaseURL       string // HLS: base URL for resolving relative segment paths
 	UpstreamMediaTemplate string // DASH: full upstream media segment URL template
 	UpstreamInitTemplate  string // DASH: full upstream init segment URL template
-	UpstreamRepID         string // DASH: representation ID
+	UpstreamRepID         string // DASH: representation Id
 	UpstreamBandwidth     string // DASH: representation bandwidth
 	ProxyBaseURL          string // Proxy base URL for constructing absolute URLs
 	Headers               http.Header

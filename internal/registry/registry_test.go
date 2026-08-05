@@ -3,8 +3,8 @@ package registry_test
 import (
 	"testing"
 
-	"github.com/nem-git/abcmovies/internal/registry"
 	"github.com/nem-git/abcmovies/internal/providers/stub"
+	"github.com/nem-git/abcmovies/internal/registry"
 )
 
 func TestNewEmpty(t *testing.T) {
@@ -72,4 +72,3 @@ func TestAll(t *testing.T) {
 		t.Errorf("All() missing providers: got tags %v", tags)
 	}
 }
-

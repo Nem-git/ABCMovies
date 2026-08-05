@@ -134,7 +134,7 @@ func (p *Provider) GetSeasons(ctx context.Context, seriesID string, limit, offse
 func (p *Provider) GetSeasonById(ctx context.Context, seriesID, seasonID string) (*oas.Season, error) {
 	num, err := parseSeasonNumber(seasonID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid season ID %q: %w", seasonID, err)
+		return nil, fmt.Errorf("invalid season Id %q: %w", seasonID, err)
 	}
 	sr, err := p.cli.getSeason(ctx, seriesID, seasonID)
 	if err != nil {
@@ -163,7 +163,7 @@ func (p *Provider) GetSeasonBackdrop(ctx context.Context, seriesID, seasonID str
 func (p *Provider) GetEpisodes(ctx context.Context, seriesID, seasonID string, limit, offset int) ([]oas.Episode, int, error) {
 	num, err := parseSeasonNumber(seasonID)
 	if err != nil {
-		return nil, 0, fmt.Errorf("invalid season ID %q: %w", seasonID, err)
+		return nil, 0, fmt.Errorf("invalid season Id %q: %w", seasonID, err)
 	}
 	sr, err := p.cli.getShow(ctx, seriesID)
 	if err != nil {
@@ -182,10 +182,10 @@ func (p *Provider) GetEpisodes(ctx context.Context, seriesID, seasonID string, l
 	return nil, 0, provider.ErrNotSupported
 }
 
-func (p *Provider) GetEpisodeById(ctx context.Context, seriesID, seasonID, episodeID string) (*oas.Episode, error) {
+func (p *Provider) GetEpisodeById(ctx context.Context, seriesID, seasonID, episodeId string) (*oas.Episode, error) {
 	num, err := parseSeasonNumber(seasonID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid season ID %q: %w", seasonID, err)
+		return nil, fmt.Errorf("invalid season Id %q: %w", seasonID, err)
 	}
 	sr, err := p.cli.getShow(ctx, seriesID)
 	if err != nil {
@@ -195,7 +195,7 @@ func (p *Provider) GetEpisodeById(ctx context.Context, seriesID, seasonID, episo
 	for _, lu := range lineups {
 		if lu.SeasonNumber == num {
 			for _, item := range lu.Items {
-				if strconv.Itoa(item.IDMedia) == episodeID {
+				if fmt.Sprintf("e%02d", item.EpisodeNumber) == episodeId && item.Type == "Media" {
 					ep := p.mapEpisode(item, seriesID, seasonID)
 					return &ep, nil
 				}
@@ -205,10 +205,19 @@ func (p *Provider) GetEpisodeById(ctx context.Context, seriesID, seasonID, episo
 	return nil, provider.ErrNotSupported
 }
 
-func (p *Provider) GetEpisodeStreams(ctx context.Context, _, _, episodeID string) ([]oas.Stream, int, error) {
-	meta, err := p.cli.getStreamMeta(ctx, episodeID)
+func (p *Provider) GetEpisodeStreams(ctx context.Context, seriesId, seasonId, episodeId string) ([]oas.Stream, int, error) {
+	sr, err := p.cli.getShow(ctx, seriesId)
 	if err != nil {
-		return nil, 0, fmt.Errorf("fetching stream info for episode %q: %w", episodeID, err)
+		return nil, 0, fmt.Errorf("fetching episodes for series %q: %w", seriesId, err)
+	}
+	mediaId, err := p.getEpisodeMediaId(sr, seasonId, episodeId)
+	if err != nil {
+		return nil, 0, fmt.Errorf("fetching episode media id %s for series %q: %w", episodeId, seriesId, err)
+	}
+
+	meta, err := p.cli.getStreamMeta(ctx, mediaId)
+	if err != nil {
+		return nil, 0, fmt.Errorf("fetching stream info for episode %q: %w", episodeId, err)
 	}
 	if meta.ErrorMessage != nil {
 		return nil, 0, fmt.Errorf("media meta error: code=%d text=%s", meta.ErrorMessage.ErrorCode, meta.ErrorMessage.Text)
@@ -235,14 +244,28 @@ func (p *Provider) GetEpisodeStreams(ctx context.Context, _, _, episodeID string
 	return paginate(streams, len(streams), 0)
 }
 
-func (p *Provider) GetEpisodeStreamLocator(ctx context.Context, _, _, episodeID, streamFile string) (*stream.Locator, error) {
+func (p *Provider) GetEpisodeStreamLocator(ctx context.Context, seriesId, seasonId, episodeId, streamFile string) (*stream.Locator, error) {
 	tech, err := streamFileToTech(streamFile)
 	if err != nil {
 		return nil, err
 	}
-	val, err := p.cli.getStreamValidation(ctx, episodeID, tech)
+	sr, err := p.cli.getShow(ctx, seriesId)
 	if err != nil {
-		return nil, fmt.Errorf("fetching stream URL for episode %q: %w", episodeID, err)
+		return nil, fmt.Errorf("fetching episodes for series %q: %w", seriesId, err)
+	}
+	mediaId, err := p.getEpisodeMediaId(sr, seasonId, episodeId)
+	if err != nil {
+		return nil, fmt.Errorf("fetching episode media id %s for series %q: %w", episodeId, seriesId, err)
+	}
+	val, err := p.cli.getStreamValidation(ctx, mediaId, tech)
+	if err != nil {
+		return nil, fmt.Errorf("fetching stream URL for episode %q: %w", episodeId, err)
+	}
+	if val.URL == "" {
+		if val.ErrorCode != 0 {
+			return nil, fmt.Errorf("stream not available for episode %q: code=%d %s", episodeId, val.ErrorCode, val.Message)
+		}
+		return nil, fmt.Errorf("stream not available for episode %q: upstream returned no URL", episodeId)
 	}
 	mime := dashMIME
 	if tech == "hls" {
@@ -262,10 +285,10 @@ func (p *Provider) GetEpisodeSubtitleFile(context.Context, string, string, strin
 	return nil, "", provider.ErrNotSupported
 }
 
-func (p *Provider) GetEpisodeThumbnail(ctx context.Context, seriesID, seasonID, episodeID string) (io.ReadCloser, string, error) {
+func (p *Provider) GetEpisodeThumbnail(ctx context.Context, seriesID, seasonID, episodeId string) (io.ReadCloser, string, error) {
 	num, err := parseSeasonNumber(seasonID)
 	if err != nil {
-		return nil, "", fmt.Errorf("invalid season ID %q: %w", seasonID, err)
+		return nil, "", fmt.Errorf("invalid season Id %q: %w", seasonID, err)
 	}
 	sr, err := p.cli.getShow(ctx, seriesID)
 	if err != nil {
@@ -275,7 +298,7 @@ func (p *Provider) GetEpisodeThumbnail(ctx context.Context, seriesID, seasonID, 
 	for _, lu := range lineups {
 		if lu.SeasonNumber == num {
 			for _, item := range lu.Items {
-				if strconv.Itoa(item.IDMedia) == episodeID && item.Images != nil {
+				if fmt.Sprintf("e%02d", item.EpisodeNumber) == episodeId && item.Type == "Media" && item.Images != nil {
 					im := p.getImageThumbnail(item.Images)
 					if im == "" {
 						return nil, "", provider.ErrNotSupported
@@ -313,10 +336,19 @@ func (p *Provider) GetMovieById(ctx context.Context, movieId string) (*oas.Movie
 	return p.mapMovieFromShow(sr, movieId)
 }
 
-func (p *Provider) GetMovieStreams(ctx context.Context, movieID string) ([]oas.Stream, int, error) {
-	meta, err := p.cli.getStreamMeta(ctx, movieID)
+func (p *Provider) GetMovieStreams(ctx context.Context, movieId string) ([]oas.Stream, int, error) {
+	sr, err := p.cli.getShow(ctx, movieId)
 	if err != nil {
-		return nil, 0, fmt.Errorf("fetching stream info for movie %q: %w", movieID, err)
+		return nil, 0, fmt.Errorf("fetching movie %q: %w", movieId, err)
+	}
+	mediaId, err := p.getMovieMediaId(sr)
+	if err != nil {
+		return nil, 0, fmt.Errorf("fetching movie %q: %w", movieId, err)
+	}
+
+	meta, err := p.cli.getStreamMeta(ctx, mediaId)
+	if err != nil {
+		return nil, 0, fmt.Errorf("fetching stream info for movie %q: %w", movieId, err)
 	}
 	if meta.ErrorMessage != nil {
 		return nil, 0, fmt.Errorf("media meta error: code=%d text=%s", meta.ErrorMessage.ErrorCode, meta.ErrorMessage.Text)
@@ -343,14 +375,28 @@ func (p *Provider) GetMovieStreams(ctx context.Context, movieID string) ([]oas.S
 	return paginate(streams, len(streams), 0)
 }
 
-func (p *Provider) GetMovieStreamLocator(ctx context.Context, movieID, streamFile string) (*stream.Locator, error) {
+func (p *Provider) GetMovieStreamLocator(ctx context.Context, movieId, streamFile string) (*stream.Locator, error) {
+	sr, err := p.cli.getShow(ctx, movieId)
+	if err != nil {
+		return nil, fmt.Errorf("fetching stream URL for movie %q: %w", movieId, err)
+	}
+	mediaId, err := p.getMovieMediaId(sr)
+	if err != nil {
+		return nil, fmt.Errorf("fetching stream URL for movie %q: %w", movieId, err)
+	}
 	tech, err := streamFileToTech(streamFile)
 	if err != nil {
 		return nil, err
 	}
-	val, err := p.cli.getStreamValidation(ctx, movieID, tech)
+	val, err := p.cli.getStreamValidation(ctx, mediaId, tech)
 	if err != nil {
-		return nil, fmt.Errorf("fetching stream URL for movie %q: %w", movieID, err)
+		return nil, fmt.Errorf("fetching stream URL for movie %q: %w", movieId, err)
+	}
+	if val.URL == "" {
+		if val.ErrorCode != 0 {
+			return nil, fmt.Errorf("stream not available for movie %q: code=%d %s", movieId, val.ErrorCode, val.Message)
+		}
+		return nil, fmt.Errorf("stream not available for movie %q: upstream returned no URL", movieId)
 	}
 	mime := dashMIME
 	if tech == "hls" {
@@ -540,9 +586,7 @@ func (p *Provider) mapSeason(lu types.Lineup, images *types.Images, seriesID str
 		ID:   seasonID(lu.SeasonNumber),
 		Name: lu.Title,
 	}
-	if lu.SeasonNumber > 0 {
-		s.SeasonNumber = oas.NewOptInt(lu.SeasonNumber)
-	}
+	s.SeasonNumber = lu.SeasonNumber
 	if len(lu.Items) > 0 {
 		s.NumberOfEpisodes = oas.NewOptInt(len(lu.Items))
 	}
@@ -558,15 +602,13 @@ func (p *Provider) mapSeason(lu types.Lineup, images *types.Images, seriesID str
 func (p *Provider) mapEpisode(item types.Item, seriesID, seasonID string) oas.Episode {
 	e := oas.Episode{
 		Type: oas.EpisodeTypeTVEpisode,
-		ID:   strconv.Itoa(item.IDMedia),
+		ID:   fmt.Sprintf("e%02d", item.EpisodeNumber),
 		Name: item.Title,
 	}
 	if item.Description != "" {
 		e.Description = oas.NewOptString(item.Description)
 	}
-	if item.EpisodeNumber > 0 {
-		e.EpisodeNumber = oas.NewOptInt(item.EpisodeNumber)
-	}
+	e.EpisodeNumber = item.EpisodeNumber
 	if item.Metadata != nil {
 		if t, err := time.Parse(time.DateOnly, item.Metadata.AirDate); err == nil {
 			e.DatePublished = oas.NewOptDate(t)
@@ -585,6 +627,26 @@ func (p *Provider) mapEpisode(item types.Item, seriesID, seasonID string) oas.Ep
 		e.Poster = p.imageURL("series", seriesID, "seasons", seasonID, "episodes", e.ID, "thumbnail")
 	}
 	return e
+}
+
+func (p *Provider) getEpisodeMediaId(sr *types.ShowResponse, seasonId, episodeId string) (string, error) {
+	num, err := parseSeasonNumber(seasonId)
+	if err != nil {
+		return "", fmt.Errorf("invalid season Id %s: %w", seasonId, err)
+	}
+
+	lineups := extractLineups(sr)
+	for _, lu := range lineups {
+		if lu.SeasonNumber == num {
+			for _, item := range lu.Items {
+				if fmt.Sprintf("e%02d", item.EpisodeNumber) == episodeId && item.Type == "Media" {
+					return strconv.Itoa(item.IDMedia), nil
+				}
+			}
+		}
+	}
+
+	return "", errors.New("No episode found in the given show")
 }
 
 func (p *Provider) mapMovieFromSearch(r types.Result) oas.Movie {
@@ -611,6 +673,24 @@ func (p *Provider) mapMovieFromSearch(r types.Result) oas.Movie {
 	}
 
 	return m
+}
+
+func (p *Provider) getMovieMediaId(sr *types.ShowResponse) (string, error) {
+	for _, c := range sr.Contents {
+		if c.Lineups != nil {
+			for _, lu := range c.Lineups {
+				if lu.Items != nil {
+					for _, item := range lu.Items {
+						if item.Type == "Media" {
+							return strconv.Itoa(item.IDMedia), nil
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return "", errors.New("No episode found in the given show")
 }
 
 func (p *Provider) mapMovieFromShow(sr *types.ShowResponse, movieId string) (*oas.Movie, error) {
@@ -673,7 +753,7 @@ func seasonID(n int) string {
 
 func parseSeasonNumber(id string) (int, error) {
 	if !strings.HasPrefix(id, "s") {
-		return 0, fmt.Errorf("invalid season ID %q", id)
+		return 0, fmt.Errorf("invalid season Id %q", id)
 	}
 	return strconv.Atoi(id[1:])
 }

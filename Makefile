@@ -2,7 +2,7 @@
 
 # Watch .templ files, regenerate, and proxy to the Go server with browser auto-reload.
 live/proxy:
-	go tool templ generate --watch --open-browser=false --proxy="http://127.0.0.1:80" --proxybind="0.0.0.0" -v
+	go tool templ generate --watch --open-browser=false --proxy="http://127.0.0.1:8080" --proxybind="0.0.0.0" -v
 
 # run tailwindcss to generate the style.css bundle in watch mode.
 live/tailwind:

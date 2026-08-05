@@ -17,6 +17,7 @@ import (
 const defaultTimeout = 30 * time.Second
 
 const (
+	userAgent       = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
 	catalogProdBase = "https://services.radio-canada.ca"
 	streamMetaPath  = "/media/meta/v1/index.ashx"
 	streamValPath   = "/media/validation/v2/"
@@ -46,13 +47,13 @@ func newClient(appCode string, opts clientOptions) *client {
 	return &client{
 		httpClient: hc,
 		baseURL:    base,
-		userAgent:  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+		userAgent:  userAgent,
 		appCode:    appCode,
 	}
 }
 
 func (c *client) catalogURL(path string) string {
-	return catalogProdBase + "/ott/catalog/v2/" + c.appCode + path
+	return c.baseURL + "/ott/catalog/v2/" + c.appCode + path
 }
 
 func (c *client) getBrowse(ctx context.Context) error {
@@ -120,7 +121,7 @@ func (c *client) getStreamMeta(ctx context.Context, idMedia string) (*types.Stre
 		"idMedia": idMedia,
 		"output":  "jsonObject",
 	}
-	if err := c.getJSON(ctx, catalogProdBase+streamMetaPath, params, &resp); err != nil {
+	if err := c.getJSON(ctx, c.baseURL+streamMetaPath, params, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -138,7 +139,7 @@ func (c *client) getStreamValidation(ctx context.Context, idMedia, tech string) 
 		"tech":           tech,
 		"manifestType":   "desktop",
 	}
-	if err := c.getJSON(ctx, catalogProdBase+streamValPath, params, &resp); err != nil {
+	if err := c.getJSON(ctx, c.baseURL+streamValPath, params, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil

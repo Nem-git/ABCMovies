@@ -11,11 +11,13 @@ import (
 	"github.com/nem-git/abcmovies/internal/handler"
 	"github.com/nem-git/abcmovies/internal/middleware"
 	"github.com/nem-git/abcmovies/internal/oas"
-	"github.com/nem-git/abcmovies/internal/proxy"
 	"github.com/nem-git/abcmovies/internal/providers"
+	"github.com/nem-git/abcmovies/internal/proxy"
 	"github.com/nem-git/abcmovies/internal/registry"
 	"github.com/nem-git/abcmovies/internal/web"
 )
+
+const defaultProxyStrategy string = "auto"
 
 func main() {
 	cfgPath := flag.String("config", "config.yaml", "path to configuration file")
@@ -41,22 +43,22 @@ func main() {
 		if entry.Proxy != nil {
 			proxyConfigs[entry.Tag] = entry.Proxy
 		} else {
-			proxyConfigs[entry.Tag] = &proxy.Config{Strategy: "passthrough"}
+			proxyConfigs[entry.Tag] = &proxy.Config{Strategy: defaultProxyStrategy}
 		}
 		log.Printf("registered provider: %s (%s)", entry.Tag, entry.Type)
 	}
 
 	deps := proxy.Dependencies{
-		Fetcher:  proxy.NewHTTPFetcher(http.DefaultClient),
-		State:    proxy.NewMemoryStore(5 * time.Minute),
-		Configs:  proxyConfigs,
+		Fetcher: proxy.NewHTTPFetcher(http.DefaultClient),
+		State:   proxy.NewMemoryStore(5 * time.Minute),
+		Configs: proxyConfigs,
 	}
 	p := proxy.New(deps)
 	log.Printf("proxy enabled for %d provider(s)", len(proxyConfigs))
 
 	webHandler := web.New(r, cfg.Server.BaseURL, cfg.Server.APIPrefix)
 
-	h := handler.New(r, p)
+	h := handler.New(r, cfg.Server.BaseURL, cfg.Server.APIPrefix, p)
 
 	srv, err := oas.NewServer(
 		h,
@@ -68,7 +70,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle(cfg.Server.APIPrefix+"/", middleware.PathSanitize(middleware.ApiSecurity(srv)))
+	mux.Handle(cfg.Server.APIPrefix+"/", middleware.PathSanitize(middleware.ApiSecurity(handler.WithRequest(srv))))
 	mux.Handle("/", middleware.FrontendSecurity(webHandler))
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)

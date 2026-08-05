@@ -7,10 +7,10 @@ import (
 	"net/url"
 	"path"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/nem-git/abcmovies/internal/hashid"
 	"github.com/nem-git/abcmovies/internal/proxy/parser"
 	"github.com/nem-git/abcmovies/internal/stream"
 )
@@ -42,7 +42,7 @@ func (s *HLSStrategy) ServeManifest(ctx context.Context, w io.Writer, locator st
 		return "", err
 	}
 
-	upstreamBaseURL := resolveBaseURL(locator.URL)
+	upstreamBaseURL := ResolveBaseURL(locator.URL)
 	p := parser.HLSParser{}
 
 	master, media, err := p.Decode(data)
@@ -58,16 +58,18 @@ func (s *HLSStrategy) ServeManifest(ctx context.Context, w io.Writer, locator st
 }
 
 func (s *HLSStrategy) handleMasterPlaylist(ctx context.Context, w io.Writer, meta *StreamMeta, p parser.HLSParser, master *parser.MasterPlaylist, upstreamBaseURL string) (string, error) {
-	// Pass 1: store playlist state per variant
-	for i, v := range master.Variants {
-		playlistKey := hlsPlaylistStateKey(meta.ProviderTag, meta.ContentKey, "variants", strconv.Itoa(i))
+	// Store playlist state per variant and rewrite variant URIs
+	for i := range master.Variants {
+		variantID := hashid.URLHash(parser.ResolveURL(upstreamBaseURL, master.Variants[i].URI))
+		playlistKey := hlsPlaylistStateKey(meta.ProviderTag, meta.ContentKey, "variants", variantID)
 		playlistMeta := *meta
-		playlistMeta.UpstreamBaseURL = parser.ResolveURL(upstreamBaseURL, v.URI)
+		playlistMeta.UpstreamBaseURL = parser.ResolveURL(upstreamBaseURL, master.Variants[i].URI)
 		playlistMeta.ExpiresAt = time.Now().Add(5 * time.Minute)
 		s.deps.State.Put(ctx, playlistKey, playlistMeta)
+		master.Variants[i].URI = path.Join(meta.ProxyBaseURL, "variants", variantID)
 	}
 
-	// Pass 1: store playlist state per rendition (skip those without URI — muxed content)
+	// Store playlist state per rendition (skip those without URI — muxed content)
 	for _, a := range master.GetAllAlternatives() {
 		if a.URI == "" {
 			continue
@@ -79,10 +81,7 @@ func (s *HLSStrategy) handleMasterPlaylist(ctx context.Context, w io.Writer, met
 		s.deps.State.Put(ctx, playlistKey, playlistMeta)
 	}
 
-	// Rewrite URLs in master playlist
-	for i := range master.Variants {
-		master.Variants[i].URI = path.Join("variants", strconv.Itoa(i))
-	}
+	// Rewrite rendition URIs in the master playlist
 	for _, a := range master.GetAllAlternatives() {
 		if a.URI == "" {
 			continue
@@ -91,7 +90,7 @@ func (s *HLSStrategy) handleMasterPlaylist(ctx context.Context, w io.Writer, met
 		for vi, v := range master.Variants {
 			for ai, alt := range v.Alternatives {
 				if alt.GroupId == a.GroupId && alt.Name == a.Name {
-					master.Variants[vi].Alternatives[ai].URI = path.Join("renditions", a.GroupId, a.Name)
+					master.Variants[vi].Alternatives[ai].URI = path.Join(meta.ProxyBaseURL, "groups", a.GroupId, "renditions", a.Name)
 				}
 			}
 		}
@@ -103,13 +102,13 @@ func (s *HLSStrategy) handleMasterPlaylist(ctx context.Context, w io.Writer, met
 			continue
 		}
 		abs := parser.ResolveURL(upstreamBaseURL, master.SessionKeys[i].URI)
-		filename := resourceFilename(abs)
-		resourceKey := hlsResourceStateKey(meta.ProviderTag, meta.ContentKey, "session-key", filename)
+		hash := hashid.URLHash(abs)
+		resourceKey := hlsResourceStateKey(meta.ProviderTag, meta.ContentKey, "session-key", hash)
 		resourceMeta := *meta
 		resourceMeta.UpstreamBaseURL = abs
 		resourceMeta.ExpiresAt = time.Now().Add(5 * time.Minute)
 		s.deps.State.Put(ctx, resourceKey, resourceMeta)
-		master.SessionKeys[i].URI = path.Join("session-keys", filename)
+		master.SessionKeys[i].URI = path.Join(meta.ProxyBaseURL, "session-keys", hash)
 	}
 
 	// Store and rewrite session data URIs
@@ -118,13 +117,13 @@ func (s *HLSStrategy) handleMasterPlaylist(ctx context.Context, w io.Writer, met
 			continue
 		}
 		abs := parser.ResolveURL(upstreamBaseURL, master.SessionDatas[i].URI)
-		filename := filepath.Base(abs)
-		resourceKey := hlsResourceStateKey(meta.ProviderTag, meta.ContentKey, "session-data", filename)
+		hash := hashid.URLHash(abs)
+		resourceKey := hlsResourceStateKey(meta.ProviderTag, meta.ContentKey, "session-data", hash)
 		resourceMeta := *meta
 		resourceMeta.UpstreamBaseURL = abs
 		resourceMeta.ExpiresAt = time.Now().Add(5 * time.Minute)
 		s.deps.State.Put(ctx, resourceKey, resourceMeta)
-		master.SessionDatas[i].URI = path.Join("session-data", filename)
+		master.SessionDatas[i].URI = path.Join(meta.ProxyBaseURL, "session-data", hash)
 	}
 
 	// Store and rewrite content steering URI
@@ -135,7 +134,7 @@ func (s *HLSStrategy) handleMasterPlaylist(ctx context.Context, w io.Writer, met
 		resourceMeta.UpstreamBaseURL = abs
 		resourceMeta.ExpiresAt = time.Now().Add(5 * time.Minute)
 		s.deps.State.Put(ctx, resourceKey, resourceMeta)
-		master.ContentSteering.ServerURI = "steering"
+		master.ContentSteering.ServerURI = path.Join(meta.ProxyBaseURL, "steering")
 	}
 
 	rewritten, err := p.EncodeMaster(master)
@@ -148,11 +147,12 @@ func (s *HLSStrategy) handleMasterPlaylist(ctx context.Context, w io.Writer, met
 
 func (s *HLSStrategy) handleSingleMediaPlaylist(ctx context.Context, w io.Writer, meta *StreamMeta, p parser.HLSParser, media *parser.MediaPlaylist, upstreamBaseURL string, locator stream.Locator) (string, error) {
 	// Generate synthetic master
-	variantURI := "variants/0"
+	variantHash := hashid.URLHash(locator.URL)
+	variantURI := path.Join(meta.ProxyBaseURL, "variants", variantHash)
 	master := parser.SyntheticMaster(variantURI)
 
-	// Store playlist state for variant 0
-	playlistKey := hlsPlaylistStateKey(meta.ProviderTag, meta.ContentKey, "variants", "0")
+	// Store playlist state for the single variant
+	playlistKey := hlsPlaylistStateKey(meta.ProviderTag, meta.ContentKey, "variants", variantHash)
 	playlistMeta := *meta
 	playlistMeta.UpstreamBaseURL = locator.URL
 	playlistMeta.ExpiresAt = time.Now().Add(5 * time.Minute)
@@ -162,11 +162,11 @@ func (s *HLSStrategy) handleSingleMediaPlaylist(ctx context.Context, w io.Writer
 	upstreamSegmentBaseURL := computeUpstreamSegmentBaseURL(media, upstreamBaseURL)
 
 	// Rewrite segment URLs and resources in the media playlist
-	segmentBaseURL := "0/segments"
+	segmentBaseURL := path.Join(meta.ProxyBaseURL, "variants", variantHash, "segments")
 	s.rewriteMediaPlaylist(ctx, meta, media, upstreamBaseURL, segmentBaseURL)
 
-	// Store segment state for variant 0
-	segmentKey := hlsSegmentStateKey(meta.ProviderTag, meta.ContentKey, "variants", "0")
+	// Store segment state for the single variant
+	segmentKey := hlsSegmentStateKey(meta.ProviderTag, meta.ContentKey, "variants", variantHash)
 	segmentMeta := *meta
 	segmentMeta.UpstreamBaseURL = upstreamSegmentBaseURL
 	segmentMeta.ExpiresAt = time.Now().Add(5 * time.Minute)
@@ -193,7 +193,7 @@ func (s *HLSStrategy) ServeSubPlaylist(ctx context.Context, w io.Writer, locator
 		return err
 	}
 
-	upstreamBaseURL := resolveBaseURL(locator.URL)
+	upstreamBaseURL := ResolveBaseURL(locator.URL)
 	p := parser.HLSParser{}
 
 	_, media, err := p.Decode(data)
@@ -207,18 +207,16 @@ func (s *HLSStrategy) ServeSubPlaylist(ctx context.Context, w io.Writer, locator
 	// Compute upstream segment base URL before rewriting
 	upstreamSegmentBaseURL := computeUpstreamSegmentBaseURL(media, upstreamBaseURL)
 
-	// Rewrite segment URLs (relative to the media playlist URL)
-	// stateID is "0" for variants or "groupId/renditionName" for renditions.
-	// We need the last component so that when the player resolves relative
-	// to the playlist URL (e.g. .../hls/variants/0) the result is correct.
-	var lastPart string
-	if idx := strings.LastIndex(stateID, "/"); idx >= 0 {
-		lastPart = stateID[idx+1:]
+	// Rewrite segment URLs (absolute to the proxy base so they resolve regardless
+	// of whether the playlist URL carries a trailing slash)
+	var segmentBase string
+	if stateKeyType == "renditions" {
+		group, name, _ := strings.Cut(stateID, "/")
+		segmentBase = path.Join(meta.ProxyBaseURL, "groups", group, "renditions", name, "segments")
 	} else {
-		lastPart = stateID
+		segmentBase = path.Join(meta.ProxyBaseURL, "variants", stateID, "segments")
 	}
-	segmentBaseURL := lastPart + "/segments"
-	rewrittenMedia := s.rewriteMediaPlaylist(ctx, meta, media, upstreamBaseURL, segmentBaseURL)
+	rewrittenMedia := s.rewriteMediaPlaylist(ctx, meta, media, upstreamBaseURL, segmentBase)
 
 	// Store segment state
 	segmentKey := hlsSegmentStateKey(meta.ProviderTag, meta.ContentKey, stateKeyType, stateID)
@@ -237,37 +235,33 @@ func (s *HLSStrategy) ServeSubPlaylist(ctx context.Context, w io.Writer, locator
 }
 
 func (s *HLSStrategy) rewriteMediaPlaylist(ctx context.Context, meta *StreamMeta, media *parser.MediaPlaylist, playlistBaseURL, segmentBaseURL string) *parser.MediaPlaylist {
-	prefix := path.Dir(segmentBaseURL)
-	if prefix == "." {
-		prefix = ""
-	}
 	// Rewrite the top-level Map (used by the encoder for EXT-X-MAP)
 	if media.Map != nil && media.Map.URI != "" {
 		abs := parser.ResolveURL(playlistBaseURL, media.Map.URI)
-		filename := filepath.Base(abs)
+		filename := urlBaseName(abs)
 		media.Map.URI = path.Join(segmentBaseURL, filename)
 	}
 	// Rewrite top-level Keys (playlist-level EXT-X-KEY)
-	s.rewriteKeys(ctx, meta, media.Keys, playlistBaseURL, prefix)
+	s.rewriteKeys(ctx, meta, media.Keys, playlistBaseURL)
 	for i, seg := range media.Segments {
 		if seg == nil {
 			continue
 		}
 		if seg.URI != "" {
 			abs := parser.ResolveURL(playlistBaseURL, seg.URI)
-			filename := filepath.Base(abs)
+			filename := urlBaseName(abs)
 			media.Segments[i].URI = path.Join(segmentBaseURL, filename)
 		}
 		if seg.Map != nil && seg.Map.URI != "" {
 			abs := parser.ResolveURL(playlistBaseURL, seg.Map.URI)
-			filename := filepath.Base(abs)
+			filename := urlBaseName(abs)
 			newMap := *seg.Map
 			newMap.URI = path.Join(segmentBaseURL, filename)
 			media.Segments[i].Map = &newMap
 		}
 		// Rewrite per-segment Keys
 		if len(seg.Keys) > 0 {
-			media.Segments[i].Keys = s.rewriteKeys(ctx, meta, seg.Keys, playlistBaseURL, prefix)
+			media.Segments[i].Keys = s.rewriteKeys(ctx, meta, seg.Keys, playlistBaseURL)
 		}
 	}
 	// Rewrite PartialSegment URIs (EXT-X-PART)
@@ -276,44 +270,24 @@ func (s *HLSStrategy) rewriteMediaPlaylist(ctx context.Context, meta *StreamMeta
 			continue
 		}
 		abs := parser.ResolveURL(playlistBaseURL, ps.URI)
-		filename := filepath.Base(abs)
-		var id string
-		if prefix != "" {
-			id = prefix + "/" + filename
-		} else {
-			id = filename
-		}
-		resourceKey := hlsResourceStateKey(meta.ProviderTag, meta.ContentKey, "partial", id)
+		hash := hashid.URLHash(abs)
+		resourceKey := hlsResourceStateKey(meta.ProviderTag, meta.ContentKey, "partial", hash)
 		resourceMeta := *meta
 		resourceMeta.UpstreamBaseURL = abs
 		resourceMeta.ExpiresAt = time.Now().Add(5 * time.Minute)
 		s.deps.State.Put(ctx, resourceKey, resourceMeta)
-		if prefix != "" {
-			media.PartialSegments[i].URI = path.Join(prefix, "partials", filename)
-		} else {
-			media.PartialSegments[i].URI = path.Join("partials", filename)
-		}
+		media.PartialSegments[i].URI = path.Join(meta.ProxyBaseURL, "partials", hash)
 	}
 	// Rewrite PreloadHint URI (EXT-X-PRELOAD-HINT)
 	if media.PreloadHints != nil && media.PreloadHints.URI != "" {
 		abs := parser.ResolveURL(playlistBaseURL, media.PreloadHints.URI)
-		filename := filepath.Base(abs)
-		var id string
-		if prefix != "" {
-			id = prefix + "/" + filename
-		} else {
-			id = filename
-		}
-		resourceKey := hlsResourceStateKey(meta.ProviderTag, meta.ContentKey, "preload-hint", id)
+		hash := hashid.URLHash(abs)
+		resourceKey := hlsResourceStateKey(meta.ProviderTag, meta.ContentKey, "preload-hint", hash)
 		resourceMeta := *meta
 		resourceMeta.UpstreamBaseURL = abs
 		resourceMeta.ExpiresAt = time.Now().Add(5 * time.Minute)
 		s.deps.State.Put(ctx, resourceKey, resourceMeta)
-		if prefix != "" {
-			media.PreloadHints.URI = path.Join(prefix, "preload-hints", filename)
-		} else {
-			media.PreloadHints.URI = path.Join("preload-hints", filename)
-		}
+		media.PreloadHints.URI = path.Join(meta.ProxyBaseURL, "preload-hints", hash)
 	}
 	return media
 }
@@ -323,7 +297,7 @@ func (s *HLSStrategy) rewriteMediaPlaylist(ctx context.Context, meta *StreamMeta
 // Skips URIs that look like proxy-relative paths (already rewritten) to avoid
 // resolving relative paths against the playlist base when Key objects are shared
 // between playlist-level and segment-level key slices by the parser.
-func (s *HLSStrategy) rewriteKeys(ctx context.Context, meta *StreamMeta, keys []parser.Key, playlistBaseURL, prefix string) []parser.Key {
+func (s *HLSStrategy) rewriteKeys(ctx context.Context, meta *StreamMeta, keys []parser.Key, playlistBaseURL string) []parser.Key {
 	for i := range keys {
 		if keys[i].URI == "" {
 			continue
@@ -333,41 +307,15 @@ func (s *HLSStrategy) rewriteKeys(ctx context.Context, meta *StreamMeta, keys []
 			continue
 		}
 		abs := parser.ResolveURL(playlistBaseURL, keys[i].URI)
-		filename := resourceFilename(abs)
-		var id string
-		if prefix != "" {
-			id = prefix + "/" + filename
-		} else {
-			id = filename
-		}
-		resourceKey := hlsResourceStateKey(meta.ProviderTag, meta.ContentKey, "key", id)
+		hash := hashid.URLHash(abs)
+		resourceKey := hlsResourceStateKey(meta.ProviderTag, meta.ContentKey, "key", hash)
 		resourceMeta := *meta
 		resourceMeta.UpstreamBaseURL = abs
 		resourceMeta.ExpiresAt = time.Now().Add(5 * time.Minute)
 		s.deps.State.Put(ctx, resourceKey, resourceMeta)
-		if prefix != "" {
-			keys[i].URI = path.Join(prefix, "keys", filename)
-		} else {
-			keys[i].URI = path.Join("keys", filename)
-		}
+		keys[i].URI = path.Join(meta.ProxyBaseURL, "keys", hash)
 	}
 	return keys
-}
-
-// resourceFilename extracts the filename from a URL, stripping query parameters.
-func resourceFilename(rawURL string) string {
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return filepath.Base(rawURL)
-	}
-	// If the URL has a path, use the last segment; if query params present,
-	// we need to get the path portion only.
-	pathPart := u.Path
-	if pathPart == "" || pathPart == "/" {
-		// Fallback: try the full URL
-		return filepath.Base(u.String())
-	}
-	return filepath.Base(pathPart)
 }
 
 func (s *HLSStrategy) ServeSegment(ctx context.Context, w io.Writer, locator stream.Locator, segmentPath string) error {
@@ -400,6 +348,17 @@ func computeUpstreamSegmentBaseURL(media *parser.MediaPlaylist, playlistBaseURL 
 	return playlistBaseURL
 }
 
+// urlBaseName returns the last path component of a (possibly absolute) URL,
+// ignoring any query or fragment so rewritten segment and map URIs never carry
+// upstream token query strings.
+func urlBaseName(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return filepath.Base(rawURL)
+	}
+	return filepath.Base(u.Path)
+}
+
 // HLS state key helpers.
 
 func hlsPlaylistStateKey(tag, contentKey, keyType, id string) string {
@@ -427,9 +386,4 @@ func hlsResourceStateKey(tag, contentKey, resourceType, id string) string {
 // HLSResourceStateKey returns the state key for an HLS resource entry.
 func HLSResourceStateKey(tag, contentKey, resourceType, id string) string {
 	return hlsResourceStateKey(tag, contentKey, resourceType, id)
-}
-
-// ResourceFilename extracts the filename from a URL, stripping query parameters.
-func ResourceFilename(rawURL string) string {
-	return resourceFilename(rawURL)
 }

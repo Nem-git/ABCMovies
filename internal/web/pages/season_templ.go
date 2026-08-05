@@ -51,7 +51,7 @@ func SeasonDetail(tag string, seriesID string, season *oas.Season, episodes []oa
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.BackLink("/services/"+tag+"/series/"+seriesID, "Series").Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.BackLink("/services/"+tag+"/series/"+seriesID, seriesID).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

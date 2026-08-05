@@ -19,10 +19,10 @@ import (
 
 var regexMap = map[string]ogenregex.Regexp{
 	"^P(?!$)(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+S)?)?$": ogenregex.MustCompile("^P(?!$)(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+S)?)?$"),
-	"^[A-Z]{2,8}$": ogenregex.MustCompile("^[A-Z]{2,8}$"),
-	"^[A-Z]{2}$":   ogenregex.MustCompile("^[A-Z]{2}$"),
-	"^[a-z]{2}$":   ogenregex.MustCompile("^[a-z]{2}$"),
-	"^[a-z]{2}(?:-(?:sdh|cc|forced))?\\.(?:vtt|srt|ttml|ass)$": ogenregex.MustCompile("^[a-z]{2}(?:-(?:sdh|cc|forced))?\\.(?:vtt|srt|ttml|ass)$"),
+	"^[A-Z]{2,8}$":   ogenregex.MustCompile("^[A-Z]{2,8}$"),
+	"^[A-Z]{2}$":     ogenregex.MustCompile("^[A-Z]{2}$"),
+	"^[a-f0-9]{12}$": ogenregex.MustCompile("^[a-f0-9]{12}$"),
+	"^[a-z]{2}$":     ogenregex.MustCompile("^[a-z]{2}$"),
 }
 var (
 	// Allocate option closure once.

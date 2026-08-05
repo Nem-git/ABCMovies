@@ -25,13 +25,13 @@ type Provider struct {
 func New(cfg Config) *Provider {
 	return &Provider{
 		Provider: rcmedia.New(rcmedia.Config{
-			Tag:               cfg.Tag,
-			Service:           cfg.Service,
-			AppCode:           appCode,
-			SeriesCategoryID:  cfg.SeriesCategoryID,
-			MovieCategoryID:   cfg.MovieCategoryID,
-			BaseURL:           cfg.BaseURL,
-			APIPrefix:         cfg.APIPrefix,
+			Tag:              cfg.Tag,
+			Service:          cfg.Service,
+			AppCode:          appCode,
+			SeriesCategoryID: cfg.SeriesCategoryID,
+			MovieCategoryID:  cfg.MovieCategoryID,
+			BaseURL:          cfg.BaseURL,
+			APIPrefix:        cfg.APIPrefix,
 		}),
 	}
 }

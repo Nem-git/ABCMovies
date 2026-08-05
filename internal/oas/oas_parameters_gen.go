@@ -803,7 +803,8 @@ type GetEpisodeDASHSegmentParams struct {
 	// The segment filename. Examples:
 	//
 	//  - HLS: `segment_00001.ts`, `init.mp4`
-	//  - DASH: `00001.m4s`, `init.mp4`
+	//  - DASH: `seg_00001.m4s` (the $Number$-substituted template basename, e.g. `$Number%05d$` →
+	//    `00001`), `270000.m4s`
 	Segment string
 }
 
@@ -1347,6 +1348,983 @@ func decodeGetEpisodeDASHSegmentParams(args [9]string, argsEscaped bool, r *http
 	return params, nil
 }
 
+// GetEpisodeHLSKeyParams is parameters of getEpisodeHLSKey operation.
+type GetEpisodeHLSKeyParams struct {
+	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
+	ServiceTag string
+	// The TV series's identifier on the streaming service. Preferably a readable slug, not a numeric ID,
+	// when possible.
+	SeriesId string
+	// Identifier for the season. Prefer a human-readable slug (e.g. `season-1`) or a descriptive name when
+	// available.
+	SeasonId string
+	// Identifier for the episode. Prefer a human-readable slug (e.g. `pilot`, `the-one-with-the-sonogram`)
+	// when available.
+	EpisodeId string
+	// The HLS encryption key id, made up of the first characters hash of the url of the upstream key file.
+	File string
+}
+
+func unpackGetEpisodeHLSKeyParams(packed middleware.Parameters) (params GetEpisodeHLSKeyParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "serviceTag",
+			In:   "path",
+		}
+		params.ServiceTag = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "seriesId",
+			In:   "path",
+		}
+		params.SeriesId = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "seasonId",
+			In:   "path",
+		}
+		params.SeasonId = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "episodeId",
+			In:   "path",
+		}
+		params.EpisodeId = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "file",
+			In:   "path",
+		}
+		params.File = packed[key].(string)
+	}
+	return params
+}
+
+func decodeGetEpisodeHLSKeyParams(args [5]string, argsEscaped bool, r *http.Request) (params GetEpisodeHLSKeyParams, _ error) {
+	// Decode path: serviceTag.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "serviceTag",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.ServiceTag = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[A-Z]{2,8}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.ServiceTag)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "serviceTag",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: seriesId.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "seriesId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.SeriesId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "seriesId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: seasonId.
+	if err := func() error {
+		param := args[2]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[2])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "seasonId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.SeasonId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "seasonId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: episodeId.
+	if err := func() error {
+		param := args[3]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[3])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "episodeId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.EpisodeId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "episodeId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: file.
+	if err := func() error {
+		param := args[4]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[4])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "file",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.File = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[a-f0-9]{12}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.File)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "file",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// GetEpisodeHLSPartialParams is parameters of getEpisodeHLSPartial operation.
+type GetEpisodeHLSPartialParams struct {
+	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
+	ServiceTag string
+	// The TV series's identifier on the streaming service. Preferably a readable slug, not a numeric ID,
+	// when possible.
+	SeriesId string
+	// Identifier for the season. Prefer a human-readable slug (e.g. `season-1`) or a descriptive name when
+	// available.
+	SeasonId string
+	// Identifier for the episode. Prefer a human-readable slug (e.g. `pilot`, `the-one-with-the-sonogram`)
+	// when available.
+	EpisodeId string
+	// The HLS partial segment, preload hint, or session data id, made up of the first characters hash of
+	// the url of the upstream resource.
+	File string
+}
+
+func unpackGetEpisodeHLSPartialParams(packed middleware.Parameters) (params GetEpisodeHLSPartialParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "serviceTag",
+			In:   "path",
+		}
+		params.ServiceTag = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "seriesId",
+			In:   "path",
+		}
+		params.SeriesId = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "seasonId",
+			In:   "path",
+		}
+		params.SeasonId = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "episodeId",
+			In:   "path",
+		}
+		params.EpisodeId = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "file",
+			In:   "path",
+		}
+		params.File = packed[key].(string)
+	}
+	return params
+}
+
+func decodeGetEpisodeHLSPartialParams(args [5]string, argsEscaped bool, r *http.Request) (params GetEpisodeHLSPartialParams, _ error) {
+	// Decode path: serviceTag.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "serviceTag",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.ServiceTag = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[A-Z]{2,8}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.ServiceTag)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "serviceTag",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: seriesId.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "seriesId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.SeriesId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "seriesId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: seasonId.
+	if err := func() error {
+		param := args[2]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[2])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "seasonId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.SeasonId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "seasonId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: episodeId.
+	if err := func() error {
+		param := args[3]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[3])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "episodeId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.EpisodeId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "episodeId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: file.
+	if err := func() error {
+		param := args[4]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[4])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "file",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.File = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[a-f0-9]{12}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.File)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "file",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// GetEpisodeHLSPreloadHintParams is parameters of getEpisodeHLSPreloadHint operation.
+type GetEpisodeHLSPreloadHintParams struct {
+	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
+	ServiceTag string
+	// The TV series's identifier on the streaming service. Preferably a readable slug, not a numeric ID,
+	// when possible.
+	SeriesId string
+	// Identifier for the season. Prefer a human-readable slug (e.g. `season-1`) or a descriptive name when
+	// available.
+	SeasonId string
+	// Identifier for the episode. Prefer a human-readable slug (e.g. `pilot`, `the-one-with-the-sonogram`)
+	// when available.
+	EpisodeId string
+	// The HLS partial segment, preload hint, or session data id, made up of the first characters hash of
+	// the url of the upstream resource.
+	File string
+}
+
+func unpackGetEpisodeHLSPreloadHintParams(packed middleware.Parameters) (params GetEpisodeHLSPreloadHintParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "serviceTag",
+			In:   "path",
+		}
+		params.ServiceTag = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "seriesId",
+			In:   "path",
+		}
+		params.SeriesId = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "seasonId",
+			In:   "path",
+		}
+		params.SeasonId = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "episodeId",
+			In:   "path",
+		}
+		params.EpisodeId = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "file",
+			In:   "path",
+		}
+		params.File = packed[key].(string)
+	}
+	return params
+}
+
+func decodeGetEpisodeHLSPreloadHintParams(args [5]string, argsEscaped bool, r *http.Request) (params GetEpisodeHLSPreloadHintParams, _ error) {
+	// Decode path: serviceTag.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "serviceTag",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.ServiceTag = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[A-Z]{2,8}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.ServiceTag)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "serviceTag",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: seriesId.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "seriesId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.SeriesId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "seriesId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: seasonId.
+	if err := func() error {
+		param := args[2]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[2])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "seasonId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.SeasonId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "seasonId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: episodeId.
+	if err := func() error {
+		param := args[3]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[3])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "episodeId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.EpisodeId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "episodeId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: file.
+	if err := func() error {
+		param := args[4]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[4])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "file",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.File = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[a-f0-9]{12}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.File)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "file",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // GetEpisodeHLSRenditionParams is parameters of getEpisodeHLSRendition operation.
 type GetEpisodeHLSRenditionParams struct {
 	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
@@ -1728,7 +2706,8 @@ type GetEpisodeHLSRenditionSegmentParams struct {
 	// The segment filename. Examples:
 	//
 	//  - HLS: `segment_00001.ts`, `init.mp4`
-	//  - DASH: `00001.m4s`, `init.mp4`
+	//  - DASH: `seg_00001.m4s` (the $Number$-substituted template basename, e.g. `$Number%05d$` →
+	//    `00001`), `270000.m4s`
 	Segment string
 }
 
@@ -2137,8 +3116,8 @@ type GetEpisodeHLSSessionDataParams struct {
 	// Identifier for the episode. Prefer a human-readable slug (e.g. `pilot`, `the-one-with-the-sonogram`)
 	// when available.
 	EpisodeId string
-	// The HLS partial segment, preload hint, or session data filename. Examples: `part001.m4s`,
-	// `hint.m4s`, `data.json`.
+	// The HLS partial segment, preload hint, or session data id, made up of the first characters hash of
+	// the url of the upstream resource.
 	File string
 }
 
@@ -2416,6 +3395,26 @@ func decodeGetEpisodeHLSSessionDataParams(args [5]string, argsEscaped bool, r *h
 			}(); err != nil {
 				return err
 			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[a-f0-9]{12}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.File)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
 		} else {
 			return validate.ErrFieldRequired
 		}
@@ -2443,7 +3442,7 @@ type GetEpisodeHLSSessionKeyParams struct {
 	// Identifier for the episode. Prefer a human-readable slug (e.g. `pilot`, `the-one-with-the-sonogram`)
 	// when available.
 	EpisodeId string
-	// The HLS encryption key filename. Examples: `serve.key`, `encryption.key`, `hls-key.bin`.
+	// The HLS encryption key id, made up of the first characters hash of the url of the upstream key file.
 	File string
 }
 
@@ -2717,6 +3716,26 @@ func decodeGetEpisodeHLSSessionKeyParams(args [5]string, argsEscaped bool, r *ht
 				}
 
 				params.File = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[a-f0-9]{12}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.File)); err != nil {
+					return errors.Wrap(err, "string")
+				}
 				return nil
 			}(); err != nil {
 				return err
@@ -2999,8 +4018,9 @@ type GetEpisodeHLSVariantParams struct {
 	// Identifier for the episode. Prefer a human-readable slug (e.g. `pilot`, `the-one-with-the-sonogram`)
 	// when available.
 	EpisodeId string
-	// Zero-based index of the variant in the master playlist.
-	VariantIndex int
+	// The HLS variant id, made up of the first characters hash of the url of the upstream variant
+	// playlist.
+	VariantId string
 }
 
 func unpackGetEpisodeHLSVariantParams(packed middleware.Parameters) (params GetEpisodeHLSVariantParams) {
@@ -3034,10 +4054,10 @@ func unpackGetEpisodeHLSVariantParams(packed middleware.Parameters) (params GetE
 	}
 	{
 		key := middleware.ParameterKey{
-			Name: "variantIndex",
+			Name: "variantId",
 			In:   "path",
 		}
-		params.VariantIndex = packed[key].(int)
+		params.VariantId = packed[key].(string)
 	}
 	return params
 }
@@ -3243,7 +4263,7 @@ func decodeGetEpisodeHLSVariantParams(args [5]string, argsEscaped bool, r *http.
 			Err:  err,
 		}
 	}
-	// Decode path: variantIndex.
+	// Decode path: variantId.
 	if err := func() error {
 		param := args[4]
 		if argsEscaped {
@@ -3255,7 +4275,7 @@ func decodeGetEpisodeHLSVariantParams(args [5]string, argsEscaped bool, r *http.
 		}
 		if len(param) > 0 {
 			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "variantIndex",
+				Param:   "variantId",
 				Value:   param,
 				Style:   uri.PathStyleSimple,
 				Explode: false,
@@ -3267,29 +4287,31 @@ func decodeGetEpisodeHLSVariantParams(args [5]string, argsEscaped bool, r *http.
 					return err
 				}
 
-				c, err := conv.ToInt(val)
+				c, err := conv.ToString(val)
 				if err != nil {
 					return err
 				}
 
-				params.VariantIndex = c
+				params.VariantId = c
 				return nil
 			}(); err != nil {
 				return err
 			}
 			if err := func() error {
-				if err := (validate.Int{
-					MinSet:        true,
-					Min:           0,
-					MaxSet:        false,
-					Max:           0,
-					MinExclusive:  false,
-					MaxExclusive:  false,
-					MultipleOfSet: false,
-					MultipleOf:    0,
-					Pattern:       nil,
-				}).Validate(int64(params.VariantIndex)); err != nil {
-					return errors.Wrap(err, "int")
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[a-f0-9]{12}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.VariantId)); err != nil {
+					return errors.Wrap(err, "string")
 				}
 				return nil
 			}(); err != nil {
@@ -3301,7 +4323,7 @@ func decodeGetEpisodeHLSVariantParams(args [5]string, argsEscaped bool, r *http.
 		return nil
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
-			Name: "variantIndex",
+			Name: "variantId",
 			In:   "path",
 			Err:  err,
 		}
@@ -3322,12 +4344,14 @@ type GetEpisodeHLSVariantSegmentParams struct {
 	// Identifier for the episode. Prefer a human-readable slug (e.g. `pilot`, `the-one-with-the-sonogram`)
 	// when available.
 	EpisodeId string
-	// Zero-based index of the variant in the master playlist.
-	VariantIndex int
+	// The HLS variant id, made up of the first characters hash of the url of the upstream variant
+	// playlist.
+	VariantId string
 	// The segment filename. Examples:
 	//
 	//  - HLS: `segment_00001.ts`, `init.mp4`
-	//  - DASH: `00001.m4s`, `init.mp4`
+	//  - DASH: `seg_00001.m4s` (the $Number$-substituted template basename, e.g. `$Number%05d$` →
+	//    `00001`), `270000.m4s`
 	Segment string
 }
 
@@ -3362,10 +4386,10 @@ func unpackGetEpisodeHLSVariantSegmentParams(packed middleware.Parameters) (para
 	}
 	{
 		key := middleware.ParameterKey{
-			Name: "variantIndex",
+			Name: "variantId",
 			In:   "path",
 		}
-		params.VariantIndex = packed[key].(int)
+		params.VariantId = packed[key].(string)
 	}
 	{
 		key := middleware.ParameterKey{
@@ -3578,7 +4602,7 @@ func decodeGetEpisodeHLSVariantSegmentParams(args [6]string, argsEscaped bool, r
 			Err:  err,
 		}
 	}
-	// Decode path: variantIndex.
+	// Decode path: variantId.
 	if err := func() error {
 		param := args[4]
 		if argsEscaped {
@@ -3590,7 +4614,7 @@ func decodeGetEpisodeHLSVariantSegmentParams(args [6]string, argsEscaped bool, r
 		}
 		if len(param) > 0 {
 			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "variantIndex",
+				Param:   "variantId",
 				Value:   param,
 				Style:   uri.PathStyleSimple,
 				Explode: false,
@@ -3602,29 +4626,31 @@ func decodeGetEpisodeHLSVariantSegmentParams(args [6]string, argsEscaped bool, r
 					return err
 				}
 
-				c, err := conv.ToInt(val)
+				c, err := conv.ToString(val)
 				if err != nil {
 					return err
 				}
 
-				params.VariantIndex = c
+				params.VariantId = c
 				return nil
 			}(); err != nil {
 				return err
 			}
 			if err := func() error {
-				if err := (validate.Int{
-					MinSet:        true,
-					Min:           0,
-					MaxSet:        false,
-					Max:           0,
-					MinExclusive:  false,
-					MaxExclusive:  false,
-					MultipleOfSet: false,
-					MultipleOf:    0,
-					Pattern:       nil,
-				}).Validate(int64(params.VariantIndex)); err != nil {
-					return errors.Wrap(err, "int")
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[a-f0-9]{12}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.VariantId)); err != nil {
+					return errors.Wrap(err, "string")
 				}
 				return nil
 			}(); err != nil {
@@ -3636,7 +4662,7 @@ func decodeGetEpisodeHLSVariantSegmentParams(args [6]string, argsEscaped bool, r
 		return nil
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
-			Name: "variantIndex",
+			Name: "variantId",
 			In:   "path",
 			Err:  err,
 		}
@@ -3689,1250 +4715,6 @@ func decodeGetEpisodeHLSVariantSegmentParams(args [6]string, argsEscaped bool, r
 	return params, nil
 }
 
-// GetEpisodeRenditionKeyParams is parameters of getEpisodeRenditionKey operation.
-type GetEpisodeRenditionKeyParams struct {
-	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
-	ServiceTag string
-	// The TV series's identifier on the streaming service. Preferably a readable slug, not a numeric ID,
-	// when possible.
-	SeriesId string
-	// Identifier for the season. Prefer a human-readable slug (e.g. `season-1`) or a descriptive name when
-	// available.
-	SeasonId string
-	// Identifier for the episode. Prefer a human-readable slug (e.g. `pilot`, `the-one-with-the-sonogram`)
-	// when available.
-	EpisodeId string
-	// The GROUP-ID attribute from the EXT-X-MEDIA tag. Uniquely identifies a rendition group within a
-	// master playlist.
-	GroupId string
-	// The NAME attribute from the EXT-X-MEDIA tag. Uniquely identifies a rendition within its group.
-	RenditionName string
-	// The HLS encryption key filename. Examples: `serve.key`, `encryption.key`, `hls-key.bin`.
-	File string
-}
-
-func unpackGetEpisodeRenditionKeyParams(packed middleware.Parameters) (params GetEpisodeRenditionKeyParams) {
-	{
-		key := middleware.ParameterKey{
-			Name: "serviceTag",
-			In:   "path",
-		}
-		params.ServiceTag = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "seriesId",
-			In:   "path",
-		}
-		params.SeriesId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "seasonId",
-			In:   "path",
-		}
-		params.SeasonId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "episodeId",
-			In:   "path",
-		}
-		params.EpisodeId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "groupId",
-			In:   "path",
-		}
-		params.GroupId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "renditionName",
-			In:   "path",
-		}
-		params.RenditionName = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "file",
-			In:   "path",
-		}
-		params.File = packed[key].(string)
-	}
-	return params
-}
-
-func decodeGetEpisodeRenditionKeyParams(args [7]string, argsEscaped bool, r *http.Request) (params GetEpisodeRenditionKeyParams, _ error) {
-	// Decode path: serviceTag.
-	if err := func() error {
-		param := args[0]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[0])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "serviceTag",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.ServiceTag = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.String{
-					MinLength:     0,
-					MinLengthSet:  false,
-					MaxLength:     0,
-					MaxLengthSet:  false,
-					Email:         false,
-					Hostname:      false,
-					Regex:         regexMap["^[A-Z]{2,8}$"],
-					MinNumeric:    0,
-					MinNumericSet: false,
-					MaxNumeric:    0,
-					MaxNumericSet: false,
-				}).Validate(string(params.ServiceTag)); err != nil {
-					return errors.Wrap(err, "string")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "serviceTag",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: seriesId.
-	if err := func() error {
-		param := args[1]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[1])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "seriesId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.SeriesId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "seriesId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: seasonId.
-	if err := func() error {
-		param := args[2]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[2])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "seasonId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.SeasonId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "seasonId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: episodeId.
-	if err := func() error {
-		param := args[3]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[3])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "episodeId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.EpisodeId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "episodeId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: groupId.
-	if err := func() error {
-		param := args[4]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[4])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "groupId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.GroupId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "groupId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: renditionName.
-	if err := func() error {
-		param := args[5]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[5])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "renditionName",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.RenditionName = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "renditionName",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: file.
-	if err := func() error {
-		param := args[6]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[6])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "file",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.File = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "file",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	return params, nil
-}
-
-// GetEpisodeRenditionPartialParams is parameters of getEpisodeRenditionPartial operation.
-type GetEpisodeRenditionPartialParams struct {
-	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
-	ServiceTag string
-	// The TV series's identifier on the streaming service. Preferably a readable slug, not a numeric ID,
-	// when possible.
-	SeriesId string
-	// Identifier for the season. Prefer a human-readable slug (e.g. `season-1`) or a descriptive name when
-	// available.
-	SeasonId string
-	// Identifier for the episode. Prefer a human-readable slug (e.g. `pilot`, `the-one-with-the-sonogram`)
-	// when available.
-	EpisodeId string
-	// The GROUP-ID attribute from the EXT-X-MEDIA tag. Uniquely identifies a rendition group within a
-	// master playlist.
-	GroupId string
-	// The NAME attribute from the EXT-X-MEDIA tag. Uniquely identifies a rendition within its group.
-	RenditionName string
-	// The HLS partial segment, preload hint, or session data filename. Examples: `part001.m4s`,
-	// `hint.m4s`, `data.json`.
-	File string
-}
-
-func unpackGetEpisodeRenditionPartialParams(packed middleware.Parameters) (params GetEpisodeRenditionPartialParams) {
-	{
-		key := middleware.ParameterKey{
-			Name: "serviceTag",
-			In:   "path",
-		}
-		params.ServiceTag = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "seriesId",
-			In:   "path",
-		}
-		params.SeriesId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "seasonId",
-			In:   "path",
-		}
-		params.SeasonId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "episodeId",
-			In:   "path",
-		}
-		params.EpisodeId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "groupId",
-			In:   "path",
-		}
-		params.GroupId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "renditionName",
-			In:   "path",
-		}
-		params.RenditionName = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "file",
-			In:   "path",
-		}
-		params.File = packed[key].(string)
-	}
-	return params
-}
-
-func decodeGetEpisodeRenditionPartialParams(args [7]string, argsEscaped bool, r *http.Request) (params GetEpisodeRenditionPartialParams, _ error) {
-	// Decode path: serviceTag.
-	if err := func() error {
-		param := args[0]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[0])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "serviceTag",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.ServiceTag = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.String{
-					MinLength:     0,
-					MinLengthSet:  false,
-					MaxLength:     0,
-					MaxLengthSet:  false,
-					Email:         false,
-					Hostname:      false,
-					Regex:         regexMap["^[A-Z]{2,8}$"],
-					MinNumeric:    0,
-					MinNumericSet: false,
-					MaxNumeric:    0,
-					MaxNumericSet: false,
-				}).Validate(string(params.ServiceTag)); err != nil {
-					return errors.Wrap(err, "string")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "serviceTag",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: seriesId.
-	if err := func() error {
-		param := args[1]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[1])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "seriesId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.SeriesId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "seriesId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: seasonId.
-	if err := func() error {
-		param := args[2]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[2])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "seasonId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.SeasonId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "seasonId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: episodeId.
-	if err := func() error {
-		param := args[3]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[3])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "episodeId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.EpisodeId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "episodeId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: groupId.
-	if err := func() error {
-		param := args[4]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[4])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "groupId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.GroupId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "groupId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: renditionName.
-	if err := func() error {
-		param := args[5]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[5])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "renditionName",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.RenditionName = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "renditionName",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: file.
-	if err := func() error {
-		param := args[6]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[6])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "file",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.File = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "file",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	return params, nil
-}
-
-// GetEpisodeRenditionPreloadHintParams is parameters of getEpisodeRenditionPreloadHint operation.
-type GetEpisodeRenditionPreloadHintParams struct {
-	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
-	ServiceTag string
-	// The TV series's identifier on the streaming service. Preferably a readable slug, not a numeric ID,
-	// when possible.
-	SeriesId string
-	// Identifier for the season. Prefer a human-readable slug (e.g. `season-1`) or a descriptive name when
-	// available.
-	SeasonId string
-	// Identifier for the episode. Prefer a human-readable slug (e.g. `pilot`, `the-one-with-the-sonogram`)
-	// when available.
-	EpisodeId string
-	// The GROUP-ID attribute from the EXT-X-MEDIA tag. Uniquely identifies a rendition group within a
-	// master playlist.
-	GroupId string
-	// The NAME attribute from the EXT-X-MEDIA tag. Uniquely identifies a rendition within its group.
-	RenditionName string
-	// The HLS partial segment, preload hint, or session data filename. Examples: `part001.m4s`,
-	// `hint.m4s`, `data.json`.
-	File string
-}
-
-func unpackGetEpisodeRenditionPreloadHintParams(packed middleware.Parameters) (params GetEpisodeRenditionPreloadHintParams) {
-	{
-		key := middleware.ParameterKey{
-			Name: "serviceTag",
-			In:   "path",
-		}
-		params.ServiceTag = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "seriesId",
-			In:   "path",
-		}
-		params.SeriesId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "seasonId",
-			In:   "path",
-		}
-		params.SeasonId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "episodeId",
-			In:   "path",
-		}
-		params.EpisodeId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "groupId",
-			In:   "path",
-		}
-		params.GroupId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "renditionName",
-			In:   "path",
-		}
-		params.RenditionName = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "file",
-			In:   "path",
-		}
-		params.File = packed[key].(string)
-	}
-	return params
-}
-
-func decodeGetEpisodeRenditionPreloadHintParams(args [7]string, argsEscaped bool, r *http.Request) (params GetEpisodeRenditionPreloadHintParams, _ error) {
-	// Decode path: serviceTag.
-	if err := func() error {
-		param := args[0]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[0])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "serviceTag",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.ServiceTag = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.String{
-					MinLength:     0,
-					MinLengthSet:  false,
-					MaxLength:     0,
-					MaxLengthSet:  false,
-					Email:         false,
-					Hostname:      false,
-					Regex:         regexMap["^[A-Z]{2,8}$"],
-					MinNumeric:    0,
-					MinNumericSet: false,
-					MaxNumeric:    0,
-					MaxNumericSet: false,
-				}).Validate(string(params.ServiceTag)); err != nil {
-					return errors.Wrap(err, "string")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "serviceTag",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: seriesId.
-	if err := func() error {
-		param := args[1]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[1])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "seriesId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.SeriesId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "seriesId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: seasonId.
-	if err := func() error {
-		param := args[2]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[2])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "seasonId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.SeasonId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "seasonId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: episodeId.
-	if err := func() error {
-		param := args[3]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[3])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "episodeId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.EpisodeId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "episodeId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: groupId.
-	if err := func() error {
-		param := args[4]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[4])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "groupId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.GroupId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "groupId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: renditionName.
-	if err := func() error {
-		param := args[5]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[5])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "renditionName",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.RenditionName = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "renditionName",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: file.
-	if err := func() error {
-		param := args[6]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[6])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "file",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.File = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "file",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	return params, nil
-}
-
 // GetEpisodeStreamFileParams is parameters of getEpisodeStreamFile operation.
 type GetEpisodeStreamFileParams struct {
 	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
@@ -4948,12 +4730,6 @@ type GetEpisodeStreamFileParams struct {
 	EpisodeId string
 	// The streaming format type. Determines the manifest/segment URL scheme and content types.
 	Format StreamFormat
-	// The stream manifest or media filename. Standard names:
-	//
-	//  - `master.m3u8` - HLS master playlist
-	//  - `manifest.mpd` - DASH manifest
-	//  - `video.mp4` - Direct MP4 file
-	File string
 }
 
 func unpackGetEpisodeStreamFileParams(packed middleware.Parameters) (params GetEpisodeStreamFileParams) {
@@ -4992,17 +4768,10 @@ func unpackGetEpisodeStreamFileParams(packed middleware.Parameters) (params GetE
 		}
 		params.Format = packed[key].(StreamFormat)
 	}
-	{
-		key := middleware.ParameterKey{
-			Name: "file",
-			In:   "path",
-		}
-		params.File = packed[key].(string)
-	}
 	return params
 }
 
-func decodeGetEpisodeStreamFileParams(args [6]string, argsEscaped bool, r *http.Request) (params GetEpisodeStreamFileParams, _ error) {
+func decodeGetEpisodeStreamFileParams(args [5]string, argsEscaped bool, r *http.Request) (params GetEpisodeStreamFileParams, _ error) {
 	// Decode path: serviceTag.
 	if err := func() error {
 		param := args[0]
@@ -5252,476 +5021,6 @@ func decodeGetEpisodeStreamFileParams(args [6]string, argsEscaped bool, r *http.
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "format",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: file.
-	if err := func() error {
-		param := args[5]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[5])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "file",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.File = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "file",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	return params, nil
-}
-
-// GetEpisodeStreamSegmentParams is parameters of getEpisodeStreamSegment operation.
-type GetEpisodeStreamSegmentParams struct {
-	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
-	ServiceTag string
-	// The TV series's identifier on the streaming service. Preferably a readable slug, not a numeric ID,
-	// when possible.
-	SeriesId string
-	// Identifier for the season. Prefer a human-readable slug (e.g. `season-1`) or a descriptive name when
-	// available.
-	SeasonId string
-	// Identifier for the episode. Prefer a human-readable slug (e.g. `pilot`, `the-one-with-the-sonogram`)
-	// when available.
-	EpisodeId string
-	// The streaming format type. Determines the manifest/segment URL scheme and content types.
-	Format StreamFormat
-	// The rendition (bitrate option) identifier. For HLS this is the variant playlist name (e.g. `720p`,
-	// `1080p`). For DASH this is the representation ID (e.g. `v1`, `v2`).
-	Rendition string
-	// The segment filename. Examples:
-	//
-	//  - HLS: `segment_00001.ts`, `init.mp4`
-	//  - DASH: `00001.m4s`, `init.mp4`
-	Segment string
-}
-
-func unpackGetEpisodeStreamSegmentParams(packed middleware.Parameters) (params GetEpisodeStreamSegmentParams) {
-	{
-		key := middleware.ParameterKey{
-			Name: "serviceTag",
-			In:   "path",
-		}
-		params.ServiceTag = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "seriesId",
-			In:   "path",
-		}
-		params.SeriesId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "seasonId",
-			In:   "path",
-		}
-		params.SeasonId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "episodeId",
-			In:   "path",
-		}
-		params.EpisodeId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "format",
-			In:   "path",
-		}
-		params.Format = packed[key].(StreamFormat)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "rendition",
-			In:   "path",
-		}
-		params.Rendition = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "segment",
-			In:   "path",
-		}
-		params.Segment = packed[key].(string)
-	}
-	return params
-}
-
-func decodeGetEpisodeStreamSegmentParams(args [7]string, argsEscaped bool, r *http.Request) (params GetEpisodeStreamSegmentParams, _ error) {
-	// Decode path: serviceTag.
-	if err := func() error {
-		param := args[0]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[0])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "serviceTag",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.ServiceTag = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.String{
-					MinLength:     0,
-					MinLengthSet:  false,
-					MaxLength:     0,
-					MaxLengthSet:  false,
-					Email:         false,
-					Hostname:      false,
-					Regex:         regexMap["^[A-Z]{2,8}$"],
-					MinNumeric:    0,
-					MinNumericSet: false,
-					MaxNumeric:    0,
-					MaxNumericSet: false,
-				}).Validate(string(params.ServiceTag)); err != nil {
-					return errors.Wrap(err, "string")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "serviceTag",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: seriesId.
-	if err := func() error {
-		param := args[1]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[1])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "seriesId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.SeriesId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "seriesId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: seasonId.
-	if err := func() error {
-		param := args[2]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[2])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "seasonId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.SeasonId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "seasonId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: episodeId.
-	if err := func() error {
-		param := args[3]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[3])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "episodeId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.EpisodeId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "episodeId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: format.
-	if err := func() error {
-		param := args[4]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[4])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "format",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.Format = StreamFormat(c)
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := params.Format.Validate(); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "format",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: rendition.
-	if err := func() error {
-		param := args[5]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[5])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "rendition",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.Rendition = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "rendition",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: segment.
-	if err := func() error {
-		param := args[6]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[6])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "segment",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.Segment = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "segment",
 			In:   "path",
 			Err:  err,
 		}
@@ -6145,8 +5444,8 @@ func decodeGetEpisodeStreamsParams(args [4]string, argsEscaped bool, r *http.Req
 	return params, nil
 }
 
-// GetEpisodeSubtitleFileParams is parameters of getEpisodeSubtitleFile operation.
-type GetEpisodeSubtitleFileParams struct {
+// GetEpisodeSubtitleParams is parameters of getEpisodeSubtitle operation.
+type GetEpisodeSubtitleParams struct {
 	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
 	ServiceTag string
 	// The TV series's identifier on the streaming service. Preferably a readable slug, not a numeric ID,
@@ -6158,17 +5457,11 @@ type GetEpisodeSubtitleFileParams struct {
 	// Identifier for the episode. Prefer a human-readable slug (e.g. `pilot`, `the-one-with-the-sonogram`)
 	// when available.
 	EpisodeId string
-	// The subtitle filename, following the `{language}[-{kind}].{format}` convention:
-	//
-	//  - `en.vtt` - English, default
-	//  - `en-sdh.vtt` - English, hearing impaired
-	//  - `en-cc.vtt` - English, closed captions
-	//  - `fr.vtt` - French, default
-	//  - `ja.ttml` - Japanese, TTML format
-	SubtitleFile string
+	// The subtitle id, made up of the first characters hash of the url of the upstream subtitle file.
+	SubtitleId string
 }
 
-func unpackGetEpisodeSubtitleFileParams(packed middleware.Parameters) (params GetEpisodeSubtitleFileParams) {
+func unpackGetEpisodeSubtitleParams(packed middleware.Parameters) (params GetEpisodeSubtitleParams) {
 	{
 		key := middleware.ParameterKey{
 			Name: "serviceTag",
@@ -6199,15 +5492,15 @@ func unpackGetEpisodeSubtitleFileParams(packed middleware.Parameters) (params Ge
 	}
 	{
 		key := middleware.ParameterKey{
-			Name: "subtitleFile",
+			Name: "subtitleId",
 			In:   "path",
 		}
-		params.SubtitleFile = packed[key].(string)
+		params.SubtitleId = packed[key].(string)
 	}
 	return params
 }
 
-func decodeGetEpisodeSubtitleFileParams(args [5]string, argsEscaped bool, r *http.Request) (params GetEpisodeSubtitleFileParams, _ error) {
+func decodeGetEpisodeSubtitleParams(args [5]string, argsEscaped bool, r *http.Request) (params GetEpisodeSubtitleParams, _ error) {
 	// Decode path: serviceTag.
 	if err := func() error {
 		param := args[0]
@@ -6408,7 +5701,7 @@ func decodeGetEpisodeSubtitleFileParams(args [5]string, argsEscaped bool, r *htt
 			Err:  err,
 		}
 	}
-	// Decode path: subtitleFile.
+	// Decode path: subtitleId.
 	if err := func() error {
 		param := args[4]
 		if argsEscaped {
@@ -6420,7 +5713,7 @@ func decodeGetEpisodeSubtitleFileParams(args [5]string, argsEscaped bool, r *htt
 		}
 		if len(param) > 0 {
 			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "subtitleFile",
+				Param:   "subtitleId",
 				Value:   param,
 				Style:   uri.PathStyleSimple,
 				Explode: false,
@@ -6437,7 +5730,7 @@ func decodeGetEpisodeSubtitleFileParams(args [5]string, argsEscaped bool, r *htt
 					return err
 				}
 
-				params.SubtitleFile = c
+				params.SubtitleId = c
 				return nil
 			}(); err != nil {
 				return err
@@ -6450,12 +5743,12 @@ func decodeGetEpisodeSubtitleFileParams(args [5]string, argsEscaped bool, r *htt
 					MaxLengthSet:  false,
 					Email:         false,
 					Hostname:      false,
-					Regex:         regexMap["^[a-z]{2}(?:-(?:sdh|cc|forced))?\\.(?:vtt|srt|ttml|ass)$"],
+					Regex:         regexMap["^[a-f0-9]{12}$"],
 					MinNumeric:    0,
 					MinNumericSet: false,
 					MaxNumeric:    0,
 					MaxNumericSet: false,
-				}).Validate(string(params.SubtitleFile)); err != nil {
+				}).Validate(string(params.SubtitleId)); err != nil {
 					return errors.Wrap(err, "string")
 				}
 				return nil
@@ -6468,7 +5761,7 @@ func decodeGetEpisodeSubtitleFileParams(args [5]string, argsEscaped bool, r *htt
 		return nil
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
-			Name: "subtitleFile",
+			Name: "subtitleId",
 			In:   "path",
 			Err:  err,
 		}
@@ -7136,1139 +6429,6 @@ func decodeGetEpisodeThumbnailParams(args [4]string, argsEscaped bool, r *http.R
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "episodeId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	return params, nil
-}
-
-// GetEpisodeVariantKeyParams is parameters of getEpisodeVariantKey operation.
-type GetEpisodeVariantKeyParams struct {
-	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
-	ServiceTag string
-	// The TV series's identifier on the streaming service. Preferably a readable slug, not a numeric ID,
-	// when possible.
-	SeriesId string
-	// Identifier for the season. Prefer a human-readable slug (e.g. `season-1`) or a descriptive name when
-	// available.
-	SeasonId string
-	// Identifier for the episode. Prefer a human-readable slug (e.g. `pilot`, `the-one-with-the-sonogram`)
-	// when available.
-	EpisodeId string
-	// Zero-based index of the variant in the master playlist.
-	VariantIndex int
-	// The HLS encryption key filename. Examples: `serve.key`, `encryption.key`, `hls-key.bin`.
-	File string
-}
-
-func unpackGetEpisodeVariantKeyParams(packed middleware.Parameters) (params GetEpisodeVariantKeyParams) {
-	{
-		key := middleware.ParameterKey{
-			Name: "serviceTag",
-			In:   "path",
-		}
-		params.ServiceTag = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "seriesId",
-			In:   "path",
-		}
-		params.SeriesId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "seasonId",
-			In:   "path",
-		}
-		params.SeasonId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "episodeId",
-			In:   "path",
-		}
-		params.EpisodeId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "variantIndex",
-			In:   "path",
-		}
-		params.VariantIndex = packed[key].(int)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "file",
-			In:   "path",
-		}
-		params.File = packed[key].(string)
-	}
-	return params
-}
-
-func decodeGetEpisodeVariantKeyParams(args [6]string, argsEscaped bool, r *http.Request) (params GetEpisodeVariantKeyParams, _ error) {
-	// Decode path: serviceTag.
-	if err := func() error {
-		param := args[0]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[0])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "serviceTag",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.ServiceTag = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.String{
-					MinLength:     0,
-					MinLengthSet:  false,
-					MaxLength:     0,
-					MaxLengthSet:  false,
-					Email:         false,
-					Hostname:      false,
-					Regex:         regexMap["^[A-Z]{2,8}$"],
-					MinNumeric:    0,
-					MinNumericSet: false,
-					MaxNumeric:    0,
-					MaxNumericSet: false,
-				}).Validate(string(params.ServiceTag)); err != nil {
-					return errors.Wrap(err, "string")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "serviceTag",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: seriesId.
-	if err := func() error {
-		param := args[1]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[1])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "seriesId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.SeriesId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "seriesId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: seasonId.
-	if err := func() error {
-		param := args[2]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[2])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "seasonId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.SeasonId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "seasonId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: episodeId.
-	if err := func() error {
-		param := args[3]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[3])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "episodeId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.EpisodeId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "episodeId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: variantIndex.
-	if err := func() error {
-		param := args[4]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[4])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "variantIndex",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToInt(val)
-				if err != nil {
-					return err
-				}
-
-				params.VariantIndex = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.Int{
-					MinSet:        true,
-					Min:           0,
-					MaxSet:        false,
-					Max:           0,
-					MinExclusive:  false,
-					MaxExclusive:  false,
-					MultipleOfSet: false,
-					MultipleOf:    0,
-					Pattern:       nil,
-				}).Validate(int64(params.VariantIndex)); err != nil {
-					return errors.Wrap(err, "int")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "variantIndex",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: file.
-	if err := func() error {
-		param := args[5]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[5])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "file",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.File = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "file",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	return params, nil
-}
-
-// GetEpisodeVariantPartialParams is parameters of getEpisodeVariantPartial operation.
-type GetEpisodeVariantPartialParams struct {
-	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
-	ServiceTag string
-	// The TV series's identifier on the streaming service. Preferably a readable slug, not a numeric ID,
-	// when possible.
-	SeriesId string
-	// Identifier for the season. Prefer a human-readable slug (e.g. `season-1`) or a descriptive name when
-	// available.
-	SeasonId string
-	// Identifier for the episode. Prefer a human-readable slug (e.g. `pilot`, `the-one-with-the-sonogram`)
-	// when available.
-	EpisodeId string
-	// Zero-based index of the variant in the master playlist.
-	VariantIndex int
-	// The HLS partial segment, preload hint, or session data filename. Examples: `part001.m4s`,
-	// `hint.m4s`, `data.json`.
-	File string
-}
-
-func unpackGetEpisodeVariantPartialParams(packed middleware.Parameters) (params GetEpisodeVariantPartialParams) {
-	{
-		key := middleware.ParameterKey{
-			Name: "serviceTag",
-			In:   "path",
-		}
-		params.ServiceTag = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "seriesId",
-			In:   "path",
-		}
-		params.SeriesId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "seasonId",
-			In:   "path",
-		}
-		params.SeasonId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "episodeId",
-			In:   "path",
-		}
-		params.EpisodeId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "variantIndex",
-			In:   "path",
-		}
-		params.VariantIndex = packed[key].(int)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "file",
-			In:   "path",
-		}
-		params.File = packed[key].(string)
-	}
-	return params
-}
-
-func decodeGetEpisodeVariantPartialParams(args [6]string, argsEscaped bool, r *http.Request) (params GetEpisodeVariantPartialParams, _ error) {
-	// Decode path: serviceTag.
-	if err := func() error {
-		param := args[0]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[0])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "serviceTag",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.ServiceTag = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.String{
-					MinLength:     0,
-					MinLengthSet:  false,
-					MaxLength:     0,
-					MaxLengthSet:  false,
-					Email:         false,
-					Hostname:      false,
-					Regex:         regexMap["^[A-Z]{2,8}$"],
-					MinNumeric:    0,
-					MinNumericSet: false,
-					MaxNumeric:    0,
-					MaxNumericSet: false,
-				}).Validate(string(params.ServiceTag)); err != nil {
-					return errors.Wrap(err, "string")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "serviceTag",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: seriesId.
-	if err := func() error {
-		param := args[1]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[1])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "seriesId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.SeriesId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "seriesId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: seasonId.
-	if err := func() error {
-		param := args[2]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[2])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "seasonId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.SeasonId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "seasonId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: episodeId.
-	if err := func() error {
-		param := args[3]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[3])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "episodeId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.EpisodeId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "episodeId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: variantIndex.
-	if err := func() error {
-		param := args[4]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[4])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "variantIndex",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToInt(val)
-				if err != nil {
-					return err
-				}
-
-				params.VariantIndex = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.Int{
-					MinSet:        true,
-					Min:           0,
-					MaxSet:        false,
-					Max:           0,
-					MinExclusive:  false,
-					MaxExclusive:  false,
-					MultipleOfSet: false,
-					MultipleOf:    0,
-					Pattern:       nil,
-				}).Validate(int64(params.VariantIndex)); err != nil {
-					return errors.Wrap(err, "int")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "variantIndex",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: file.
-	if err := func() error {
-		param := args[5]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[5])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "file",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.File = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "file",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	return params, nil
-}
-
-// GetEpisodeVariantPreloadHintParams is parameters of getEpisodeVariantPreloadHint operation.
-type GetEpisodeVariantPreloadHintParams struct {
-	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
-	ServiceTag string
-	// The TV series's identifier on the streaming service. Preferably a readable slug, not a numeric ID,
-	// when possible.
-	SeriesId string
-	// Identifier for the season. Prefer a human-readable slug (e.g. `season-1`) or a descriptive name when
-	// available.
-	SeasonId string
-	// Identifier for the episode. Prefer a human-readable slug (e.g. `pilot`, `the-one-with-the-sonogram`)
-	// when available.
-	EpisodeId string
-	// Zero-based index of the variant in the master playlist.
-	VariantIndex int
-	// The HLS partial segment, preload hint, or session data filename. Examples: `part001.m4s`,
-	// `hint.m4s`, `data.json`.
-	File string
-}
-
-func unpackGetEpisodeVariantPreloadHintParams(packed middleware.Parameters) (params GetEpisodeVariantPreloadHintParams) {
-	{
-		key := middleware.ParameterKey{
-			Name: "serviceTag",
-			In:   "path",
-		}
-		params.ServiceTag = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "seriesId",
-			In:   "path",
-		}
-		params.SeriesId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "seasonId",
-			In:   "path",
-		}
-		params.SeasonId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "episodeId",
-			In:   "path",
-		}
-		params.EpisodeId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "variantIndex",
-			In:   "path",
-		}
-		params.VariantIndex = packed[key].(int)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "file",
-			In:   "path",
-		}
-		params.File = packed[key].(string)
-	}
-	return params
-}
-
-func decodeGetEpisodeVariantPreloadHintParams(args [6]string, argsEscaped bool, r *http.Request) (params GetEpisodeVariantPreloadHintParams, _ error) {
-	// Decode path: serviceTag.
-	if err := func() error {
-		param := args[0]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[0])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "serviceTag",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.ServiceTag = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.String{
-					MinLength:     0,
-					MinLengthSet:  false,
-					MaxLength:     0,
-					MaxLengthSet:  false,
-					Email:         false,
-					Hostname:      false,
-					Regex:         regexMap["^[A-Z]{2,8}$"],
-					MinNumeric:    0,
-					MinNumericSet: false,
-					MaxNumeric:    0,
-					MaxNumericSet: false,
-				}).Validate(string(params.ServiceTag)); err != nil {
-					return errors.Wrap(err, "string")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "serviceTag",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: seriesId.
-	if err := func() error {
-		param := args[1]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[1])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "seriesId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.SeriesId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "seriesId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: seasonId.
-	if err := func() error {
-		param := args[2]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[2])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "seasonId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.SeasonId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "seasonId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: episodeId.
-	if err := func() error {
-		param := args[3]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[3])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "episodeId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.EpisodeId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "episodeId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: variantIndex.
-	if err := func() error {
-		param := args[4]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[4])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "variantIndex",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToInt(val)
-				if err != nil {
-					return err
-				}
-
-				params.VariantIndex = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.Int{
-					MinSet:        true,
-					Min:           0,
-					MaxSet:        false,
-					Max:           0,
-					MinExclusive:  false,
-					MaxExclusive:  false,
-					MultipleOfSet: false,
-					MultipleOf:    0,
-					Pattern:       nil,
-				}).Validate(int64(params.VariantIndex)); err != nil {
-					return errors.Wrap(err, "int")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "variantIndex",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: file.
-	if err := func() error {
-		param := args[5]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[5])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "file",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.File = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "file",
 			In:   "path",
 			Err:  err,
 		}
@@ -9340,7 +7500,8 @@ type GetMovieDASHSegmentParams struct {
 	// The segment filename. Examples:
 	//
 	//  - HLS: `segment_00001.ts`, `init.mp4`
-	//  - DASH: `00001.m4s`, `init.mp4`
+	//  - DASH: `seg_00001.m4s` (the $Number$-substituted template basename, e.g. `$Number%05d$` →
+	//    `00001`), `270000.m4s`
 	Segment string
 }
 
@@ -9780,6 +7941,653 @@ func decodeGetMovieDASHSegmentParams(args [7]string, argsEscaped bool, r *http.R
 	return params, nil
 }
 
+// GetMovieHLSKeyParams is parameters of getMovieHLSKey operation.
+type GetMovieHLSKeyParams struct {
+	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
+	ServiceTag string
+	// The movie's identifier on the streaming service. Preferably a readable slug, not a numeric ID, when
+	// possible.
+	MovieId string
+	// The HLS encryption key id, made up of the first characters hash of the url of the upstream key file.
+	File string
+}
+
+func unpackGetMovieHLSKeyParams(packed middleware.Parameters) (params GetMovieHLSKeyParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "serviceTag",
+			In:   "path",
+		}
+		params.ServiceTag = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "movieId",
+			In:   "path",
+		}
+		params.MovieId = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "file",
+			In:   "path",
+		}
+		params.File = packed[key].(string)
+	}
+	return params
+}
+
+func decodeGetMovieHLSKeyParams(args [3]string, argsEscaped bool, r *http.Request) (params GetMovieHLSKeyParams, _ error) {
+	// Decode path: serviceTag.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "serviceTag",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.ServiceTag = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[A-Z]{2,8}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.ServiceTag)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "serviceTag",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: movieId.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "movieId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.MovieId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "movieId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: file.
+	if err := func() error {
+		param := args[2]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[2])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "file",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.File = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[a-f0-9]{12}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.File)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "file",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// GetMovieHLSPartialParams is parameters of getMovieHLSPartial operation.
+type GetMovieHLSPartialParams struct {
+	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
+	ServiceTag string
+	// The movie's identifier on the streaming service. Preferably a readable slug, not a numeric ID, when
+	// possible.
+	MovieId string
+	// The HLS partial segment, preload hint, or session data id, made up of the first characters hash of
+	// the url of the upstream resource.
+	File string
+}
+
+func unpackGetMovieHLSPartialParams(packed middleware.Parameters) (params GetMovieHLSPartialParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "serviceTag",
+			In:   "path",
+		}
+		params.ServiceTag = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "movieId",
+			In:   "path",
+		}
+		params.MovieId = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "file",
+			In:   "path",
+		}
+		params.File = packed[key].(string)
+	}
+	return params
+}
+
+func decodeGetMovieHLSPartialParams(args [3]string, argsEscaped bool, r *http.Request) (params GetMovieHLSPartialParams, _ error) {
+	// Decode path: serviceTag.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "serviceTag",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.ServiceTag = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[A-Z]{2,8}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.ServiceTag)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "serviceTag",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: movieId.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "movieId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.MovieId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "movieId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: file.
+	if err := func() error {
+		param := args[2]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[2])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "file",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.File = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[a-f0-9]{12}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.File)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "file",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// GetMovieHLSPreloadHintParams is parameters of getMovieHLSPreloadHint operation.
+type GetMovieHLSPreloadHintParams struct {
+	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
+	ServiceTag string
+	// The movie's identifier on the streaming service. Preferably a readable slug, not a numeric ID, when
+	// possible.
+	MovieId string
+	// The HLS partial segment, preload hint, or session data id, made up of the first characters hash of
+	// the url of the upstream resource.
+	File string
+}
+
+func unpackGetMovieHLSPreloadHintParams(packed middleware.Parameters) (params GetMovieHLSPreloadHintParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "serviceTag",
+			In:   "path",
+		}
+		params.ServiceTag = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "movieId",
+			In:   "path",
+		}
+		params.MovieId = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "file",
+			In:   "path",
+		}
+		params.File = packed[key].(string)
+	}
+	return params
+}
+
+func decodeGetMovieHLSPreloadHintParams(args [3]string, argsEscaped bool, r *http.Request) (params GetMovieHLSPreloadHintParams, _ error) {
+	// Decode path: serviceTag.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "serviceTag",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.ServiceTag = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[A-Z]{2,8}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.ServiceTag)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "serviceTag",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: movieId.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "movieId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.MovieId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "movieId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: file.
+	if err := func() error {
+		param := args[2]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[2])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "file",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.File = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[a-f0-9]{12}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.File)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "file",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // GetMovieHLSRenditionParams is parameters of getMovieHLSRendition operation.
 type GetMovieHLSRenditionParams struct {
 	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
@@ -10045,7 +8853,8 @@ type GetMovieHLSRenditionSegmentParams struct {
 	// The segment filename. Examples:
 	//
 	//  - HLS: `segment_00001.ts`, `init.mp4`
-	//  - DASH: `00001.m4s`, `init.mp4`
+	//  - DASH: `seg_00001.m4s` (the $Number$-substituted template basename, e.g. `$Number%05d$` →
+	//    `00001`), `270000.m4s`
 	Segment string
 }
 
@@ -10344,8 +9153,8 @@ type GetMovieHLSSessionDataParams struct {
 	// The movie's identifier on the streaming service. Preferably a readable slug, not a numeric ID, when
 	// possible.
 	MovieId string
-	// The HLS partial segment, preload hint, or session data filename. Examples: `part001.m4s`,
-	// `hint.m4s`, `data.json`.
+	// The HLS partial segment, preload hint, or session data id, made up of the first characters hash of
+	// the url of the upstream resource.
 	File string
 }
 
@@ -10519,6 +9328,26 @@ func decodeGetMovieHLSSessionDataParams(args [3]string, argsEscaped bool, r *htt
 			}(); err != nil {
 				return err
 			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[a-f0-9]{12}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.File)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
 		} else {
 			return validate.ErrFieldRequired
 		}
@@ -10540,7 +9369,7 @@ type GetMovieHLSSessionKeyParams struct {
 	// The movie's identifier on the streaming service. Preferably a readable slug, not a numeric ID, when
 	// possible.
 	MovieId string
-	// The HLS encryption key filename. Examples: `serve.key`, `encryption.key`, `hls-key.bin`.
+	// The HLS encryption key id, made up of the first characters hash of the url of the upstream key file.
 	File string
 }
 
@@ -10714,6 +9543,26 @@ func decodeGetMovieHLSSessionKeyParams(args [3]string, argsEscaped bool, r *http
 			}(); err != nil {
 				return err
 			}
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[a-f0-9]{12}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.File)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
 		} else {
 			return validate.ErrFieldRequired
 		}
@@ -10876,8 +9725,9 @@ type GetMovieHLSVariantParams struct {
 	// The movie's identifier on the streaming service. Preferably a readable slug, not a numeric ID, when
 	// possible.
 	MovieId string
-	// Zero-based index of the variant in the master playlist.
-	VariantIndex int
+	// The HLS variant id, made up of the first characters hash of the url of the upstream variant
+	// playlist.
+	VariantId string
 }
 
 func unpackGetMovieHLSVariantParams(packed middleware.Parameters) (params GetMovieHLSVariantParams) {
@@ -10897,10 +9747,10 @@ func unpackGetMovieHLSVariantParams(packed middleware.Parameters) (params GetMov
 	}
 	{
 		key := middleware.ParameterKey{
-			Name: "variantIndex",
+			Name: "variantId",
 			In:   "path",
 		}
-		params.VariantIndex = packed[key].(int)
+		params.VariantId = packed[key].(string)
 	}
 	return params
 }
@@ -11016,7 +9866,7 @@ func decodeGetMovieHLSVariantParams(args [3]string, argsEscaped bool, r *http.Re
 			Err:  err,
 		}
 	}
-	// Decode path: variantIndex.
+	// Decode path: variantId.
 	if err := func() error {
 		param := args[2]
 		if argsEscaped {
@@ -11028,7 +9878,7 @@ func decodeGetMovieHLSVariantParams(args [3]string, argsEscaped bool, r *http.Re
 		}
 		if len(param) > 0 {
 			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "variantIndex",
+				Param:   "variantId",
 				Value:   param,
 				Style:   uri.PathStyleSimple,
 				Explode: false,
@@ -11040,29 +9890,31 @@ func decodeGetMovieHLSVariantParams(args [3]string, argsEscaped bool, r *http.Re
 					return err
 				}
 
-				c, err := conv.ToInt(val)
+				c, err := conv.ToString(val)
 				if err != nil {
 					return err
 				}
 
-				params.VariantIndex = c
+				params.VariantId = c
 				return nil
 			}(); err != nil {
 				return err
 			}
 			if err := func() error {
-				if err := (validate.Int{
-					MinSet:        true,
-					Min:           0,
-					MaxSet:        false,
-					Max:           0,
-					MinExclusive:  false,
-					MaxExclusive:  false,
-					MultipleOfSet: false,
-					MultipleOf:    0,
-					Pattern:       nil,
-				}).Validate(int64(params.VariantIndex)); err != nil {
-					return errors.Wrap(err, "int")
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[a-f0-9]{12}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.VariantId)); err != nil {
+					return errors.Wrap(err, "string")
 				}
 				return nil
 			}(); err != nil {
@@ -11074,7 +9926,7 @@ func decodeGetMovieHLSVariantParams(args [3]string, argsEscaped bool, r *http.Re
 		return nil
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
-			Name: "variantIndex",
+			Name: "variantId",
 			In:   "path",
 			Err:  err,
 		}
@@ -11089,12 +9941,14 @@ type GetMovieHLSVariantSegmentParams struct {
 	// The movie's identifier on the streaming service. Preferably a readable slug, not a numeric ID, when
 	// possible.
 	MovieId string
-	// Zero-based index of the variant in the master playlist.
-	VariantIndex int
+	// The HLS variant id, made up of the first characters hash of the url of the upstream variant
+	// playlist.
+	VariantId string
 	// The segment filename. Examples:
 	//
 	//  - HLS: `segment_00001.ts`, `init.mp4`
-	//  - DASH: `00001.m4s`, `init.mp4`
+	//  - DASH: `seg_00001.m4s` (the $Number$-substituted template basename, e.g. `$Number%05d$` →
+	//    `00001`), `270000.m4s`
 	Segment string
 }
 
@@ -11115,10 +9969,10 @@ func unpackGetMovieHLSVariantSegmentParams(packed middleware.Parameters) (params
 	}
 	{
 		key := middleware.ParameterKey{
-			Name: "variantIndex",
+			Name: "variantId",
 			In:   "path",
 		}
-		params.VariantIndex = packed[key].(int)
+		params.VariantId = packed[key].(string)
 	}
 	{
 		key := middleware.ParameterKey{
@@ -11241,7 +10095,7 @@ func decodeGetMovieHLSVariantSegmentParams(args [4]string, argsEscaped bool, r *
 			Err:  err,
 		}
 	}
-	// Decode path: variantIndex.
+	// Decode path: variantId.
 	if err := func() error {
 		param := args[2]
 		if argsEscaped {
@@ -11253,7 +10107,7 @@ func decodeGetMovieHLSVariantSegmentParams(args [4]string, argsEscaped bool, r *
 		}
 		if len(param) > 0 {
 			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "variantIndex",
+				Param:   "variantId",
 				Value:   param,
 				Style:   uri.PathStyleSimple,
 				Explode: false,
@@ -11265,29 +10119,31 @@ func decodeGetMovieHLSVariantSegmentParams(args [4]string, argsEscaped bool, r *
 					return err
 				}
 
-				c, err := conv.ToInt(val)
+				c, err := conv.ToString(val)
 				if err != nil {
 					return err
 				}
 
-				params.VariantIndex = c
+				params.VariantId = c
 				return nil
 			}(); err != nil {
 				return err
 			}
 			if err := func() error {
-				if err := (validate.Int{
-					MinSet:        true,
-					Min:           0,
-					MaxSet:        false,
-					Max:           0,
-					MinExclusive:  false,
-					MaxExclusive:  false,
-					MultipleOfSet: false,
-					MultipleOf:    0,
-					Pattern:       nil,
-				}).Validate(int64(params.VariantIndex)); err != nil {
-					return errors.Wrap(err, "int")
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^[a-f0-9]{12}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(params.VariantId)); err != nil {
+					return errors.Wrap(err, "string")
 				}
 				return nil
 			}(); err != nil {
@@ -11299,7 +10155,7 @@ func decodeGetMovieHLSVariantSegmentParams(args [4]string, argsEscaped bool, r *
 		return nil
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
-			Name: "variantIndex",
+			Name: "variantId",
 			In:   "path",
 			Err:  err,
 		}
@@ -11493,920 +10349,6 @@ func decodeGetMoviePosterParams(args [2]string, argsEscaped bool, r *http.Reques
 	return params, nil
 }
 
-// GetMovieRenditionKeyParams is parameters of getMovieRenditionKey operation.
-type GetMovieRenditionKeyParams struct {
-	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
-	ServiceTag string
-	// The movie's identifier on the streaming service. Preferably a readable slug, not a numeric ID, when
-	// possible.
-	MovieId string
-	// The GROUP-ID attribute from the EXT-X-MEDIA tag. Uniquely identifies a rendition group within a
-	// master playlist.
-	GroupId string
-	// The NAME attribute from the EXT-X-MEDIA tag. Uniquely identifies a rendition within its group.
-	RenditionName string
-	// The HLS encryption key filename. Examples: `serve.key`, `encryption.key`, `hls-key.bin`.
-	File string
-}
-
-func unpackGetMovieRenditionKeyParams(packed middleware.Parameters) (params GetMovieRenditionKeyParams) {
-	{
-		key := middleware.ParameterKey{
-			Name: "serviceTag",
-			In:   "path",
-		}
-		params.ServiceTag = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "movieId",
-			In:   "path",
-		}
-		params.MovieId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "groupId",
-			In:   "path",
-		}
-		params.GroupId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "renditionName",
-			In:   "path",
-		}
-		params.RenditionName = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "file",
-			In:   "path",
-		}
-		params.File = packed[key].(string)
-	}
-	return params
-}
-
-func decodeGetMovieRenditionKeyParams(args [5]string, argsEscaped bool, r *http.Request) (params GetMovieRenditionKeyParams, _ error) {
-	// Decode path: serviceTag.
-	if err := func() error {
-		param := args[0]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[0])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "serviceTag",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.ServiceTag = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.String{
-					MinLength:     0,
-					MinLengthSet:  false,
-					MaxLength:     0,
-					MaxLengthSet:  false,
-					Email:         false,
-					Hostname:      false,
-					Regex:         regexMap["^[A-Z]{2,8}$"],
-					MinNumeric:    0,
-					MinNumericSet: false,
-					MaxNumeric:    0,
-					MaxNumericSet: false,
-				}).Validate(string(params.ServiceTag)); err != nil {
-					return errors.Wrap(err, "string")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "serviceTag",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: movieId.
-	if err := func() error {
-		param := args[1]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[1])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "movieId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.MovieId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "movieId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: groupId.
-	if err := func() error {
-		param := args[2]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[2])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "groupId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.GroupId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "groupId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: renditionName.
-	if err := func() error {
-		param := args[3]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[3])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "renditionName",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.RenditionName = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "renditionName",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: file.
-	if err := func() error {
-		param := args[4]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[4])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "file",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.File = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "file",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	return params, nil
-}
-
-// GetMovieRenditionPartialParams is parameters of getMovieRenditionPartial operation.
-type GetMovieRenditionPartialParams struct {
-	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
-	ServiceTag string
-	// The movie's identifier on the streaming service. Preferably a readable slug, not a numeric ID, when
-	// possible.
-	MovieId string
-	// The GROUP-ID attribute from the EXT-X-MEDIA tag. Uniquely identifies a rendition group within a
-	// master playlist.
-	GroupId string
-	// The NAME attribute from the EXT-X-MEDIA tag. Uniquely identifies a rendition within its group.
-	RenditionName string
-	// The HLS partial segment, preload hint, or session data filename. Examples: `part001.m4s`,
-	// `hint.m4s`, `data.json`.
-	File string
-}
-
-func unpackGetMovieRenditionPartialParams(packed middleware.Parameters) (params GetMovieRenditionPartialParams) {
-	{
-		key := middleware.ParameterKey{
-			Name: "serviceTag",
-			In:   "path",
-		}
-		params.ServiceTag = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "movieId",
-			In:   "path",
-		}
-		params.MovieId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "groupId",
-			In:   "path",
-		}
-		params.GroupId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "renditionName",
-			In:   "path",
-		}
-		params.RenditionName = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "file",
-			In:   "path",
-		}
-		params.File = packed[key].(string)
-	}
-	return params
-}
-
-func decodeGetMovieRenditionPartialParams(args [5]string, argsEscaped bool, r *http.Request) (params GetMovieRenditionPartialParams, _ error) {
-	// Decode path: serviceTag.
-	if err := func() error {
-		param := args[0]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[0])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "serviceTag",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.ServiceTag = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.String{
-					MinLength:     0,
-					MinLengthSet:  false,
-					MaxLength:     0,
-					MaxLengthSet:  false,
-					Email:         false,
-					Hostname:      false,
-					Regex:         regexMap["^[A-Z]{2,8}$"],
-					MinNumeric:    0,
-					MinNumericSet: false,
-					MaxNumeric:    0,
-					MaxNumericSet: false,
-				}).Validate(string(params.ServiceTag)); err != nil {
-					return errors.Wrap(err, "string")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "serviceTag",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: movieId.
-	if err := func() error {
-		param := args[1]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[1])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "movieId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.MovieId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "movieId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: groupId.
-	if err := func() error {
-		param := args[2]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[2])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "groupId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.GroupId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "groupId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: renditionName.
-	if err := func() error {
-		param := args[3]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[3])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "renditionName",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.RenditionName = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "renditionName",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: file.
-	if err := func() error {
-		param := args[4]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[4])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "file",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.File = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "file",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	return params, nil
-}
-
-// GetMovieRenditionPreloadHintParams is parameters of getMovieRenditionPreloadHint operation.
-type GetMovieRenditionPreloadHintParams struct {
-	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
-	ServiceTag string
-	// The movie's identifier on the streaming service. Preferably a readable slug, not a numeric ID, when
-	// possible.
-	MovieId string
-	// The GROUP-ID attribute from the EXT-X-MEDIA tag. Uniquely identifies a rendition group within a
-	// master playlist.
-	GroupId string
-	// The NAME attribute from the EXT-X-MEDIA tag. Uniquely identifies a rendition within its group.
-	RenditionName string
-	// The HLS partial segment, preload hint, or session data filename. Examples: `part001.m4s`,
-	// `hint.m4s`, `data.json`.
-	File string
-}
-
-func unpackGetMovieRenditionPreloadHintParams(packed middleware.Parameters) (params GetMovieRenditionPreloadHintParams) {
-	{
-		key := middleware.ParameterKey{
-			Name: "serviceTag",
-			In:   "path",
-		}
-		params.ServiceTag = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "movieId",
-			In:   "path",
-		}
-		params.MovieId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "groupId",
-			In:   "path",
-		}
-		params.GroupId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "renditionName",
-			In:   "path",
-		}
-		params.RenditionName = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "file",
-			In:   "path",
-		}
-		params.File = packed[key].(string)
-	}
-	return params
-}
-
-func decodeGetMovieRenditionPreloadHintParams(args [5]string, argsEscaped bool, r *http.Request) (params GetMovieRenditionPreloadHintParams, _ error) {
-	// Decode path: serviceTag.
-	if err := func() error {
-		param := args[0]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[0])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "serviceTag",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.ServiceTag = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.String{
-					MinLength:     0,
-					MinLengthSet:  false,
-					MaxLength:     0,
-					MaxLengthSet:  false,
-					Email:         false,
-					Hostname:      false,
-					Regex:         regexMap["^[A-Z]{2,8}$"],
-					MinNumeric:    0,
-					MinNumericSet: false,
-					MaxNumeric:    0,
-					MaxNumericSet: false,
-				}).Validate(string(params.ServiceTag)); err != nil {
-					return errors.Wrap(err, "string")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "serviceTag",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: movieId.
-	if err := func() error {
-		param := args[1]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[1])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "movieId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.MovieId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "movieId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: groupId.
-	if err := func() error {
-		param := args[2]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[2])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "groupId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.GroupId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "groupId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: renditionName.
-	if err := func() error {
-		param := args[3]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[3])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "renditionName",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.RenditionName = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "renditionName",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: file.
-	if err := func() error {
-		param := args[4]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[4])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "file",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.File = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "file",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	return params, nil
-}
-
 // GetMovieStreamFileParams is parameters of getMovieStreamFile operation.
 type GetMovieStreamFileParams struct {
 	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
@@ -12416,12 +10358,6 @@ type GetMovieStreamFileParams struct {
 	MovieId string
 	// The streaming format type. Determines the manifest/segment URL scheme and content types.
 	Format StreamFormat
-	// The stream manifest or media filename. Standard names:
-	//
-	//  - `master.m3u8` - HLS master playlist
-	//  - `manifest.mpd` - DASH manifest
-	//  - `video.mp4` - Direct MP4 file
-	File string
 }
 
 func unpackGetMovieStreamFileParams(packed middleware.Parameters) (params GetMovieStreamFileParams) {
@@ -12446,17 +10382,10 @@ func unpackGetMovieStreamFileParams(packed middleware.Parameters) (params GetMov
 		}
 		params.Format = packed[key].(StreamFormat)
 	}
-	{
-		key := middleware.ParameterKey{
-			Name: "file",
-			In:   "path",
-		}
-		params.File = packed[key].(string)
-	}
 	return params
 }
 
-func decodeGetMovieStreamFileParams(args [4]string, argsEscaped bool, r *http.Request) (params GetMovieStreamFileParams, _ error) {
+func decodeGetMovieStreamFileParams(args [3]string, argsEscaped bool, r *http.Request) (params GetMovieStreamFileParams, _ error) {
 	// Decode path: serviceTag.
 	if err := func() error {
 		param := args[0]
@@ -12616,366 +10545,6 @@ func decodeGetMovieStreamFileParams(args [4]string, argsEscaped bool, r *http.Re
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "format",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: file.
-	if err := func() error {
-		param := args[3]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[3])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "file",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.File = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "file",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	return params, nil
-}
-
-// GetMovieStreamSegmentParams is parameters of getMovieStreamSegment operation.
-type GetMovieStreamSegmentParams struct {
-	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
-	ServiceTag string
-	// The movie's identifier on the streaming service. Preferably a readable slug, not a numeric ID, when
-	// possible.
-	MovieId string
-	// The streaming format type. Determines the manifest/segment URL scheme and content types.
-	Format StreamFormat
-	// The rendition (bitrate option) identifier. For HLS this is the variant playlist name (e.g. `720p`,
-	// `1080p`). For DASH this is the representation ID (e.g. `v1`, `v2`).
-	Rendition string
-	// The segment filename. Examples:
-	//
-	//  - HLS: `segment_00001.ts`, `init.mp4`
-	//  - DASH: `00001.m4s`, `init.mp4`
-	Segment string
-}
-
-func unpackGetMovieStreamSegmentParams(packed middleware.Parameters) (params GetMovieStreamSegmentParams) {
-	{
-		key := middleware.ParameterKey{
-			Name: "serviceTag",
-			In:   "path",
-		}
-		params.ServiceTag = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "movieId",
-			In:   "path",
-		}
-		params.MovieId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "format",
-			In:   "path",
-		}
-		params.Format = packed[key].(StreamFormat)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "rendition",
-			In:   "path",
-		}
-		params.Rendition = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "segment",
-			In:   "path",
-		}
-		params.Segment = packed[key].(string)
-	}
-	return params
-}
-
-func decodeGetMovieStreamSegmentParams(args [5]string, argsEscaped bool, r *http.Request) (params GetMovieStreamSegmentParams, _ error) {
-	// Decode path: serviceTag.
-	if err := func() error {
-		param := args[0]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[0])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "serviceTag",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.ServiceTag = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.String{
-					MinLength:     0,
-					MinLengthSet:  false,
-					MaxLength:     0,
-					MaxLengthSet:  false,
-					Email:         false,
-					Hostname:      false,
-					Regex:         regexMap["^[A-Z]{2,8}$"],
-					MinNumeric:    0,
-					MinNumericSet: false,
-					MaxNumeric:    0,
-					MaxNumericSet: false,
-				}).Validate(string(params.ServiceTag)); err != nil {
-					return errors.Wrap(err, "string")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "serviceTag",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: movieId.
-	if err := func() error {
-		param := args[1]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[1])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "movieId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.MovieId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "movieId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: format.
-	if err := func() error {
-		param := args[2]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[2])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "format",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.Format = StreamFormat(c)
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := params.Format.Validate(); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "format",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: rendition.
-	if err := func() error {
-		param := args[3]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[3])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "rendition",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.Rendition = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "rendition",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: segment.
-	if err := func() error {
-		param := args[4]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[4])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "segment",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.Segment = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "segment",
 			In:   "path",
 			Err:  err,
 		}
@@ -13289,24 +10858,18 @@ func decodeGetMovieStreamsParams(args [2]string, argsEscaped bool, r *http.Reque
 	return params, nil
 }
 
-// GetMovieSubtitleFileParams is parameters of getMovieSubtitleFile operation.
-type GetMovieSubtitleFileParams struct {
+// GetMovieSubtitleParams is parameters of getMovieSubtitle operation.
+type GetMovieSubtitleParams struct {
 	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
 	ServiceTag string
 	// The movie's identifier on the streaming service. Preferably a readable slug, not a numeric ID, when
 	// possible.
 	MovieId string
-	// The subtitle filename, following the `{language}[-{kind}].{format}` convention:
-	//
-	//  - `en.vtt` - English, default
-	//  - `en-sdh.vtt` - English, hearing impaired
-	//  - `en-cc.vtt` - English, closed captions
-	//  - `fr.vtt` - French, default
-	//  - `ja.ttml` - Japanese, TTML format
-	SubtitleFile string
+	// The subtitle id, made up of the first characters hash of the url of the upstream subtitle file.
+	SubtitleId string
 }
 
-func unpackGetMovieSubtitleFileParams(packed middleware.Parameters) (params GetMovieSubtitleFileParams) {
+func unpackGetMovieSubtitleParams(packed middleware.Parameters) (params GetMovieSubtitleParams) {
 	{
 		key := middleware.ParameterKey{
 			Name: "serviceTag",
@@ -13323,15 +10886,15 @@ func unpackGetMovieSubtitleFileParams(packed middleware.Parameters) (params GetM
 	}
 	{
 		key := middleware.ParameterKey{
-			Name: "subtitleFile",
+			Name: "subtitleId",
 			In:   "path",
 		}
-		params.SubtitleFile = packed[key].(string)
+		params.SubtitleId = packed[key].(string)
 	}
 	return params
 }
 
-func decodeGetMovieSubtitleFileParams(args [3]string, argsEscaped bool, r *http.Request) (params GetMovieSubtitleFileParams, _ error) {
+func decodeGetMovieSubtitleParams(args [3]string, argsEscaped bool, r *http.Request) (params GetMovieSubtitleParams, _ error) {
 	// Decode path: serviceTag.
 	if err := func() error {
 		param := args[0]
@@ -13442,7 +11005,7 @@ func decodeGetMovieSubtitleFileParams(args [3]string, argsEscaped bool, r *http.
 			Err:  err,
 		}
 	}
-	// Decode path: subtitleFile.
+	// Decode path: subtitleId.
 	if err := func() error {
 		param := args[2]
 		if argsEscaped {
@@ -13454,7 +11017,7 @@ func decodeGetMovieSubtitleFileParams(args [3]string, argsEscaped bool, r *http.
 		}
 		if len(param) > 0 {
 			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "subtitleFile",
+				Param:   "subtitleId",
 				Value:   param,
 				Style:   uri.PathStyleSimple,
 				Explode: false,
@@ -13471,7 +11034,7 @@ func decodeGetMovieSubtitleFileParams(args [3]string, argsEscaped bool, r *http.
 					return err
 				}
 
-				params.SubtitleFile = c
+				params.SubtitleId = c
 				return nil
 			}(); err != nil {
 				return err
@@ -13484,12 +11047,12 @@ func decodeGetMovieSubtitleFileParams(args [3]string, argsEscaped bool, r *http.
 					MaxLengthSet:  false,
 					Email:         false,
 					Hostname:      false,
-					Regex:         regexMap["^[a-z]{2}(?:-(?:sdh|cc|forced))?\\.(?:vtt|srt|ttml|ass)$"],
+					Regex:         regexMap["^[a-f0-9]{12}$"],
 					MinNumeric:    0,
 					MinNumericSet: false,
 					MaxNumeric:    0,
 					MaxNumericSet: false,
-				}).Validate(string(params.SubtitleFile)); err != nil {
+				}).Validate(string(params.SubtitleId)); err != nil {
 					return errors.Wrap(err, "string")
 				}
 				return nil
@@ -13502,7 +11065,7 @@ func decodeGetMovieSubtitleFileParams(args [3]string, argsEscaped bool, r *http.
 		return nil
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
-			Name: "subtitleFile",
+			Name: "subtitleId",
 			In:   "path",
 			Err:  err,
 		}
@@ -13809,809 +11372,6 @@ func decodeGetMovieSubtitlesParams(args [2]string, argsEscaped bool, r *http.Req
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "movieId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	return params, nil
-}
-
-// GetMovieVariantKeyParams is parameters of getMovieVariantKey operation.
-type GetMovieVariantKeyParams struct {
-	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
-	ServiceTag string
-	// The movie's identifier on the streaming service. Preferably a readable slug, not a numeric ID, when
-	// possible.
-	MovieId string
-	// Zero-based index of the variant in the master playlist.
-	VariantIndex int
-	// The HLS encryption key filename. Examples: `serve.key`, `encryption.key`, `hls-key.bin`.
-	File string
-}
-
-func unpackGetMovieVariantKeyParams(packed middleware.Parameters) (params GetMovieVariantKeyParams) {
-	{
-		key := middleware.ParameterKey{
-			Name: "serviceTag",
-			In:   "path",
-		}
-		params.ServiceTag = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "movieId",
-			In:   "path",
-		}
-		params.MovieId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "variantIndex",
-			In:   "path",
-		}
-		params.VariantIndex = packed[key].(int)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "file",
-			In:   "path",
-		}
-		params.File = packed[key].(string)
-	}
-	return params
-}
-
-func decodeGetMovieVariantKeyParams(args [4]string, argsEscaped bool, r *http.Request) (params GetMovieVariantKeyParams, _ error) {
-	// Decode path: serviceTag.
-	if err := func() error {
-		param := args[0]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[0])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "serviceTag",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.ServiceTag = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.String{
-					MinLength:     0,
-					MinLengthSet:  false,
-					MaxLength:     0,
-					MaxLengthSet:  false,
-					Email:         false,
-					Hostname:      false,
-					Regex:         regexMap["^[A-Z]{2,8}$"],
-					MinNumeric:    0,
-					MinNumericSet: false,
-					MaxNumeric:    0,
-					MaxNumericSet: false,
-				}).Validate(string(params.ServiceTag)); err != nil {
-					return errors.Wrap(err, "string")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "serviceTag",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: movieId.
-	if err := func() error {
-		param := args[1]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[1])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "movieId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.MovieId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "movieId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: variantIndex.
-	if err := func() error {
-		param := args[2]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[2])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "variantIndex",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToInt(val)
-				if err != nil {
-					return err
-				}
-
-				params.VariantIndex = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.Int{
-					MinSet:        true,
-					Min:           0,
-					MaxSet:        false,
-					Max:           0,
-					MinExclusive:  false,
-					MaxExclusive:  false,
-					MultipleOfSet: false,
-					MultipleOf:    0,
-					Pattern:       nil,
-				}).Validate(int64(params.VariantIndex)); err != nil {
-					return errors.Wrap(err, "int")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "variantIndex",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: file.
-	if err := func() error {
-		param := args[3]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[3])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "file",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.File = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "file",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	return params, nil
-}
-
-// GetMovieVariantPartialParams is parameters of getMovieVariantPartial operation.
-type GetMovieVariantPartialParams struct {
-	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
-	ServiceTag string
-	// The movie's identifier on the streaming service. Preferably a readable slug, not a numeric ID, when
-	// possible.
-	MovieId string
-	// Zero-based index of the variant in the master playlist.
-	VariantIndex int
-	// The HLS partial segment, preload hint, or session data filename. Examples: `part001.m4s`,
-	// `hint.m4s`, `data.json`.
-	File string
-}
-
-func unpackGetMovieVariantPartialParams(packed middleware.Parameters) (params GetMovieVariantPartialParams) {
-	{
-		key := middleware.ParameterKey{
-			Name: "serviceTag",
-			In:   "path",
-		}
-		params.ServiceTag = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "movieId",
-			In:   "path",
-		}
-		params.MovieId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "variantIndex",
-			In:   "path",
-		}
-		params.VariantIndex = packed[key].(int)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "file",
-			In:   "path",
-		}
-		params.File = packed[key].(string)
-	}
-	return params
-}
-
-func decodeGetMovieVariantPartialParams(args [4]string, argsEscaped bool, r *http.Request) (params GetMovieVariantPartialParams, _ error) {
-	// Decode path: serviceTag.
-	if err := func() error {
-		param := args[0]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[0])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "serviceTag",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.ServiceTag = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.String{
-					MinLength:     0,
-					MinLengthSet:  false,
-					MaxLength:     0,
-					MaxLengthSet:  false,
-					Email:         false,
-					Hostname:      false,
-					Regex:         regexMap["^[A-Z]{2,8}$"],
-					MinNumeric:    0,
-					MinNumericSet: false,
-					MaxNumeric:    0,
-					MaxNumericSet: false,
-				}).Validate(string(params.ServiceTag)); err != nil {
-					return errors.Wrap(err, "string")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "serviceTag",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: movieId.
-	if err := func() error {
-		param := args[1]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[1])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "movieId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.MovieId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "movieId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: variantIndex.
-	if err := func() error {
-		param := args[2]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[2])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "variantIndex",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToInt(val)
-				if err != nil {
-					return err
-				}
-
-				params.VariantIndex = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.Int{
-					MinSet:        true,
-					Min:           0,
-					MaxSet:        false,
-					Max:           0,
-					MinExclusive:  false,
-					MaxExclusive:  false,
-					MultipleOfSet: false,
-					MultipleOf:    0,
-					Pattern:       nil,
-				}).Validate(int64(params.VariantIndex)); err != nil {
-					return errors.Wrap(err, "int")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "variantIndex",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: file.
-	if err := func() error {
-		param := args[3]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[3])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "file",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.File = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "file",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	return params, nil
-}
-
-// GetMovieVariantPreloadHintParams is parameters of getMovieVariantPreloadHint operation.
-type GetMovieVariantPreloadHintParams struct {
-	// A short, unique tag identifying the streaming service. Example: `CRAV`, `NFLX`, `DSNP`.
-	ServiceTag string
-	// The movie's identifier on the streaming service. Preferably a readable slug, not a numeric ID, when
-	// possible.
-	MovieId string
-	// Zero-based index of the variant in the master playlist.
-	VariantIndex int
-	// The HLS partial segment, preload hint, or session data filename. Examples: `part001.m4s`,
-	// `hint.m4s`, `data.json`.
-	File string
-}
-
-func unpackGetMovieVariantPreloadHintParams(packed middleware.Parameters) (params GetMovieVariantPreloadHintParams) {
-	{
-		key := middleware.ParameterKey{
-			Name: "serviceTag",
-			In:   "path",
-		}
-		params.ServiceTag = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "movieId",
-			In:   "path",
-		}
-		params.MovieId = packed[key].(string)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "variantIndex",
-			In:   "path",
-		}
-		params.VariantIndex = packed[key].(int)
-	}
-	{
-		key := middleware.ParameterKey{
-			Name: "file",
-			In:   "path",
-		}
-		params.File = packed[key].(string)
-	}
-	return params
-}
-
-func decodeGetMovieVariantPreloadHintParams(args [4]string, argsEscaped bool, r *http.Request) (params GetMovieVariantPreloadHintParams, _ error) {
-	// Decode path: serviceTag.
-	if err := func() error {
-		param := args[0]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[0])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "serviceTag",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.ServiceTag = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.String{
-					MinLength:     0,
-					MinLengthSet:  false,
-					MaxLength:     0,
-					MaxLengthSet:  false,
-					Email:         false,
-					Hostname:      false,
-					Regex:         regexMap["^[A-Z]{2,8}$"],
-					MinNumeric:    0,
-					MinNumericSet: false,
-					MaxNumeric:    0,
-					MaxNumericSet: false,
-				}).Validate(string(params.ServiceTag)); err != nil {
-					return errors.Wrap(err, "string")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "serviceTag",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: movieId.
-	if err := func() error {
-		param := args[1]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[1])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "movieId",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.MovieId = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "movieId",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: variantIndex.
-	if err := func() error {
-		param := args[2]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[2])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "variantIndex",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToInt(val)
-				if err != nil {
-					return err
-				}
-
-				params.VariantIndex = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-			if err := func() error {
-				if err := (validate.Int{
-					MinSet:        true,
-					Min:           0,
-					MaxSet:        false,
-					Max:           0,
-					MinExclusive:  false,
-					MaxExclusive:  false,
-					MultipleOfSet: false,
-					MultipleOf:    0,
-					Pattern:       nil,
-				}).Validate(int64(params.VariantIndex)); err != nil {
-					return errors.Wrap(err, "int")
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "variantIndex",
-			In:   "path",
-			Err:  err,
-		}
-	}
-	// Decode path: file.
-	if err := func() error {
-		param := args[3]
-		if argsEscaped {
-			unescaped, err := url.PathUnescape(args[3])
-			if err != nil {
-				return errors.Wrap(err, "unescape path")
-			}
-			param = unescaped
-		}
-		if len(param) > 0 {
-			d := uri.NewPathDecoder(uri.PathDecoderConfig{
-				Param:   "file",
-				Value:   param,
-				Style:   uri.PathStyleSimple,
-				Explode: false,
-			})
-
-			if err := func() error {
-				val, err := d.DecodeValue()
-				if err != nil {
-					return err
-				}
-
-				c, err := conv.ToString(val)
-				if err != nil {
-					return err
-				}
-
-				params.File = c
-				return nil
-			}(); err != nil {
-				return err
-			}
-		} else {
-			return validate.ErrFieldRequired
-		}
-		return nil
-	}(); err != nil {
-		return params, &ogenerrors.DecodeParamError{
-			Name: "file",
 			In:   "path",
 			Err:  err,
 		}

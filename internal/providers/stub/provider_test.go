@@ -170,7 +170,7 @@ func TestMovies(t *testing.T) {
 			t.Errorf("got %d items, want 2", len(got))
 		}
 		if got[0].GetID() != "m2" {
-			t.Errorf("first item ID = %q, want %q", got[0].GetID(), "m2")
+			t.Errorf("first item Id = %q, want %q", got[0].GetID(), "m2")
 		}
 	})
 
@@ -435,8 +435,12 @@ func TestFileEndpoints(t *testing.T) {
 
 	checkLocator("GetMovieStreamLocator", func() (*stream.Locator, error) { return p.GetMovieStreamLocator(t.Context(), "m1", "manifest.mpd") }, "video/mp4")
 	checkFile("GetMovieSubtitleFile", func() (io.ReadCloser, string, error) { return p.GetMovieSubtitleFile(t.Context(), "m1", "en.vtt") })
-	checkLocator("GetEpisodeStreamLocator", func() (*stream.Locator, error) { return p.GetEpisodeStreamLocator(t.Context(), "s1", "sea1", "ep1", "manifest.mpd") }, "video/mp4")
-	checkFile("GetEpisodeSubtitleFile", func() (io.ReadCloser, string, error) { return p.GetEpisodeSubtitleFile(t.Context(), "s1", "sea1", "ep1", "en.vtt") })
+	checkLocator("GetEpisodeStreamLocator", func() (*stream.Locator, error) {
+		return p.GetEpisodeStreamLocator(t.Context(), "s1", "sea1", "ep1", "manifest.mpd")
+	}, "video/mp4")
+	checkFile("GetEpisodeSubtitleFile", func() (io.ReadCloser, string, error) {
+		return p.GetEpisodeSubtitleFile(t.Context(), "s1", "sea1", "ep1", "en.vtt")
+	})
 }
 
 func TestSearch(t *testing.T) {

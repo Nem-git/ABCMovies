@@ -38,25 +38,46 @@ type Invoker interface {
 	//
 	// Returns the initialization segment for a DASH Representation.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/init
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/init
 	GetEpisodeDASHInit(ctx context.Context, params GetEpisodeDASHInitParams) (GetEpisodeDASHInitRes, error)
 	// GetEpisodeDASHSegment invokes getEpisodeDASHSegment operation.
 	//
 	// Returns a single DASH media segment.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/{segment}
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/{segment}
 	GetEpisodeDASHSegment(ctx context.Context, params GetEpisodeDASHSegmentParams) (GetEpisodeDASHSegmentRes, error)
+	// GetEpisodeHLSKey invokes getEpisodeHLSKey operation.
+	//
+	// Returns an AES-128 encryption key referenced by an EXT-X-KEY tag. The key is identified by a hash of
+	// its upstream URL and is fetched from the upstream CDN and proxied through.
+	//
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/keys/{file}
+	GetEpisodeHLSKey(ctx context.Context, params GetEpisodeHLSKeyParams) (GetEpisodeHLSKeyRes, error)
+	// GetEpisodeHLSPartial invokes getEpisodeHLSPartial operation.
+	//
+	// Returns a low-latency HLS partial segment (EXT-X-PART). The partial is identified by a hash of its
+	// upstream URL and is fetched from the upstream CDN and proxied through.
+	//
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/partials/{file}
+	GetEpisodeHLSPartial(ctx context.Context, params GetEpisodeHLSPartialParams) (GetEpisodeHLSPartialRes, error)
+	// GetEpisodeHLSPreloadHint invokes getEpisodeHLSPreloadHint operation.
+	//
+	// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag. The hint is identified by a hash of
+	// its upstream URL and is fetched from the upstream CDN and proxied through.
+	//
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/preload-hints/{file}
+	GetEpisodeHLSPreloadHint(ctx context.Context, params GetEpisodeHLSPreloadHintParams) (GetEpisodeHLSPreloadHintRes, error)
 	// GetEpisodeHLSRendition invokes getEpisodeHLSRendition operation.
 	//
 	// Returns a rewritten HLS media playlist for a specific rendition identified by GROUP-ID and NAME.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/groups/{groupId}/renditions/{renditionName}
 	GetEpisodeHLSRendition(ctx context.Context, params GetEpisodeHLSRenditionParams) (GetEpisodeHLSRenditionRes, error)
 	// GetEpisodeHLSRenditionSegment invokes getEpisodeHLSRenditionSegment operation.
 	//
 	// Returns a single media segment from an HLS rendition sub-playlist.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/segments/{segment}
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/groups/{groupId}/renditions/{renditionName}/segments/{segment}
 	GetEpisodeHLSRenditionSegment(ctx context.Context, params GetEpisodeHLSRenditionSegmentParams) (GetEpisodeHLSRenditionSegmentRes, error)
 	// GetEpisodeHLSSessionData invokes getEpisodeHLSSessionData operation.
 	//
@@ -81,52 +102,25 @@ type Invoker interface {
 	GetEpisodeHLSSteering(ctx context.Context, params GetEpisodeHLSSteeringParams) (GetEpisodeHLSSteeringRes, error)
 	// GetEpisodeHLSVariant invokes getEpisodeHLSVariant operation.
 	//
-	// Returns a rewritten HLS media playlist for a specific variant. The variant is identified by its
-	// zero-based index in the master playlist.
+	// Returns a rewritten HLS media playlist for a specific variant. The variant is identified by a hash
+	// of its upstream playlist URL.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantId}
 	GetEpisodeHLSVariant(ctx context.Context, params GetEpisodeHLSVariantParams) (GetEpisodeHLSVariantRes, error)
 	// GetEpisodeHLSVariantSegment invokes getEpisodeHLSVariantSegment operation.
 	//
 	// Returns a single media segment from an HLS variant sub-playlist.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/segments/{segment}
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantId}/segments/{segment}
 	GetEpisodeHLSVariantSegment(ctx context.Context, params GetEpisodeHLSVariantSegmentParams) (GetEpisodeHLSVariantSegmentRes, error)
-	// GetEpisodeRenditionKey invokes getEpisodeRenditionKey operation.
-	//
-	// Returns an AES-128 encryption key from a rendition sub-playlist. The key file is fetched from the
-	// upstream CDN and proxied through.
-	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/keys/{file}
-	GetEpisodeRenditionKey(ctx context.Context, params GetEpisodeRenditionKeyParams) (GetEpisodeRenditionKeyRes, error)
-	// GetEpisodeRenditionPartial invokes getEpisodeRenditionPartial operation.
-	//
-	// Returns a low-latency HLS partial segment (EXT-X-PART) from a rendition sub-playlist. Fetched from
-	// the upstream CDN.
-	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/partials/{file}
-	GetEpisodeRenditionPartial(ctx context.Context, params GetEpisodeRenditionPartialParams) (GetEpisodeRenditionPartialRes, error)
-	// GetEpisodeRenditionPreloadHint invokes getEpisodeRenditionPreloadHint operation.
-	//
-	// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag from a rendition sub-playlist. Fetched
-	// from the upstream CDN.
-	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/preload-hints/{file}
-	GetEpisodeRenditionPreloadHint(ctx context.Context, params GetEpisodeRenditionPreloadHintParams) (GetEpisodeRenditionPreloadHintRes, error)
 	// GetEpisodeStreamFile invokes getEpisodeStreamFile operation.
 	//
-	// Returns the raw stream manifest or playlist binary content. The response Content-Type matches the
+	// Returns the raw stream manifest binary content for the given format. Episodes expose exactly one
+	// canonical manifest per format, so no file name is required. The response Content-Type matches the
 	// stream's encoding format.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{file}
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}
 	GetEpisodeStreamFile(ctx context.Context, params GetEpisodeStreamFileParams) (GetEpisodeStreamFileRes, error)
-	// GetEpisodeStreamSegment invokes getEpisodeStreamSegment operation.
-	//
-	// Returns a single media segment (HLS .ts/.m4s, DASH .m4s/.mp4) or an initialization segment for a
-	// given rendition.
-	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{rendition}/{segment}
-	GetEpisodeStreamSegment(ctx context.Context, params GetEpisodeStreamSegmentParams) (GetEpisodeStreamSegmentRes, error)
 	// GetEpisodeStreams invokes getEpisodeStreams operation.
 	//
 	// Retrieve all available video stream manifests for an episode. The listing returns metadata only;
@@ -134,12 +128,12 @@ type Invoker interface {
 	//
 	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams
 	GetEpisodeStreams(ctx context.Context, params GetEpisodeStreamsParams) (GetEpisodeStreamsRes, error)
-	// GetEpisodeSubtitleFile invokes getEpisodeSubtitleFile operation.
+	// GetEpisodeSubtitle invokes getEpisodeSubtitle operation.
 	//
 	// Returns the raw subtitle file content. The response Content-Type matches the subtitle format.
 	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/subtitles/{subtitleFile}
-	GetEpisodeSubtitleFile(ctx context.Context, params GetEpisodeSubtitleFileParams) (GetEpisodeSubtitleFileRes, error)
+	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/subtitles/{subtitleId}
+	GetEpisodeSubtitle(ctx context.Context, params GetEpisodeSubtitleParams) (GetEpisodeSubtitleRes, error)
 	// GetEpisodeSubtitles invokes getEpisodeSubtitles operation.
 	//
 	// Retrieve all external subtitle files available for an episode. Only subtitles that exist as
@@ -153,27 +147,6 @@ type Invoker interface {
 	//
 	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/thumbnail
 	GetEpisodeThumbnail(ctx context.Context, params GetEpisodeThumbnailParams) (GetEpisodeThumbnailRes, error)
-	// GetEpisodeVariantKey invokes getEpisodeVariantKey operation.
-	//
-	// Returns an AES-128 encryption key from a variant sub-playlist. The key file is fetched from the
-	// upstream CDN and proxied through.
-	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/keys/{file}
-	GetEpisodeVariantKey(ctx context.Context, params GetEpisodeVariantKeyParams) (GetEpisodeVariantKeyRes, error)
-	// GetEpisodeVariantPartial invokes getEpisodeVariantPartial operation.
-	//
-	// Returns a low-latency HLS partial segment (EXT-X-PART) from a variant sub-playlist. Fetched from the
-	// upstream CDN.
-	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/partials/{file}
-	GetEpisodeVariantPartial(ctx context.Context, params GetEpisodeVariantPartialParams) (GetEpisodeVariantPartialRes, error)
-	// GetEpisodeVariantPreloadHint invokes getEpisodeVariantPreloadHint operation.
-	//
-	// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag from a variant sub-playlist. Fetched
-	// from the upstream CDN.
-	//
-	// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/preload-hints/{file}
-	GetEpisodeVariantPreloadHint(ctx context.Context, params GetEpisodeVariantPreloadHintParams) (GetEpisodeVariantPreloadHintRes, error)
 	// GetEpisodes invokes getEpisodes operation.
 	//
 	// Retrieve all episodes for a given season.
@@ -203,27 +176,48 @@ type Invoker interface {
 	// Returns the initialization segment for a DASH Representation. The init segment URL is resolved from
 	// the upstream SegmentTemplate stored in state, with $RepresentationID$ and $Bandwidth$ resolved.
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/init
+	// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/init
 	GetMovieDASHInit(ctx context.Context, params GetMovieDASHInitParams) (GetMovieDASHInitRes, error)
 	// GetMovieDASHSegment invokes getMovieDASHSegment operation.
 	//
 	// Returns a single DASH media segment. The segment number or time is passed as the {segment} parameter
 	// and resolved against the upstream SegmentTemplate stored in state.
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/{segment}
+	// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/{segment}
 	GetMovieDASHSegment(ctx context.Context, params GetMovieDASHSegmentParams) (GetMovieDASHSegmentRes, error)
+	// GetMovieHLSKey invokes getMovieHLSKey operation.
+	//
+	// Returns an AES-128 encryption key referenced by an EXT-X-KEY tag. The key is identified by a hash of
+	// its upstream URL and is fetched from the upstream CDN and proxied through.
+	//
+	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/keys/{file}
+	GetMovieHLSKey(ctx context.Context, params GetMovieHLSKeyParams) (GetMovieHLSKeyRes, error)
+	// GetMovieHLSPartial invokes getMovieHLSPartial operation.
+	//
+	// Returns a low-latency HLS partial segment (EXT-X-PART). The partial is identified by a hash of its
+	// upstream URL and is fetched from the upstream CDN and proxied through.
+	//
+	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/partials/{file}
+	GetMovieHLSPartial(ctx context.Context, params GetMovieHLSPartialParams) (GetMovieHLSPartialRes, error)
+	// GetMovieHLSPreloadHint invokes getMovieHLSPreloadHint operation.
+	//
+	// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag. The hint is identified by a hash of
+	// its upstream URL and is fetched from the upstream CDN and proxied through.
+	//
+	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/preload-hints/{file}
+	GetMovieHLSPreloadHint(ctx context.Context, params GetMovieHLSPreloadHintParams) (GetMovieHLSPreloadHintRes, error)
 	// GetMovieHLSRendition invokes getMovieHLSRendition operation.
 	//
 	// Returns a rewritten HLS media playlist for a specific rendition identified by GROUP-ID and NAME.
 	// Typically used for audio or subtitle renditions. Segment URLs are rewritten to the proxy.
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}
+	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/groups/{groupId}/renditions/{renditionName}
 	GetMovieHLSRendition(ctx context.Context, params GetMovieHLSRenditionParams) (GetMovieHLSRenditionRes, error)
 	// GetMovieHLSRenditionSegment invokes getMovieHLSRenditionSegment operation.
 	//
 	// Returns a single media segment from an HLS rendition sub-playlist.
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/segments/{segment}
+	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/groups/{groupId}/renditions/{renditionName}/segments/{segment}
 	GetMovieHLSRenditionSegment(ctx context.Context, params GetMovieHLSRenditionSegmentParams) (GetMovieHLSRenditionSegmentRes, error)
 	// GetMovieHLSSessionData invokes getMovieHLSSessionData operation.
 	//
@@ -248,18 +242,17 @@ type Invoker interface {
 	GetMovieHLSSteering(ctx context.Context, params GetMovieHLSSteeringParams) (GetMovieHLSSteeringRes, error)
 	// GetMovieHLSVariant invokes getMovieHLSVariant operation.
 	//
-	// Returns a rewritten HLS media playlist for a specific variant. The variant is identified by its
-	// zero-based index in the master playlist. Segment URLs in the response are rewritten to point back to
-	// the proxy.
+	// Returns a rewritten HLS media playlist for a specific variant. The variant is identified by a hash
+	// of its upstream playlist URL. Segment URLs in the response are rewritten to point back to the proxy.
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}
+	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantId}
 	GetMovieHLSVariant(ctx context.Context, params GetMovieHLSVariantParams) (GetMovieHLSVariantRes, error)
 	// GetMovieHLSVariantSegment invokes getMovieHLSVariantSegment operation.
 	//
 	// Returns a single media segment from an HLS variant sub-playlist. The segment filename is passed
 	// through and resolved against the upstream base URL stored in state.
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/segments/{segment}
+	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantId}/segments/{segment}
 	GetMovieHLSVariantSegment(ctx context.Context, params GetMovieHLSVariantSegmentParams) (GetMovieHLSVariantSegmentRes, error)
 	// GetMoviePoster invokes getMoviePoster operation.
 	//
@@ -267,41 +260,13 @@ type Invoker interface {
 	//
 	// GET /services/{serviceTag}/movies/{movieId}/poster
 	GetMoviePoster(ctx context.Context, params GetMoviePosterParams) (GetMoviePosterRes, error)
-	// GetMovieRenditionKey invokes getMovieRenditionKey operation.
-	//
-	// Returns an AES-128 encryption key from a rendition sub-playlist. The key file is fetched from the
-	// upstream CDN and proxied through.
-	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/keys/{file}
-	GetMovieRenditionKey(ctx context.Context, params GetMovieRenditionKeyParams) (GetMovieRenditionKeyRes, error)
-	// GetMovieRenditionPartial invokes getMovieRenditionPartial operation.
-	//
-	// Returns a low-latency HLS partial segment (EXT-X-PART) from a rendition sub-playlist. Fetched from
-	// the upstream CDN.
-	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/partials/{file}
-	GetMovieRenditionPartial(ctx context.Context, params GetMovieRenditionPartialParams) (GetMovieRenditionPartialRes, error)
-	// GetMovieRenditionPreloadHint invokes getMovieRenditionPreloadHint operation.
-	//
-	// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag from a rendition sub-playlist. Fetched
-	// from the upstream CDN.
-	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/preload-hints/{file}
-	GetMovieRenditionPreloadHint(ctx context.Context, params GetMovieRenditionPreloadHintParams) (GetMovieRenditionPreloadHintRes, error)
 	// GetMovieStreamFile invokes getMovieStreamFile operation.
 	//
 	// Returns the raw stream manifest or playlist binary content. The response Content-Type matches the
 	// stream's encoding format (e.g. `application/dash+xml`, `application/vnd.apple.mpegurl`).
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/{file}
+	// GET /services/{serviceTag}/movies/{movieId}/streams/{format}
 	GetMovieStreamFile(ctx context.Context, params GetMovieStreamFileParams) (GetMovieStreamFileRes, error)
-	// GetMovieStreamSegment invokes getMovieStreamSegment operation.
-	//
-	// Returns a single media segment (HLS .ts/.m4s, DASH .m4s/.mp4) or an initialization segment for a
-	// given rendition.
-	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/{rendition}/{segment}
-	GetMovieStreamSegment(ctx context.Context, params GetMovieStreamSegmentParams) (GetMovieStreamSegmentRes, error)
 	// GetMovieStreams invokes getMovieStreams operation.
 	//
 	// Retrieve all available video stream manifests (DASH, HLS, etc.) for a movie. The listing returns
@@ -309,13 +274,13 @@ type Invoker interface {
 	//
 	// GET /services/{serviceTag}/movies/{movieId}/streams
 	GetMovieStreams(ctx context.Context, params GetMovieStreamsParams) (GetMovieStreamsRes, error)
-	// GetMovieSubtitleFile invokes getMovieSubtitleFile operation.
+	// GetMovieSubtitle invokes getMovieSubtitle operation.
 	//
 	// Returns the raw subtitle file content. The response Content-Type matches the subtitle format (e.g.
 	// `text/vtt`, `application/x-subrip`).
 	//
-	// GET /services/{serviceTag}/movies/{movieId}/subtitles/{subtitleFile}
-	GetMovieSubtitleFile(ctx context.Context, params GetMovieSubtitleFileParams) (GetMovieSubtitleFileRes, error)
+	// GET /services/{serviceTag}/movies/{movieId}/subtitles/{subtitleId}
+	GetMovieSubtitle(ctx context.Context, params GetMovieSubtitleParams) (GetMovieSubtitleRes, error)
 	// GetMovieSubtitles invokes getMovieSubtitles operation.
 	//
 	// Retrieve all external subtitle files available for a movie. Only subtitles that exist as standalone
@@ -323,27 +288,6 @@ type Invoker interface {
 	//
 	// GET /services/{serviceTag}/movies/{movieId}/subtitles
 	GetMovieSubtitles(ctx context.Context, params GetMovieSubtitlesParams) (GetMovieSubtitlesRes, error)
-	// GetMovieVariantKey invokes getMovieVariantKey operation.
-	//
-	// Returns an AES-128 encryption key from a variant sub-playlist. The key file is fetched from the
-	// upstream CDN and proxied through.
-	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/keys/{file}
-	GetMovieVariantKey(ctx context.Context, params GetMovieVariantKeyParams) (GetMovieVariantKeyRes, error)
-	// GetMovieVariantPartial invokes getMovieVariantPartial operation.
-	//
-	// Returns a low-latency HLS partial segment (EXT-X-PART) from a variant sub-playlist. Fetched from the
-	// upstream CDN.
-	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/partials/{file}
-	GetMovieVariantPartial(ctx context.Context, params GetMovieVariantPartialParams) (GetMovieVariantPartialRes, error)
-	// GetMovieVariantPreloadHint invokes getMovieVariantPreloadHint operation.
-	//
-	// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag from a variant sub-playlist. Fetched
-	// from the upstream CDN.
-	//
-	// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/preload-hints/{file}
-	GetMovieVariantPreloadHint(ctx context.Context, params GetMovieVariantPreloadHintParams) (GetMovieVariantPreloadHintRes, error)
 	// GetMovies invokes getMovies operation.
 	//
 	// Retrieve all movies available on the given streaming service.
@@ -618,7 +562,7 @@ func (c *Client) sendGetEpisodeById(ctx context.Context, params GetEpisodeByIdPa
 //
 // Returns the initialization segment for a DASH Representation.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/init
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/init
 func (c *Client) GetEpisodeDASHInit(ctx context.Context, params GetEpisodeDASHInitParams) (GetEpisodeDASHInitRes, error) {
 	res, err := c.sendGetEpisodeDASHInit(ctx, params)
 	return res, err
@@ -628,7 +572,7 @@ func (c *Client) sendGetEpisodeDASHInit(ctx context.Context, params GetEpisodeDA
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getEpisodeDASHInit"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/init"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/init"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -814,7 +758,7 @@ func (c *Client) sendGetEpisodeDASHInit(ctx context.Context, params GetEpisodeDA
 		}
 		pathParts[15] = encoded
 	}
-	pathParts[16] = "/init"
+	pathParts[16] = "/segments/init"
 	uri.AddPathParts(u, pathParts[:]...)
 
 	stage = "EncodeRequest"
@@ -850,7 +794,7 @@ func (c *Client) sendGetEpisodeDASHInit(ctx context.Context, params GetEpisodeDA
 //
 // Returns a single DASH media segment.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/{segment}
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/{segment}
 func (c *Client) GetEpisodeDASHSegment(ctx context.Context, params GetEpisodeDASHSegmentParams) (GetEpisodeDASHSegmentRes, error) {
 	res, err := c.sendGetEpisodeDASHSegment(ctx, params)
 	return res, err
@@ -860,7 +804,7 @@ func (c *Client) sendGetEpisodeDASHSegment(ctx context.Context, params GetEpisod
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getEpisodeDASHSegment"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/{segment}"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/{segment}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -1046,7 +990,7 @@ func (c *Client) sendGetEpisodeDASHSegment(ctx context.Context, params GetEpisod
 		}
 		pathParts[15] = encoded
 	}
-	pathParts[16] = "/"
+	pathParts[16] = "/segments/"
 	{
 		// Encode "segment" parameter.
 		e := uri.NewPathEncoder(uri.PathEncoderConfig{
@@ -1096,11 +1040,536 @@ func (c *Client) sendGetEpisodeDASHSegment(ctx context.Context, params GetEpisod
 	return result, nil
 }
 
+// GetEpisodeHLSKey invokes getEpisodeHLSKey operation.
+//
+// Returns an AES-128 encryption key referenced by an EXT-X-KEY tag. The key is identified by a hash of
+// its upstream URL and is fetched from the upstream CDN and proxied through.
+//
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/keys/{file}
+func (c *Client) GetEpisodeHLSKey(ctx context.Context, params GetEpisodeHLSKeyParams) (GetEpisodeHLSKeyRes, error) {
+	res, err := c.sendGetEpisodeHLSKey(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendGetEpisodeHLSKey(ctx context.Context, params GetEpisodeHLSKeyParams) (res GetEpisodeHLSKeyRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("getEpisodeHLSKey"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/keys/{file}"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, GetEpisodeHLSKeyOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [10]string
+	pathParts[0] = "/services/"
+	{
+		// Encode "serviceTag" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "serviceTag",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.ServiceTag))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/series/"
+	{
+		// Encode "seriesId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "seriesId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.SeriesId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
+	pathParts[4] = "/seasons/"
+	{
+		// Encode "seasonId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "seasonId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.SeasonId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[5] = encoded
+	}
+	pathParts[6] = "/episodes/"
+	{
+		// Encode "episodeId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "episodeId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.EpisodeId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[7] = encoded
+	}
+	pathParts[8] = "/streams/hls/keys/"
+	{
+		// Encode "file" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "file",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.File))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[9] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodeGetEpisodeHLSKeyResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// GetEpisodeHLSPartial invokes getEpisodeHLSPartial operation.
+//
+// Returns a low-latency HLS partial segment (EXT-X-PART). The partial is identified by a hash of its
+// upstream URL and is fetched from the upstream CDN and proxied through.
+//
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/partials/{file}
+func (c *Client) GetEpisodeHLSPartial(ctx context.Context, params GetEpisodeHLSPartialParams) (GetEpisodeHLSPartialRes, error) {
+	res, err := c.sendGetEpisodeHLSPartial(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendGetEpisodeHLSPartial(ctx context.Context, params GetEpisodeHLSPartialParams) (res GetEpisodeHLSPartialRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("getEpisodeHLSPartial"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/partials/{file}"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, GetEpisodeHLSPartialOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [10]string
+	pathParts[0] = "/services/"
+	{
+		// Encode "serviceTag" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "serviceTag",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.ServiceTag))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/series/"
+	{
+		// Encode "seriesId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "seriesId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.SeriesId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
+	pathParts[4] = "/seasons/"
+	{
+		// Encode "seasonId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "seasonId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.SeasonId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[5] = encoded
+	}
+	pathParts[6] = "/episodes/"
+	{
+		// Encode "episodeId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "episodeId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.EpisodeId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[7] = encoded
+	}
+	pathParts[8] = "/streams/hls/partials/"
+	{
+		// Encode "file" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "file",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.File))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[9] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodeGetEpisodeHLSPartialResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// GetEpisodeHLSPreloadHint invokes getEpisodeHLSPreloadHint operation.
+//
+// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag. The hint is identified by a hash of
+// its upstream URL and is fetched from the upstream CDN and proxied through.
+//
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/preload-hints/{file}
+func (c *Client) GetEpisodeHLSPreloadHint(ctx context.Context, params GetEpisodeHLSPreloadHintParams) (GetEpisodeHLSPreloadHintRes, error) {
+	res, err := c.sendGetEpisodeHLSPreloadHint(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendGetEpisodeHLSPreloadHint(ctx context.Context, params GetEpisodeHLSPreloadHintParams) (res GetEpisodeHLSPreloadHintRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("getEpisodeHLSPreloadHint"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/preload-hints/{file}"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, GetEpisodeHLSPreloadHintOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [10]string
+	pathParts[0] = "/services/"
+	{
+		// Encode "serviceTag" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "serviceTag",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.ServiceTag))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/series/"
+	{
+		// Encode "seriesId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "seriesId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.SeriesId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
+	pathParts[4] = "/seasons/"
+	{
+		// Encode "seasonId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "seasonId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.SeasonId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[5] = encoded
+	}
+	pathParts[6] = "/episodes/"
+	{
+		// Encode "episodeId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "episodeId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.EpisodeId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[7] = encoded
+	}
+	pathParts[8] = "/streams/hls/preload-hints/"
+	{
+		// Encode "file" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "file",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.File))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[9] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodeGetEpisodeHLSPreloadHintResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
 // GetEpisodeHLSRendition invokes getEpisodeHLSRendition operation.
 //
 // Returns a rewritten HLS media playlist for a specific rendition identified by GROUP-ID and NAME.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/groups/{groupId}/renditions/{renditionName}
 func (c *Client) GetEpisodeHLSRendition(ctx context.Context, params GetEpisodeHLSRenditionParams) (GetEpisodeHLSRenditionRes, error) {
 	res, err := c.sendGetEpisodeHLSRendition(ctx, params)
 	return res, err
@@ -1110,7 +1579,7 @@ func (c *Client) sendGetEpisodeHLSRendition(ctx context.Context, params GetEpiso
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getEpisodeHLSRendition"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/groups/{groupId}/renditions/{renditionName}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -1220,7 +1689,7 @@ func (c *Client) sendGetEpisodeHLSRendition(ctx context.Context, params GetEpiso
 		}
 		pathParts[7] = encoded
 	}
-	pathParts[8] = "/streams/hls/renditions/"
+	pathParts[8] = "/streams/hls/groups/"
 	{
 		// Encode "groupId" parameter.
 		e := uri.NewPathEncoder(uri.PathEncoderConfig{
@@ -1239,7 +1708,7 @@ func (c *Client) sendGetEpisodeHLSRendition(ctx context.Context, params GetEpiso
 		}
 		pathParts[9] = encoded
 	}
-	pathParts[10] = "/"
+	pathParts[10] = "/renditions/"
 	{
 		// Encode "renditionName" parameter.
 		e := uri.NewPathEncoder(uri.PathEncoderConfig{
@@ -1293,7 +1762,7 @@ func (c *Client) sendGetEpisodeHLSRendition(ctx context.Context, params GetEpiso
 //
 // Returns a single media segment from an HLS rendition sub-playlist.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/segments/{segment}
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/groups/{groupId}/renditions/{renditionName}/segments/{segment}
 func (c *Client) GetEpisodeHLSRenditionSegment(ctx context.Context, params GetEpisodeHLSRenditionSegmentParams) (GetEpisodeHLSRenditionSegmentRes, error) {
 	res, err := c.sendGetEpisodeHLSRenditionSegment(ctx, params)
 	return res, err
@@ -1303,7 +1772,7 @@ func (c *Client) sendGetEpisodeHLSRenditionSegment(ctx context.Context, params G
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getEpisodeHLSRenditionSegment"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/segments/{segment}"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/groups/{groupId}/renditions/{renditionName}/segments/{segment}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -1413,7 +1882,7 @@ func (c *Client) sendGetEpisodeHLSRenditionSegment(ctx context.Context, params G
 		}
 		pathParts[7] = encoded
 	}
-	pathParts[8] = "/streams/hls/renditions/"
+	pathParts[8] = "/streams/hls/groups/"
 	{
 		// Encode "groupId" parameter.
 		e := uri.NewPathEncoder(uri.PathEncoderConfig{
@@ -1432,7 +1901,7 @@ func (c *Client) sendGetEpisodeHLSRenditionSegment(ctx context.Context, params G
 		}
 		pathParts[9] = encoded
 	}
-	pathParts[10] = "/"
+	pathParts[10] = "/renditions/"
 	{
 		// Encode "renditionName" parameter.
 		e := uri.NewPathEncoder(uri.PathEncoderConfig{
@@ -2010,10 +2479,10 @@ func (c *Client) sendGetEpisodeHLSSteering(ctx context.Context, params GetEpisod
 
 // GetEpisodeHLSVariant invokes getEpisodeHLSVariant operation.
 //
-// Returns a rewritten HLS media playlist for a specific variant. The variant is identified by its
-// zero-based index in the master playlist.
+// Returns a rewritten HLS media playlist for a specific variant. The variant is identified by a hash
+// of its upstream playlist URL.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantId}
 func (c *Client) GetEpisodeHLSVariant(ctx context.Context, params GetEpisodeHLSVariantParams) (GetEpisodeHLSVariantRes, error) {
 	res, err := c.sendGetEpisodeHLSVariant(ctx, params)
 	return res, err
@@ -2023,7 +2492,7 @@ func (c *Client) sendGetEpisodeHLSVariant(ctx context.Context, params GetEpisode
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getEpisodeHLSVariant"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantId}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -2135,14 +2604,14 @@ func (c *Client) sendGetEpisodeHLSVariant(ctx context.Context, params GetEpisode
 	}
 	pathParts[8] = "/streams/hls/variants/"
 	{
-		// Encode "variantIndex" parameter.
+		// Encode "variantId" parameter.
 		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "variantIndex",
+			Param:   "variantId",
 			Style:   uri.PathStyleSimple,
 			Explode: false,
 		})
 		if err := func() error {
-			return e.EncodeValue(conv.IntToString(params.VariantIndex))
+			return e.EncodeValue(conv.StringToString(params.VariantId))
 		}(); err != nil {
 			return res, errors.Wrap(err, "encode path")
 		}
@@ -2187,7 +2656,7 @@ func (c *Client) sendGetEpisodeHLSVariant(ctx context.Context, params GetEpisode
 //
 // Returns a single media segment from an HLS variant sub-playlist.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/segments/{segment}
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantId}/segments/{segment}
 func (c *Client) GetEpisodeHLSVariantSegment(ctx context.Context, params GetEpisodeHLSVariantSegmentParams) (GetEpisodeHLSVariantSegmentRes, error) {
 	res, err := c.sendGetEpisodeHLSVariantSegment(ctx, params)
 	return res, err
@@ -2197,7 +2666,7 @@ func (c *Client) sendGetEpisodeHLSVariantSegment(ctx context.Context, params Get
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getEpisodeHLSVariantSegment"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/segments/{segment}"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantId}/segments/{segment}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -2309,14 +2778,14 @@ func (c *Client) sendGetEpisodeHLSVariantSegment(ctx context.Context, params Get
 	}
 	pathParts[8] = "/streams/hls/variants/"
 	{
-		// Encode "variantIndex" parameter.
+		// Encode "variantId" parameter.
 		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "variantIndex",
+			Param:   "variantId",
 			Style:   uri.PathStyleSimple,
 			Explode: false,
 		})
 		if err := func() error {
-			return e.EncodeValue(conv.IntToString(params.VariantIndex))
+			return e.EncodeValue(conv.StringToString(params.VariantId))
 		}(); err != nil {
 			return res, errors.Wrap(err, "encode path")
 		}
@@ -2376,651 +2845,13 @@ func (c *Client) sendGetEpisodeHLSVariantSegment(ctx context.Context, params Get
 	return result, nil
 }
 
-// GetEpisodeRenditionKey invokes getEpisodeRenditionKey operation.
-//
-// Returns an AES-128 encryption key from a rendition sub-playlist. The key file is fetched from the
-// upstream CDN and proxied through.
-//
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/keys/{file}
-func (c *Client) GetEpisodeRenditionKey(ctx context.Context, params GetEpisodeRenditionKeyParams) (GetEpisodeRenditionKeyRes, error) {
-	res, err := c.sendGetEpisodeRenditionKey(ctx, params)
-	return res, err
-}
-
-func (c *Client) sendGetEpisodeRenditionKey(ctx context.Context, params GetEpisodeRenditionKeyParams) (res GetEpisodeRenditionKeyRes, err error) {
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getEpisodeRenditionKey"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/keys/{file}"),
-	}
-	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		elapsedDuration := time.Since(startTime)
-		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
-	}()
-
-	// Increment request counter.
-	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-
-	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, GetEpisodeRenditionKeyOperation,
-		trace.WithAttributes(otelAttrs...),
-		clientSpanKind,
-	)
-	// Track stage for error reporting.
-	var stage string
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, stage)
-			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-		}
-		span.End()
-	}()
-
-	stage = "BuildURL"
-	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [14]string
-	pathParts[0] = "/services/"
-	{
-		// Encode "serviceTag" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "serviceTag",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.ServiceTag))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[1] = encoded
-	}
-	pathParts[2] = "/series/"
-	{
-		// Encode "seriesId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "seriesId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.SeriesId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[3] = encoded
-	}
-	pathParts[4] = "/seasons/"
-	{
-		// Encode "seasonId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "seasonId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.SeasonId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[5] = encoded
-	}
-	pathParts[6] = "/episodes/"
-	{
-		// Encode "episodeId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "episodeId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.EpisodeId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[7] = encoded
-	}
-	pathParts[8] = "/streams/hls/renditions/"
-	{
-		// Encode "groupId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "groupId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.GroupId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[9] = encoded
-	}
-	pathParts[10] = "/"
-	{
-		// Encode "renditionName" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "renditionName",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.RenditionName))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[11] = encoded
-	}
-	pathParts[12] = "/keys/"
-	{
-		// Encode "file" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "file",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.File))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[13] = encoded
-	}
-	uri.AddPathParts(u, pathParts[:]...)
-
-	stage = "EncodeRequest"
-	r, err := ht.NewRequest(ctx, "GET", u)
-	if err != nil {
-		return res, errors.Wrap(err, "create request")
-	}
-
-	stage = "SendRequest"
-	resp, err := c.cfg.Client.Do(r)
-	if err != nil {
-		return res, errors.Wrap(err, "do request")
-	}
-	body := resp.Body
-	defer func() {
-		// Drain the body to EOF before closing, so the underlying
-		// connection can be reused by the Transport regardless of the
-		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
-		_, _ = io.Copy(io.Discard, body)
-		_ = body.Close()
-	}()
-
-	stage = "DecodeResponse"
-	result, err := decodeGetEpisodeRenditionKeyResponse(resp)
-	if err != nil {
-		return res, errors.Wrap(err, "decode response")
-	}
-
-	return result, nil
-}
-
-// GetEpisodeRenditionPartial invokes getEpisodeRenditionPartial operation.
-//
-// Returns a low-latency HLS partial segment (EXT-X-PART) from a rendition sub-playlist. Fetched from
-// the upstream CDN.
-//
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/partials/{file}
-func (c *Client) GetEpisodeRenditionPartial(ctx context.Context, params GetEpisodeRenditionPartialParams) (GetEpisodeRenditionPartialRes, error) {
-	res, err := c.sendGetEpisodeRenditionPartial(ctx, params)
-	return res, err
-}
-
-func (c *Client) sendGetEpisodeRenditionPartial(ctx context.Context, params GetEpisodeRenditionPartialParams) (res GetEpisodeRenditionPartialRes, err error) {
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getEpisodeRenditionPartial"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/partials/{file}"),
-	}
-	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		elapsedDuration := time.Since(startTime)
-		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
-	}()
-
-	// Increment request counter.
-	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-
-	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, GetEpisodeRenditionPartialOperation,
-		trace.WithAttributes(otelAttrs...),
-		clientSpanKind,
-	)
-	// Track stage for error reporting.
-	var stage string
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, stage)
-			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-		}
-		span.End()
-	}()
-
-	stage = "BuildURL"
-	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [14]string
-	pathParts[0] = "/services/"
-	{
-		// Encode "serviceTag" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "serviceTag",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.ServiceTag))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[1] = encoded
-	}
-	pathParts[2] = "/series/"
-	{
-		// Encode "seriesId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "seriesId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.SeriesId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[3] = encoded
-	}
-	pathParts[4] = "/seasons/"
-	{
-		// Encode "seasonId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "seasonId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.SeasonId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[5] = encoded
-	}
-	pathParts[6] = "/episodes/"
-	{
-		// Encode "episodeId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "episodeId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.EpisodeId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[7] = encoded
-	}
-	pathParts[8] = "/streams/hls/renditions/"
-	{
-		// Encode "groupId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "groupId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.GroupId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[9] = encoded
-	}
-	pathParts[10] = "/"
-	{
-		// Encode "renditionName" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "renditionName",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.RenditionName))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[11] = encoded
-	}
-	pathParts[12] = "/partials/"
-	{
-		// Encode "file" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "file",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.File))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[13] = encoded
-	}
-	uri.AddPathParts(u, pathParts[:]...)
-
-	stage = "EncodeRequest"
-	r, err := ht.NewRequest(ctx, "GET", u)
-	if err != nil {
-		return res, errors.Wrap(err, "create request")
-	}
-
-	stage = "SendRequest"
-	resp, err := c.cfg.Client.Do(r)
-	if err != nil {
-		return res, errors.Wrap(err, "do request")
-	}
-	body := resp.Body
-	defer func() {
-		// Drain the body to EOF before closing, so the underlying
-		// connection can be reused by the Transport regardless of the
-		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
-		_, _ = io.Copy(io.Discard, body)
-		_ = body.Close()
-	}()
-
-	stage = "DecodeResponse"
-	result, err := decodeGetEpisodeRenditionPartialResponse(resp)
-	if err != nil {
-		return res, errors.Wrap(err, "decode response")
-	}
-
-	return result, nil
-}
-
-// GetEpisodeRenditionPreloadHint invokes getEpisodeRenditionPreloadHint operation.
-//
-// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag from a rendition sub-playlist. Fetched
-// from the upstream CDN.
-//
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/preload-hints/{file}
-func (c *Client) GetEpisodeRenditionPreloadHint(ctx context.Context, params GetEpisodeRenditionPreloadHintParams) (GetEpisodeRenditionPreloadHintRes, error) {
-	res, err := c.sendGetEpisodeRenditionPreloadHint(ctx, params)
-	return res, err
-}
-
-func (c *Client) sendGetEpisodeRenditionPreloadHint(ctx context.Context, params GetEpisodeRenditionPreloadHintParams) (res GetEpisodeRenditionPreloadHintRes, err error) {
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getEpisodeRenditionPreloadHint"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/renditions/{groupId}/{renditionName}/preload-hints/{file}"),
-	}
-	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		elapsedDuration := time.Since(startTime)
-		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
-	}()
-
-	// Increment request counter.
-	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-
-	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, GetEpisodeRenditionPreloadHintOperation,
-		trace.WithAttributes(otelAttrs...),
-		clientSpanKind,
-	)
-	// Track stage for error reporting.
-	var stage string
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, stage)
-			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-		}
-		span.End()
-	}()
-
-	stage = "BuildURL"
-	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [14]string
-	pathParts[0] = "/services/"
-	{
-		// Encode "serviceTag" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "serviceTag",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.ServiceTag))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[1] = encoded
-	}
-	pathParts[2] = "/series/"
-	{
-		// Encode "seriesId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "seriesId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.SeriesId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[3] = encoded
-	}
-	pathParts[4] = "/seasons/"
-	{
-		// Encode "seasonId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "seasonId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.SeasonId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[5] = encoded
-	}
-	pathParts[6] = "/episodes/"
-	{
-		// Encode "episodeId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "episodeId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.EpisodeId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[7] = encoded
-	}
-	pathParts[8] = "/streams/hls/renditions/"
-	{
-		// Encode "groupId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "groupId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.GroupId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[9] = encoded
-	}
-	pathParts[10] = "/"
-	{
-		// Encode "renditionName" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "renditionName",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.RenditionName))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[11] = encoded
-	}
-	pathParts[12] = "/preload-hints/"
-	{
-		// Encode "file" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "file",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.File))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[13] = encoded
-	}
-	uri.AddPathParts(u, pathParts[:]...)
-
-	stage = "EncodeRequest"
-	r, err := ht.NewRequest(ctx, "GET", u)
-	if err != nil {
-		return res, errors.Wrap(err, "create request")
-	}
-
-	stage = "SendRequest"
-	resp, err := c.cfg.Client.Do(r)
-	if err != nil {
-		return res, errors.Wrap(err, "do request")
-	}
-	body := resp.Body
-	defer func() {
-		// Drain the body to EOF before closing, so the underlying
-		// connection can be reused by the Transport regardless of the
-		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
-		_, _ = io.Copy(io.Discard, body)
-		_ = body.Close()
-	}()
-
-	stage = "DecodeResponse"
-	result, err := decodeGetEpisodeRenditionPreloadHintResponse(resp)
-	if err != nil {
-		return res, errors.Wrap(err, "decode response")
-	}
-
-	return result, nil
-}
-
 // GetEpisodeStreamFile invokes getEpisodeStreamFile operation.
 //
-// Returns the raw stream manifest or playlist binary content. The response Content-Type matches the
+// Returns the raw stream manifest binary content for the given format. Episodes expose exactly one
+// canonical manifest per format, so no file name is required. The response Content-Type matches the
 // stream's encoding format.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{file}
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}
 func (c *Client) GetEpisodeStreamFile(ctx context.Context, params GetEpisodeStreamFileParams) (GetEpisodeStreamFileRes, error) {
 	res, err := c.sendGetEpisodeStreamFile(ctx, params)
 	return res, err
@@ -3030,7 +2861,7 @@ func (c *Client) sendGetEpisodeStreamFile(ctx context.Context, params GetEpisode
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getEpisodeStreamFile"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{file}"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -3063,7 +2894,7 @@ func (c *Client) sendGetEpisodeStreamFile(ctx context.Context, params GetEpisode
 
 	stage = "BuildURL"
 	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [12]string
+	var pathParts [10]string
 	pathParts[0] = "/services/"
 	{
 		// Encode "serviceTag" parameter.
@@ -3158,25 +2989,6 @@ func (c *Client) sendGetEpisodeStreamFile(ctx context.Context, params GetEpisode
 			return res, errors.Wrap(err, "encode path")
 		}
 		pathParts[9] = encoded
-	}
-	pathParts[10] = "/"
-	{
-		// Encode "file" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "file",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.File))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[11] = encoded
 	}
 	uri.AddPathParts(u, pathParts[:]...)
 
@@ -3202,219 +3014,6 @@ func (c *Client) sendGetEpisodeStreamFile(ctx context.Context, params GetEpisode
 
 	stage = "DecodeResponse"
 	result, err := decodeGetEpisodeStreamFileResponse(resp)
-	if err != nil {
-		return res, errors.Wrap(err, "decode response")
-	}
-
-	return result, nil
-}
-
-// GetEpisodeStreamSegment invokes getEpisodeStreamSegment operation.
-//
-// Returns a single media segment (HLS .ts/.m4s, DASH .m4s/.mp4) or an initialization segment for a
-// given rendition.
-//
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{rendition}/{segment}
-func (c *Client) GetEpisodeStreamSegment(ctx context.Context, params GetEpisodeStreamSegmentParams) (GetEpisodeStreamSegmentRes, error) {
-	res, err := c.sendGetEpisodeStreamSegment(ctx, params)
-	return res, err
-}
-
-func (c *Client) sendGetEpisodeStreamSegment(ctx context.Context, params GetEpisodeStreamSegmentParams) (res GetEpisodeStreamSegmentRes, err error) {
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getEpisodeStreamSegment"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/{format}/{rendition}/{segment}"),
-	}
-	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		elapsedDuration := time.Since(startTime)
-		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
-	}()
-
-	// Increment request counter.
-	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-
-	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, GetEpisodeStreamSegmentOperation,
-		trace.WithAttributes(otelAttrs...),
-		clientSpanKind,
-	)
-	// Track stage for error reporting.
-	var stage string
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, stage)
-			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-		}
-		span.End()
-	}()
-
-	stage = "BuildURL"
-	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [14]string
-	pathParts[0] = "/services/"
-	{
-		// Encode "serviceTag" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "serviceTag",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.ServiceTag))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[1] = encoded
-	}
-	pathParts[2] = "/series/"
-	{
-		// Encode "seriesId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "seriesId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.SeriesId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[3] = encoded
-	}
-	pathParts[4] = "/seasons/"
-	{
-		// Encode "seasonId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "seasonId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.SeasonId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[5] = encoded
-	}
-	pathParts[6] = "/episodes/"
-	{
-		// Encode "episodeId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "episodeId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.EpisodeId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[7] = encoded
-	}
-	pathParts[8] = "/streams/"
-	{
-		// Encode "format" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "format",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(string(params.Format)))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[9] = encoded
-	}
-	pathParts[10] = "/"
-	{
-		// Encode "rendition" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "rendition",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.Rendition))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[11] = encoded
-	}
-	pathParts[12] = "/"
-	{
-		// Encode "segment" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "segment",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.Segment))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[13] = encoded
-	}
-	uri.AddPathParts(u, pathParts[:]...)
-
-	stage = "EncodeRequest"
-	r, err := ht.NewRequest(ctx, "GET", u)
-	if err != nil {
-		return res, errors.Wrap(err, "create request")
-	}
-
-	stage = "SendRequest"
-	resp, err := c.cfg.Client.Do(r)
-	if err != nil {
-		return res, errors.Wrap(err, "do request")
-	}
-	body := resp.Body
-	defer func() {
-		// Drain the body to EOF before closing, so the underlying
-		// connection can be reused by the Transport regardless of the
-		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
-		_, _ = io.Copy(io.Discard, body)
-		_ = body.Close()
-	}()
-
-	stage = "DecodeResponse"
-	result, err := decodeGetEpisodeStreamSegmentResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -3617,21 +3216,21 @@ func (c *Client) sendGetEpisodeStreams(ctx context.Context, params GetEpisodeStr
 	return result, nil
 }
 
-// GetEpisodeSubtitleFile invokes getEpisodeSubtitleFile operation.
+// GetEpisodeSubtitle invokes getEpisodeSubtitle operation.
 //
 // Returns the raw subtitle file content. The response Content-Type matches the subtitle format.
 //
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/subtitles/{subtitleFile}
-func (c *Client) GetEpisodeSubtitleFile(ctx context.Context, params GetEpisodeSubtitleFileParams) (GetEpisodeSubtitleFileRes, error) {
-	res, err := c.sendGetEpisodeSubtitleFile(ctx, params)
+// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/subtitles/{subtitleId}
+func (c *Client) GetEpisodeSubtitle(ctx context.Context, params GetEpisodeSubtitleParams) (GetEpisodeSubtitleRes, error) {
+	res, err := c.sendGetEpisodeSubtitle(ctx, params)
 	return res, err
 }
 
-func (c *Client) sendGetEpisodeSubtitleFile(ctx context.Context, params GetEpisodeSubtitleFileParams) (res GetEpisodeSubtitleFileRes, err error) {
+func (c *Client) sendGetEpisodeSubtitle(ctx context.Context, params GetEpisodeSubtitleParams) (res GetEpisodeSubtitleRes, err error) {
 	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getEpisodeSubtitleFile"),
+		otelogen.OperationID("getEpisodeSubtitle"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/subtitles/{subtitleFile}"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/subtitles/{subtitleId}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -3647,7 +3246,7 @@ func (c *Client) sendGetEpisodeSubtitleFile(ctx context.Context, params GetEpiso
 	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
 
 	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, GetEpisodeSubtitleFileOperation,
+	ctx, span := c.cfg.Tracer.Start(ctx, GetEpisodeSubtitleOperation,
 		trace.WithAttributes(otelAttrs...),
 		clientSpanKind,
 	)
@@ -3743,14 +3342,14 @@ func (c *Client) sendGetEpisodeSubtitleFile(ctx context.Context, params GetEpiso
 	}
 	pathParts[8] = "/subtitles/"
 	{
-		// Encode "subtitleFile" parameter.
+		// Encode "subtitleId" parameter.
 		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "subtitleFile",
+			Param:   "subtitleId",
 			Style:   uri.PathStyleSimple,
 			Explode: false,
 		})
 		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.SubtitleFile))
+			return e.EncodeValue(conv.StringToString(params.SubtitleId))
 		}(); err != nil {
 			return res, errors.Wrap(err, "encode path")
 		}
@@ -3783,7 +3382,7 @@ func (c *Client) sendGetEpisodeSubtitleFile(ctx context.Context, params GetEpiso
 	}()
 
 	stage = "DecodeResponse"
-	result, err := decodeGetEpisodeSubtitleFileResponse(resp)
+	result, err := decodeGetEpisodeSubtitleResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -4135,588 +3734,6 @@ func (c *Client) sendGetEpisodeThumbnail(ctx context.Context, params GetEpisodeT
 
 	stage = "DecodeResponse"
 	result, err := decodeGetEpisodeThumbnailResponse(resp)
-	if err != nil {
-		return res, errors.Wrap(err, "decode response")
-	}
-
-	return result, nil
-}
-
-// GetEpisodeVariantKey invokes getEpisodeVariantKey operation.
-//
-// Returns an AES-128 encryption key from a variant sub-playlist. The key file is fetched from the
-// upstream CDN and proxied through.
-//
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/keys/{file}
-func (c *Client) GetEpisodeVariantKey(ctx context.Context, params GetEpisodeVariantKeyParams) (GetEpisodeVariantKeyRes, error) {
-	res, err := c.sendGetEpisodeVariantKey(ctx, params)
-	return res, err
-}
-
-func (c *Client) sendGetEpisodeVariantKey(ctx context.Context, params GetEpisodeVariantKeyParams) (res GetEpisodeVariantKeyRes, err error) {
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getEpisodeVariantKey"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/keys/{file}"),
-	}
-	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		elapsedDuration := time.Since(startTime)
-		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
-	}()
-
-	// Increment request counter.
-	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-
-	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, GetEpisodeVariantKeyOperation,
-		trace.WithAttributes(otelAttrs...),
-		clientSpanKind,
-	)
-	// Track stage for error reporting.
-	var stage string
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, stage)
-			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-		}
-		span.End()
-	}()
-
-	stage = "BuildURL"
-	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [12]string
-	pathParts[0] = "/services/"
-	{
-		// Encode "serviceTag" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "serviceTag",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.ServiceTag))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[1] = encoded
-	}
-	pathParts[2] = "/series/"
-	{
-		// Encode "seriesId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "seriesId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.SeriesId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[3] = encoded
-	}
-	pathParts[4] = "/seasons/"
-	{
-		// Encode "seasonId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "seasonId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.SeasonId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[5] = encoded
-	}
-	pathParts[6] = "/episodes/"
-	{
-		// Encode "episodeId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "episodeId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.EpisodeId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[7] = encoded
-	}
-	pathParts[8] = "/streams/hls/variants/"
-	{
-		// Encode "variantIndex" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "variantIndex",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.IntToString(params.VariantIndex))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[9] = encoded
-	}
-	pathParts[10] = "/keys/"
-	{
-		// Encode "file" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "file",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.File))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[11] = encoded
-	}
-	uri.AddPathParts(u, pathParts[:]...)
-
-	stage = "EncodeRequest"
-	r, err := ht.NewRequest(ctx, "GET", u)
-	if err != nil {
-		return res, errors.Wrap(err, "create request")
-	}
-
-	stage = "SendRequest"
-	resp, err := c.cfg.Client.Do(r)
-	if err != nil {
-		return res, errors.Wrap(err, "do request")
-	}
-	body := resp.Body
-	defer func() {
-		// Drain the body to EOF before closing, so the underlying
-		// connection can be reused by the Transport regardless of the
-		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
-		_, _ = io.Copy(io.Discard, body)
-		_ = body.Close()
-	}()
-
-	stage = "DecodeResponse"
-	result, err := decodeGetEpisodeVariantKeyResponse(resp)
-	if err != nil {
-		return res, errors.Wrap(err, "decode response")
-	}
-
-	return result, nil
-}
-
-// GetEpisodeVariantPartial invokes getEpisodeVariantPartial operation.
-//
-// Returns a low-latency HLS partial segment (EXT-X-PART) from a variant sub-playlist. Fetched from the
-// upstream CDN.
-//
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/partials/{file}
-func (c *Client) GetEpisodeVariantPartial(ctx context.Context, params GetEpisodeVariantPartialParams) (GetEpisodeVariantPartialRes, error) {
-	res, err := c.sendGetEpisodeVariantPartial(ctx, params)
-	return res, err
-}
-
-func (c *Client) sendGetEpisodeVariantPartial(ctx context.Context, params GetEpisodeVariantPartialParams) (res GetEpisodeVariantPartialRes, err error) {
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getEpisodeVariantPartial"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/partials/{file}"),
-	}
-	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		elapsedDuration := time.Since(startTime)
-		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
-	}()
-
-	// Increment request counter.
-	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-
-	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, GetEpisodeVariantPartialOperation,
-		trace.WithAttributes(otelAttrs...),
-		clientSpanKind,
-	)
-	// Track stage for error reporting.
-	var stage string
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, stage)
-			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-		}
-		span.End()
-	}()
-
-	stage = "BuildURL"
-	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [12]string
-	pathParts[0] = "/services/"
-	{
-		// Encode "serviceTag" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "serviceTag",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.ServiceTag))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[1] = encoded
-	}
-	pathParts[2] = "/series/"
-	{
-		// Encode "seriesId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "seriesId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.SeriesId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[3] = encoded
-	}
-	pathParts[4] = "/seasons/"
-	{
-		// Encode "seasonId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "seasonId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.SeasonId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[5] = encoded
-	}
-	pathParts[6] = "/episodes/"
-	{
-		// Encode "episodeId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "episodeId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.EpisodeId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[7] = encoded
-	}
-	pathParts[8] = "/streams/hls/variants/"
-	{
-		// Encode "variantIndex" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "variantIndex",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.IntToString(params.VariantIndex))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[9] = encoded
-	}
-	pathParts[10] = "/partials/"
-	{
-		// Encode "file" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "file",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.File))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[11] = encoded
-	}
-	uri.AddPathParts(u, pathParts[:]...)
-
-	stage = "EncodeRequest"
-	r, err := ht.NewRequest(ctx, "GET", u)
-	if err != nil {
-		return res, errors.Wrap(err, "create request")
-	}
-
-	stage = "SendRequest"
-	resp, err := c.cfg.Client.Do(r)
-	if err != nil {
-		return res, errors.Wrap(err, "do request")
-	}
-	body := resp.Body
-	defer func() {
-		// Drain the body to EOF before closing, so the underlying
-		// connection can be reused by the Transport regardless of the
-		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
-		_, _ = io.Copy(io.Discard, body)
-		_ = body.Close()
-	}()
-
-	stage = "DecodeResponse"
-	result, err := decodeGetEpisodeVariantPartialResponse(resp)
-	if err != nil {
-		return res, errors.Wrap(err, "decode response")
-	}
-
-	return result, nil
-}
-
-// GetEpisodeVariantPreloadHint invokes getEpisodeVariantPreloadHint operation.
-//
-// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag from a variant sub-playlist. Fetched
-// from the upstream CDN.
-//
-// GET /services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/preload-hints/{file}
-func (c *Client) GetEpisodeVariantPreloadHint(ctx context.Context, params GetEpisodeVariantPreloadHintParams) (GetEpisodeVariantPreloadHintRes, error) {
-	res, err := c.sendGetEpisodeVariantPreloadHint(ctx, params)
-	return res, err
-}
-
-func (c *Client) sendGetEpisodeVariantPreloadHint(ctx context.Context, params GetEpisodeVariantPreloadHintParams) (res GetEpisodeVariantPreloadHintRes, err error) {
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getEpisodeVariantPreloadHint"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}/streams/hls/variants/{variantIndex}/preload-hints/{file}"),
-	}
-	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		elapsedDuration := time.Since(startTime)
-		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
-	}()
-
-	// Increment request counter.
-	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-
-	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, GetEpisodeVariantPreloadHintOperation,
-		trace.WithAttributes(otelAttrs...),
-		clientSpanKind,
-	)
-	// Track stage for error reporting.
-	var stage string
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, stage)
-			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-		}
-		span.End()
-	}()
-
-	stage = "BuildURL"
-	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [12]string
-	pathParts[0] = "/services/"
-	{
-		// Encode "serviceTag" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "serviceTag",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.ServiceTag))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[1] = encoded
-	}
-	pathParts[2] = "/series/"
-	{
-		// Encode "seriesId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "seriesId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.SeriesId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[3] = encoded
-	}
-	pathParts[4] = "/seasons/"
-	{
-		// Encode "seasonId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "seasonId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.SeasonId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[5] = encoded
-	}
-	pathParts[6] = "/episodes/"
-	{
-		// Encode "episodeId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "episodeId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.EpisodeId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[7] = encoded
-	}
-	pathParts[8] = "/streams/hls/variants/"
-	{
-		// Encode "variantIndex" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "variantIndex",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.IntToString(params.VariantIndex))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[9] = encoded
-	}
-	pathParts[10] = "/preload-hints/"
-	{
-		// Encode "file" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "file",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.File))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[11] = encoded
-	}
-	uri.AddPathParts(u, pathParts[:]...)
-
-	stage = "EncodeRequest"
-	r, err := ht.NewRequest(ctx, "GET", u)
-	if err != nil {
-		return res, errors.Wrap(err, "create request")
-	}
-
-	stage = "SendRequest"
-	resp, err := c.cfg.Client.Do(r)
-	if err != nil {
-		return res, errors.Wrap(err, "do request")
-	}
-	body := resp.Body
-	defer func() {
-		// Drain the body to EOF before closing, so the underlying
-		// connection can be reused by the Transport regardless of the
-		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
-		_, _ = io.Copy(io.Discard, body)
-		_ = body.Close()
-	}()
-
-	stage = "DecodeResponse"
-	result, err := decodeGetEpisodeVariantPreloadHintResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -5219,7 +4236,7 @@ func (c *Client) sendGetMovieById(ctx context.Context, params GetMovieByIdParams
 // Returns the initialization segment for a DASH Representation. The init segment URL is resolved from
 // the upstream SegmentTemplate stored in state, with $RepresentationID$ and $Bandwidth$ resolved.
 //
-// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/init
+// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/init
 func (c *Client) GetMovieDASHInit(ctx context.Context, params GetMovieDASHInitParams) (GetMovieDASHInitRes, error) {
 	res, err := c.sendGetMovieDASHInit(ctx, params)
 	return res, err
@@ -5229,7 +4246,7 @@ func (c *Client) sendGetMovieDASHInit(ctx context.Context, params GetMovieDASHIn
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getMovieDASHInit"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/init"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/init"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -5377,7 +4394,7 @@ func (c *Client) sendGetMovieDASHInit(ctx context.Context, params GetMovieDASHIn
 		}
 		pathParts[11] = encoded
 	}
-	pathParts[12] = "/init"
+	pathParts[12] = "/segments/init"
 	uri.AddPathParts(u, pathParts[:]...)
 
 	stage = "EncodeRequest"
@@ -5414,7 +4431,7 @@ func (c *Client) sendGetMovieDASHInit(ctx context.Context, params GetMovieDASHIn
 // Returns a single DASH media segment. The segment number or time is passed as the {segment} parameter
 // and resolved against the upstream SegmentTemplate stored in state.
 //
-// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/{segment}
+// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/{segment}
 func (c *Client) GetMovieDASHSegment(ctx context.Context, params GetMovieDASHSegmentParams) (GetMovieDASHSegmentRes, error) {
 	res, err := c.sendGetMovieDASHSegment(ctx, params)
 	return res, err
@@ -5424,7 +4441,7 @@ func (c *Client) sendGetMovieDASHSegment(ctx context.Context, params GetMovieDAS
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getMovieDASHSegment"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/{segment}"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/{format}/periods/{period}/adaptation-sets/{adaptationSet}/representations/{representation}/segments/{segment}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -5572,7 +4589,7 @@ func (c *Client) sendGetMovieDASHSegment(ctx context.Context, params GetMovieDAS
 		}
 		pathParts[11] = encoded
 	}
-	pathParts[12] = "/"
+	pathParts[12] = "/segments/"
 	{
 		// Encode "segment" parameter.
 		e := uri.NewPathEncoder(uri.PathEncoderConfig{
@@ -5622,12 +4639,423 @@ func (c *Client) sendGetMovieDASHSegment(ctx context.Context, params GetMovieDAS
 	return result, nil
 }
 
+// GetMovieHLSKey invokes getMovieHLSKey operation.
+//
+// Returns an AES-128 encryption key referenced by an EXT-X-KEY tag. The key is identified by a hash of
+// its upstream URL and is fetched from the upstream CDN and proxied through.
+//
+// GET /services/{serviceTag}/movies/{movieId}/streams/hls/keys/{file}
+func (c *Client) GetMovieHLSKey(ctx context.Context, params GetMovieHLSKeyParams) (GetMovieHLSKeyRes, error) {
+	res, err := c.sendGetMovieHLSKey(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendGetMovieHLSKey(ctx context.Context, params GetMovieHLSKeyParams) (res GetMovieHLSKeyRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("getMovieHLSKey"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/keys/{file}"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, GetMovieHLSKeyOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [6]string
+	pathParts[0] = "/services/"
+	{
+		// Encode "serviceTag" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "serviceTag",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.ServiceTag))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/movies/"
+	{
+		// Encode "movieId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "movieId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.MovieId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
+	pathParts[4] = "/streams/hls/keys/"
+	{
+		// Encode "file" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "file",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.File))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[5] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodeGetMovieHLSKeyResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// GetMovieHLSPartial invokes getMovieHLSPartial operation.
+//
+// Returns a low-latency HLS partial segment (EXT-X-PART). The partial is identified by a hash of its
+// upstream URL and is fetched from the upstream CDN and proxied through.
+//
+// GET /services/{serviceTag}/movies/{movieId}/streams/hls/partials/{file}
+func (c *Client) GetMovieHLSPartial(ctx context.Context, params GetMovieHLSPartialParams) (GetMovieHLSPartialRes, error) {
+	res, err := c.sendGetMovieHLSPartial(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendGetMovieHLSPartial(ctx context.Context, params GetMovieHLSPartialParams) (res GetMovieHLSPartialRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("getMovieHLSPartial"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/partials/{file}"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, GetMovieHLSPartialOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [6]string
+	pathParts[0] = "/services/"
+	{
+		// Encode "serviceTag" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "serviceTag",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.ServiceTag))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/movies/"
+	{
+		// Encode "movieId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "movieId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.MovieId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
+	pathParts[4] = "/streams/hls/partials/"
+	{
+		// Encode "file" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "file",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.File))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[5] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodeGetMovieHLSPartialResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// GetMovieHLSPreloadHint invokes getMovieHLSPreloadHint operation.
+//
+// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag. The hint is identified by a hash of
+// its upstream URL and is fetched from the upstream CDN and proxied through.
+//
+// GET /services/{serviceTag}/movies/{movieId}/streams/hls/preload-hints/{file}
+func (c *Client) GetMovieHLSPreloadHint(ctx context.Context, params GetMovieHLSPreloadHintParams) (GetMovieHLSPreloadHintRes, error) {
+	res, err := c.sendGetMovieHLSPreloadHint(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendGetMovieHLSPreloadHint(ctx context.Context, params GetMovieHLSPreloadHintParams) (res GetMovieHLSPreloadHintRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("getMovieHLSPreloadHint"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/preload-hints/{file}"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, GetMovieHLSPreloadHintOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [6]string
+	pathParts[0] = "/services/"
+	{
+		// Encode "serviceTag" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "serviceTag",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.ServiceTag))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/movies/"
+	{
+		// Encode "movieId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "movieId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.MovieId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
+	pathParts[4] = "/streams/hls/preload-hints/"
+	{
+		// Encode "file" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "file",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.File))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[5] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodeGetMovieHLSPreloadHintResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
 // GetMovieHLSRendition invokes getMovieHLSRendition operation.
 //
 // Returns a rewritten HLS media playlist for a specific rendition identified by GROUP-ID and NAME.
 // Typically used for audio or subtitle renditions. Segment URLs are rewritten to the proxy.
 //
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}
+// GET /services/{serviceTag}/movies/{movieId}/streams/hls/groups/{groupId}/renditions/{renditionName}
 func (c *Client) GetMovieHLSRendition(ctx context.Context, params GetMovieHLSRenditionParams) (GetMovieHLSRenditionRes, error) {
 	res, err := c.sendGetMovieHLSRendition(ctx, params)
 	return res, err
@@ -5637,7 +5065,7 @@ func (c *Client) sendGetMovieHLSRendition(ctx context.Context, params GetMovieHL
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getMovieHLSRendition"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/groups/{groupId}/renditions/{renditionName}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -5709,7 +5137,7 @@ func (c *Client) sendGetMovieHLSRendition(ctx context.Context, params GetMovieHL
 		}
 		pathParts[3] = encoded
 	}
-	pathParts[4] = "/streams/hls/renditions/"
+	pathParts[4] = "/streams/hls/groups/"
 	{
 		// Encode "groupId" parameter.
 		e := uri.NewPathEncoder(uri.PathEncoderConfig{
@@ -5728,7 +5156,7 @@ func (c *Client) sendGetMovieHLSRendition(ctx context.Context, params GetMovieHL
 		}
 		pathParts[5] = encoded
 	}
-	pathParts[6] = "/"
+	pathParts[6] = "/renditions/"
 	{
 		// Encode "renditionName" parameter.
 		e := uri.NewPathEncoder(uri.PathEncoderConfig{
@@ -5782,7 +5210,7 @@ func (c *Client) sendGetMovieHLSRendition(ctx context.Context, params GetMovieHL
 //
 // Returns a single media segment from an HLS rendition sub-playlist.
 //
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/segments/{segment}
+// GET /services/{serviceTag}/movies/{movieId}/streams/hls/groups/{groupId}/renditions/{renditionName}/segments/{segment}
 func (c *Client) GetMovieHLSRenditionSegment(ctx context.Context, params GetMovieHLSRenditionSegmentParams) (GetMovieHLSRenditionSegmentRes, error) {
 	res, err := c.sendGetMovieHLSRenditionSegment(ctx, params)
 	return res, err
@@ -5792,7 +5220,7 @@ func (c *Client) sendGetMovieHLSRenditionSegment(ctx context.Context, params Get
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getMovieHLSRenditionSegment"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/segments/{segment}"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/groups/{groupId}/renditions/{renditionName}/segments/{segment}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -5864,7 +5292,7 @@ func (c *Client) sendGetMovieHLSRenditionSegment(ctx context.Context, params Get
 		}
 		pathParts[3] = encoded
 	}
-	pathParts[4] = "/streams/hls/renditions/"
+	pathParts[4] = "/streams/hls/groups/"
 	{
 		// Encode "groupId" parameter.
 		e := uri.NewPathEncoder(uri.PathEncoderConfig{
@@ -5883,7 +5311,7 @@ func (c *Client) sendGetMovieHLSRenditionSegment(ctx context.Context, params Get
 		}
 		pathParts[5] = encoded
 	}
-	pathParts[6] = "/"
+	pathParts[6] = "/renditions/"
 	{
 		// Encode "renditionName" parameter.
 		e := uri.NewPathEncoder(uri.PathEncoderConfig{
@@ -6347,11 +5775,10 @@ func (c *Client) sendGetMovieHLSSteering(ctx context.Context, params GetMovieHLS
 
 // GetMovieHLSVariant invokes getMovieHLSVariant operation.
 //
-// Returns a rewritten HLS media playlist for a specific variant. The variant is identified by its
-// zero-based index in the master playlist. Segment URLs in the response are rewritten to point back to
-// the proxy.
+// Returns a rewritten HLS media playlist for a specific variant. The variant is identified by a hash
+// of its upstream playlist URL. Segment URLs in the response are rewritten to point back to the proxy.
 //
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}
+// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantId}
 func (c *Client) GetMovieHLSVariant(ctx context.Context, params GetMovieHLSVariantParams) (GetMovieHLSVariantRes, error) {
 	res, err := c.sendGetMovieHLSVariant(ctx, params)
 	return res, err
@@ -6361,7 +5788,7 @@ func (c *Client) sendGetMovieHLSVariant(ctx context.Context, params GetMovieHLSV
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getMovieHLSVariant"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantId}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -6435,14 +5862,14 @@ func (c *Client) sendGetMovieHLSVariant(ctx context.Context, params GetMovieHLSV
 	}
 	pathParts[4] = "/streams/hls/variants/"
 	{
-		// Encode "variantIndex" parameter.
+		// Encode "variantId" parameter.
 		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "variantIndex",
+			Param:   "variantId",
 			Style:   uri.PathStyleSimple,
 			Explode: false,
 		})
 		if err := func() error {
-			return e.EncodeValue(conv.IntToString(params.VariantIndex))
+			return e.EncodeValue(conv.StringToString(params.VariantId))
 		}(); err != nil {
 			return res, errors.Wrap(err, "encode path")
 		}
@@ -6488,7 +5915,7 @@ func (c *Client) sendGetMovieHLSVariant(ctx context.Context, params GetMovieHLSV
 // Returns a single media segment from an HLS variant sub-playlist. The segment filename is passed
 // through and resolved against the upstream base URL stored in state.
 //
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/segments/{segment}
+// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantId}/segments/{segment}
 func (c *Client) GetMovieHLSVariantSegment(ctx context.Context, params GetMovieHLSVariantSegmentParams) (GetMovieHLSVariantSegmentRes, error) {
 	res, err := c.sendGetMovieHLSVariantSegment(ctx, params)
 	return res, err
@@ -6498,7 +5925,7 @@ func (c *Client) sendGetMovieHLSVariantSegment(ctx context.Context, params GetMo
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getMovieHLSVariantSegment"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/segments/{segment}"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantId}/segments/{segment}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -6572,14 +5999,14 @@ func (c *Client) sendGetMovieHLSVariantSegment(ctx context.Context, params GetMo
 	}
 	pathParts[4] = "/streams/hls/variants/"
 	{
-		// Encode "variantIndex" parameter.
+		// Encode "variantId" parameter.
 		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "variantIndex",
+			Param:   "variantId",
 			Style:   uri.PathStyleSimple,
 			Explode: false,
 		})
 		if err := func() error {
-			return e.EncodeValue(conv.IntToString(params.VariantIndex))
+			return e.EncodeValue(conv.StringToString(params.VariantId))
 		}(); err != nil {
 			return res, errors.Wrap(err, "encode path")
 		}
@@ -6757,537 +6184,12 @@ func (c *Client) sendGetMoviePoster(ctx context.Context, params GetMoviePosterPa
 	return result, nil
 }
 
-// GetMovieRenditionKey invokes getMovieRenditionKey operation.
-//
-// Returns an AES-128 encryption key from a rendition sub-playlist. The key file is fetched from the
-// upstream CDN and proxied through.
-//
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/keys/{file}
-func (c *Client) GetMovieRenditionKey(ctx context.Context, params GetMovieRenditionKeyParams) (GetMovieRenditionKeyRes, error) {
-	res, err := c.sendGetMovieRenditionKey(ctx, params)
-	return res, err
-}
-
-func (c *Client) sendGetMovieRenditionKey(ctx context.Context, params GetMovieRenditionKeyParams) (res GetMovieRenditionKeyRes, err error) {
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getMovieRenditionKey"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/keys/{file}"),
-	}
-	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		elapsedDuration := time.Since(startTime)
-		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
-	}()
-
-	// Increment request counter.
-	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-
-	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, GetMovieRenditionKeyOperation,
-		trace.WithAttributes(otelAttrs...),
-		clientSpanKind,
-	)
-	// Track stage for error reporting.
-	var stage string
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, stage)
-			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-		}
-		span.End()
-	}()
-
-	stage = "BuildURL"
-	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [10]string
-	pathParts[0] = "/services/"
-	{
-		// Encode "serviceTag" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "serviceTag",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.ServiceTag))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[1] = encoded
-	}
-	pathParts[2] = "/movies/"
-	{
-		// Encode "movieId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "movieId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.MovieId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[3] = encoded
-	}
-	pathParts[4] = "/streams/hls/renditions/"
-	{
-		// Encode "groupId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "groupId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.GroupId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[5] = encoded
-	}
-	pathParts[6] = "/"
-	{
-		// Encode "renditionName" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "renditionName",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.RenditionName))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[7] = encoded
-	}
-	pathParts[8] = "/keys/"
-	{
-		// Encode "file" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "file",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.File))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[9] = encoded
-	}
-	uri.AddPathParts(u, pathParts[:]...)
-
-	stage = "EncodeRequest"
-	r, err := ht.NewRequest(ctx, "GET", u)
-	if err != nil {
-		return res, errors.Wrap(err, "create request")
-	}
-
-	stage = "SendRequest"
-	resp, err := c.cfg.Client.Do(r)
-	if err != nil {
-		return res, errors.Wrap(err, "do request")
-	}
-	body := resp.Body
-	defer func() {
-		// Drain the body to EOF before closing, so the underlying
-		// connection can be reused by the Transport regardless of the
-		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
-		_, _ = io.Copy(io.Discard, body)
-		_ = body.Close()
-	}()
-
-	stage = "DecodeResponse"
-	result, err := decodeGetMovieRenditionKeyResponse(resp)
-	if err != nil {
-		return res, errors.Wrap(err, "decode response")
-	}
-
-	return result, nil
-}
-
-// GetMovieRenditionPartial invokes getMovieRenditionPartial operation.
-//
-// Returns a low-latency HLS partial segment (EXT-X-PART) from a rendition sub-playlist. Fetched from
-// the upstream CDN.
-//
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/partials/{file}
-func (c *Client) GetMovieRenditionPartial(ctx context.Context, params GetMovieRenditionPartialParams) (GetMovieRenditionPartialRes, error) {
-	res, err := c.sendGetMovieRenditionPartial(ctx, params)
-	return res, err
-}
-
-func (c *Client) sendGetMovieRenditionPartial(ctx context.Context, params GetMovieRenditionPartialParams) (res GetMovieRenditionPartialRes, err error) {
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getMovieRenditionPartial"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/partials/{file}"),
-	}
-	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		elapsedDuration := time.Since(startTime)
-		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
-	}()
-
-	// Increment request counter.
-	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-
-	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, GetMovieRenditionPartialOperation,
-		trace.WithAttributes(otelAttrs...),
-		clientSpanKind,
-	)
-	// Track stage for error reporting.
-	var stage string
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, stage)
-			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-		}
-		span.End()
-	}()
-
-	stage = "BuildURL"
-	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [10]string
-	pathParts[0] = "/services/"
-	{
-		// Encode "serviceTag" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "serviceTag",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.ServiceTag))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[1] = encoded
-	}
-	pathParts[2] = "/movies/"
-	{
-		// Encode "movieId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "movieId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.MovieId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[3] = encoded
-	}
-	pathParts[4] = "/streams/hls/renditions/"
-	{
-		// Encode "groupId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "groupId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.GroupId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[5] = encoded
-	}
-	pathParts[6] = "/"
-	{
-		// Encode "renditionName" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "renditionName",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.RenditionName))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[7] = encoded
-	}
-	pathParts[8] = "/partials/"
-	{
-		// Encode "file" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "file",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.File))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[9] = encoded
-	}
-	uri.AddPathParts(u, pathParts[:]...)
-
-	stage = "EncodeRequest"
-	r, err := ht.NewRequest(ctx, "GET", u)
-	if err != nil {
-		return res, errors.Wrap(err, "create request")
-	}
-
-	stage = "SendRequest"
-	resp, err := c.cfg.Client.Do(r)
-	if err != nil {
-		return res, errors.Wrap(err, "do request")
-	}
-	body := resp.Body
-	defer func() {
-		// Drain the body to EOF before closing, so the underlying
-		// connection can be reused by the Transport regardless of the
-		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
-		_, _ = io.Copy(io.Discard, body)
-		_ = body.Close()
-	}()
-
-	stage = "DecodeResponse"
-	result, err := decodeGetMovieRenditionPartialResponse(resp)
-	if err != nil {
-		return res, errors.Wrap(err, "decode response")
-	}
-
-	return result, nil
-}
-
-// GetMovieRenditionPreloadHint invokes getMovieRenditionPreloadHint operation.
-//
-// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag from a rendition sub-playlist. Fetched
-// from the upstream CDN.
-//
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/preload-hints/{file}
-func (c *Client) GetMovieRenditionPreloadHint(ctx context.Context, params GetMovieRenditionPreloadHintParams) (GetMovieRenditionPreloadHintRes, error) {
-	res, err := c.sendGetMovieRenditionPreloadHint(ctx, params)
-	return res, err
-}
-
-func (c *Client) sendGetMovieRenditionPreloadHint(ctx context.Context, params GetMovieRenditionPreloadHintParams) (res GetMovieRenditionPreloadHintRes, err error) {
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getMovieRenditionPreloadHint"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/renditions/{groupId}/{renditionName}/preload-hints/{file}"),
-	}
-	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		elapsedDuration := time.Since(startTime)
-		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
-	}()
-
-	// Increment request counter.
-	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-
-	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, GetMovieRenditionPreloadHintOperation,
-		trace.WithAttributes(otelAttrs...),
-		clientSpanKind,
-	)
-	// Track stage for error reporting.
-	var stage string
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, stage)
-			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-		}
-		span.End()
-	}()
-
-	stage = "BuildURL"
-	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [10]string
-	pathParts[0] = "/services/"
-	{
-		// Encode "serviceTag" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "serviceTag",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.ServiceTag))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[1] = encoded
-	}
-	pathParts[2] = "/movies/"
-	{
-		// Encode "movieId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "movieId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.MovieId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[3] = encoded
-	}
-	pathParts[4] = "/streams/hls/renditions/"
-	{
-		// Encode "groupId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "groupId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.GroupId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[5] = encoded
-	}
-	pathParts[6] = "/"
-	{
-		// Encode "renditionName" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "renditionName",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.RenditionName))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[7] = encoded
-	}
-	pathParts[8] = "/preload-hints/"
-	{
-		// Encode "file" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "file",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.File))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[9] = encoded
-	}
-	uri.AddPathParts(u, pathParts[:]...)
-
-	stage = "EncodeRequest"
-	r, err := ht.NewRequest(ctx, "GET", u)
-	if err != nil {
-		return res, errors.Wrap(err, "create request")
-	}
-
-	stage = "SendRequest"
-	resp, err := c.cfg.Client.Do(r)
-	if err != nil {
-		return res, errors.Wrap(err, "do request")
-	}
-	body := resp.Body
-	defer func() {
-		// Drain the body to EOF before closing, so the underlying
-		// connection can be reused by the Transport regardless of the
-		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
-		_, _ = io.Copy(io.Discard, body)
-		_ = body.Close()
-	}()
-
-	stage = "DecodeResponse"
-	result, err := decodeGetMovieRenditionPreloadHintResponse(resp)
-	if err != nil {
-		return res, errors.Wrap(err, "decode response")
-	}
-
-	return result, nil
-}
-
 // GetMovieStreamFile invokes getMovieStreamFile operation.
 //
 // Returns the raw stream manifest or playlist binary content. The response Content-Type matches the
 // stream's encoding format (e.g. `application/dash+xml`, `application/vnd.apple.mpegurl`).
 //
-// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/{file}
+// GET /services/{serviceTag}/movies/{movieId}/streams/{format}
 func (c *Client) GetMovieStreamFile(ctx context.Context, params GetMovieStreamFileParams) (GetMovieStreamFileRes, error) {
 	res, err := c.sendGetMovieStreamFile(ctx, params)
 	return res, err
@@ -7297,7 +6199,7 @@ func (c *Client) sendGetMovieStreamFile(ctx context.Context, params GetMovieStre
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getMovieStreamFile"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/{format}/{file}"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/{format}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -7330,7 +6232,7 @@ func (c *Client) sendGetMovieStreamFile(ctx context.Context, params GetMovieStre
 
 	stage = "BuildURL"
 	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [8]string
+	var pathParts [6]string
 	pathParts[0] = "/services/"
 	{
 		// Encode "serviceTag" parameter.
@@ -7387,25 +6289,6 @@ func (c *Client) sendGetMovieStreamFile(ctx context.Context, params GetMovieStre
 			return res, errors.Wrap(err, "encode path")
 		}
 		pathParts[5] = encoded
-	}
-	pathParts[6] = "/"
-	{
-		// Encode "file" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "file",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.File))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[7] = encoded
 	}
 	uri.AddPathParts(u, pathParts[:]...)
 
@@ -7431,181 +6314,6 @@ func (c *Client) sendGetMovieStreamFile(ctx context.Context, params GetMovieStre
 
 	stage = "DecodeResponse"
 	result, err := decodeGetMovieStreamFileResponse(resp)
-	if err != nil {
-		return res, errors.Wrap(err, "decode response")
-	}
-
-	return result, nil
-}
-
-// GetMovieStreamSegment invokes getMovieStreamSegment operation.
-//
-// Returns a single media segment (HLS .ts/.m4s, DASH .m4s/.mp4) or an initialization segment for a
-// given rendition.
-//
-// GET /services/{serviceTag}/movies/{movieId}/streams/{format}/{rendition}/{segment}
-func (c *Client) GetMovieStreamSegment(ctx context.Context, params GetMovieStreamSegmentParams) (GetMovieStreamSegmentRes, error) {
-	res, err := c.sendGetMovieStreamSegment(ctx, params)
-	return res, err
-}
-
-func (c *Client) sendGetMovieStreamSegment(ctx context.Context, params GetMovieStreamSegmentParams) (res GetMovieStreamSegmentRes, err error) {
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getMovieStreamSegment"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/{format}/{rendition}/{segment}"),
-	}
-	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		elapsedDuration := time.Since(startTime)
-		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
-	}()
-
-	// Increment request counter.
-	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-
-	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, GetMovieStreamSegmentOperation,
-		trace.WithAttributes(otelAttrs...),
-		clientSpanKind,
-	)
-	// Track stage for error reporting.
-	var stage string
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, stage)
-			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-		}
-		span.End()
-	}()
-
-	stage = "BuildURL"
-	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [10]string
-	pathParts[0] = "/services/"
-	{
-		// Encode "serviceTag" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "serviceTag",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.ServiceTag))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[1] = encoded
-	}
-	pathParts[2] = "/movies/"
-	{
-		// Encode "movieId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "movieId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.MovieId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[3] = encoded
-	}
-	pathParts[4] = "/streams/"
-	{
-		// Encode "format" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "format",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(string(params.Format)))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[5] = encoded
-	}
-	pathParts[6] = "/"
-	{
-		// Encode "rendition" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "rendition",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.Rendition))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[7] = encoded
-	}
-	pathParts[8] = "/"
-	{
-		// Encode "segment" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "segment",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.Segment))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[9] = encoded
-	}
-	uri.AddPathParts(u, pathParts[:]...)
-
-	stage = "EncodeRequest"
-	r, err := ht.NewRequest(ctx, "GET", u)
-	if err != nil {
-		return res, errors.Wrap(err, "create request")
-	}
-
-	stage = "SendRequest"
-	resp, err := c.cfg.Client.Do(r)
-	if err != nil {
-		return res, errors.Wrap(err, "do request")
-	}
-	body := resp.Body
-	defer func() {
-		// Drain the body to EOF before closing, so the underlying
-		// connection can be reused by the Transport regardless of the
-		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
-		_, _ = io.Copy(io.Discard, body)
-		_ = body.Close()
-	}()
-
-	stage = "DecodeResponse"
-	result, err := decodeGetMovieStreamSegmentResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -7770,22 +6478,22 @@ func (c *Client) sendGetMovieStreams(ctx context.Context, params GetMovieStreams
 	return result, nil
 }
 
-// GetMovieSubtitleFile invokes getMovieSubtitleFile operation.
+// GetMovieSubtitle invokes getMovieSubtitle operation.
 //
 // Returns the raw subtitle file content. The response Content-Type matches the subtitle format (e.g.
 // `text/vtt`, `application/x-subrip`).
 //
-// GET /services/{serviceTag}/movies/{movieId}/subtitles/{subtitleFile}
-func (c *Client) GetMovieSubtitleFile(ctx context.Context, params GetMovieSubtitleFileParams) (GetMovieSubtitleFileRes, error) {
-	res, err := c.sendGetMovieSubtitleFile(ctx, params)
+// GET /services/{serviceTag}/movies/{movieId}/subtitles/{subtitleId}
+func (c *Client) GetMovieSubtitle(ctx context.Context, params GetMovieSubtitleParams) (GetMovieSubtitleRes, error) {
+	res, err := c.sendGetMovieSubtitle(ctx, params)
 	return res, err
 }
 
-func (c *Client) sendGetMovieSubtitleFile(ctx context.Context, params GetMovieSubtitleFileParams) (res GetMovieSubtitleFileRes, err error) {
+func (c *Client) sendGetMovieSubtitle(ctx context.Context, params GetMovieSubtitleParams) (res GetMovieSubtitleRes, err error) {
 	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getMovieSubtitleFile"),
+		otelogen.OperationID("getMovieSubtitle"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/subtitles/{subtitleFile}"),
+		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/subtitles/{subtitleId}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -7801,7 +6509,7 @@ func (c *Client) sendGetMovieSubtitleFile(ctx context.Context, params GetMovieSu
 	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
 
 	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, GetMovieSubtitleFileOperation,
+	ctx, span := c.cfg.Tracer.Start(ctx, GetMovieSubtitleOperation,
 		trace.WithAttributes(otelAttrs...),
 		clientSpanKind,
 	)
@@ -7859,14 +6567,14 @@ func (c *Client) sendGetMovieSubtitleFile(ctx context.Context, params GetMovieSu
 	}
 	pathParts[4] = "/subtitles/"
 	{
-		// Encode "subtitleFile" parameter.
+		// Encode "subtitleId" parameter.
 		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "subtitleFile",
+			Param:   "subtitleId",
 			Style:   uri.PathStyleSimple,
 			Explode: false,
 		})
 		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.SubtitleFile))
+			return e.EncodeValue(conv.StringToString(params.SubtitleId))
 		}(); err != nil {
 			return res, errors.Wrap(err, "encode path")
 		}
@@ -7899,7 +6607,7 @@ func (c *Client) sendGetMovieSubtitleFile(ctx context.Context, params GetMovieSu
 	}()
 
 	stage = "DecodeResponse"
-	result, err := decodeGetMovieSubtitleFileResponse(resp)
+	result, err := decodeGetMovieSubtitleResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -8057,474 +6765,6 @@ func (c *Client) sendGetMovieSubtitles(ctx context.Context, params GetMovieSubti
 
 	stage = "DecodeResponse"
 	result, err := decodeGetMovieSubtitlesResponse(resp)
-	if err != nil {
-		return res, errors.Wrap(err, "decode response")
-	}
-
-	return result, nil
-}
-
-// GetMovieVariantKey invokes getMovieVariantKey operation.
-//
-// Returns an AES-128 encryption key from a variant sub-playlist. The key file is fetched from the
-// upstream CDN and proxied through.
-//
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/keys/{file}
-func (c *Client) GetMovieVariantKey(ctx context.Context, params GetMovieVariantKeyParams) (GetMovieVariantKeyRes, error) {
-	res, err := c.sendGetMovieVariantKey(ctx, params)
-	return res, err
-}
-
-func (c *Client) sendGetMovieVariantKey(ctx context.Context, params GetMovieVariantKeyParams) (res GetMovieVariantKeyRes, err error) {
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getMovieVariantKey"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/keys/{file}"),
-	}
-	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		elapsedDuration := time.Since(startTime)
-		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
-	}()
-
-	// Increment request counter.
-	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-
-	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, GetMovieVariantKeyOperation,
-		trace.WithAttributes(otelAttrs...),
-		clientSpanKind,
-	)
-	// Track stage for error reporting.
-	var stage string
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, stage)
-			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-		}
-		span.End()
-	}()
-
-	stage = "BuildURL"
-	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [8]string
-	pathParts[0] = "/services/"
-	{
-		// Encode "serviceTag" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "serviceTag",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.ServiceTag))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[1] = encoded
-	}
-	pathParts[2] = "/movies/"
-	{
-		// Encode "movieId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "movieId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.MovieId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[3] = encoded
-	}
-	pathParts[4] = "/streams/hls/variants/"
-	{
-		// Encode "variantIndex" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "variantIndex",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.IntToString(params.VariantIndex))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[5] = encoded
-	}
-	pathParts[6] = "/keys/"
-	{
-		// Encode "file" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "file",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.File))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[7] = encoded
-	}
-	uri.AddPathParts(u, pathParts[:]...)
-
-	stage = "EncodeRequest"
-	r, err := ht.NewRequest(ctx, "GET", u)
-	if err != nil {
-		return res, errors.Wrap(err, "create request")
-	}
-
-	stage = "SendRequest"
-	resp, err := c.cfg.Client.Do(r)
-	if err != nil {
-		return res, errors.Wrap(err, "do request")
-	}
-	body := resp.Body
-	defer func() {
-		// Drain the body to EOF before closing, so the underlying
-		// connection can be reused by the Transport regardless of the
-		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
-		_, _ = io.Copy(io.Discard, body)
-		_ = body.Close()
-	}()
-
-	stage = "DecodeResponse"
-	result, err := decodeGetMovieVariantKeyResponse(resp)
-	if err != nil {
-		return res, errors.Wrap(err, "decode response")
-	}
-
-	return result, nil
-}
-
-// GetMovieVariantPartial invokes getMovieVariantPartial operation.
-//
-// Returns a low-latency HLS partial segment (EXT-X-PART) from a variant sub-playlist. Fetched from the
-// upstream CDN.
-//
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/partials/{file}
-func (c *Client) GetMovieVariantPartial(ctx context.Context, params GetMovieVariantPartialParams) (GetMovieVariantPartialRes, error) {
-	res, err := c.sendGetMovieVariantPartial(ctx, params)
-	return res, err
-}
-
-func (c *Client) sendGetMovieVariantPartial(ctx context.Context, params GetMovieVariantPartialParams) (res GetMovieVariantPartialRes, err error) {
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getMovieVariantPartial"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/partials/{file}"),
-	}
-	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		elapsedDuration := time.Since(startTime)
-		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
-	}()
-
-	// Increment request counter.
-	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-
-	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, GetMovieVariantPartialOperation,
-		trace.WithAttributes(otelAttrs...),
-		clientSpanKind,
-	)
-	// Track stage for error reporting.
-	var stage string
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, stage)
-			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-		}
-		span.End()
-	}()
-
-	stage = "BuildURL"
-	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [8]string
-	pathParts[0] = "/services/"
-	{
-		// Encode "serviceTag" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "serviceTag",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.ServiceTag))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[1] = encoded
-	}
-	pathParts[2] = "/movies/"
-	{
-		// Encode "movieId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "movieId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.MovieId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[3] = encoded
-	}
-	pathParts[4] = "/streams/hls/variants/"
-	{
-		// Encode "variantIndex" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "variantIndex",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.IntToString(params.VariantIndex))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[5] = encoded
-	}
-	pathParts[6] = "/partials/"
-	{
-		// Encode "file" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "file",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.File))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[7] = encoded
-	}
-	uri.AddPathParts(u, pathParts[:]...)
-
-	stage = "EncodeRequest"
-	r, err := ht.NewRequest(ctx, "GET", u)
-	if err != nil {
-		return res, errors.Wrap(err, "create request")
-	}
-
-	stage = "SendRequest"
-	resp, err := c.cfg.Client.Do(r)
-	if err != nil {
-		return res, errors.Wrap(err, "do request")
-	}
-	body := resp.Body
-	defer func() {
-		// Drain the body to EOF before closing, so the underlying
-		// connection can be reused by the Transport regardless of the
-		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
-		_, _ = io.Copy(io.Discard, body)
-		_ = body.Close()
-	}()
-
-	stage = "DecodeResponse"
-	result, err := decodeGetMovieVariantPartialResponse(resp)
-	if err != nil {
-		return res, errors.Wrap(err, "decode response")
-	}
-
-	return result, nil
-}
-
-// GetMovieVariantPreloadHint invokes getMovieVariantPreloadHint operation.
-//
-// Returns the resource referenced by an EXT-X-PRELOAD-HINT tag from a variant sub-playlist. Fetched
-// from the upstream CDN.
-//
-// GET /services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/preload-hints/{file}
-func (c *Client) GetMovieVariantPreloadHint(ctx context.Context, params GetMovieVariantPreloadHintParams) (GetMovieVariantPreloadHintRes, error) {
-	res, err := c.sendGetMovieVariantPreloadHint(ctx, params)
-	return res, err
-}
-
-func (c *Client) sendGetMovieVariantPreloadHint(ctx context.Context, params GetMovieVariantPreloadHintParams) (res GetMovieVariantPreloadHintRes, err error) {
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("getMovieVariantPreloadHint"),
-		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/services/{serviceTag}/movies/{movieId}/streams/hls/variants/{variantIndex}/preload-hints/{file}"),
-	}
-	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		elapsedDuration := time.Since(startTime)
-		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
-	}()
-
-	// Increment request counter.
-	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-
-	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, GetMovieVariantPreloadHintOperation,
-		trace.WithAttributes(otelAttrs...),
-		clientSpanKind,
-	)
-	// Track stage for error reporting.
-	var stage string
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, stage)
-			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-		}
-		span.End()
-	}()
-
-	stage = "BuildURL"
-	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [8]string
-	pathParts[0] = "/services/"
-	{
-		// Encode "serviceTag" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "serviceTag",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.ServiceTag))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[1] = encoded
-	}
-	pathParts[2] = "/movies/"
-	{
-		// Encode "movieId" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "movieId",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.MovieId))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[3] = encoded
-	}
-	pathParts[4] = "/streams/hls/variants/"
-	{
-		// Encode "variantIndex" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "variantIndex",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.IntToString(params.VariantIndex))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[5] = encoded
-	}
-	pathParts[6] = "/preload-hints/"
-	{
-		// Encode "file" parameter.
-		e := uri.NewPathEncoder(uri.PathEncoderConfig{
-			Param:   "file",
-			Style:   uri.PathStyleSimple,
-			Explode: false,
-		})
-		if err := func() error {
-			return e.EncodeValue(conv.StringToString(params.File))
-		}(); err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		encoded, err := e.Result()
-		if err != nil {
-			return res, errors.Wrap(err, "encode path")
-		}
-		pathParts[7] = encoded
-	}
-	uri.AddPathParts(u, pathParts[:]...)
-
-	stage = "EncodeRequest"
-	r, err := ht.NewRequest(ctx, "GET", u)
-	if err != nil {
-		return res, errors.Wrap(err, "create request")
-	}
-
-	stage = "SendRequest"
-	resp, err := c.cfg.Client.Do(r)
-	if err != nil {
-		return res, errors.Wrap(err, "do request")
-	}
-	body := resp.Body
-	defer func() {
-		// Drain the body to EOF before closing, so the underlying
-		// connection can be reused by the Transport regardless of the
-		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
-		_, _ = io.Copy(io.Discard, body)
-		_ = body.Close()
-	}()
-
-	stage = "DecodeResponse"
-	result, err := decodeGetMovieVariantPreloadHintResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

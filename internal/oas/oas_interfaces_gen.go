@@ -13,6 +13,18 @@ type GetEpisodeDASHSegmentRes interface {
 	getEpisodeDASHSegmentRes()
 }
 
+type GetEpisodeHLSKeyRes interface {
+	getEpisodeHLSKeyRes()
+}
+
+type GetEpisodeHLSPartialRes interface {
+	getEpisodeHLSPartialRes()
+}
+
+type GetEpisodeHLSPreloadHintRes interface {
+	getEpisodeHLSPreloadHintRes()
+}
+
 type GetEpisodeHLSRenditionRes interface {
 	getEpisodeHLSRenditionRes()
 }
@@ -41,32 +53,16 @@ type GetEpisodeHLSVariantSegmentRes interface {
 	getEpisodeHLSVariantSegmentRes()
 }
 
-type GetEpisodeRenditionKeyRes interface {
-	getEpisodeRenditionKeyRes()
-}
-
-type GetEpisodeRenditionPartialRes interface {
-	getEpisodeRenditionPartialRes()
-}
-
-type GetEpisodeRenditionPreloadHintRes interface {
-	getEpisodeRenditionPreloadHintRes()
-}
-
 type GetEpisodeStreamFileRes interface {
 	getEpisodeStreamFileRes()
-}
-
-type GetEpisodeStreamSegmentRes interface {
-	getEpisodeStreamSegmentRes()
 }
 
 type GetEpisodeStreamsRes interface {
 	getEpisodeStreamsRes()
 }
 
-type GetEpisodeSubtitleFileRes interface {
-	getEpisodeSubtitleFileRes()
+type GetEpisodeSubtitleRes interface {
+	getEpisodeSubtitleRes()
 }
 
 type GetEpisodeSubtitlesRes interface {
@@ -75,18 +71,6 @@ type GetEpisodeSubtitlesRes interface {
 
 type GetEpisodeThumbnailRes interface {
 	getEpisodeThumbnailRes()
-}
-
-type GetEpisodeVariantKeyRes interface {
-	getEpisodeVariantKeyRes()
-}
-
-type GetEpisodeVariantPartialRes interface {
-	getEpisodeVariantPartialRes()
-}
-
-type GetEpisodeVariantPreloadHintRes interface {
-	getEpisodeVariantPreloadHintRes()
 }
 
 type GetEpisodesRes interface {
@@ -107,6 +91,18 @@ type GetMovieDASHInitRes interface {
 
 type GetMovieDASHSegmentRes interface {
 	getMovieDASHSegmentRes()
+}
+
+type GetMovieHLSKeyRes interface {
+	getMovieHLSKeyRes()
+}
+
+type GetMovieHLSPartialRes interface {
+	getMovieHLSPartialRes()
+}
+
+type GetMovieHLSPreloadHintRes interface {
+	getMovieHLSPreloadHintRes()
 }
 
 type GetMovieHLSRenditionRes interface {
@@ -141,48 +137,20 @@ type GetMoviePosterRes interface {
 	getMoviePosterRes()
 }
 
-type GetMovieRenditionKeyRes interface {
-	getMovieRenditionKeyRes()
-}
-
-type GetMovieRenditionPartialRes interface {
-	getMovieRenditionPartialRes()
-}
-
-type GetMovieRenditionPreloadHintRes interface {
-	getMovieRenditionPreloadHintRes()
-}
-
 type GetMovieStreamFileRes interface {
 	getMovieStreamFileRes()
-}
-
-type GetMovieStreamSegmentRes interface {
-	getMovieStreamSegmentRes()
 }
 
 type GetMovieStreamsRes interface {
 	getMovieStreamsRes()
 }
 
-type GetMovieSubtitleFileRes interface {
-	getMovieSubtitleFileRes()
+type GetMovieSubtitleRes interface {
+	getMovieSubtitleRes()
 }
 
 type GetMovieSubtitlesRes interface {
 	getMovieSubtitlesRes()
-}
-
-type GetMovieVariantKeyRes interface {
-	getMovieVariantKeyRes()
-}
-
-type GetMovieVariantPartialRes interface {
-	getMovieVariantPartialRes()
-}
-
-type GetMovieVariantPreloadHintRes interface {
-	getMovieVariantPreloadHintRes()
 }
 
 type GetMoviesRes interface {
