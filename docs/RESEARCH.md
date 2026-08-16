@@ -7,7 +7,7 @@ Each spike has a status: `pending` → `in progress` → `done`. Nothing here is
 ## 1. Planned spikes
 
 | Spike | Questions it answers | Gates | Status |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **First provider feasibility** | Does Jellyfin's API cleanly map to whole-catalogue sync (§5.4)? Pagination shape? Item metadata + external IDs? Rate-limit posture? | M1 start | pending |
 | **Relay-through-owner feasibility** | Double-hop latency, owner bandwidth cost, connection model (§7.4). Is it workable for a v2 sidecar? | v2 planning | pending |
 | **DRM slot feasibility** | Which DRM systems (Widevine L1/L3, FairPlay, PlayReady) map to `acquire-keys` + `decrypt` (§6.6)? What real license-negotiation shapes exist? Is decrypt-to-clear achievable, and for which systems? | v2 planning (DRM is out of v1 per SCOPE.md) | pending |

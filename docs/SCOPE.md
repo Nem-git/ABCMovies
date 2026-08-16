@@ -9,7 +9,7 @@ This document fixes **what v1 of the project is**: which milestones ship, what i
 **v1 = milestones M0–M6** (IMPLEMENTATION.md §3).
 
 | In v1 | Milestones | What it delivers |
-|---|---|---|
+| --- | --- | --- |
 | M0 | Walking skeleton | Registry, one in-process slot, store classes, API server, one sync call + one event to a web client |
 | M1 | Library-class provider adapter | The first library-class provider (TECHNICAL-DECISIONS.md §1.8), whole-catalogue sync, account source cache |
 | M2 | Library + matching + merge | LibraryEntry, provider item registry, per-user merged library |
@@ -21,7 +21,7 @@ This document fixes **what v1 of the project is**: which milestones ship, what i
 **Explicitly out of v1 (deferred to v2):**
 
 | Deferred | Where it's specified | Note |
-|---|---|---|
+| --- | --- | --- |
 | DRM slot (acquire-keys / decrypt) | PLAN.md §6.6 | See sign-off in §3 |
 | Lazy streaming-service providers | PLAN.md §5.4 | v1 providers are library-class only |
 | Sidecar custody | PLAN.md §7.4 | Server-held custody only in v1; relay-through-owner is v2 |

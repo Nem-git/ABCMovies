@@ -8,7 +8,7 @@ Scope note: this describes v1 (SCOPE.md: M0–M6). The DRM slot, sidecar custody
 
 v1 is a **single-instance deployment**: one process running the core, with the stores (§2.4 of PLAN.md) behind it. Everything else is optional and additive.
 
-```
+```text
             Internet / LAN
                  │  API transport (§8, TECHNICAL-DECISIONS.md §1.2)
         ┌────────▼─────────┐
@@ -35,11 +35,13 @@ v1 is a **single-instance deployment**: one process running the core, with the s
 The vault (§2.4: durable, **must not lose**; losing it logs everyone out) is the single most important operational object.
 
 **Backup:**
+
 - Back up the vault file and its key-encryption keys (owner KEKs, host relay key) together — a vault without its keys is a vault you cannot open.
 - Run vault backups on a defined schedule; verify a restore from each backup at least once per release cycle (a backup that has never been restored is a hope, not a backup).
 - Backup media inherits the same encryption-at-rest discipline as the live vault; it must never be stored in the clear.
 
 **Restore:**
+
 - Restore the vault file and the matching keys to a clean instance.
 - Everything else rebuilds: the account source cache (library-class providers), enrichment cache, derived library cache are all rebuildable (§2.4). History/playlists are per-user encrypted blobs backed up with the vault.
 - After a vault restore, sessions with validity remaining work again; sessions that expired while offline surface as `account-session-expired` events and re-auth jobs (§7.5).
@@ -49,7 +51,7 @@ The vault (§2.4: durable, **must not lose**; losing it logs everyone out) is th
 ## 3. Key rotation
 
 | Key | Rotation trigger | Effect | Procedure |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Host relay key** | Compromise suspicion, key-custodian change, or policy interval | Rotating it **kills every member relay at once** (§7.6) — members must re-link through the owner's session | Generate new relay key; re-encrypt each account session's session key under the new key; expect a wave of `account-session-expired` events and re-auth jobs; schedule during low-usage window |
 | **Owner KEKs** | Password change / recovery | Re-wraps the user's DEK; data survives (§7.6) | Handled by the client (password change) or recovery flow, not by ops |
 | **Content-key cache entries** | License validity (TTL) | Entry dropped on decrypt failure; fail-fast re-license (§6.6) | Automatic; v2 |

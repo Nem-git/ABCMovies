@@ -7,7 +7,7 @@ PLAN.md §7.6's honesty principle governs everything here: there is no mathemati
 ## 1. Assets and trust classes
 
 | Asset | Where | Trust class (PLAN.md §7.6) | Loss consequence |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Account sessions (tokens/cookies) | Vault | **Policy-not-proof**: host holds the relay key and can decrypt | Attacker can use accounts on the user's behalf; leaking them logs everyone out (§7.6) |
 | Host relay key | Instance keystore | Disclosed server secret, scoped to account sessions only | Decrypts all member relays; rotation kills every member relay at once |
 | User blobs (history, playlists, derived library) | Per-user encrypted stores | User's DEK; host unwraps during processing (process promise, not proof) | Loss = user's personal data; compromise = privacy break |
@@ -20,7 +20,7 @@ PLAN.md §7.6's honesty principle governs everything here: there is no mathemati
 ## 2. Actors
 
 | Actor | Trust granted | Can do |
-|---|---|---|
+| --- | --- | --- |
 | **Unauthenticated external attacker** | None | Probe API, attempt auth bypass, DoS |
 | **Member / guest** | Their own scoped access | Use their library; must never observe another member (invariant, §2.2) |
 | **Revoked member** | None after revocation | Must lose all active sessions instantly (§7.1) |
@@ -32,7 +32,7 @@ PLAN.md §7.6's honesty principle governs everything here: there is no mathemati
 ## 3. Threats
 
 | # | Threat | Target | Attacker | Mitigation (PLAN.md ref) | Verified by (TESTING.md ref) |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | T1 | Vault decryption from stolen instance storage | Account sessions | Physical / external | Encrypted at rest; per-session keys wrapped by owner KEKs + relay key (§2.4, §7.6) | §6 "encrypted at rest" |
 | T2 | Relay-key compromise decrypts all member relays | Account sessions | Operator / compromised host | Relay key scoped to sessions only, never user blobs; rotating it kills member relays (§7.6) | §6 relay-key scoping (negative: relay key cannot decrypt a user blob) |
 | T3 | Credential capture during relay | Session material in memory | Malicious slot code | Slots see what they carry (accepted, §1.3); least privilege; decrypted material in-memory only, never logged (§7.6) | §6 "nothing logged" (negative) |
@@ -51,7 +51,7 @@ PLAN.md §7.6's honesty principle governs everything here: there is no mathemati
 
 ## 4. Trust boundaries
 
-```
+```text
  Client (browser/CLI)          holds password + recovery key; derives KEKs (client-side)
         │  API (chosen transport, §8) derived material, never raw secrets (T5)
         ▼

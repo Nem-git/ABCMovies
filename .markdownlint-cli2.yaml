@@ -1,0 +1,16 @@
+globs:
+  - '**/*.md'
+  - '!node_modules/**'
+  - '!.git/**'
+  - '!.mise/**'
+  - '!.gomodcache/**'
+  - '!.gocache/**'
+  - '!bin/**'
+  - '!core/gen/**'
+
+config:
+  # Start from the recommended set, then relax the one rule that is noise for
+  # long-form reference documents (the docs are prose, not code).
+  default: true
+  # Line length: prose, tables, and inline code spans run long on purpose.
+  MD013: false

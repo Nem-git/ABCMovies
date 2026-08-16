@@ -26,7 +26,7 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 
 - **Decision:**
 
-```
+```text
 /
 ├── proto/                # .proto schemas — single source of truth (§2.1 of PLAN.md)
 │   ├── abcmovies/core/v1/     # load-bearing contracts (PLAN.md §2.3)
@@ -142,7 +142,7 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 - **Decision:** the naming contract (§6.4 of PLAN.md) ships with an arr/TRaSH-style default template, operator-configurable:
   - Movie: `Title (Year) [Resolution] [Codec] [Audio Channels] [Language].ext`
   - Series: `Series Title (Year) - S01E01 - Episode Title [Resolution] [Codec] [Audio Channels] [Language].ext`
-  - Collisions append ` (2)`, ` (3)`, ...; characters illegal in path names are stripped.
+  - Collisions append `(2)`, `(3)`, ...; characters illegal in path names are stripped.
 - **Rationale:** the arr/TRaSH convention is the de-facto standard for self-hosted media libraries (Sonarr/Radarr), so deliverables land in tools' expected format with zero further renaming.
 - **Consequence:** the template is data, not code — configurable without a code change; the default is frozen for v1 and any change to the *default* is a PLAN.md §11 change.
 
@@ -167,7 +167,7 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 ### 1.19 Fixture suite format — **JSON descriptor + JSON cases**
 
 - **Decision:** a fixture suite (TESTING.md §3) is a JSON directory under `fixtures/<contract>/v<version>/` with:
-  - `suite.json` — a descriptor: `{ "contract", "version", "kind" (one of `handshake` | `positive` | `negative`), "slot" (the slot under test), "transport" (defaults to the slot's transport) }`.
+  - `suite.json` — a descriptor: `{ "contract", "version", "kind" (one of handshake | positive | negative), "slot" (the slot under test), "transport" (defaults to the slot's transport) }`.
   - `cases/*.json` — one file per case, each a sample request with its expected response for `handshake`/`positive` kinds, or an invalid declaration the registry must reject for `negative` kind.
 - **Rationale:** JSON is a language-neutral data format (the conformance gate is language-neutral, TESTING.md §2.1); one case per file keeps negative fixtures (mandatory for anything that accepts input) readable and diffable.
 - **Consequence:** the format is data, not code — any adapter in any language can run a suite; the generic runner (`core/cmd/fixture-runner`, TESTING.md §3) consumes it.

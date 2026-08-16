@@ -89,7 +89,7 @@ A local instance reads its configuration from a single YAML file (default locati
 ## 7. Troubleshooting
 
 | Symptom | Likely cause | Fix |
-|---|---|---|
+| --- | --- | --- |
 | The schema-codegen recipe fails | The schema compiler or a plugin at the wrong version | Recheck against the pin (§1); rebuild the container (§3) |
 | Generated code is stale | Schemas changed, codegen not rerun | Run the schema-codegen recipe (`make proto`); CI would have caught this (CI-CD.md §3) |
 | "unknown field" errors in fixtures | Consumer at wrong contract version | Version per §3.4 of PLAN.md; rerun the check recipe |

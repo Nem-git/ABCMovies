@@ -54,7 +54,7 @@ When M0 is done, the *shape* of the system exists: contracts, storage classes, j
 Each milestone below is a **capability**: it names what it adds, which PLAN.md sections it realizes, and its acceptance criteria. Milestones are ordered by risk, not by section number — the trickiest logic (matching/merge) and the most load-bearing boundary (MediaSource + delivery) are owned early, when the codebase is small enough to change. Any product decision a milestone surfaces is recorded in PLAN.md's decision log (§11), so the reasoning isn't lost.
 
 | # | Milestone | Realizes (PLAN.md) | Acceptance |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | M0 | Walking skeleton | §2.1–2.4, §3.3, §8, §9 | §2 above |
 | M1 | One library-class provider adapter + account source cache | §4, §5.4 (whole-catalogue sync) | Adapter passes its fixture suite; a real provider's catalogue lands in the account source cache; cache rebuilds from the provider; registry shows capability versions |
 | M2 | LibraryEntry + matching + merge + provider item registry | §2.3, §5.1, §5.3 | Fixture suite: external-ID merges, heuristic merges, negative fixtures (no merge without corroboration), recycled-ID handling, merge-conflict events; provider item registry carries proof only, never coverage (§5.3); per-user library derived and cached (§5.1) |
@@ -99,7 +99,7 @@ Within a milestone, work in vertical slices: a request enters the API, crosses t
 These are the established practices this plan draws on; each is applied in the specific way noted.
 
 | Practice | Where it applies here |
-|---|---|
+| --- | --- |
 | **Walking skeleton / tracer bullets** (Pragmatic Programmer) | §2, §3 M0 |
 | **Shape Up** (Basecamp) | Decide *what* a milestone is before *how* it's built; no estimates |
 | **Domain-Driven Design** | The slot taxonomy and contract schemas are bounded contexts and a shared ubiquitous language; DDD's rules govern how contexts evolve and where seams stay clean (§4.1) |
@@ -140,7 +140,7 @@ Dependency updates are a routine maintenance flow, not a milestone feature. They
 ### 8.1 Three tiers, three rules
 
 | Tier | What it is | Where it lives | Update rule |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Toolchain pins** | The schema compiler, schema-language plugins, the core runtime | The canonical pin file (TECHNICAL-DECISIONS.md §1.4) | Bump the pin; the change invalidates CI caches (CI-CD.md §8) and triggers an image rebuild (ENVIRONMENT.md §3) |
 | **Language dependencies** | Core and adapter libraries, installed by the dependency recipe | Language manifest, resolved from the pinned versions | Ordinary bump-and-verify through the check recipe |
 | **Contract versions** | The schemas — frozen once approved (§3.4 of PLAN.md) | The schema files | Never modified without explicit approval. A change is not a bump: it needs a decision-log entry (§11 of PLAN.md), a new fixture suite (TESTING.md §3), and a breaking change requires a new version and a new handshake (§3.4 of PLAN.md) |

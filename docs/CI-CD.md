@@ -9,7 +9,7 @@ The load-bearing idea: **the conformance gate is the quality floor** (IMPLEMENTA
 One pipeline definition per milestone (M0–M9, IMPLEMENTATION.md §3). The pipeline is a linear set of stages; each stage must pass before the next begins, and the whole thing is gated on the check recipe — the identical recipes a developer runs locally (ENVIRONMENT.md §2, §5; recipe names in TECHNICAL-DECISIONS.md §1.6). CI never invents its own commands.
 
 | Stage | What it runs | Gate it enforces |
-|---|---|---|
+| --- | --- | --- |
 | **lint** | Formatting and style checks on all code and schemas | Style is non-negotiable and mechanical |
 | **typecheck / build** | Compile the core and adapters; regenerate and verify schema-generated code is up to date | The repo compiles from a clean checkout |
 | **schema checks** | Lint and breaking-change detection on schemas (§3) | Contract drift is caught in CI, not production (§2.5 of PLAN.md) |

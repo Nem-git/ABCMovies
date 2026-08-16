@@ -7,7 +7,7 @@ A self-hosted media hub: one catalog to search and browse across many streaming 
 The project is specified before it is built. The documents are designed to be reusable references: PLAN.md fixes *what* the system is, and the implementation-specific choices are kept out of it.
 
 | Document | Fixes |
-|---|---|
+| --- | --- |
 | [PLAN.md](docs/PLAN.md) | The spec: what the project is, contracts, how parts work together; decision log in §11 |
 | [IMPLEMENTATION.md](docs/IMPLEMENTATION.md) | How it is built and kept buildable; milestone roadmap M0–M9 |
 | [ENVIRONMENT.md](docs/ENVIRONMENT.md) | What a developer machine must contain; reproducibility (local == CI) |

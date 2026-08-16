@@ -55,6 +55,7 @@ An instance has **users**. Identity is local by default: a **username** and a pa
 ### 2.3 The data model
 
 **LibraryEntry** — a merged, canonical entry for a movie or series:
+
 - kind: movie | series
 - an immutable ID (identifiers block below)
 - a **coverage map**: which providers carry the title (optionally with provider season ranges, displayed but never asserted)
@@ -74,6 +75,7 @@ The **coverage map** is `map<providerId, { present: bool, seasons?: number-range
 **MediaSource** — the one object that answers "what is a playable thing?". Defined in §6.2. It is a **manifest**: a structured set of per-track sources. It carries *content* and *how to fetch it*, never account identity.
 
 **Sessions — two different objects with two different lives:**
+
 - **Account session** — a durable, vaulted provider login (a token or session cookie held on the user's behalf). Lives in the vault (§2.4). Can be shared by use (§7.1).
 - **Delivery session** — the transient representation of one play or download (§6). It carries the account context the engine needs to police, audit, and revoke: `{ provider, accountId, memberUserId, policy, providerCap }`. The engine keeps a live session→account index so revocation, quotas, and mid-stream failure handling can always map a running delivery session back to the account that owns it (§6.1, §7.1, §7.2).
 
@@ -88,7 +90,7 @@ These five — LibraryEntry, MediaSource, Capability+handshake (§3), Job, Event
 Stores are classified by durability (can we afford to lose it?) times who may read it. Concretely:
 
 | Store | Durability | Who reads | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Account source cache | Durable; rebuildable for library-class providers, best-effort for lazy ones | Host | Per (streaming-provider account, provider): what that account can see. Rebuildable from the provider for **library-class** providers (whole-catalogue sync); **best-effort, rebuild-by-usage** for lazy providers with no index (§5.4). *Keyed by the streaming account, not by the instance user* — every member and guest who uses that host-provided account shares the same cache |
 | Enrichment cache | Durable, safe to rebuild | Host | Per title (global, shared): posters, descriptions, ratings, external IDs; rebuildable from catalogues. *Global across all users and accounts* |
 | Content-key cache | Durable, safe to rebuild | Host | Per (provider, contentId): DRM content keys — the key is a property of the content, not of who licensed it, so the cache is global. Entries carry only key material (encrypted at rest) and validity; TTL = license validity. A **hint, not a guarantee**: invalidated by fail-fast re-license on decrypt failure, never by credential rotation (§6.6) |
@@ -118,7 +120,7 @@ Five slot types exist. **Every slot answers the meta-contract** (§3.3); provide
 "Slots are a fixed set" means the *kinds* above are fixed as a taxonomy; the set of *declared instances* of each kind is open (operators and, for user slots, members declare as many as they like, §4.1). A novel kind is a deliberate, documented break to this document, not an incremental addition.
 
 | Slot | Capabilities | Contract | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **provider** | search, browse, produce-sources, offer-downloads, link-account, account-session-portability | §3.2 | version per capability |
 | **catalogue** | lookup-title, get-metadata | its own | enrichment source (external catalogues); declares rate limits and cache policy in its handshake response |
 | **sink** | accept-bytes, resume | its own | byte destination (§3.6, §6.4) |
@@ -130,6 +132,7 @@ Five slot types exist. **Every slot answers the meta-contract** (§3.3); provide
 ### 3.2 Provider capabilities, per operation
 
 Capabilities are tracked **per operation**, always:
+
 - search
 - browse
 - produce-sources
@@ -158,10 +161,12 @@ A slot **declares only versions it has passed the fixture suite for** (§2.5) �
 Linking is described by two independent axes — not one login method:
 
 **Axis 1 — who holds the credential (custody):**
+
 - **Server-held (default).** The instance stores it and uses it. Simplest for users. Mitigated by §7.6: encrypted at rest, in-memory only during use. Provable? No — policy.
 - **Owner-sidecar (opt-in).** The owner's process holds the credential and does the login; the host only ever sees the resulting session. Provable zero-knowledge. Costs: the owner must run the process, and members' streams egress through the owner (§7.4).
 
 **Axis 2 — what the credential/session mechanism is (per provider):**
+
 - **Provider username+password** — the instance logs in for you when needed. Simplest; host holds the secret; re-logins may hit captcha.
 - **Cookie/session capture** — you log in once in a controlled browser; the session cookie is captured. No password stored; cookies expire, needs a human re-capture.
 - **Scoped-token / API-key** — a standard scoped token where the provider offers it. Rare among streaming services; common for APIs.
@@ -177,6 +182,7 @@ The common mechanisms above are a **closed common set**: browser-capture, scoped
 ### 3.6 The byte-stream transport (sinks)
 
 Sink slots need two channels:
+
 - **An RPC control channel** — start, pause, resume, cancel, finalize, report progress. Ordinary contract traffic.
 - **A byte channel** — the media bytes themselves.
 
@@ -196,6 +202,7 @@ The registry is the wiring cabinet. On startup and on config reload it reads the
 Members can declare their **own slots** at runtime through the core API, without touching operator config. The whole add path is the same as config slots — handshake, then fixture suite, then review — so a user-declared slot is verified before it is admitted, never trusted on declaration.
 
 User slots differ from operator slots in *attribution and scope*, not in kind:
+
 - **Attribution and rate-limiting.** A user slot is attributed to and rate-limited to its declaring user (the member whose API declared it); its load counts against that member's policy (§7.2).
 - **Tenancy scope.** A user slot reaches only that member's own accounts and sessions — it can never touch another member's data or accounts, and its outputs are attributed back to the declaring member.
 - **Transport.** Subprocess and network transports only. User slots never run in-process.
@@ -210,6 +217,7 @@ User slots differ from operator slots in *attribution and scope*, not in kind:
 **The library is derived from the user's reachable sessions — nothing more.** It is built from the providers that user can actually reach: their own accounts, shared accounts, host-provided accounts, and anonymous/guest sessions where a provider allows browsing without a login. If a user has no account on a provider, that provider contributes nothing to that user's library.
 
 Consequences:
+
 - If the library only contains what you can access, there is nothing to click that you can't watch. No dead-end clicks.
 - Merging (the same movie or series from many providers appears as one entry) happens within the user's accessible set, at movie/series level only (§5.3).
 - Enrichment decorates entries that exist; it does not create entries.
@@ -257,13 +265,13 @@ Matching decides that two provider items are the same title. **It applies only a
 
 The coverage map is one row per provider. A row:
 
-```
+```text
 "providerA:host" {   present: true, seasons: [[1,3],[5,5]], verdict: "corroborated",
                 via: "account:providerA:host", lastVerified: <ts> }
 ```
 
 | Field | Meaning |
-|---|---|
+| --- | --- |
 | **key** | Which provider slot this row is about (`provider:nativeId`-style scoped key) |
 | `present` | Does the provider carry the title right now? From the last sync/usage (§5.4). The headline answer: can I press play here? |
 | `seasons` | Series only. Which seasons the provider has, as **inclusive ranges, non-contiguous** (S1–S3 and S5). Episodes are never listed. Unasserted — display info, never merged |
@@ -309,7 +317,7 @@ The MediaSource is the **manifest**: a structured set of **tracks** that answers
 Manifest-level fields:
 
 | Field | Meaning |
-|---|---|
+| --- | --- |
 | `type: static\|live` | Finite content, or an endless live stream |
 | `seekable: none\|full\|dvr-window(span)` | Declared per-source capability, reported by the adapter — not a truth about the title. Providers differ on the same title; live may be seekable only within a DVR window |
 | `addressable: PER_TRACK\|WHOLE_MUX` | **Container-level**: the fetch unit. `PER_TRACK` = each track has its own locations (§6.2 delivery fields); `WHOLE_MUX` = the whole muxed container is the fetch unit — tracks carry full descriptors plus `carried_in` references instead of per-track locations. Demux (§6.3 remux/transcode) is applied only when the sink cannot consume the mux as-is |
@@ -318,7 +326,7 @@ Manifest-level fields:
 Tracks are grouped by media type, each carrying its media properties:
 
 | Media type | Properties |
-|---|---|
+| --- | --- |
 | **video** | codec, bitrate, resolution, frame rate, HDR range |
 | **audio** | codec, bitrate, language, channel layout, role (main / descriptive / commentary) |
 | **subtitle** | format, language, role, forced |
@@ -328,7 +336,7 @@ Subtitle `role` is drawn from a standard subtitle-role vocabulary — `subtitle`
 Each track also carries delivery fields — the shape the atomic MediaSource used to have:
 
 | Field | Meaning |
-|---|---|
+| --- | --- |
 | `locations[]` | One or more URLs/endpoints that can serve that track's bytes (fallbacks and quality variants). **Optional**: present for `PER_TRACK` and for side-car tracks; absent for tracks carried inside a mux |
 | `carried_in` | For `WHOLE_MUX` manifests: a reference to the container track that carries this track (e.g. the video mux holding audio+subtitle). When present, the track has **no** per-track `locations` — the container is fetched and demuxed if the sink needs it split |
 | `authContext` | How to use those URLs — cookies, headers, tokens to attach. **Engine-side only: it is never forwarded to sinks or frontends, and never logged.** |
@@ -342,7 +350,7 @@ Per-track delivery is **non-exclusive**: a track may have `locations`, `carried_
 
 Example (abridged):
 
-```
+```text
 {
   type: "static", seekable: "full", addressable: "PER_TRACK",
   tracks: [
@@ -376,7 +384,7 @@ The user does not pick an encoded track — there is no encoded-track catalog; t
 Pipelines:
 
 | Pipeline | Does | Used by |
-|---|---|---|
+| --- | --- | --- |
 | **passthrough** | Deliver a native track as-is | play, download |
 | **remux (per-track)** | Re-container a *single* stream without re-encoding; a compatibility step; also **selects/drops streams** (e.g. remove unwanted audio) while re-containerizing | play (when the player cannot consume the native container) and download |
 | **transcode** | Encode from the best qualifying native track to the target; never upscale | fallback when no native track qualifies |
@@ -418,6 +426,7 @@ The same manifest may back several concurrent sessions, each to its own sink; ea
 **Provider preference.** When a title is reachable through several providers, the engine picks the source per a **config-driven ordering** — provider order, then quality, then language — arranged by the user or by the instance, defaulting to a documented priority. The user's explicit pick, if any, wins (§6.1 precedence).
 
 **Mid-stream failure.** Failure behavior is pinned per case:
+
 - **Downloads retry in place** (checkpointed) against the same provider. There is **no cross-provider failover for downloads**: provider A's file is not provider B's file, and resuming "at the same byte" is meaningless across different encodes. On persistent failure, the job fails with a clear event; partial output survives for same-provider resume.
 - **Static play fails over** to another provider carrying the title: the engine re-resolves, gets a fresh manifest (§6.2), and seeks to the nearest keyframe ≤ the last position. **The engine always emits a `provider-switched` event** (§9.2) carrying the reason and the resume point; frontends filter or hide it at their discretion — the switch is never silent. Roll-forward means the playback position may drift ahead of the exact last position; that is accepted and reported, not masked.
 - **Live play/record rejoins at now.** A live stream has no absolute position; a new provider is at *their* now, which is the same wall-clock time but not the same content point. Reconnect at "now" and emit a gap event where the outage happened. Record keeps the partial segments and stitches around the gap.
@@ -526,6 +535,7 @@ Actions come in two kinds, mirroring §3.5's auth methods. A **closed common set
 **Idempotency.** Session start takes an idempotency key; retries are safe; double-start is impossible (a double-start on a one-stream account is a real, likely bug).
 
 **Liveness is a core-API contract.** A delivery session stays alive only while its owner proves it:
+
 - **Play sessions** require the frontend to call `deliverySession.heartbeat()` on a fixed interval, with a server-side grace (the frontend adapter's contract; the concrete interval and grace are the config defaults in TECHNICAL-DECISIONS.md §1.14). A legitimately paused movie still heartbeats, so it is not killed.
 - **Downloads need no heartbeat** — fetch progress *is* the heartbeat.
 
@@ -546,7 +556,7 @@ Risks are documented where their mitigations live: contract drift (§2.5, §3.4)
 Key decisions, pointing to where they are argued in the body:
 
 | Decision | Section |
-|---|---|
+| --- | --- |
 | Contracts are schemas; transports open and per-slot | §2.1, §3.4 |
 | Slots are a fixed set of *kinds* (incl. subtitle-source) with a universal meta-contract; instances within a kind are open; a novel kind is a deliberate break. Frontends are clients, not slots | §3.1, §3.3 |
 | Per-user library, merged and cached per user; two caches, no global catalog | §2.4, §5.1 |
@@ -565,7 +575,7 @@ Key decisions, pointing to where they are argued in the body:
 | Vault sessions use per-session keys wrapped by the owner's KEKs and a host-held relay key; member relays don't need the owner present; the relay key never touches user blobs | §7.6 |
 | Interactive login is client-side; provider device registration is one of the interactive flows | §3.5, §7.5 |
 | Lawfulness is operator responsibility | §1.4 |
-| Guests are device identities, not user accounts; member-scoping holds; guest libraries cache under guest:<deviceId> with a device-session TTL; guests get rate limits + a concurrency cap | §2.2, §5.1 |
+| Guests are device identities, not user accounts; member-scoping holds; guest libraries cache under `guest:<deviceId>` with a device-session TTL; guests get rate limits + a concurrency cap | §2.2, §5.1 |
 | Three identifier kinds are separate: entry ID, provider item ID, external-identity set; coverage asserts presence, never identity; merge-conflicts never merge silently | §2.3, §5.3 |
 | Provider item registry is durable state holding identity proof only — coverage lives in per-account availability and is projected per-user; availability refresh is a pure lookup; identity resolution only on first-seen / metadata change / corroboration need | §5.3 |
 | Media bytes are never cached — caches hold metadata and keys only | §2.4 |
@@ -590,4 +600,3 @@ Key decisions, pointing to where they are argued in the body:
 | The built-in sink is the user's device; instance-local disk is a second v1 sink; sink deliverables are not caches | §6.4 |
 
 **Scope of this log.** This log records *product* decisions only. Implementation decisions (language, transport, tooling) are recorded in TECHNICAL-DECISIONS.md; scope and acceptance live in SCOPE.md; feasibility evidence lives in RESEARCH.md. This document deliberately stays agnostic about all three.
-

@@ -18,7 +18,7 @@ The load-bearing idea: **a requirement without a fixture is not done** (IMPLEMEN
 The classic pyramid maps onto this system in a specific way. The names are chosen to mean something here, not to match a generic book:
 
 | Level | What it proves | What it is | Where it lives |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Fixture suites** | A slot implements the exact contract version it declares | The conformance gate; per contract, per version | `fixtures/<contract>/v<version>/` |
 | **Round-trip / fuzz tests** | Schema encode→decode is lossless; unknown fields are preserved (§3.4 of PLAN.md) | Exercised on the load-bearing contracts first | per schema |
 | **Unit tests** | Pure logic, no I/O: normalization (§5.3), matching heuristics (§5.3), target resolution (§6.3) | Fast, hermetic | colocated with code |
@@ -81,7 +81,7 @@ One request enters the API, crosses the core, touches one store, returns (IMPLEM
 One test set per row of the §2.4 table, proving the class's defining property — this is what "tested, not assumed" (IMPLEMENTATION.md §6) means mechanically:
 
 | Store class | The property the test set proves |
-|---|---|
+| --- | --- |
 | Account source cache | Rebuildable from the provider for library-class providers; best-effort, rebuild-by-usage for lazy providers (§2.4); keyed by streaming account, not the instance user |
 | Enrichment cache | Rebuildable from catalogues; global across users |
 | Content-key cache | Keyed by content (provider, contentId, keyId); entries carry only material + validity (TTL = license validity); encrypted at rest; fail-fast — a decrypt failure drops the entry and re-licenses; credential rotation never purges (§6.6) |
