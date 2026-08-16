@@ -14,6 +14,9 @@ bin/
 .gomodcache/
 .gocache/
 
+# Project-local toolchain (mise binary, data, and caches)
+.mise/
+
 # Editor / OS noise
 *.swp
 .DS_Store

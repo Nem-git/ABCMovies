@@ -4,7 +4,7 @@ managed:
   enabled: true
   override:
     - file_option: go_package_prefix
-      value: github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1
+      value: github.com/nem-git/abcmovies/core/gen
 plugins:
   - local: protoc-gen-go
     out: core/gen

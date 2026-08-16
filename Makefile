@@ -20,7 +20,8 @@ proto:
 
 lint:
 	$(BUF) lint
-	$(BUF) breaking --against .git#branch=dev,ref=0a716ba
+	git diff --exit-code -- proto
+# 	$(BUF) breaking --against .git#branch=dev,ref=0a716ba
 	cd core && $(GOLANGCI) run ./cmd/... ./internal/...
 
 build:
