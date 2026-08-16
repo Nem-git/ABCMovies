@@ -6,9 +6,7 @@
     "coverage": {
       "providerA:123": {
         "present": true,
-        "seasons": [
-          { "start": 1, "end": 2 }
-        ],
+        "seasons": [{ "start": 1, "end": 2 }],
         "verdict": "COVERAGE_VERDICT_CORROBORATED",
         "via": "account:providerA:host"
       }

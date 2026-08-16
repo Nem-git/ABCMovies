@@ -3,8 +3,6 @@
   "request": "CapabilityQuery",
   "expected": {
     "admitted": true,
-    "capabilities": [
-      { "name": "meta", "version": 1 }
-    ]
+    "capabilities": [{ "name": "meta", "version": 1 }]
   }
 }

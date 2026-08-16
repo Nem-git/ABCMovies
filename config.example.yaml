@@ -6,7 +6,7 @@
 core:
   # Inbound API bind address (gRPC, docs/PLAN.md §8).
   api:
-    bind: "127.0.0.1:8443"
+    bind: '127.0.0.1:8443'
 
 slots:
   # The built-in in-process slot (docs/PLAN.md §4, §1.1).
@@ -17,7 +17,7 @@ slots:
 stores:
   # One backend per store class (docs/PLAN.md §2.4). Dev defaults are
   # lightweight; production uses the pinned backends (§1.16).
-  caches: in-memory          # rebuildable, safe to lose
-  vault: local-file          # durable, must not lose; never a real credential in dev
-  watch-history: in-memory   # durable, per-user encrypted in production
-  jobs: in-memory            # checkpointed state
+  caches: in-memory # rebuildable, safe to lose
+  vault: local-file # durable, must not lose; never a real credential in dev
+  watch-history: in-memory # durable, per-user encrypted in production
+  jobs: in-memory # checkpointed state

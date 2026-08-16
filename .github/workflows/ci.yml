@@ -3,8 +3,11 @@
 # Stages map 1:1 to the Makefile recipes (ENVIRONMENT.md §2, §5; CI-CD.md §1):
 # the pipeline never invents its own commands, and CI == local. Each stage runs
 # on a fresh runner carrying the same toolchain the Containerfile declares
-# (ENVIRONMENT.md §3): Go from core/go.mod (toolchain directive), buf and
-# golangci-lint from .tool-versions via mise.
+# (ENVIRONMENT.md §3): Go from core/go.mod (toolchain directive), buf,
+# golangci-lint, gitleaks, and node from .tool-versions via mise.
+#
+# The lint recipe includes the secret-leak scan (`make secret-scan`) — the
+# "CI secret-leak gate" THREAT-MODEL.md T12 and CI-CD.md §4 promise.
 #
 # The fixture stage is the conformance gate (CI-CD.md §2) and must be marked as
 # a required status check on main in the repository settings.
@@ -28,6 +31,9 @@ permissions:
 
 env:
   GOTOOLCHAIN: auto
+  # The milestone whose acceptance criteria gate the next image tag
+  # (CI-CD.md §5; IMPLEMENTATION.md §3). Bump this when the milestone ships.
+  MILESTONE: m0
 
 jobs:
   lint:
@@ -200,4 +206,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/abcmovies:m0
+          tags: ghcr.io/${{ github.repository_owner }}/abcmovies:${{ env.MILESTONE }}

@@ -10,6 +10,9 @@ bin/
 *.test
 *.out
 
+# Node tooling
+node_modules/
+
 # Project-local Go caches (module + build cache, incl. the Go toolchain)
 .gomodcache/
 .gocache/

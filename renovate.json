@@ -4,7 +4,7 @@
   "description": [
     "Dependency updates only. Contract schemas (proto/) are exempt from automation by design (TECHNICAL-DECISIONS.md §1.9): Renovate never touches them."
   ],
-  "enabledManagers": ["asdf", "mise", "gomod"],
+  "enabledManagers": ["asdf", "mise", "gomod", "npm"],
   "automerge": false,
   "separateMajorMinor": true,
   "packageRules": [

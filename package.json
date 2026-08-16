@@ -1,0 +1,9 @@
+{
+  "name": "abcmovies",
+  "private": true,
+  "description": "ABCMovies developer tooling (formatting, linting)",
+  "devDependencies": {
+    "markdownlint-cli2": "^0.23.2",
+    "prettier": "^3.9.6"
+  }
+}

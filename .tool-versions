@@ -1,2 +1,4 @@
 buf 1.72.0
 golangci-lint 2.12.2
+node 24.19.0
+gitleaks 8.24.3
