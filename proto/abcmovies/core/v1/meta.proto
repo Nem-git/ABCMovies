@@ -2,8 +2,6 @@ syntax = "proto3";
 
 package abcmovies.core.v1;
 
-option go_package = "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1;corev1";
-
 // The meta-contract (docs/PLAN.md §3.3): the contract of contracts.
 // Every slot answers CapabilityQuery first; nothing is assumed, everything is asked.
 
