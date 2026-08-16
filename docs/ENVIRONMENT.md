@@ -63,12 +63,14 @@ The walking skeleton (IMPLEMENTATION.md §2, M0) is the smallest thing that prov
 
 The concrete sequence (recipe names per TECHNICAL-DECISIONS.md §1.6):
 
-```
+```shell
 deps        # language-level dependencies, from the pinned versions
 proto       # regenerate code from the schema files
-check       # lint + build + full suite — the CI gate, run locally
+check       # lint + build + full suite + vuln — the CI gate, run locally
 run         # boot the skeleton: registry, slot, API server
 ```
+
+`make lint` inside the check recipe also runs the formatting and hygiene checks — gofumpt, prettier, markdownlint, and the secret-leak scan (recipe table and pin set in TECHNICAL-DECISIONS.md §1.4, §1.6).
 
 The check recipe and the CI pipeline run the identical recipes; a green local run is the developer's personal CI run.
 

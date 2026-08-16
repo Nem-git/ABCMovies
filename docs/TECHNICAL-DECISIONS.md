@@ -40,8 +40,12 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 ├── docs/                 # PLAN.md, IMPLEMENTATION.md, ENVIRONMENT.md, TESTING.md, CI-CD.md,
 │                         # TECHNICAL-DECISIONS.md, SCOPE.md, RESEARCH.md, THREAT-MODEL.md, OPERATIONS.md
 ├── Containerfile         # dev + CI image (ENVIRONMENT.md §3)
-├── Makefile              # make deps / proto / check / run / test-unit / lint / build
+├── Makefile              # make deps / proto / fmt / secret-scan / lint / build / test-unit / vuln / check / run
 ├── .tool-versions        # canonical version pins (ENVIRONMENT.md §1)
+├── package.json          # formatting/linting tooling pins: prettier, markdownlint-cli2 (§1.4)
+├── .golangci.yml         # golangci-lint v2 config — gofumpt formatting enforcement
+├── .prettierrc           # prettier style (JSON, YAML) and targets (.prettierignore)
+├── .markdownlint-cli2.yaml        # markdownlint style and targets (Markdown)
 ├── config.example.yaml   # committed example of the instance config
 ├── .env.example          # committed names of local test credential variables
 └── LICENSE               # AGPL-3.0
@@ -52,7 +56,7 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 ### 1.4 Version pins
 
 - **Decision:** pins live at **one home per tool kind**, never duplicated: the core language pins itself via its manifest's `toolchain` directive (auto-enforced on every tool invocation), and the schema tooling + linter live in `.tool-versions` at the repo root, referenced by the Containerfile and CI (ENVIRONMENT.md §1, CI-CD.md §3). A change to a pin invalidates caches (CI-CD.md §8). Go is not listed in `.tool-versions` because the Go toolchain cannot be version-switched on hosts where developers already manage Go; the manifest's `toolchain` directive (GOTOOLCHAIN=auto) makes the manifest authoritative anyway, so listing Go twice would reintroduce the exact split-brain this rule prevents.
-- **Initial pin set** (re-verified at M0 scaffolding, IMPLEMENTATION.md §8.4): Go **`go 1.26` / `toolchain go1.26.6`** in `core/go.mod`; **buf 1.72.0** and **golangci-lint v2.12.2** in `.tool-versions`; as Go tool dependencies in `core/go.mod` (executables installed to `bin/` by `make deps`, §1.6): protoc-gen-go **v1.36.12** (always equal to the `google.golang.org/protobuf` runtime version), protoc-gen-go-grpc **v1.6.2**, grpc-go **v1.83.0**.
+- **Initial pin set** (re-verified at M0 scaffolding, IMPLEMENTATION.md §8.4): Go **`go 1.26` / `toolchain go1.26.6`** in `core/go.mod`; **buf 1.72.0**, **golangci-lint v2.12.2**, **node 24.19.0** (runtime for the formatting tooling), and **gitleaks 8.24.3** (secret-leak scan) in `.tool-versions`; as Go tool dependencies in `core/go.mod` (executables installed to `bin/` by `make deps`, §1.6): protoc-gen-go **v1.36.12** (always equal to the `google.golang.org/protobuf` runtime version), protoc-gen-go-grpc **v1.6.2**, grpc-go **v1.83.0**, and **govulncheck v1.7.0** (vulnerability scan, `make vuln`). The node-based formatters are npm dev dependencies (`prettier`, `markdownlint-cli2`), pinned in `package-lock.json` — their versions live there, not in `.tool-versions`.
 
 ### 1.5 Instance config location and secrets convention
 
@@ -64,18 +68,21 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 - **Decision:** the Makefile is the single entry point, matching ENVIRONMENT.md §5 and CI-CD.md §1 exactly — CI never invents its own commands.
 
 | Recipe | Runs |
-|---|---|
-| `make deps` | language-level dependencies from the pinned versions |
+| --- | --- |
+| `make deps` | language-level dependencies from the pinned versions (Go tools, `npm ci`) |
 | `make proto` | regenerate code from the `.proto` schemas |
-| `make check` | lint + build + full suite (unit, round-trip, integration, fixture suites) — the CI gate |
+| `make fmt` | rewrite formatting in place — `buf format`, gofumpt, prettier |
+| `make check` | lint + build + full suite (unit, round-trip, integration, fixture suites) + vuln — the CI gate |
 | `make run` | boot the skeleton (registry, slot, API server) |
-| `make lint` / `make build` / `make test-unit` | the individual stages `make check` composes |
+| `make lint` / `make build` / `make test-unit` / `make vuln` | the individual stages `make check` composes |
+
+`make lint` enforces all formatting and hygiene mechanically: buf lint + format freshness on the schemas, gofumpt on Go, prettier on JSON/YAML, markdownlint on Markdown, and the secret-leak scan (`make secret-scan`). `make test-unit` runs the unit suites with the race detector. `make vuln` runs govulncheck against the module. CI runs these recipes verbatim (CI-CD.md §1); it never invents its own commands.
 
 ### 1.7 CI platform — **GitHub Actions**
 
 - **Decision:** GitHub Actions. The worked example that CI-CD.md §7 used to carry is recorded here so CI-CD.md stays vendor-neutral; the pipeline stages and gates are vendor-neutral and the platform is interchangeable.
 - **Stage mapping:**
-  - **lint, typecheck/build** — a job per stage on a fresh runner from the pinned toolchain (the same Containerfile as ENVIRONMENT.md §3).
+  - **lint, typecheck/build** — a job per stage on a fresh runner from the pinned toolchain (the same Containerfile as ENVIRONMENT.md §3). The lint job also runs the secret-leak scan (`make secret-scan`) — the "CI secret-leak gate" THREAT-MODEL.md T12 and CI-CD.md §4 promise.
   - **schema checks** — a dedicated job running the schema lint and breaking-change tooling; fail on breaking change without a version bump.
   - **unit + round-trip** — a job running the fast hermetic suites.
   - **fixtures** — the load-bearing job: runs the fixture suites for every built-in adapter; a required check on every PR.

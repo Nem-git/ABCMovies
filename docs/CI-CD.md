@@ -46,6 +46,7 @@ Because the load-bearing contracts are frozen once approved, changes to them are
 The same secrets discipline that governs the codebase governs the pipeline (ENVIRONMENT.md §6):
 
 - **No secrets in the repository.** Test credentials come from CI secret storage, injected into the job environment, never committed, never in logs.
+- **The secret-leak gate.** The lint stage runs a secret scan on the committed tree (`make secret-scan`, gitleaks pinned in `.tool-versions`) and fails the pipeline on any detection — THREAT-MODEL.md T12, mechanical.
 - **Vault/decrypted material never appears in logs or artifacts** (IMPLEMENTATION.md §1.3). The pipeline treats a leaked secret in an artifact or a log line as a stage failure, not a warning.
 - **Sink and DRM slots are tested with mock fixtures only** (TESTING.md §7); CI never holds a real credential, and the manual DRM verification path is documented, never automated with live content.
 - A `.env.example` documents the *names* of configuration variables; values never enter the repository (ENVIRONMENT.md §6).
