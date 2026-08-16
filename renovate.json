@@ -1,0 +1,32 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:base"],
+  "description": [
+    "Dependency updates only. Contract schemas (proto/) are exempt from automation by design (TECHNICAL-DECISIONS.md §1.9): Renovate never touches them."
+  ],
+  "enabledManagers": ["asdf", "mise", "gomod"],
+  "automerge": false,
+  "separateMajorMinor": true,
+  "packageRules": [
+    {
+      "description": "Group minor and patch updates into one PR",
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "minor and patch updates"
+    },
+    {
+      "description": "buf: track the CLI releases published to the Buf schema registry",
+      "matchManagers": ["asdf", "mise"],
+      "matchPackageNames": ["buf"],
+      "datasource": "buf",
+      "packageName": "bufbuild/buf"
+    },
+    {
+      "description": "golangci-lint: track GitHub releases, stripping the leading v from tags",
+      "matchManagers": ["asdf", "mise"],
+      "matchPackageNames": ["golangci-lint"],
+      "datasource": "github-releases",
+      "packageName": "golangci/golangci-lint",
+      "extractVersion": "^v(?<version>.*)$"
+    }
+  ]
+}

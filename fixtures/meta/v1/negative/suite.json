@@ -1,0 +1,7 @@
+{
+  "contract": "meta",
+  "version": "v1",
+  "kind": "negative",
+  "slot": "builtin",
+  "transport": "in-process"
+}
