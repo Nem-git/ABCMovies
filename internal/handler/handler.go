@@ -2,10 +2,12 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"path"
 
+	"github.com/nem-git/abcmovies/internal/convert"
 	"github.com/nem-git/abcmovies/internal/oas"
 	"github.com/nem-git/abcmovies/internal/provider"
 	"github.com/nem-git/abcmovies/internal/proxy"
@@ -20,10 +22,11 @@ const defaultLimit = 20
 
 type Handler struct {
 	oas.UnimplementedHandler
-	registry *registry.Registry
-	proxy    *proxy.Proxy
-	baseURL  string
+	registry  *registry.Registry
+	proxy     *proxy.Proxy
+	baseURL   string
 	apiPrefix string
+	convert   *convert.Registry
 }
 
 func New(r *registry.Registry, baseURL string, apiPrefix string, opts ...*proxy.Proxy) *Handler {
@@ -32,6 +35,13 @@ func New(r *registry.Registry, baseURL string, apiPrefix string, opts ...*proxy.
 		p = opts[0]
 	}
 	return &Handler{registry: r, proxy: p, baseURL: baseURL, apiPrefix: apiPrefix}
+}
+
+// WithConverters attaches the converter registry used for on-the-fly format
+// conversion (e.g. DASH/HLS -> MP4).
+func (h *Handler) WithConverters(reg *convert.Registry) *Handler {
+	h.convert = reg
+	return h
 }
 
 func (h *Handler) providerOrError(tag string) (provider.Provider, error) {
@@ -54,6 +64,24 @@ func providerErrorMessage(msg string) *oas.ErrorStatusCode {
 
 func providerError(err error) *oas.ErrorStatusCode {
 	return providerErrorMessage(err.Error())
+}
+
+// movieStreamFileNotFound is returned when the provider does not support the
+// requested stream format natively and no conversion is available.
+func movieStreamFileNotFound(format, file string) *oas.GetMovieStreamFileNotFound {
+	return &oas.GetMovieStreamFileNotFound{
+		Code:    "STREAM_NOT_FOUND",
+		Message: fmt.Sprintf("stream file %q not available for format %q", file, format),
+	}
+}
+
+// episodeStreamFileNotFound is returned when the provider does not support the
+// requested stream format natively and no conversion is available.
+func episodeStreamFileNotFound(format, file string) *oas.GetEpisodeStreamFileNotFound {
+	return &oas.GetEpisodeStreamFileNotFound{
+		Code:    "STREAM_NOT_FOUND",
+		Message: fmt.Sprintf("stream file %q not available for format %q", file, format),
+	}
 }
 
 func proxyError(err error) *oas.ErrorStatusCode {
@@ -440,6 +468,15 @@ func (h *Handler) GetMovieStreamFile(ctx context.Context, params oas.GetMovieStr
 	file := manifestFileName(format)
 	locator, err := p.GetMovieStreamLocator(ctx, params.MovieId, file)
 	if err != nil {
+		if reader, ok := h.convertedStreamFile(ctx, params.ServiceTag, format, func(srcFormat string) (*stream.Locator, error) {
+			l, err := p.GetMovieStreamLocator(ctx, params.MovieId, manifestFileName(srcFormat))
+			return h.primeLocator(params.ServiceTag, proxy.BuildStateKey("movie", params.MovieId), l, err)
+		}); ok {
+			return &oas.GetMovieStreamFileOKVideoMP4{Data: reader}, nil
+		}
+		if errors.Is(err, provider.ErrNotSupported) {
+			return movieStreamFileNotFound(format, file), nil
+		}
 		return nil, providerError(err)
 	}
 
@@ -467,6 +504,15 @@ func (h *Handler) GetEpisodeStreamFile(ctx context.Context, params oas.GetEpisod
 	file := manifestFileName(format)
 	locator, err := p.GetEpisodeStreamLocator(ctx, params.SeriesId, params.SeasonId, params.EpisodeId, file)
 	if err != nil {
+		if reader, ok := h.convertedStreamFile(ctx, params.ServiceTag, format, func(srcFormat string) (*stream.Locator, error) {
+			l, err := p.GetEpisodeStreamLocator(ctx, params.SeriesId, params.SeasonId, params.EpisodeId, manifestFileName(srcFormat))
+			return h.primeLocator(params.ServiceTag, proxy.BuildStateKey("episode", params.SeriesId, params.SeasonId, params.EpisodeId), l, err)
+		}); ok {
+			return &oas.GetEpisodeStreamFileOKVideoMP4{Data: reader}, nil
+		}
+		if errors.Is(err, provider.ErrNotSupported) {
+			return episodeStreamFileNotFound(format, file), nil
+		}
 		return nil, providerError(err)
 	}
 
@@ -482,6 +528,44 @@ func (h *Handler) GetEpisodeStreamFile(ctx context.Context, params oas.GetEpisod
 		return nil, proxyError(err)
 	}
 	return episodeStreamFileResponseByType(reader, contentType)
+}
+
+// primeLocator annotates a provider locator with the provider tag and content
+// key so downstream DRM key caching is scoped per provider and content.
+func (h *Handler) primeLocator(tag, contentKey string, loc *stream.Locator, err error) (*stream.Locator, error) {
+	if loc != nil {
+		loc.ProviderTag = tag
+		loc.ContentKey = contentKey
+	}
+	return loc, err
+}
+
+// convertedStreamFile serves a native MP4 request by transmuxing a DASH or
+// HLS source locator from the same provider. Only attempted when MP4 is not
+// natively supported and the provider has conversion enabled.
+func (h *Handler) convertedStreamFile(ctx context.Context, tag, format string, sourceLocator func(sourceFormat string) (*stream.Locator, error)) (io.ReadCloser, bool) {
+	if format != "mp4" || h.convert == nil || h.proxy.ConvertEnabled(tag) == false {
+		return nil, false
+	}
+	for _, srcFormat := range []string{"dash", "hls"} {
+		c, ok := h.convert.Get(srcFormat, "mp4")
+		if !ok {
+			continue
+		}
+		src, err := sourceLocator(srcFormat)
+		if err != nil {
+			continue
+		}
+		pr, pw := io.Pipe()
+		go func() {
+			defer pw.Close()
+			if cerr := c.Convert(ctx, src, pw); cerr != nil {
+				pw.CloseWithError(cerr)
+			}
+		}()
+		return pr, true
+	}
+	return nil, false
 }
 
 // --- Movie HLS variant/rendition/DASH endpoints ---

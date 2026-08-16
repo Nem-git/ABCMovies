@@ -3,6 +3,17 @@ server:
   base_url: ""
   api_prefix: /api/v1alpha
 
+# DRM decryption for the convert pipeline (see CONFIG.md).
+# Enable to decrypt Widevine/PlayReady/ClearKey/AES-128 content on-the-fly.
+#drm:
+#  enabled: true
+#  widevine:
+#    backend: diana
+#    device_dir: devices/widevine
+#  clearkey:
+#    keys:
+#      "11112222333344445555666677778888": "00112233445566778899aabbccddeeff"
+
 services:
   - tag: CRAV
     type: stub
@@ -100,6 +111,7 @@ services:
     url: https://gem.cbc.ca
     proxy:
       strategy: hls
+      convert: true
 
   - tag: TOU
     type: toutv
@@ -110,3 +122,4 @@ services:
     url: https://ici.tou.tv
     proxy:
       strategy: hls
+      convert: true

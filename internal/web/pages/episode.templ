@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-templ EpisodeDetail(tag string, seriesID string, seasonID string, episode *oas.Episode, streams []oas.Stream, streamURL string) {
+templ EpisodeDetail(tag string, seriesID string, seasonID string, episode *oas.Episode, streams []oas.Stream, streamURL string, mp4Downloadable bool) {
 	@layouts.App(episode.Name) {
 		<div class="max-w-4xl mx-auto px-6 py-8">
 			@components.BackLink("/services/"+tag+"/series/"+seriesID+"/seasons/"+seasonID, "Season")
@@ -34,6 +34,12 @@ templ EpisodeDetail(tag string, seriesID string, seasonID string, episode *oas.E
 					<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
 					Play
 				</a>
+				if mp4Downloadable {
+					<a href={ streamURL + "/mp4" } class="mt-3 flex items-center justify-center gap-2 w-full bg-gray-800 hover:bg-gray-700 transition text-white font-semibold py-3 px-6 rounded-lg">
+						<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+						Download MP4
+					</a>
+				}
 			}
 			@components.StreamList(streams, streamURL)
 		</div>

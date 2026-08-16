@@ -5,9 +5,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nem-git/abcmovies/internal/oas"
 	"github.com/nem-git/abcmovies/internal/providers/stub"
+	"github.com/nem-git/abcmovies/internal/proxy"
 	"github.com/nem-git/abcmovies/internal/registry"
 	"github.com/nem-git/abcmovies/internal/web"
 )
@@ -195,6 +197,99 @@ func TestEpisodeDetail(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "Episode 1") {
 		t.Errorf("expected body to contain 'Episode 1', got: %s", rec.Body.String())
+	}
+}
+
+func TestEpisodeDetailNoDownloadButton(t *testing.T) {
+	h := setupTest(t, stub.Config{
+		Tag: "TEST",
+		Series: []oas.Series{
+			{Type: oas.SeriesTypeTVSeries, ID: "s1", Name: "Test Series"},
+		},
+		Seasons: []oas.Season{
+			{Type: oas.SeasonTypeTVSeason, ID: "ss1", Name: "Season 1"},
+		},
+		Episodes: []oas.Episode{
+			{Type: oas.EpisodeTypeTVEpisode, ID: "e1", Name: "Episode 1"},
+		},
+		Streams: []oas.Stream{
+			{Type: oas.StreamTypeVideoObject, ID: "master.m3u8", Name: "HLS Stream", EncodingFormat: oas.StreamEncodingFormatApplicationVndAppleMpegurl},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/services/TEST/series/s1/seasons/ss1/episodes/e1", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), "Download MP4") {
+		t.Errorf("expected body to NOT contain 'Download MP4' for HLS-only content without conversion, got: %s", rec.Body.String())
+	}
+}
+
+func TestEpisodeDetailNativeMP4(t *testing.T) {
+	h := setupTest(t, stub.Config{
+		Tag: "TEST",
+		Series: []oas.Series{
+			{Type: oas.SeriesTypeTVSeries, ID: "s1", Name: "Test Series"},
+		},
+		Seasons: []oas.Season{
+			{Type: oas.SeasonTypeTVSeason, ID: "ss1", Name: "Season 1"},
+		},
+		Episodes: []oas.Episode{
+			{Type: oas.EpisodeTypeTVEpisode, ID: "e1", Name: "Episode 1"},
+		},
+		Streams: []oas.Stream{
+			{Type: oas.StreamTypeVideoObject, ID: "video.mp4", Name: "MP4 Stream", EncodingFormat: oas.StreamEncodingFormatVideoMP4},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/services/TEST/series/s1/seasons/ss1/episodes/e1", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Download MP4") {
+		t.Errorf("expected body to contain 'Download MP4' for native MP4 stream, got: %s", rec.Body.String())
+	}
+}
+
+func TestEpisodeDetailConvertEnabled(t *testing.T) {
+	r := registry.New()
+	r.Register(stub.New(stub.Config{
+		Tag: "TEST",
+		Series: []oas.Series{
+			{Type: oas.SeriesTypeTVSeries, ID: "s1", Name: "Test Series"},
+		},
+		Seasons: []oas.Season{
+			{Type: oas.SeasonTypeTVSeason, ID: "ss1", Name: "Season 1"},
+		},
+		Episodes: []oas.Episode{
+			{Type: oas.EpisodeTypeTVEpisode, ID: "e1", Name: "Episode 1"},
+		},
+		Streams: []oas.Stream{
+			{Type: oas.StreamTypeVideoObject, ID: "master.m3u8", Name: "HLS Stream", EncodingFormat: oas.StreamEncodingFormatApplicationVndAppleMpegurl},
+		},
+	}))
+	px := proxy.New(proxy.Dependencies{
+		State:   proxy.NewMemoryStore(5 * time.Minute),
+		Configs: map[string]*proxy.Config{"TEST": {Strategy: "hls", Convert: true}},
+	})
+	h := web.New(r, "", "/api/v1alpha", px)
+
+	req := httptest.NewRequest(http.MethodGet, "/services/TEST/series/s1/seasons/ss1/episodes/e1", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Download MP4") {
+		t.Errorf("expected body to contain 'Download MP4' when conversion is enabled, got: %s", rec.Body.String())
 	}
 }
 

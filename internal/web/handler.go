@@ -11,6 +11,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/nem-git/abcmovies/internal/oas"
 	"github.com/nem-git/abcmovies/internal/provider"
+	"github.com/nem-git/abcmovies/internal/proxy"
 	"github.com/nem-git/abcmovies/internal/registry"
 	"github.com/nem-git/abcmovies/internal/search"
 	"github.com/nem-git/abcmovies/internal/streamfmt"
@@ -24,13 +25,17 @@ type Handler struct {
 	mux       *http.ServeMux
 	baseURL   string
 	apiPrefix string
+	proxy     *proxy.Proxy
 }
 
 const defaultPageSize = 20
 const maxPageSize = 100
 
-func New(r *registry.Registry, baseURL, apiPrefix string) *Handler {
+func New(r *registry.Registry, baseURL, apiPrefix string, opts ...*proxy.Proxy) *Handler {
 	h := &Handler{registry: r, baseURL: baseURL, apiPrefix: apiPrefix}
+	if len(opts) > 0 {
+		h.proxy = opts[0]
+	}
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /static/", http.StripPrefix("/static", http.FileServer(http.Dir("internal/web/static"))))
@@ -64,6 +69,15 @@ func (h *Handler) apiBaseURL() string {
 
 func (h *Handler) servePage(w http.ResponseWriter, r *http.Request, c templ.Component, options ...func(*templ.ComponentHandler)) {
 	templ.Handler(c, options...).ServeHTTP(w, r)
+}
+
+func (h *Handler) serveError(w http.ResponseWriter, r *http.Request, err error, title, message, backURL string) {
+	if err != nil {
+		log.Printf("web error: %s %s [%s]: %s (%v)", r.Method, r.URL.Path, title, message, err)
+	} else {
+		log.Printf("web error: %s %s [%s]: %s", r.Method, r.URL.Path, title, message)
+	}
+	h.servePage(w, r, layouts.ErrorPage(title, message, backURL))
 }
 
 func (h *Handler) getPathValue(slug string, r *http.Request) (string, error) {
@@ -111,7 +125,7 @@ func (h *Handler) handleServiceList(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		h.servePage(w, r, pages.ServicesList(services))
 	} else {
-		h.servePage(w, r, layouts.ErrorPage("Services", "We couldn't find any streaming services right now. Please try again later.", ""))
+		h.serveError(w, r, err, "Services", "We couldn't find any streaming services right now. Please try again later.", "")
 	}
 }
 
@@ -165,19 +179,19 @@ func parseSearchTypes(r *http.Request) []string {
 func (h *Handler) handleServiceByTag(w http.ResponseWriter, r *http.Request) {
 	tag, err := h.getPathValue("tag", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage("Service", "We couldn't find that streaming service.", "/services"))
+		h.serveError(w, r, err, "Service", "We couldn't find that streaming service.", "/services")
 		return
 	}
 
 	p, err := h.registry.Get(tag)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that streaming service.", "/services"))
+		h.serveError(w, r, err, tag, "We couldn't find that streaming service.", "/services")
 		return
 	}
 
 	service, err := p.Service(r.Context())
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "This streaming service is currently unavailable. Please try again later.", "/services"))
+		h.serveError(w, r, err, tag, "This streaming service is currently unavailable. Please try again later.", "/services")
 		return
 	}
 
@@ -187,20 +201,20 @@ func (h *Handler) handleServiceByTag(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleServiceMovies(w http.ResponseWriter, r *http.Request) {
 	tag, err := h.getPathValue("tag", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage("Movies", "We couldn't find that streaming service.", "/services"))
+		h.serveError(w, r, err, "Movies", "We couldn't find that streaming service.", "/services")
 		return
 	}
 
 	p, err := h.registry.Get(tag)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that streaming service.", "/services"))
+		h.serveError(w, r, err, tag, "We couldn't find that streaming service.", "/services")
 		return
 	}
 
 	limit, offset := parsePagination(r)
 	movies, total, err := p.GetMovies(r.Context(), limit, offset)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We ran into an issue loading movies. Please try again later.", "/services/"+tag))
+		h.serveError(w, r, err, tag, "We ran into an issue loading movies. Please try again later.", "/services/"+tag)
 		return
 	}
 
@@ -220,25 +234,25 @@ func (h *Handler) handleServiceMovies(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleServiceMovieByID(w http.ResponseWriter, r *http.Request) {
 	tag, err := h.getPathValue("tag", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage("Movie", "We couldn't find that streaming service.", "/services"))
+		h.serveError(w, r, err, "Movie", "We couldn't find that streaming service.", "/services")
 		return
 	}
 
 	id, err := h.getPathValue("id", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that movie.", "/services/"+tag+"/movies"))
+		h.serveError(w, r, err, tag, "We couldn't find that movie.", "/services/"+tag+"/movies")
 		return
 	}
 
 	p, err := h.registry.Get(tag)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that streaming service.", "/services/"+tag+"/movies"))
+		h.serveError(w, r, err, tag, "We couldn't find that streaming service.", "/services/"+tag+"/movies")
 		return
 	}
 
 	movie, err := p.GetMovieById(r.Context(), id)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that movie.", "/services/"+tag+"/movies"))
+		h.serveError(w, r, err, tag, "We couldn't find that movie.", "/services/"+tag+"/movies")
 		return
 	}
 
@@ -255,20 +269,20 @@ func (h *Handler) handleServiceMovieByID(w http.ResponseWriter, r *http.Request)
 func (h *Handler) handleServiceSeries(w http.ResponseWriter, r *http.Request) {
 	tag, err := h.getPathValue("tag", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage("Series", "We couldn't find that streaming service.", "/services"))
+		h.serveError(w, r, err, "Series", "We couldn't find that streaming service.", "/services")
 		return
 	}
 
 	p, err := h.registry.Get(tag)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that streaming service.", "/services"))
+		h.serveError(w, r, err, tag, "We couldn't find that streaming service.", "/services")
 		return
 	}
 
 	limit, offset := parsePagination(r)
 	series, total, err := p.GetSeries(r.Context(), limit, offset)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We ran into an issue loading series. Please try again later.", "/services/"+tag))
+		h.serveError(w, r, err, tag, "We ran into an issue loading series. Please try again later.", "/services/"+tag)
 		return
 	}
 
@@ -288,19 +302,19 @@ func (h *Handler) handleServiceSeries(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleServiceSeriesByID(w http.ResponseWriter, r *http.Request) {
 	tag, err := h.getPathValue("tag", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage("Series", "We couldn't find that streaming service.", "/services"))
+		h.serveError(w, r, err, "Series", "We couldn't find that streaming service.", "/services")
 		return
 	}
 
 	id, err := h.getPathValue("id", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that series.", "/services/"+tag+"/series"))
+		h.serveError(w, r, err, tag, "We couldn't find that series.", "/services/"+tag+"/series")
 		return
 	}
 
 	p, err := h.registry.Get(tag)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that streaming service.", "/services/"+tag+"/series"))
+		h.serveError(w, r, err, tag, "We couldn't find that streaming service.", "/services/"+tag+"/series")
 		return
 	}
 
@@ -325,8 +339,7 @@ func (h *Handler) handleServiceSeriesByID(w http.ResponseWriter, r *http.Request
 
 	series, err := p.GetSeriesByID(r.Context(), id)
 	if err != nil {
-		log.Printf("seriesByID: %s", err.Error())
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that series.", "/services/"+tag+"/series"))
+		h.serveError(w, r, err, tag, "We couldn't find that series.", "/services/"+tag+"/series")
 		return
 	}
 
@@ -336,25 +349,25 @@ func (h *Handler) handleServiceSeriesByID(w http.ResponseWriter, r *http.Request
 func (h *Handler) handleServiceSeasonByID(w http.ResponseWriter, r *http.Request) {
 	tag, err := h.getPathValue("tag", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage("Season", "We couldn't find that streaming service.", "/services"))
+		h.serveError(w, r, err, "Season", "We couldn't find that streaming service.", "/services")
 		return
 	}
 
 	id, err := h.getPathValue("id", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that series.", "/services/"+tag+"/series"))
+		h.serveError(w, r, err, tag, "We couldn't find that series.", "/services/"+tag+"/series")
 		return
 	}
 
 	sid, err := h.getPathValue("sid", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that season.", "/services/"+tag+"/series/"+id))
+		h.serveError(w, r, err, tag, "We couldn't find that season.", "/services/"+tag+"/series/"+id)
 		return
 	}
 
 	p, err := h.registry.Get(tag)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that streaming service.", "/services/"+tag+"/series/"+id))
+		h.serveError(w, r, err, tag, "We couldn't find that streaming service.", "/services/"+tag+"/series/"+id)
 		return
 	}
 
@@ -379,7 +392,7 @@ func (h *Handler) handleServiceSeasonByID(w http.ResponseWriter, r *http.Request
 
 	season, err := p.GetSeasonById(r.Context(), id, sid)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that season.", "/services/"+tag+"/series/"+id))
+		h.serveError(w, r, err, tag, "We couldn't find that season.", "/services/"+tag+"/series/"+id)
 		return
 	}
 
@@ -389,37 +402,37 @@ func (h *Handler) handleServiceSeasonByID(w http.ResponseWriter, r *http.Request
 func (h *Handler) handleServiceEpisodeByID(w http.ResponseWriter, r *http.Request) {
 	tag, err := h.getPathValue("tag", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage("Episode", "We couldn't find that streaming service.", "/services"))
+		h.serveError(w, r, err, "Episode", "We couldn't find that streaming service.", "/services")
 		return
 	}
 
 	id, err := h.getPathValue("id", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that series.", "/services/"+tag+"/series"))
+		h.serveError(w, r, err, tag, "We couldn't find that series.", "/services/"+tag+"/series")
 		return
 	}
 
 	sid, err := h.getPathValue("sid", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that season.", "/services/"+tag+"/series/"+id))
+		h.serveError(w, r, err, tag, "We couldn't find that season.", "/services/"+tag+"/series/"+id)
 		return
 	}
 
 	eid, err := h.getPathValue("eid", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that episode.", "/services/"+tag+"/series/"+id+"/seasons/"+sid))
+		h.serveError(w, r, err, tag, "We couldn't find that episode.", "/services/"+tag+"/series/"+id+"/seasons/"+sid)
 		return
 	}
 
 	p, err := h.registry.Get(tag)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that streaming service.", "/services/"+tag+"/series/"+id+"/seasons/"+sid))
+		h.serveError(w, r, err, tag, "We couldn't find that streaming service.", "/services/"+tag+"/series/"+id+"/seasons/"+sid)
 		return
 	}
 
 	episode, err := p.GetEpisodeById(r.Context(), id, sid, eid)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that episode.", "/services/"+tag+"/series/"+id+"/seasons/"+sid))
+		h.serveError(w, r, err, tag, "We couldn't find that episode.", "/services/"+tag+"/series/"+id+"/seasons/"+sid)
 		return
 	}
 
@@ -430,43 +443,43 @@ func (h *Handler) handleServiceEpisodeByID(w http.ResponseWriter, r *http.Reques
 	}
 
 	streamURL := h.apiBaseURL() + "/services/" + tag + "/series/" + id + "/seasons/" + sid + "/episodes/" + eid + "/streams"
-	h.servePage(w, r, pages.EpisodeDetail(tag, id, sid, episode, streams, streamURL))
+	h.servePage(w, r, pages.EpisodeDetail(tag, id, sid, episode, streams, streamURL, h.mp4Downloadable(tag, streams)))
 }
 
 func (h *Handler) handleServiceMoviePlayer(w http.ResponseWriter, r *http.Request) {
 	tag, err := h.getPathValue("tag", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage("Player", "We couldn't find that streaming service.", "/services"))
+		h.serveError(w, r, err, "Player", "We couldn't find that streaming service.", "/services")
 		return
 	}
 
 	id, err := h.getPathValue("id", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that movie.", "/services/"+tag+"/movies"))
+		h.serveError(w, r, err, tag, "We couldn't find that movie.", "/services/"+tag+"/movies")
 		return
 	}
 
 	p, err := h.registry.Get(tag)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that streaming service.", "/services/"+tag+"/movies"))
+		h.serveError(w, r, err, tag, "We couldn't find that streaming service.", "/services/"+tag+"/movies")
 		return
 	}
 
 	movie, err := p.GetMovieById(r.Context(), id)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that movie.", "/services/"+tag+"/movies"))
+		h.serveError(w, r, err, tag, "We couldn't find that movie.", "/services/"+tag+"/movies")
 		return
 	}
 
 	streams, _, err := p.GetMovieStreams(r.Context(), id)
 	if err != nil || len(streams) == 0 {
-		h.servePage(w, r, layouts.ErrorPage(tag, "No streams available for this movie.", "/services/"+tag+"/movies/"+id))
+		h.serveError(w, r, err, tag, "No streams available for this movie.", "/services/"+tag+"/movies/"+id)
 		return
 	}
 
 	best := pickBestStream(streams)
 	if best == nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "No compatible streams available.", "/services/"+tag+"/movies/"+id))
+		h.serveError(w, r, nil, tag, "No compatible streams available.", "/services/"+tag+"/movies/"+id)
 		return
 	}
 
@@ -477,54 +490,66 @@ func (h *Handler) handleServiceMoviePlayer(w http.ResponseWriter, r *http.Reques
 func (h *Handler) handleServiceEpisodePlayer(w http.ResponseWriter, r *http.Request) {
 	tag, err := h.getPathValue("tag", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage("Player", "We couldn't find that streaming service.", "/services"))
+		h.serveError(w, r, err, "Player", "We couldn't find that streaming service.", "/services")
 		return
 	}
 
 	id, err := h.getPathValue("id", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that series.", "/services/"+tag+"/series"))
+		h.serveError(w, r, err, tag, "We couldn't find that series.", "/services/"+tag+"/series")
 		return
 	}
 
 	sid, err := h.getPathValue("sid", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that season.", "/services/"+tag+"/series/"+id))
+		h.serveError(w, r, err, tag, "We couldn't find that season.", "/services/"+tag+"/series/"+id)
 		return
 	}
 
 	eid, err := h.getPathValue("eid", r)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that episode.", "/services/"+tag+"/series/"+id+"/seasons/"+sid))
+		h.serveError(w, r, err, tag, "We couldn't find that episode.", "/services/"+tag+"/series/"+id+"/seasons/"+sid)
 		return
 	}
 
 	p, err := h.registry.Get(tag)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that streaming service.", "/services/"+tag+"/series/"+id+"/seasons/"+sid))
+		h.serveError(w, r, err, tag, "We couldn't find that streaming service.", "/services/"+tag+"/series/"+id+"/seasons/"+sid)
 		return
 	}
 
 	episode, err := p.GetEpisodeById(r.Context(), id, sid, eid)
 	if err != nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "We couldn't find that episode.", "/services/"+tag+"/series/"+id+"/seasons/"+sid))
+		h.serveError(w, r, err, tag, "We couldn't find that episode.", "/services/"+tag+"/series/"+id+"/seasons/"+sid)
 		return
 	}
 
 	streams, _, err := p.GetEpisodeStreams(r.Context(), id, sid, eid)
 	if err != nil || len(streams) == 0 {
-		h.servePage(w, r, layouts.ErrorPage(tag, "No streams available for this episode.", "/services/"+tag+"/series/"+id+"/seasons/"+sid+"/episodes/"+eid))
+		h.serveError(w, r, err, tag, "No streams available for this episode.", "/services/"+tag+"/series/"+id+"/seasons/"+sid+"/episodes/"+eid)
 		return
 	}
 
 	best := pickBestStream(streams)
 	if best == nil {
-		h.servePage(w, r, layouts.ErrorPage(tag, "No compatible streams available.", "/services/"+tag+"/series/"+id+"/seasons/"+sid+"/episodes/"+eid))
+		h.serveError(w, r, nil, tag, "No compatible streams available.", "/services/"+tag+"/series/"+id+"/seasons/"+sid+"/episodes/"+eid)
 		return
 	}
 
 	streamURL := h.apiBaseURL() + "/services/" + tag + "/series/" + id + "/seasons/" + sid + "/episodes/" + eid + "/streams/" + streamfmt.ShortName(best.EncodingFormat)
 	h.servePage(w, r, pages.EpisodePlayer(tag, id, sid, episode, streamURL))
+}
+
+// mp4Downloadable reports whether an MP4 download is available for the given
+// provider: either a native MP4 stream exists, or on-the-fly conversion from
+// HLS/DASH is enabled for the provider.
+func (h *Handler) mp4Downloadable(tag string, streams []oas.Stream) bool {
+	for _, s := range streams {
+		if s.EncodingFormat == oas.StreamEncodingFormatVideoMP4 {
+			return true
+		}
+	}
+	return h.proxy != nil && h.proxy.ConvertEnabled(tag)
 }
 
 func pickBestStream(streams []oas.Stream) *oas.Stream {

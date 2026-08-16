@@ -314,6 +314,7 @@ The optional `proxy` block on a service entry controls how media streams are pro
   proxy:
     strategy: auto
     decorators: [cache, auth]
+    convert: true
     cache:
       manifests:
         enabled: true
@@ -339,6 +340,12 @@ When no `proxy` block is provided, the service defaults to `strategy: passthroug
 | `hls`          | Forces HLS manifest rewriting                                    |
 | `dash`         | Forces DASH manifest rewriting                                   |
 | `passthrough`  | No manifest rewriting (default when proxy block is absent)       |
+
+### On-the-fly conversion
+
+| Field     | Type   | Default | Description                                                                 |
+|-----------|--------|---------|-----------------------------------------------------------------------------|
+| `convert` | bool   | `false` | Enables on-the-fly HLS/DASH → MP4 conversion for the `/streams/mp4` endpoint. Off by default. Enabling this makes the web UI show a "Download MP4" button for providers that only expose HLS/DASH streams. |
 
 ### Decorators
 
@@ -366,6 +373,66 @@ Decorators are applied in order. Available decorators:
 | Field     | Type              | Description                                                |
 |-----------|-------------------|------------------------------------------------------------|
 | `headers` | map[string]string | Key-value pairs of HTTP headers to inject into upstream requests |
+
+---
+
+## DRM Configuration
+
+The optional top-level `drm` block enables server-side decryption of
+DRM-protected streams during on-the-fly conversion. When enabled, the convert
+pipeline resolves content keys from the init segment's PSSH, decrypts init +
+media segments, and outputs a clean CENC/CBCS-free MP4.
+
+```yaml
+drm:
+  enabled: true
+  ttl: 12h            # how long licensed keys stay cached (default: 12h)
+  widevine:
+    backend: diana     # "diana" (default) or "gowidevine"
+    device_dir: devices/widevine
+    wvd: ""            # optional .wvd device file for the gowidevine backend
+    privacy: false
+    service_cert_url: ""
+  playready:
+    device_dir: devices/playready
+  clearkey:
+    keys:
+      "11112222333344445555666677778888": "00112233445566778899aabbccddeeff"
+  aes128:
+    enabled: false
+```
+
+When `enabled` is false (default) or no provider is configured, conversion
+passes content through unchanged. Providers are only built when their device
+material is configured, so a config can enable any subset of schemes.
+
+### Widevine
+
+| Field              | Type   | Description                                                                  |
+|--------------------|--------|------------------------------------------------------------------------------|
+| `backend`          | enum   | CDM implementation: `diana` (default) or `gowidevine`                        |
+| `device_dir`       | string | Directory with `device_client_id_blob` + `device_private_key` (both backends) |
+| `wvd`              | string | Optional `.wvd` device file (gowidevine backend only)                        |
+| `privacy`          | bool   | Service-certificate privacy mode (gowidevine backend)                        |
+| `service_cert_url` | string | Service certificate URL to fetch in privacy mode                             |
+
+### PlayReady
+
+| Field       | Type   | Description                                                              |
+|-------------|--------|--------------------------------------------------------------------------|
+| `device_dir`| string | Directory with `bdevcert.dat`, `zprivsig.dat`, `zprivencr.dat`           |
+
+### ClearKey
+
+| Field    | Type              | Description                                                             |
+|----------|-------------------|-------------------------------------------------------------------------|
+| `keys`   | map[string]string | Static KID (hex) → key (hex) pairs. Also accepts a JSON Web Key Set in `jwkSet`. |
+
+### AES-128
+
+| Field     | Type | Description                                            |
+|-----------|------|--------------------------------------------------------|
+| `enabled` | bool | Fetch HLS AES-128 segment keys from EXT-X-KEY URIs.    |
 
 ---
 

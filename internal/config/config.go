@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/nem-git/abcmovies/internal/drm"
 	"github.com/nem-git/abcmovies/internal/oas"
 	"github.com/nem-git/abcmovies/internal/proxy"
 	"gopkg.in/yaml.v2"
@@ -12,6 +13,7 @@ import (
 type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Services []ServiceEntry `yaml:"services"`
+	DRM      drm.Config     `yaml:"drm"`
 }
 
 type ServerConfig struct {

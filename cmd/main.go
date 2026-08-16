@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/nem-git/abcmovies/internal/config"
+	"github.com/nem-git/abcmovies/internal/convert"
+	"github.com/nem-git/abcmovies/internal/drm"
 	"github.com/nem-git/abcmovies/internal/handler"
 	"github.com/nem-git/abcmovies/internal/middleware"
 	"github.com/nem-git/abcmovies/internal/oas"
@@ -56,13 +58,21 @@ func main() {
 	p := proxy.New(deps)
 	log.Printf("proxy enabled for %d provider(s)", len(proxyConfigs))
 
-	webHandler := web.New(r, cfg.Server.BaseURL, cfg.Server.APIPrefix)
+	webHandler := web.New(r, cfg.Server.BaseURL, cfg.Server.APIPrefix, p)
 
-	h := handler.New(r, cfg.Server.BaseURL, cfg.Server.APIPrefix, p)
+	drmEngine, err := drm.BuildEngine(cfg.DRM)
+	if err != nil {
+		log.Fatalf("building DRM engine: %v", err)
+	}
+
+	converters := convert.NewRegistryWithDRM(proxy.NewHTTPFetcher(http.DefaultClient), drmEngine)
+
+	h := handler.New(r, cfg.Server.BaseURL, cfg.Server.APIPrefix, p).WithConverters(converters)
 
 	srv, err := oas.NewServer(
 		h,
 		oas.WithErrorHandler(handler.ErrorHandler),
+		oas.WithMiddleware(handler.LogErrors),
 		oas.WithPathPrefix(cfg.Server.APIPrefix),
 	)
 	if err != nil {
@@ -70,7 +80,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle(cfg.Server.APIPrefix+"/", middleware.PathSanitize(middleware.ApiSecurity(handler.WithRequest(srv))))
+	mux.Handle(cfg.Server.APIPrefix+"/", middleware.PathSanitize(middleware.ApiSecurity(middleware.DownloadAsAttachment(middleware.LogStatus(handler.WithRequest(srv))))))
 	mux.Handle("/", middleware.FrontendSecurity(webHandler))
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)

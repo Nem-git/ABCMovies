@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/nem-git/abcmovies/internal/oas"
@@ -10,6 +11,7 @@ import (
 )
 
 func ErrorHandler(ctx context.Context, w http.ResponseWriter, r *http.Request, err error) {
+	log.Printf("api error: %s %s: %v", r.Method, r.URL.Path, err)
 	code := ogenerrors.ErrorCode(err)
 
 	errorCode := "INTERNAL_ERROR"

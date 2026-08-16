@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"strings"
 
 	"github.com/a-h/templ"
 )
@@ -107,6 +108,17 @@ func PathSanitize(next http.Handler) http.Handler {
 		cleaned := path.Clean(r.URL.Path)
 		if cleaned != r.URL.Path {
 			r.URL.Path = cleaned
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// DownloadAsAttachment adds Content-Disposition: attachment to native MP4
+// stream-file responses so browsers download them instead of playing inline.
+func DownloadAsAttachment(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if path.Base(r.URL.Path) == "mp4" && strings.HasSuffix(r.URL.Path, "/streams/mp4") {
+			w.Header().Set("Content-Disposition", `attachment; filename="video.mp4"`)
 		}
 		next.ServeHTTP(w, r)
 	})

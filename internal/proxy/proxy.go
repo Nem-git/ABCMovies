@@ -44,6 +44,9 @@ type Config struct {
 	Cache      CacheConfig `yaml:"cache"`
 	Auth       AuthConfig  `yaml:"auth"`
 	DRM        DRMConfig   `yaml:"drm"`
+	// Convert enables on-the-fly conversion to MP4 for providers that only
+	// expose HLS/DASH streams. Defaults to off.
+	Convert bool `yaml:"convert"`
 }
 
 // Dependencies holds the components needed by the Proxy.
@@ -60,6 +63,16 @@ type Proxy struct {
 
 func New(deps Dependencies) *Proxy {
 	return &Proxy{deps: deps}
+}
+
+// ConvertEnabled reports whether the provider identified by tag is configured
+// for on-the-fly MP4 conversion.
+func (p *Proxy) ConvertEnabled(tag string) bool {
+	if p == nil {
+		return false
+	}
+	cfg := p.deps.Configs[tag]
+	return cfg != nil && cfg.Convert
 }
 
 // BuildStateKey builds a deterministic state key.

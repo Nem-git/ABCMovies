@@ -36,6 +36,10 @@ type Config struct {
 	StreamFileMIME       string
 	SubtitleFileData     []byte
 	SubtitleFileMIME     string
+	// StreamLocators maps a stream file name (e.g. "manifest.mpd",
+	// "master.m3u8", "video.mp4") to an upstream locator. Takes precedence
+	// over StreamFileData when both are set.
+	StreamLocators map[string]*stream.Locator
 }
 
 type Provider struct {
@@ -105,6 +109,9 @@ func (p *Provider) GetMovieStreams(ctx context.Context, movieID string) ([]oas.S
 func (p *Provider) GetMovieStreamLocator(ctx context.Context, movieID, streamFile string) (*stream.Locator, error) {
 	if p.cfg.Error != nil {
 		return nil, p.cfg.Error
+	}
+	if loc := p.cfg.StreamLocators[streamFile]; loc != nil {
+		return loc, nil
 	}
 	if p.cfg.StreamFileData == nil {
 		return p.UnimplementedProvider.GetMovieStreamLocator(ctx, movieID, streamFile)
@@ -271,6 +278,9 @@ func (p *Provider) GetEpisodeStreams(ctx context.Context, seriesID, seasonID, ep
 func (p *Provider) GetEpisodeStreamLocator(ctx context.Context, seriesID, seasonID, episodeID, streamFile string) (*stream.Locator, error) {
 	if p.cfg.Error != nil {
 		return nil, p.cfg.Error
+	}
+	if loc := p.cfg.StreamLocators[streamFile]; loc != nil {
+		return loc, nil
 	}
 	if p.cfg.StreamFileData == nil {
 		return p.UnimplementedProvider.GetEpisodeStreamLocator(ctx, seriesID, seasonID, episodeID, streamFile)

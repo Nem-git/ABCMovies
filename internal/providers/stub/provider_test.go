@@ -443,6 +443,70 @@ func TestFileEndpoints(t *testing.T) {
 	})
 }
 
+func TestStreamLocators(t *testing.T) {
+	p := stub.New(stub.Config{
+		Tag: "loc",
+		StreamLocators: map[string]*stream.Locator{
+			"manifest.mpd": {URL: "http://upstream/manifest.mpd", EncodingFormat: "application/dash+xml"},
+			"master.m3u8":  {URL: "http://upstream/master.m3u8", EncodingFormat: "application/vnd.apple.mpegurl"},
+			"video.mp4":    {URL: "http://upstream/video.mp4", EncodingFormat: "video/mp4"},
+		},
+	})
+
+	check := func(name string, got *stream.Locator, err error, wantURL, wantMIME string) {
+		t.Helper()
+		if err != nil {
+			t.Fatalf("%s() error: %v", name, err)
+		}
+		if got.URL != wantURL {
+			t.Errorf("%s() URL = %q, want %q", name, got.URL, wantURL)
+		}
+		if got.EncodingFormat != wantMIME {
+			t.Errorf("%s() encoding = %q, want %q", name, got.EncodingFormat, wantMIME)
+		}
+		if got.Data != nil {
+			t.Errorf("%s() should not set Data for URL-based locators", name)
+		}
+	}
+
+	loc, err := p.GetMovieStreamLocator(t.Context(), "m1", "manifest.mpd")
+	check("GetMovieStreamLocator dash", loc, err, "http://upstream/manifest.mpd", "application/dash+xml")
+
+	loc, err = p.GetEpisodeStreamLocator(t.Context(), "s1", "sea1", "ep1", "video.mp4")
+	check("GetEpisodeStreamLocator mp4", loc, err, "http://upstream/video.mp4", "video/mp4")
+
+	if _, err := p.GetMovieStreamLocator(t.Context(), "m1", "init.bin"); err != provider.ErrNotSupported {
+		t.Errorf("unknown stream file error = %v, want ErrNotSupported", err)
+	}
+
+	// StreamLocators take precedence over StreamFileData.
+	p2 := stub.New(stub.Config{
+		Tag:            "both",
+		StreamFileData: []byte("data"),
+		StreamFileMIME: "video/mp4",
+		StreamLocators: map[string]*stream.Locator{
+			"master.m3u8": {URL: "http://upstream/master.m3u8", EncodingFormat: "application/vnd.apple.mpegurl"},
+		},
+	})
+	loc, err = p2.GetMovieStreamLocator(t.Context(), "m1", "master.m3u8")
+	check("GetMovieStreamLocator precedence", loc, err, "http://upstream/master.m3u8", "application/vnd.apple.mpegurl")
+
+	// Unlisted files fall back to StreamFileData.
+	loc, err = p2.GetMovieStreamLocator(t.Context(), "m1", "video.mp4")
+	if err != nil {
+		t.Fatalf("GetMovieStreamLocator fallback error: %v", err)
+	}
+	if loc.URL != "" {
+		t.Errorf("GetMovieStreamLocator fallback URL = %q, want empty", loc.URL)
+	}
+	if loc.EncodingFormat != "video/mp4" {
+		t.Errorf("GetMovieStreamLocator fallback encoding = %q, want %q", loc.EncodingFormat, "video/mp4")
+	}
+	if loc.Data == nil {
+		t.Error("GetMovieStreamLocator fallback should return Data")
+	}
+}
+
 func TestSearch(t *testing.T) {
 	results := []oas.SearchResultItem{
 		{Score: 1.0, Resource: oas.NewMovieSearchResultItemResource(oas.Movie{ID: "m1", Name: "Found"})},

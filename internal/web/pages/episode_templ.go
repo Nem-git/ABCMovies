@@ -15,7 +15,7 @@ import (
 	"strings"
 )
 
-func EpisodeDetail(tag string, seriesID string, seasonID string, episode *oas.Episode, streams []oas.Stream, streamURL string) templ.Component {
+func EpisodeDetail(tag string, seriesID string, seasonID string, episode *oas.Episode, streams []oas.Stream, streamURL string, mp4Downloadable bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -184,16 +184,35 @@ func EpisodeDetail(tag string, seriesID string, seasonID string, episode *oas.Ep
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\" class=\"mt-6 flex items-center justify-center gap-2 w-full bg-red-600 hover:bg-red-700 transition text-white font-semibold py-3 px-6 rounded-lg\"><svg class=\"w-5 h-5\" fill=\"currentColor\" viewBox=\"0 0 24 24\"><path d=\"M8 5v14l11-7z\"></path></svg> Play</a>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\" class=\"mt-6 flex items-center justify-center gap-2 w-full bg-red-600 hover:bg-red-700 transition text-white font-semibold py-3 px-6 rounded-lg\"><svg class=\"w-5 h-5\" fill=\"currentColor\" viewBox=\"0 0 24 24\"><path d=\"M8 5v14l11-7z\"></path></svg> Play</a> ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
+				}
+				if mp4Downloadable {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<a href=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var10 templ.SafeURL
+					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinURLErrs(streamURL + "/mp4")
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/pages/episode.templ`, Line: 38, Col: 33}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\" class=\"mt-3 flex items-center justify-center gap-2 w-full bg-gray-800 hover:bg-gray-700 transition text-white font-semibold py-3 px-6 rounded-lg\"><svg class=\"w-5 h-5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3\"></path></svg> Download MP4</a>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
 				}
 			}
 			templ_7745c5c3_Err = components.StreamList(streams, streamURL).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

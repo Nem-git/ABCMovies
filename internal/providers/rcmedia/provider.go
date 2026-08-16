@@ -765,7 +765,7 @@ func streamFileToTech(filename string) (string, error) {
 	case "master.m3u8":
 		return "hls", nil
 	default:
-		return "", fmt.Errorf("unknown stream file %q", filename)
+		return "", fmt.Errorf("unknown stream file %q: %w", filename, provider.ErrNotSupported)
 	}
 }
 

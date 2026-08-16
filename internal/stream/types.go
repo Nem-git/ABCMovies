@@ -28,4 +28,10 @@ type Locator struct {
 	// Data is the raw content for direct-serve when URL is empty.
 	// Used by providers that hold content in-memory (e.g., stub/test providers).
 	Data io.ReadCloser
+
+	// ProviderTag scopes DRM key caching to the upstream provider.
+	ProviderTag string
+
+	// ContentKey scopes DRM key caching to the content (e.g. "movie:123").
+	ContentKey string
 }
