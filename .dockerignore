@@ -1,8 +1,0 @@
-*.env
-*.env.*
-*.md
-compose.yml
-Dockerfile
-deploy/
-vendor/
-node_modules/
