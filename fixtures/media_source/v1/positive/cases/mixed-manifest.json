@@ -1,0 +1,51 @@
+{
+  "name": "mixed-manifest",
+  "message": {
+    "type": "MEDIA_SOURCE_TYPE_STATIC",
+    "seekable": "SEEKABLE_NONE",
+    "addressable": "ADDRESSABLE_WHOLE_MUX",
+    "tracks": [
+      {
+        "id": "mux",
+        "video": {
+          "codec": "av1",
+          "bitrate": 4000000,
+          "width": 1920,
+          "height": 1080,
+          "frame_rate": 23.976,
+          "range": "VIDEO_RANGE_SDR"
+        },
+        "delivery": {
+          "locations": ["https://cdn.example/mux.mkv"]
+        }
+      },
+      {
+        "id": "audio-main",
+        "audio": {
+          "codec": "opus",
+          "bitrate": 160000,
+          "language": "en",
+          "channel_layout": "2.0",
+          "role": "AUDIO_ROLE_MAIN"
+        },
+        "delivery": {
+          "carried_in": "mux",
+          "locations": ["https://cdn.example/en-opus.mka"]
+        }
+      },
+      {
+        "id": "sub-es",
+        "subtitle": {
+          "format": "webvtt",
+          "language": "es"
+        },
+        "delivery": {
+          "locations": ["https://cdn.example/es-sub.vtt"]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "valid": true
+  }
+}

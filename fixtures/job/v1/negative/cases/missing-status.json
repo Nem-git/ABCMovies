@@ -1,0 +1,10 @@
+{
+  "name": "missing-status",
+  "message": {
+    "id": "job_22222222222222222222222222222222",
+    "kind": "JOB_KIND_REFRESH"
+  },
+  "expected": {
+    "valid": false
+  }
+}

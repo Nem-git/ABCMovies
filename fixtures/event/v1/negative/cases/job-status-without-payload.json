@@ -1,0 +1,12 @@
+{
+  "name": "job-status-without-payload",
+  "message": {
+    "id": "evt_55555555555555555555555555555555",
+    "type": "EVENT_TYPE_JOB_STATUS",
+    "audience": "EVENT_AUDIENCE_USER",
+    "user_id": "usr_456"
+  },
+  "expected": {
+    "valid": false
+  }
+}

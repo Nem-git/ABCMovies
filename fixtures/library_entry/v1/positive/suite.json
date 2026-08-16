@@ -1,0 +1,7 @@
+{
+  "contract": "library_entry",
+  "version": "v1",
+  "kind": "positive",
+  "slot": "core",
+  "transport": "schema"
+}

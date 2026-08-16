@@ -1,0 +1,17 @@
+{
+  "name": "entry-without-external-identities",
+  "message": {
+    "id": "le_5c4b3a29180716253443546576879809",
+    "kind": "ENTRY_KIND_MOVIE",
+    "coverage": {
+      "providerA:789": {
+        "present": true,
+        "verdict": "COVERAGE_VERDICT_CORROBORATED",
+        "via": "account:providerA:host"
+      }
+    }
+  },
+  "expected": {
+    "valid": true
+  }
+}

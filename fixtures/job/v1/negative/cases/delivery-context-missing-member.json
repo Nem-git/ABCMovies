@@ -1,0 +1,15 @@
+{
+  "name": "delivery-context-missing-member",
+  "message": {
+    "id": "job_3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f",
+    "kind": "JOB_KIND_DELIVERY",
+    "status": "JOB_STATUS_RUNNING",
+    "delivery": {
+      "provider": "providerA",
+      "account_id": "acct_123"
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}

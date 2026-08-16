@@ -1,0 +1,10 @@
+{
+  "name": "id-without-prefix",
+  "message": {
+    "id": "abc123",
+    "kind": "ENTRY_KIND_MOVIE"
+  },
+  "expected": {
+    "valid": false
+  }
+}

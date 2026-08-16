@@ -1,0 +1,18 @@
+{
+  "name": "job-status-event",
+  "message": {
+    "id": "evt_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d",
+    "type": "EVENT_TYPE_JOB_STATUS",
+    "audience": "EVENT_AUDIENCE_USER",
+    "user_id": "usr_456",
+    "scopes": ["job:job_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d"],
+    "job_status": {
+      "job_id": "job_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d",
+      "status": "JOB_STATUS_RUNNING"
+    },
+    "emitted_at": "2026-08-16T10:30:00Z"
+  },
+  "expected": {
+    "valid": true
+  }
+}

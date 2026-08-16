@@ -1,0 +1,39 @@
+{
+  "name": "forced-without-subtitle-role",
+  "message": {
+    "type": "MEDIA_SOURCE_TYPE_STATIC",
+    "seekable": "SEEKABLE_FULL",
+    "addressable": "ADDRESSABLE_PER_TRACK",
+    "tracks": [
+      {
+        "id": "v",
+        "video": {
+          "codec": "h264",
+          "bitrate": 1000000,
+          "width": 1280,
+          "height": 720,
+          "frame_rate": 24.0,
+          "range": "VIDEO_RANGE_SDR"
+        },
+        "delivery": {
+          "locations": ["https://cdn.example/v.m3u8"]
+        }
+      },
+      {
+        "id": "sub-sdh",
+        "subtitle": {
+          "format": "webvtt",
+          "language": "en",
+          "role": "SUBTITLE_ROLE_SDH",
+          "forced": true
+        },
+        "delivery": {
+          "locations": ["https://cdn.example/sdh.vtt"]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "valid": false
+  }
+}

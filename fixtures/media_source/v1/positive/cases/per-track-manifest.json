@@ -1,0 +1,79 @@
+{
+  "name": "per-track-manifest",
+  "message": {
+    "type": "MEDIA_SOURCE_TYPE_STATIC",
+    "seekable": "SEEKABLE_FULL",
+    "addressable": "ADDRESSABLE_PER_TRACK",
+    "tracks": [
+      {
+        "id": "video-1080",
+        "video": {
+          "codec": "h264",
+          "bitrate": 5800000,
+          "width": 1920,
+          "height": 1080,
+          "frame_rate": 23.976,
+          "range": "VIDEO_RANGE_SDR"
+        },
+        "delivery": {
+          "locations": [
+            "https://cdn.example/1080/seg.m3u8",
+            "https://alt.example/1080/seg.m3u8"
+          ],
+          "expiry": "2026-08-16T11:30:00Z",
+          "refresh_path": "providerA:refresh-source"
+        }
+      },
+      {
+        "id": "audio-en-51",
+        "audio": {
+          "codec": "aac",
+          "bitrate": 192000,
+          "language": "en",
+          "channel_layout": "5.1",
+          "role": "AUDIO_ROLE_MAIN"
+        },
+        "delivery": {
+          "locations": ["https://cdn.example/en51/seg.m3u8"]
+        }
+      },
+      {
+        "id": "audio-desc",
+        "audio": {
+          "codec": "aac",
+          "bitrate": 128000,
+          "language": "en",
+          "channel_layout": "2.0",
+          "role": "AUDIO_ROLE_DESCRIPTIVE"
+        },
+        "delivery": {
+          "locations": ["https://cdn.example/desc/seg.m3u8"]
+        }
+      },
+      {
+        "id": "sub-en",
+        "subtitle": {
+          "format": "webvtt",
+          "language": "en",
+          "role": "SUBTITLE_ROLE_SUBTITLE"
+        },
+        "delivery": {
+          "locations": ["https://cdn.example/en-sub.vtt"]
+        }
+      },
+      {
+        "id": "sub-es",
+        "subtitle": {
+          "format": "webvtt",
+          "language": "es"
+        },
+        "delivery": {
+          "locations": ["https://cdn.example/es-sub.vtt"]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "valid": true
+  }
+}

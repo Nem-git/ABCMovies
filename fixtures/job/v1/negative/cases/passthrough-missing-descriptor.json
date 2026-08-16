@@ -1,0 +1,17 @@
+{
+  "name": "passthrough-missing-descriptor",
+  "message": {
+    "id": "job_77777777777777777777777777777777",
+    "kind": "JOB_KIND_REFRESH",
+    "status": "JOB_STATUS_AWAITING_ACTION",
+    "awaiting_action": {
+      "actor_user_id": "usr_456",
+      "passthrough": {
+        "adapter": "providerA"
+      }
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}

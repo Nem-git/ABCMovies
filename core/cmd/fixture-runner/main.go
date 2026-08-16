@@ -8,9 +8,12 @@ import (
 	"path/filepath"
 	"sort"
 
+	"google.golang.org/protobuf/encoding/protojson"
+
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	"github.com/nem-git/abcmovies/core/internal/builtin"
 	"github.com/nem-git/abcmovies/core/internal/registry"
+	"github.com/nem-git/abcmovies/core/internal/schema"
 )
 
 type suite struct {
@@ -29,6 +32,9 @@ type capability struct {
 type expected struct {
 	Admitted     bool         `json:"admitted"`
 	Capabilities []capability `json:"capabilities"`
+	// Valid states whether a schema fixture must validate (PLAN.md §2.5).
+	// Required for schema suites; ignored by handshake suites.
+	Valid *bool `json:"valid"`
 }
 
 type fixture struct {
@@ -36,6 +42,8 @@ type fixture struct {
 	Request     string       `json:"request"`
 	Declaration []capability `json:"declaration"`
 	Expected    expected     `json:"expected"`
+	// Message is a protojson-encoded contract instance, used by schema suites.
+	Message json.RawMessage `json:"message"`
 }
 
 func main() {
@@ -129,6 +137,86 @@ func readCases(dir string) ([]fixture, error) {
 }
 
 func runCase(s suite, c fixture) error {
+	switch s.Contract {
+	case "meta":
+		return runMetaCase(s, c)
+	case "library_entry", "media_source", "job", "event":
+		return runSchemaCase(s, c)
+	default:
+		return fmt.Errorf("unknown contract %q", s.Contract)
+	}
+}
+
+// runSchemaCase validates one protojson-encoded contract instance against the
+// schema rules (PLAN.md §2.5: reject, never downgrade). The suite kind must
+// match the expected verdict, and a positive case that fails to parse is a
+// broken fixture.
+func runSchemaCase(s suite, c fixture) error {
+	if c.Expected.Valid == nil {
+		return fmt.Errorf("expected.valid is required for schema suites")
+	}
+	switch s.Kind {
+	case "positive":
+		if !*c.Expected.Valid {
+			return fmt.Errorf("positive suite: case %q must expect valid:true", c.Name)
+		}
+	case "negative":
+		if *c.Expected.Valid {
+			return fmt.Errorf("negative suite: case %q must expect valid:false", c.Name)
+		}
+	default:
+		return fmt.Errorf("kind %q is not supported for schema suites", s.Kind)
+	}
+
+	valid, err := validateContract(s.Contract, c.Message)
+	if valid != *c.Expected.Valid {
+		if *c.Expected.Valid {
+			return fmt.Errorf("expected valid:true, got invalid: %v", err)
+		}
+		return fmt.Errorf("expected valid:false, but the message validated cleanly")
+	}
+	return nil
+}
+
+func validateContract(contract string, msg json.RawMessage) (bool, error) {
+	valid := false
+	var err error
+	switch contract {
+	case "library_entry":
+		var m corev1.LibraryEntry
+		err = protojson.Unmarshal(msg, &m)
+		if err == nil {
+			err = schema.ValidateLibraryEntry(&m)
+		}
+		valid = err == nil
+	case "media_source":
+		var m corev1.MediaSource
+		err = protojson.Unmarshal(msg, &m)
+		if err == nil {
+			err = schema.ValidateMediaSource(&m)
+		}
+		valid = err == nil
+	case "job":
+		var m corev1.Job
+		err = protojson.Unmarshal(msg, &m)
+		if err == nil {
+			err = schema.ValidateJob(&m)
+		}
+		valid = err == nil
+	case "event":
+		var m corev1.EventEnvelope
+		err = protojson.Unmarshal(msg, &m)
+		if err == nil {
+			err = schema.ValidateEventEnvelope(&m)
+		}
+		valid = err == nil
+	default:
+		return false, fmt.Errorf("unknown contract %q", contract)
+	}
+	return valid, err
+}
+
+func runMetaCase(s suite, c fixture) error {
 	reg := registry.New()
 	defer reg.Close()
 

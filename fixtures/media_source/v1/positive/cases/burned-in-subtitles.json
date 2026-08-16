@@ -1,0 +1,48 @@
+{
+  "name": "burned-in-subtitles",
+  "message": {
+    "type": "MEDIA_SOURCE_TYPE_STATIC",
+    "seekable": "SEEKABLE_FULL",
+    "addressable": "ADDRESSABLE_PER_TRACK",
+    "tracks": [
+      {
+        "id": "video",
+        "video": {
+          "codec": "h264",
+          "bitrate": 5000000,
+          "width": 1920,
+          "height": 1080,
+          "frame_rate": 23.976,
+          "range": "VIDEO_RANGE_SDR"
+        },
+        "delivery": {
+          "locations": ["https://cdn.example/video.m3u8"]
+        }
+      },
+      {
+        "id": "audio",
+        "audio": {
+          "codec": "aac",
+          "bitrate": 192000,
+          "language": "en",
+          "channel_layout": "2.0",
+          "role": "AUDIO_ROLE_MAIN"
+        },
+        "delivery": {
+          "locations": ["https://cdn.example/audio.m3u8"]
+        }
+      },
+      {
+        "id": "sub-burned",
+        "subtitle": {
+          "language": "en",
+          "role": "SUBTITLE_ROLE_SUBTITLE",
+          "forced": true
+        }
+      }
+    ]
+  },
+  "expected": {
+    "valid": true
+  }
+}

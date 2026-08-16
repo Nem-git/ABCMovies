@@ -1,0 +1,16 @@
+{
+  "name": "account-session-linked-event",
+  "message": {
+    "id": "evt_5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b",
+    "type": "EVENT_TYPE_ACCOUNT_SESSION_LINKED",
+    "audience": "EVENT_AUDIENCE_OWNER",
+    "user_id": "usr_123",
+    "account_session": {
+      "account_id": "acct_123",
+      "provider": "providerB"
+    }
+  },
+  "expected": {
+    "valid": true
+  }
+}

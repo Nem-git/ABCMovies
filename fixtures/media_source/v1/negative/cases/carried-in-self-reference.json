@@ -1,0 +1,23 @@
+{
+  "name": "carried-in-self-reference",
+  "message": {
+    "type": "MEDIA_SOURCE_TYPE_STATIC",
+    "seekable": "SEEKABLE_FULL",
+    "addressable": "ADDRESSABLE_WHOLE_MUX",
+    "tracks": [
+      {
+        "id": "sub-self",
+        "subtitle": {
+          "format": "srt",
+          "language": "en"
+        },
+        "delivery": {
+          "carried_in": "sub-self"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "valid": false
+  }
+}

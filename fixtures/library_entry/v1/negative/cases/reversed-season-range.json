@@ -1,0 +1,20 @@
+{
+  "name": "reversed-season-range",
+  "message": {
+    "id": "le_77777777777777777777777777777777",
+    "kind": "ENTRY_KIND_SERIES",
+    "coverage": {
+      "providerA:456": {
+        "present": true,
+        "seasons": [
+          { "start": 5, "end": 1 }
+        ],
+        "verdict": "COVERAGE_VERDICT_PRESENCE_ONLY",
+        "via": "account:providerA:host"
+      }
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}

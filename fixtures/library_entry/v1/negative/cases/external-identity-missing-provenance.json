@@ -1,0 +1,17 @@
+{
+  "name": "external-identity-missing-provenance",
+  "message": {
+    "id": "le_99999999999999999999999999999999",
+    "kind": "ENTRY_KIND_MOVIE",
+    "external_identities": [
+      {
+        "namespace": "tmdb",
+        "value": "tt0111161",
+        "verdict": "IDENTITY_VERDICT_SINGLE_SOURCE"
+      }
+    ]
+  },
+  "expected": {
+    "valid": false
+  }
+}

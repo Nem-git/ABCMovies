@@ -1,0 +1,17 @@
+{
+  "name": "account-event-without-account-id",
+  "message": {
+    "id": "evt_44444444444444444444444444444444",
+    "type": "EVENT_TYPE_AVAILABILITY_CHANGED",
+    "audience": "EVENT_AUDIENCE_ACCOUNT",
+    "availability": {
+      "account_id": "acct_123",
+      "provider": "providerA",
+      "entry_id": "le_93fa6c2e1d7b4f8a9e0c5d6b7a8f9e01",
+      "present": true
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}

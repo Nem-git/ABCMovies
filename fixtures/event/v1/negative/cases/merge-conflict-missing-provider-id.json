@@ -1,0 +1,16 @@
+{
+  "name": "merge-conflict-missing-provider-id",
+  "message": {
+    "id": "evt_77777777777777777777777777777777",
+    "type": "EVENT_TYPE_MERGE_CONFLICT",
+    "audience": "EVENT_AUDIENCE_ACCOUNT",
+    "account_id": "acct_123",
+    "merge_conflict": {
+      "provider": "providerA",
+      "entry_id": "le_93fa6c2e1d7b4f8a9e0c5d6b7a8f9e01"
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "provider-switched-missing-target",
+  "message": {
+    "id": "evt_99999999999999999999999999999999",
+    "type": "EVENT_TYPE_PROVIDER_SWITCHED",
+    "audience": "EVENT_AUDIENCE_USER",
+    "user_id": "usr_456",
+    "provider_switched": {
+      "from_provider": "providerA",
+      "reason": "playback error"
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}

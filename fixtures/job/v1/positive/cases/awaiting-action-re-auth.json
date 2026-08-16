@@ -1,0 +1,16 @@
+{
+  "name": "awaiting-action-re-auth",
+  "message": {
+    "id": "job_6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b",
+    "kind": "JOB_KIND_RE_AUTH",
+    "status": "JOB_STATUS_AWAITING_ACTION",
+    "owner_user_id": "usr_456",
+    "awaiting_action": {
+      "common": "ACTION_TYPE_RELINK",
+      "actor_user_id": "usr_456"
+    }
+  },
+  "expected": {
+    "valid": true
+  }
+}

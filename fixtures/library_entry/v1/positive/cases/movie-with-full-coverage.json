@@ -1,0 +1,29 @@
+{
+  "name": "movie-with-full-coverage",
+  "message": {
+    "id": "le_93fa6c2e1d7b4f8a9e0c5d6b7a8f9e01",
+    "kind": "ENTRY_KIND_MOVIE",
+    "coverage": {
+      "providerA:123": {
+        "present": true,
+        "verdict": "COVERAGE_VERDICT_CORROBORATED",
+        "via": "account:providerA:host",
+        "last_verified": "2026-08-16T10:00:00Z"
+      }
+    },
+    "external_identities": [
+      {
+        "namespace": "tmdb",
+        "value": "tt0111161",
+        "provenance": "catalogue:tmdb",
+        "verdict": "IDENTITY_VERDICT_CORROBORATED"
+      }
+    ],
+    "metadata_links": {
+      "poster": "https://art.example.org/tt0111161/poster.jpg"
+    }
+  },
+  "expected": {
+    "valid": true
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "track-without-media",
+  "message": {
+    "type": "MEDIA_SOURCE_TYPE_STATIC",
+    "seekable": "SEEKABLE_FULL",
+    "addressable": "ADDRESSABLE_PER_TRACK",
+    "tracks": [
+      {
+        "id": "ghost",
+        "delivery": {
+          "locations": ["https://cdn.example/ghost.m3u8"]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "valid": false
+  }
+}

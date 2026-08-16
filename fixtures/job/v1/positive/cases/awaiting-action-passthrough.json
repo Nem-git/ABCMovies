@@ -1,0 +1,19 @@
+{
+  "name": "awaiting-action-passthrough",
+  "message": {
+    "id": "job_0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+    "kind": "JOB_KIND_REFRESH",
+    "status": "JOB_STATUS_AWAITING_ACTION",
+    "owner_user_id": "usr_456",
+    "awaiting_action": {
+      "actor_user_id": "usr_456",
+      "passthrough": {
+        "adapter": "providerA",
+        "descriptor": "{\"challenge\":\"captcha-v2\"}"
+      }
+    }
+  },
+  "expected": {
+    "valid": true
+  }
+}
