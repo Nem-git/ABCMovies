@@ -10,6 +10,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	"github.com/nem-git/abcmovies/core/internal/builtin"
 	"github.com/nem-git/abcmovies/core/internal/registry"
@@ -44,6 +45,8 @@ type fixture struct {
 	Expected    expected     `json:"expected"`
 	// Message is a protojson-encoded contract instance, used by schema suites.
 	Message json.RawMessage `json:"message"`
+	// Type identifies the message type for API contract validation.
+	Type string `json:"type"`
 }
 
 func main() {
@@ -142,6 +145,8 @@ func runCase(s suite, c fixture) error {
 		return runMetaCase(s, c)
 	case "library_entry", "media_source", "job", "event", "title_metadata":
 		return runSchemaCase(s, c)
+	case "api":
+		return runAPICase(s, c)
 	default:
 		return fmt.Errorf("unknown contract %q", s.Contract)
 	}
@@ -221,6 +226,60 @@ func validateContract(contract string, msg json.RawMessage) (bool, error) {
 		return false, fmt.Errorf("unknown contract %q", contract)
 	}
 	return valid, err
+}
+
+func runAPICase(s suite, c fixture) error {
+	if c.Expected.Valid == nil {
+		return fmt.Errorf("expected.valid is required for API suites")
+	}
+	switch s.Kind {
+	case "positive":
+		if !*c.Expected.Valid {
+			return fmt.Errorf("positive suite: case %q must expect valid:true", c.Name)
+		}
+	case "negative":
+		if *c.Expected.Valid {
+			return fmt.Errorf("negative suite: case %q must expect valid:false", c.Name)
+		}
+	default:
+		return fmt.Errorf("kind %q is not supported for API suites", s.Kind)
+	}
+	valid, err := validateAPIMessage(c.Type, c.Message)
+	if valid != *c.Expected.Valid {
+		if *c.Expected.Valid {
+			return fmt.Errorf("expected valid:true, got invalid: %v", err)
+		}
+		return fmt.Errorf("expected valid:false, but the message validated cleanly")
+	}
+	return nil
+}
+
+func validateAPIMessage(msgType string, msg json.RawMessage) (bool, error) {
+	switch msgType {
+	case "GetJobRequest":
+		var m apiv1.GetJobRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateGetJobRequest(&m)
+		return err == nil, err
+	case "GetJobResponse":
+		var m apiv1.GetJobResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateGetJobResponse(&m)
+		return err == nil, err
+	case "SubscribeRequest":
+		var m apiv1.SubscribeRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateSubscribeRequest(&m)
+		return err == nil, err
+	default:
+		return false, fmt.Errorf("unknown API message type %q", msgType)
+	}
 }
 
 func runMetaCase(s suite, c fixture) error {

@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package abcmovies.api.v1;
+
+import "abcmovies/core/v1/event.proto";
+import "abcmovies/core/v1/job.proto";
+
+// The inbound API service surface (docs/TECHNICAL-DECISIONS §1.3, PLAN.md §8).
+// Clients reach in; the core never reaches out. Two communication styles:
+// synchronous request-reply and server-streaming events.
+
+service CoreService {
+  // Synchronous: get a job's current state (PLAN.md §9.1).
+  rpc GetJob(GetJobRequest) returns (GetJobResponse);
+
+  // Events: server-streaming subscription (PLAN.md §9.2).
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
+}
+
+message GetJobRequest {
+  // The job id to look up. Required.
+  string job_id = 1;
+}
+
+message GetJobResponse {
+  // The job, or absent when not found.
+  abcmovies.core.v1.Job job = 1;
+}
+
+message SubscribeRequest {
+  // Scope filters for this connection; a subscriber only sees events for
+  // entities it is authenticated to see (PLAN.md §9.2).
+  repeated string scopes = 1;
+}
+
+message SubscribeResponse {
+  // A single event delivered to the subscriber.
+  abcmovies.core.v1.EventEnvelope event = 1;
+}
