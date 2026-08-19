@@ -78,7 +78,7 @@ The check recipe and the CI pipeline run the identical recipes; a green local ru
 
 A local instance reads its configuration from a single YAML file (default location is recorded in TECHNICAL-DECISIONS.md §1.5, not here — this document stays language- and layout-agnostic; the file is gitignored, with a committed `.example` template). The layout mirrors PLAN.md §2.4:
 
-- **Caches** — source cache, enrichment cache, content-key cache, derived library cache. Rebuildable, safe to lose. For dev, an in-memory or lightweight embedded default is fine (IMPLEMENTATION.md §2, M0 persists one object per class to prove the class exists, not to provision real stores).
+- **Caches** — source cache, metadata cache, content-key cache, derived library cache. Rebuildable, safe to lose. For dev, an in-memory or lightweight embedded default is fine (IMPLEMENTATION.md §2, M0 persists one object per class to prove the class exists, not to provision real stores).
 - **Vault** — durable, must not lose. Account sessions encrypted at rest under per-session keys, wrapped by the owner's KEKs and the host relay key (§7.6 of PLAN.md). In dev this is a local file; the discipline (in-memory-only during use, never logged, relay key scoped to sessions and never to user blobs — IMPLEMENTATION.md §1.3) applies identically in dev and production. A dev vault must never contain a real credential.
 - **Watch history / playlists** — durable, per-user encrypted. In dev, a lightweight embedded store or in-memory.
 - **Job/session state** — checkpointed. In dev, in-memory.

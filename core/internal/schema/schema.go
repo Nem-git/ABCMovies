@@ -321,3 +321,17 @@ func ValidateEventEnvelope(e *corev1.EventEnvelope) error {
 	}
 	return nil
 }
+
+// ValidateTitleMetadata checks a TitleMetadata record (PLAN.md §5.2).
+func ValidateTitleMetadata(tm *corev1.TitleMetadata) error {
+	if tm == nil {
+		return fmt.Errorf("title metadata: nil")
+	}
+	if tm.GetTitle() == "" {
+		return fmt.Errorf("title metadata: title is required")
+	}
+	if tm.GetMovie() == nil && tm.GetSeries() == nil {
+		return fmt.Errorf("title metadata: kind_specific (movie or series) is required")
+	}
+	return nil
+}

@@ -1,0 +1,10 @@
+{
+  "name": "missing-kind-specific",
+  "message": {
+    "title": "Unknown Title",
+    "year": 2020
+  },
+  "expected": {
+    "valid": false
+  }
+}

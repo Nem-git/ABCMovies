@@ -60,7 +60,7 @@ An instance has **users**. Identity is local by default: a **username** and a pa
 - an immutable ID (identifiers block below)
 - a **coverage map**: which providers carry the title (optionally with provider season ranges, displayed but never asserted)
 - external identities (provenanced — §5.3)
-- links to metadata (best-effort)
+- a reference to structured content metadata (best-effort — §5.2)
 
 Seasons and episodes are **not** library entries. They are provider-native sub-items shown inside a series after the user picks a provider; no correspondence is ever asserted between providers' episode lists.
 
@@ -83,7 +83,9 @@ The **coverage map** is `map<providerId, { present: bool, seasons?: number-range
 
 **Event envelope** — the wrapper around every notification (§9.2).
 
-These five — LibraryEntry, MediaSource, Capability+handshake (§3), Job, Event envelope — are **load-bearing**: they must be finalized before implementation, because almost everything else bolts onto them. The two session objects are not counted separately: a delivery session is a kind of job, and an account session is a value stored under the vault contract (§2.4). Tracks are not a sixth object: they live inside the MediaSource contract (§6.2). This is the canonical definition: elsewhere in the documentation, **the load-bearing contracts** means exactly this set.
+**TitleMetadata** — the structured content metadata for a title, one record per title in the metadata cache (§2.4). Contributed by catalogue slots (preferred, globally authoritative) and provider adapters (fallback, per-account) with field-level merging and per-field provenance (§5.2). The LibraryEntry references the global TitleMetadata via `metadata_ref`, not a copy. Defined in the same proto file as LibraryEntry; its schema is equally frozen once approved.
+
+These six — LibraryEntry, MediaSource, Capability+handshake (§3), Job, Event envelope, TitleMetadata — are **load-bearing**: they must be finalized before implementation, because almost everything else bolts onto them. The two session objects are not counted separately: a delivery session is a kind of job, and an account session is a value stored under the vault contract (§2.4). Tracks are not a seventh object: they live inside the MediaSource contract (§6.2). This is the canonical definition: elsewhere in the documentation, **the load-bearing contracts** means exactly this set.
 
 ### 2.4 Storage
 
@@ -92,7 +94,7 @@ Stores are classified by durability (can we afford to lose it?) times who may re
 | Store | Durability | Who reads | Notes |
 | --- | --- | --- | --- |
 | Account source cache | Durable; rebuildable for library-class providers, best-effort for lazy ones | Host | Per (streaming-provider account, provider): what that account can see. Rebuildable from the provider for **library-class** providers (whole-catalogue sync); **best-effort, rebuild-by-usage** for lazy providers with no index (§5.4). *Keyed by the streaming account, not by the instance user* — every member and guest who uses that host-provided account shares the same cache |
-| Enrichment cache | Durable, safe to rebuild | Host | Per title (global, shared): posters, descriptions, ratings, external IDs; rebuildable from catalogues. *Global across all users and accounts* |
+| Metadata cache | Durable, safe to rebuild | Host | Per title (global, shared): one TitleMetadata record per title (structured content metadata with per-field provenance, §5.2); an external-ID-to-record lookup map for resolution; contributed by catalogue slots (preferred) and provider adapters (fallback); rebuildable from sources. *Global across all users and accounts* |
 | Content-key cache | Durable, safe to rebuild | Host | Per (provider, contentId): DRM content keys — the key is a property of the content, not of who licensed it, so the cache is global. Entries carry only key material (encrypted at rest) and validity; TTL = license validity. A **hint, not a guarantee**: invalidated by fail-fast re-license on decrypt failure, never by credential rotation (§6.6) |
 | Vault (tokens/sessions) | Durable, must not lose | Owner's key, at rest | Account sessions encrypted with per-session keys, wrapped by the owner's KEKs and a host-held relay key (§7.6); losing it logs everyone out |
 | Watch history / playlists | Durable, user only | User's key | Per-user encrypted (§7.6) |
@@ -103,7 +105,7 @@ Stores are classified by durability (can we afford to lose it?) times who may re
 
 **Caches cache metadata and keys only — media bytes are never cached.** No store above holds audio/video data; a "download" is a delivery session (§6), not a copy into a cache. This is the rule that keeps an instance small and keeps provider media out of the host.
 
-There is **no global catalog store.** The merged per-user library is *derived* — computed from the user's account source caches plus the enrichment cache — and the merged result **is cached per user** (§5.1, §5.4). The account source cache avoids re-scraping providers on every library view (scraping is slow and provider-hostile); the enrichment cache is global because the same title has the same metadata for everyone. The content-key cache is global for the same reason: a title's keys on a provider are the same for every user who licenses or decrypts it there.
+There is **no global catalog store.** The merged per-user library is *derived* — computed from the user's account source caches plus the metadata cache — and the merged result **is cached per user** (§5.1, §5.4). The account source cache avoids re-scraping providers on every library view (scraping is slow and provider-hostile); the metadata cache is global because the same title has the same metadata for everyone. The content-key cache is global for the same reason: a title's keys on a provider are the same for every user who licenses or decrypts it there.
 
 Choose durability by regeneration cost: the source (for library-class providers), enrichment, derived-library, and content-key caches can be rebuilt — cache them; lazy-provider source caches are best-effort (rebuild-by-usage, §5.4). History can't — keep it safe. A lost notification is free to lose because the job object is queryable — keep the bus ephemeral.
 
@@ -222,15 +224,17 @@ Consequences:
 - Merging (the same movie or series from many providers appears as one entry) happens within the user's accessible set, at movie/series level only (§5.3).
 - Enrichment decorates entries that exist; it does not create entries.
 
-**The merged library is cached per user** — including guests, keyed `guest:<deviceId>` with a device-session TTL (§2.2). Every browse or search runs a merge across the user's account source caches plus the enrichment cache; the merged result is stored per user so the merge is not recomputed on every request. The cache is invalidated by availability events (§5.4) and by refresh-job completion; availability events are **account-scoped** (§9.2), so when a shared account's availability changes, every member and guest whose library derives from it is invalidated — no user's cache goes stale because another member's session refreshed it. A missed event leaves a slightly stale cache until the next periodic rebuild — acceptable, because the underlying source caches are equally stale on the same cadence (§2.4).
+**The merged library is cached per user** — including guests, keyed `guest:<deviceId>` with a device-session TTL (§2.2). Every browse or search runs a merge across the user's account source caches plus the metadata cache; the merged result is stored per user so the merge is not recomputed on every request. The cache is invalidated by availability events (§5.4) and by refresh-job completion; availability events are **account-scoped** (§9.2), so when a shared account's availability changes, every member and guest whose library derives from it is invalidated — no user's cache goes stale because another member's session refreshed it. A missed event leaves a slightly stale cache until the next periodic rebuild — acceptable, because the underlying source caches are equally stale on the same cadence (§2.4).
 
 ### 5.2 Enrichment
 
 Enrichment is **best-effort and never required**; its sources are optional catalogue slots, disabled by default. External catalogues are never contacted unless the operator enables them. The operator sets which catalogues are enabled at instance level; each user can override (opt out of catalogues or specific metadata kinds).
 
-**Multiple catalogue slots can be enabled at once, and can all run for the same item.** Each contributes different fields (posters from one, episode guides from another) with best-effort **field-level merging** — no single catalogue owns an entry — and each additional corroborating source strengthens the identity verdict (§5.3). Enrichment output is attributed per field to its source catalogue.
+**Multiple catalogue slots can be enabled at once, and can all run for the same item.** Each contributes different fields (posters from one, episode guides from another) with best-effort **field-level merging** — no single catalogue owns an entry — and each additional corroborating source strengthens the identity verdict (§5.3). Enrichment output is attributed per field to its source catalogue. Provider adapters can also contribute metadata fields (filling gaps the catalogue did not cover); catalogue data is preferred (globally authoritative) and provider data fills the rest.
 
 Enrichment is **decoupled from identity**: it works without matching, using external IDs where providers carry them and heuristics over provider metadata otherwise. Enrichment improves display; it never gates identity. Enrichment data is cached per title, globally (§2.4). Entries are differentiated by their immutable LibraryEntry ID (§2.3); external IDs are informative identity (a set of claims), never the object's key.
+
+Enrichment output is stored as a **TitleMetadata** record per title in the metadata cache (§2.4). Each typed field carries per-field provenance attribution (which slot supplied it), enabling field-level merging across catalogues and providers without a single owner. Catalogue-specific or provider-specific fields not covered by the typed schema are stored in the extra map on TitleMetadata. The LibraryEntry carries a reference to the global TitleMetadata via `metadata_ref`, not a copy.
 
 One deliberate nuance: enrichment **may inform identity, though it never requires it**. An external ID discovered by enrichment can be adopted as a matching key (§5.3), which is why the provenance of every external ID is tracked. A home-made video is a library entry with no external match — nothing breaks.
 
@@ -243,7 +247,7 @@ Matching decides that two provider items are the same title. **It applies only a
 **External identity is the primary key.** The system's first move is to resolve every provider item to a canonical external ID wherever possible. Matching then keys off that ID. Provenance matters:
 
 - **Provider-supplied external ID** — the provider itself asserts an external ID in its metadata. This is authoritative: a matching provider-supplied ID alone is sufficient to merge. It is not a heuristic; it is an identity assertion.
-- **Heuristic-resolved external ID** — enrichment resolved the item to an external ID by searching a catalogue from title+year. This is a guess, cached globally, and a wrong guess propagates to every user via the global enrichment cache. So: heuristic-resolved IDs are stored with their provenance, require **at least one corroborating signal the first time they drive a merge**, and can be purged by the operator.
+- **Heuristic-resolved external ID** — enrichment resolved the item to an external ID by searching a catalogue from title+year. This is a guess, cached globally, and a wrong guess propagates to every user via the global metadata cache. So: heuristic-resolved IDs are stored with their provenance, require **at least one corroborating signal the first time they drive a merge**, and can be purged by the operator.
 
 **When there is no external ID** (enrichment disabled, or genuinely unknown content), matching falls back to heuristics over provider metadata, conservatively:
 
@@ -407,7 +411,7 @@ The same manifest may back several concurrent sessions, each to its own sink; ea
 
 **Player sinks are an illustrative example, not a requirement.** One example of a sink is a **shared media-server sink**: an adaptive-streaming origin that relays the engine's bytes to many players with per-session tokens. Such a sink emits the **full menu** for the session's version — all audio adaptation sets, all subtitle sets, all playable video renditions — translated from our track descriptors into the standard attributes of the target streaming format (bandwidth, dimensions, codecs, resolution, frame-rate, video-range, language, channels, forced/caption flags, and the standard audio/subtitle roles), so the player's own language, subtitle, and quality selectors work with no provider-specific knowledge. **The sink's declared capabilities decide demux-vs-passthrough** (§6.2): a sink that can only consume separate tracks causes the engine to demux a `WHOLE_MUX` source; a sink that consumes the container does not. Sinks remain pluggable — a player sink is one sink implementation among many, never special-cased in the core — and its transport (in-process vs remote) is unspecified per deployment. This is the *only* sink described by the plan; nothing here requires it to exist.
 
-**Output contract.** A download's deliverable is produced through a naming contract: a template over title and track metadata (title, season/episode, resolution, codec, language, channels, range, media type) with defined collision behavior. Compose (§6.3) may optionally attach metadata to the deliverable — fields from the enrichment cache (§5.2) plus per-track technical metadata — off by default, inheriting enrichment's opt-in rules. A shipped default template exists (TECHNICAL-DECISIONS.md §1.15); it is operator-configurable, and changing the *default* is a PLAN.md §11 change.
+**Output contract.** A download's deliverable is produced through a naming contract: a template over title and track metadata (title, season/episode, resolution, codec, language, channels, range, media type) with defined collision behavior. Compose (§6.3) may optionally attach metadata to the deliverable — fields from the metadata cache's TitleMetadata (§5.2) plus per-track technical metadata — off by default, inheriting enrichment's opt-in rules. A shipped default template exists (TECHNICAL-DECISIONS.md §1.15); it is operator-configurable, and changing the *default* is a PLAN.md §11 change.
 
 **Recording is a sink.** The record pipeline's output (a captured live stream) is delivered the same way as any download — stream-append to the chosen sink while the live feed runs, then finalize on stop. Instance-local disk is simply one sink implementation; a cloud target is another. No separate storage concept exists.
 
@@ -598,5 +602,6 @@ Key decisions, pointing to where they are argued in the body:
 | Provider preference default: provider order, then quality, then language; the user's explicit pick wins | §6.5 |
 | Play sessions stay alive by heartbeat; downloads don't (fetch progress is the heartbeat) | §9.1 |
 | The built-in sink is the user's device; instance-local disk is a second v1 sink; sink deliverables are not caches | §6.4 |
+| Structured content metadata (TitleMetadata) replaces flat metadata_links; one record per title with external-ID-to-record lookup; per-field provenance from catalogues (preferred) and providers (fallback); no denormalized snapshot on LibraryEntry | §2.3, §2.4, §5.2 |
 
 **Scope of this log.** This log records *product* decisions only. Implementation decisions (language, transport, tooling) are recorded in TECHNICAL-DECISIONS.md; scope and acceptance live in SCOPE.md; feasibility evidence lives in RESEARCH.md. This document deliberately stays agnostic about all three.

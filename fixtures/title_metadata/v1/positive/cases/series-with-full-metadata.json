@@ -1,0 +1,36 @@
+{
+  "name": "series-with-full-metadata",
+  "message": {
+    "title": "Breaking Bad",
+    "year": 2008,
+    "description": "A high school chemistry teacher diagnosed with inoperable lung cancer.",
+    "posterUrl": "https://art.example.org/tt0903747/poster.jpg",
+    "rating": 9.5,
+    "contentRating": "TV-MA",
+    "genres": ["Drama", "Thriller"],
+    "originalLanguage": "English",
+    "cast": ["Bryan Cranston", "Aaron Paul"],
+    "directors": ["Vince Gilligan"],
+    "series": {
+      "totalSeasons": 5,
+      "totalEpisodes": 62
+    },
+    "source": {
+      "base.title": {
+        "slot": "catalogue:tmdb",
+        "fetchedAt": "2026-08-16T10:00:00Z"
+      },
+      "base.poster_url": {
+        "slot": "catalogue:tmdb",
+        "fetchedAt": "2026-08-16T10:00:00Z"
+      },
+      "series.total_seasons": {
+        "slot": "catalogue:tmdb",
+        "fetchedAt": "2026-08-16T10:00:00Z"
+      }
+    }
+  },
+  "expected": {
+    "valid": true
+  }
+}

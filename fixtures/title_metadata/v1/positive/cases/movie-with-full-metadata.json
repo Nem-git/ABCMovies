@@ -1,0 +1,35 @@
+{
+  "name": "movie-with-full-metadata",
+  "message": {
+    "title": "The Shawshank Redemption",
+    "year": 1994,
+    "description": "Two imprisoned men bond over a number of years.",
+    "posterUrl": "https://art.example.org/tt0111161/poster.jpg",
+    "rating": 9.3,
+    "contentRating": "R",
+    "genres": ["Drama"],
+    "originalLanguage": "English",
+    "cast": ["Tim Robbins", "Morgan Freeman"],
+    "directors": ["Frank Darabont"],
+    "movie": {
+      "runtimeMinutes": 142
+    },
+    "source": {
+      "base.title": {
+        "slot": "catalogue:tmdb",
+        "fetchedAt": "2026-08-16T10:00:00Z"
+      },
+      "base.poster_url": {
+        "slot": "catalogue:tmdb",
+        "fetchedAt": "2026-08-16T10:00:00Z"
+      },
+      "movie.runtime_minutes": {
+        "slot": "catalogue:tmdb",
+        "fetchedAt": "2026-08-16T10:00:00Z"
+      }
+    }
+  },
+  "expected": {
+    "valid": true
+  }
+}

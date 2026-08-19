@@ -43,7 +43,7 @@ The vault (§2.4: durable, **must not lose**; losing it logs everyone out) is th
 **Restore:**
 
 - Restore the vault file and the matching keys to a clean instance.
-- Everything else rebuilds: the account source cache (library-class providers), enrichment cache, derived library cache are all rebuildable (§2.4). History/playlists are per-user encrypted blobs backed up with the vault.
+- Everything else rebuilds: the account source cache (library-class providers), metadata cache, derived library cache are all rebuildable (§2.4). History/playlists are per-user encrypted blobs backed up with the vault.
 - After a vault restore, sessions with validity remaining work again; sessions that expired while offline surface as `account-session-expired` events and re-auth jobs (§7.5).
 
 **Loss statement (recorded honestly):** losing the vault and its keys is a **logout for everyone**. There is no recovery path by design — the recovery key (§7.6) recovers a user's *data*, not the instance's vault. This is why vault backup is the operational discipline.

@@ -83,7 +83,7 @@ One test set per row of the §2.4 table, proving the class's defining property �
 | Store class | The property the test set proves |
 | --- | --- |
 | Account source cache | Rebuildable from the provider for library-class providers; best-effort, rebuild-by-usage for lazy providers (§2.4); keyed by streaming account, not the instance user |
-| Enrichment cache | Rebuildable from catalogues; global across users |
+| Metadata cache | Rebuildable from catalogues and providers; global across users; one TitleMetadata record per title with external-ID-to-record lookup |
 | Content-key cache | Keyed by content (provider, contentId, keyId); entries carry only material + validity (TTL = license validity); encrypted at rest; fail-fast — a decrypt failure drops the entry and re-licenses; credential rotation never purges (§6.6) |
 | Vault | Must not lose; per-session keys wrapped by owner's KEKs + host relay key; encrypted at rest (§6 below) |
 | Watch history / playlists | Must not lose; user's key; encrypted |

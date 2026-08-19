@@ -1,0 +1,7 @@
+{
+  "contract": "title_metadata",
+  "version": "v1",
+  "kind": "positive",
+  "slot": "core",
+  "transport": "schema"
+}

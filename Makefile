@@ -7,7 +7,8 @@ GOBIN     := $(CURDIR)/bin
 GOMODCACHE := $(CURDIR)/.gomodcache
 GOCACHE   := $(CURDIR)/.gocache
 GOPATHBIN := $(shell $(GO) env GOPATH)/bin
-export PATH := $(GOBIN):$(GOPATHBIN):$(PATH)
+MISESHIMS := $(HOME)/.local/share/mise/shims
+export PATH := $(GOBIN):$(GOPATHBIN):$(MISESHIMS):$(PATH)
 export GOBIN GOMODCACHE GOCACHE
 
 .PHONY: deps proto fmt secret-scan lint build test-unit fixtures vuln check run

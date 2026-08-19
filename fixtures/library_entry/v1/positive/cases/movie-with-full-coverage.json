@@ -19,9 +19,7 @@
         "verdict": "IDENTITY_VERDICT_CORROBORATED"
       }
     ],
-    "metadata_links": {
-      "poster": "https://art.example.org/tt0111161/poster.jpg"
-    }
+    "metadata_ref": "tmdb:tt0111161"
   },
   "expected": {
     "valid": true

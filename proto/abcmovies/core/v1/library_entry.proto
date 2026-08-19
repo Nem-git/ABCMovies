@@ -7,8 +7,8 @@ import "google/protobuf/timestamp.proto";
 // The LibraryEntry contract (docs/PLAN.md §2.3, §5.3): the merged, canonical
 // entry for a movie or series. One entry aggregates what the user's reachable
 // providers carry (coverage), the external identities that fix what it is, and
-// best-effort links to metadata. This message is load-bearing (PLAN.md §2.3);
-// its schema is frozen once approved.
+// a reference to structured content metadata (TitleMetadata). This message is
+// load-bearing (PLAN.md §2.3); its schema is frozen once approved.
 
 // EntryKind fixes whether the entry is a movie or a series. Seasons and
 // episodes are never library entries; they stay provider-native sub-items
@@ -88,6 +88,66 @@ message ExternalIdentity {
   IdentityVerdict verdict = 4;
 }
 
+// EnrichmentSource records which slot contributed a metadata field. Keyed by
+// field path on the TitleMetadata message (e.g. "base.poster_url",
+// "movie.runtime_minutes") (PLAN.md §5.2).
+message EnrichmentSource {
+  // The slot that supplied this field (e.g. "catalogue:tmdb",
+  // "provider:jellyfin").
+  string slot = 1;
+  // When the field was last fetched from the source.
+  google.protobuf.Timestamp fetched_at = 2;
+}
+
+// TitleMetadata is the structured content metadata for a title. One record per
+// title, stored in the metadata cache (PLAN.md §2.4). Contributed by catalogue
+// slots (preferred, globally authoritative) and provider adapters (fallback,
+// per-account) with field-level merging and provenance (PLAN.md §5.2).
+message TitleMetadata {
+  // Universal fields — populated for both movies and series.
+  string title = 1;
+  uint32 year = 2;
+  string description = 3;
+  string poster_url = 4;
+  // Numeric score on a 0–10 scale, e.g. 8.7.
+  float rating = 5;
+  // Audience/content rating, e.g. "PG-13", "TV-MA".
+  string content_rating = 6;
+  repeated string genres = 7;
+  string original_language = 8;
+  repeated string cast = 9;
+  repeated string directors = 10;
+
+  // Kind-specific extensions — exactly one populated, matching the
+  // LibraryEntry's kind.
+  oneof kind_specific {
+    MovieSpecific movie = 11;
+    SeriesSpecific series = 12;
+  }
+
+  // Per-field provenance: key = field path (e.g. "base.poster_url",
+  // "movie.runtime_minutes"), value = source. Absent fields are unpopulated.
+  map<string, EnrichmentSource> source = 13;
+
+  // Catalogue-specific or provider-specific fields not covered by the typed
+  // schema. Keyed by source-defined field name; values are opaque strings.
+  map<string, string> extra = 14;
+}
+
+// Movie-specific metadata. Populated when LibraryEntry.kind == MOVIE.
+message MovieSpecific {
+  // Runtime in minutes.
+  uint32 runtime_minutes = 1;
+}
+
+// Series-specific metadata. Populated when LibraryEntry.kind == SERIES.
+message SeriesSpecific {
+  // Total number of seasons known to the source.
+  uint32 total_seasons = 1;
+  // Total number of episodes known to the source.
+  uint32 total_episodes = 2;
+}
+
 // LibraryEntry is the merged, canonical entry for a movie or series
 // (PLAN.md §2.3).
 message LibraryEntry {
@@ -101,7 +161,9 @@ message LibraryEntry {
   map<string, CoverageRow> coverage = 3;
   // External identity claims, each with provenance and verdict.
   repeated ExternalIdentity external_identities = 4;
-  // Best-effort links to metadata, keyed by kind (e.g. "poster", "description").
-  // Enrichment only; never gates identity (PLAN.md §5.2).
-  map<string, string> metadata_links = 5;
+  // Metadata cache lookup key: the canonical external ID for this title
+  // (e.g. "tmdb:tt0111161"). Resolves through the metadata cache's
+  // external-ID-to-record lookup map (PLAN.md §2.4, §5.2). Empty when no
+  // external ID exists and no structured metadata is available.
+  string metadata_ref = 5;
 }

@@ -13,7 +13,7 @@ This document fixes **what v1 of the project is**: which milestones ship, what i
 | M0 | Walking skeleton | Registry, one in-process slot, store classes, API server, one sync call + one event to a web client |
 | M1 | Library-class provider adapter | The first library-class provider (TECHNICAL-DECISIONS.md §1.8), whole-catalogue sync, account source cache |
 | M2 | Library + matching + merge | LibraryEntry, provider item registry, per-user merged library |
-| M3 | Enrichment | Catalogue slot, field-level merging, provenance per external ID |
+| M3 | Enrichment | TitleMetadata schema, metadata cache store (records + external-ID lookup), catalogue slot, field-level merging, provenance per field |
 | M4 | Delivery engine | MediaSource manifest, passthrough play + remux download end-to-end, heartbeat/TTL/revocation; **two co-equal v1 sinks** — the user's device (built-in, browser download) and instance-local disk (TECHNICAL-DECISIONS.md §1.13) |
 | M5 | First frontend | Web frontend on the core API; one inbound protocol locked (TECHNICAL-DECISIONS.md §1.2) |
 | M6 | Sharing + policy + audit | Account sharing by use, min(policy, cap), revocation, member-scoping, account-scoped availability events |

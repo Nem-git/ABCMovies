@@ -1,0 +1,20 @@
+{
+  "name": "movie-with-extra-fields",
+  "message": {
+    "title": "The Matrix",
+    "year": 1999,
+    "rating": 8.7,
+    "contentRating": "R",
+    "genres": ["Action", "Sci-Fi"],
+    "movie": {
+      "runtimeMinutes": 136
+    },
+    "extra": {
+      "tmdb.vote_count": "24000",
+      "imdb.top_ranking": "53"
+    }
+  },
+  "expected": {
+    "valid": true
+  }
+}

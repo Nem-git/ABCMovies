@@ -1,0 +1,12 @@
+{
+  "name": "missing-title",
+  "message": {
+    "year": 1994,
+    "movie": {
+      "runtimeMinutes": 142
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}

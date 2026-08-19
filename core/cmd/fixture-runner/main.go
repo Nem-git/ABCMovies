@@ -140,7 +140,7 @@ func runCase(s suite, c fixture) error {
 	switch s.Contract {
 	case "meta":
 		return runMetaCase(s, c)
-	case "library_entry", "media_source", "job", "event":
+	case "library_entry", "media_source", "job", "event", "title_metadata":
 		return runSchemaCase(s, c)
 	default:
 		return fmt.Errorf("unknown contract %q", s.Contract)
@@ -208,6 +208,13 @@ func validateContract(contract string, msg json.RawMessage) (bool, error) {
 		err = protojson.Unmarshal(msg, &m)
 		if err == nil {
 			err = schema.ValidateEventEnvelope(&m)
+		}
+		valid = err == nil
+	case "title_metadata":
+		var m corev1.TitleMetadata
+		err = protojson.Unmarshal(msg, &m)
+		if err == nil {
+			err = schema.ValidateTitleMetadata(&m)
 		}
 		valid = err == nil
 	default:
