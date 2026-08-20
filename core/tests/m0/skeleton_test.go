@@ -8,6 +8,7 @@ import (
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -71,7 +72,7 @@ func TestWalkingSkeleton(t *testing.T) {
 		return "ok", nil
 	}
 	aliceMeta := metadata.NewIncomingContext(t.Context(), metadata.Pairs("authorization", "Bearer "+token))
-	if _, err := interceptor(aliceMeta, nil, nil, aliceHandler); err != nil {
+	if _, err := interceptor(aliceMeta, nil, &grpc.UnaryServerInfo{FullMethod: "/abcmovies.api.v1.CoreService/GetJob"}, aliceHandler); err != nil {
 		t.Fatalf("interceptor alice: %v", err)
 	}
 

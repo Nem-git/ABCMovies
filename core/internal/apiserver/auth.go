@@ -34,6 +34,13 @@ func DEKFromContext(ctx context.Context) []byte {
 	return dek
 }
 
+// publicMethods are the inbound-API methods reachable without a session
+// token: account creation and login are how a caller obtains one.
+var publicMethods = map[string]bool{
+	"/abcmovies.api.v1.CoreService/SignUp": true,
+	"/abcmovies.api.v1.CoreService/Login":  true,
+}
+
 // AuthUnaryInterceptor returns a unary server interceptor that extracts a
 // bearer token from gRPC metadata and injects the user ID into the context.
 // The token is validated against the session store.
@@ -44,15 +51,17 @@ func AuthUnaryInterceptor(session auth.Session) grpc.UnaryServerInterceptor {
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (any, error) {
-		uid, err := authenticate(ctx, session)
-		if err != nil {
-			return nil, err
-		}
-		ctx = context.WithValue(ctx, userIDKey, uid)
-		if dek := session.GetDEK(uid); dek != nil {
-			ctx = context.WithValue(ctx, dekKey, dek)
-			ctx = context.WithValue(ctx, store.UserBlobUserIDKey, uid)
-			ctx = context.WithValue(ctx, store.UserBlobDEKKey, dek)
+		if !publicMethods[info.FullMethod] {
+			uid, err := authenticate(ctx, session)
+			if err != nil {
+				return nil, err
+			}
+			ctx = context.WithValue(ctx, userIDKey, uid)
+			if dek := session.GetDEK(uid); dek != nil {
+				ctx = context.WithValue(ctx, dekKey, dek)
+				ctx = context.WithValue(ctx, store.UserBlobUserIDKey, uid)
+				ctx = context.WithValue(ctx, store.UserBlobDEKKey, dek)
+			}
 		}
 		return handler(ctx, req)
 	}
@@ -68,6 +77,9 @@ func AuthStreamInterceptor(session auth.Session) grpc.StreamServerInterceptor {
 		info *grpc.StreamServerInfo,
 		handler grpc.StreamHandler,
 	) error {
+		if publicMethods[info.FullMethod] {
+			return handler(srv, ss)
+		}
 		uid, err := authenticate(ss.Context(), session)
 		if err != nil {
 			return err

@@ -191,6 +191,55 @@ func TestVaultRelayKeyScoping(t *testing.T) {
 	}
 }
 
+// TestVaultRelayKeyPositive proves the positive half of relay-key scoping
+// (TESTING.md §6): a member relay succeeds without the owner's KEK present —
+// a session written under the host-held relay key decrypts with that key,
+// while the owner's key cannot read it.
+func TestVaultRelayKeyPositive(t *testing.T) {
+	ownerKey := testAEAD(t)
+	relayKey := testAEADDifferentKey(t)
+
+	dir := t.TempDir()
+	dbPath := dir + "/shared.db"
+
+	// The relay wraps an account session with its own key.
+	relayVault, err := NewVault(t.Context(), dbPath, relayKey)
+	if err != nil {
+		t.Fatalf("relay vault: %v", err)
+	}
+	session := []byte("member-relay-session-token")
+	if err := relayVault.Put(t.Context(), "account:netflix:relay-session", session); err != nil {
+		t.Fatalf("relay put: %v", err)
+	}
+	_ = relayVault.Close()
+
+	// Reopen with the relay key, owner absent: the member relay must work.
+	memberVault, err := NewVault(t.Context(), dbPath, relayKey)
+	if err != nil {
+		t.Fatalf("reopen with relay key: %v", err)
+	}
+
+	got, err := memberVault.Get(t.Context(), "account:netflix:relay-session")
+	if err != nil {
+		_ = memberVault.Close()
+		t.Fatalf("member relay without owner present: %v", err)
+	}
+	if string(got) != string(session) {
+		_ = memberVault.Close()
+		t.Fatalf("member relay got %q, want %q", got, session)
+	}
+	_ = memberVault.Close()
+	ownerVault, err := NewVault(t.Context(), dbPath, ownerKey)
+	if err != nil {
+		t.Fatalf("reopen with owner key: %v", err)
+	}
+	defer func() { _ = ownerVault.Close() }()
+
+	if _, err := ownerVault.Get(t.Context(), "account:netflix:relay-session"); err == nil {
+		t.Fatal("owner key should not decrypt a relay-key-wrapped session")
+	}
+}
+
 func TestVaultOwnerOnlyOps(t *testing.T) {
 	// Owner-only operations: re-link, re-auth, revoke. These require the
 	// owner's KEK. We simulate this by encrypting with the owner key and

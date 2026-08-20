@@ -7,6 +7,7 @@ import (
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -69,7 +70,7 @@ func TestStorage_WatchHistory_PerUserEncrypted(t *testing.T) {
 		return "ok", nil
 	}
 	aliceMeta := metadata.NewIncomingContext(t.Context(), metadata.Pairs("authorization", "Bearer "+aliceToken))
-	_, err := interceptor(aliceMeta, nil, nil, aliceHandler)
+	_, err := interceptor(aliceMeta, nil, &grpc.UnaryServerInfo{FullMethod: "/abcmovies.api.v1.CoreService/GetJob"}, aliceHandler)
 	if err != nil {
 		t.Fatalf("interceptor alice: %v", err)
 	}
@@ -80,7 +81,7 @@ func TestStorage_WatchHistory_PerUserEncrypted(t *testing.T) {
 		return "ok", nil
 	}
 	bobMeta := metadata.NewIncomingContext(t.Context(), metadata.Pairs("authorization", "Bearer "+bobToken))
-	_, err = interceptor(bobMeta, nil, nil, bobHandler)
+	_, err = interceptor(bobMeta, nil, &grpc.UnaryServerInfo{FullMethod: "/abcmovies.api.v1.CoreService/GetJob"}, bobHandler)
 	if err != nil {
 		t.Fatalf("interceptor bob: %v", err)
 	}

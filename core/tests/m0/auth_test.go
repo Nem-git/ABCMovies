@@ -2,11 +2,14 @@ package m0_test
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/auth"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -59,7 +62,7 @@ func TestAuth_SignUp_Login_FullFlow(t *testing.T) {
 		return "ok", nil
 	}
 	ctx := metadata.NewIncomingContext(t.Context(), metadata.Pairs("authorization", "Bearer "+loginResp.GetToken()))
-	resp, err := interceptor(ctx, nil, nil, handler)
+	resp, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "/abcmovies.api.v1.CoreService/GetJob"}, handler)
 	if err != nil {
 		t.Fatalf("interceptor: %v", err)
 	}
@@ -173,6 +176,46 @@ func TestAuth_TokenExpiry(t *testing.T) {
 	_, err = shortSession.Validate(token)
 	if err == nil {
 		t.Fatal("expected error for expired token")
+	}
+}
+
+// TestAuth_PlaintextPasswordNeverPersisted proves the server stores only
+// derived material (TESTING.md §6): after SignUp, the raw stored user record
+// contains no trace of the plaintext password, while every derived field
+// (salt, password-KEK hash, wrapped DEK, wrapped recovery) is present.
+func TestAuth_PlaintextPasswordNeverPersisted(t *testing.T) {
+	stack := newFullStack(t)
+
+	const password = "unforgettable-secret-7"
+	signUp(t, stack.server, "alice", password)
+
+	raw, err := stack.stores.Users.Get(context.Background(), "user:alice")
+	if err != nil {
+		t.Fatalf("read stored user record: %v", err)
+	}
+
+	if strings.Contains(string(raw), password) {
+		t.Fatal("stored user record contains the plaintext password")
+	}
+	// A recognizable fragment must not appear either — guards against
+	// partial/encoded leakage of the secret.
+	if strings.Contains(string(raw), "unforgettable") {
+		t.Fatal("stored user record contains a fragment of the plaintext password")
+	}
+
+	// Only derived material may be persisted.
+	var data map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &data); err != nil {
+		t.Fatalf("stored user record is not JSON UserData: %v", err)
+	}
+	for _, field := range []string{"Salt", "PasswordHash", "WrappedDEK", "WrappedRecovery"} {
+		v, ok := data[field]
+		if !ok || len(v) == 0 || string(v) == "null" {
+			t.Fatalf("derived material %s missing or empty in stored user record", field)
+		}
+	}
+	if _, ok := data["Password"]; ok {
+		t.Fatal("stored user record has a Password field — plaintext must never be persisted")
 	}
 }
 

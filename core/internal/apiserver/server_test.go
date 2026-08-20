@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -81,7 +82,7 @@ func TestAuthInterceptor_ValidToken(t *testing.T) {
 		return "ok", nil
 	}
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+token))
-	resp, err := interceptor(ctx, nil, nil, handler)
+	resp, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "/abcmovies.api.v1.CoreService/GetJob"}, handler)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -95,7 +96,7 @@ func TestAuthInterceptor_MissingToken(t *testing.T) {
 	interceptor := apiserver.AuthUnaryInterceptor(session)
 	handler := func(ctx context.Context, req any) (any, error) { return "ok", nil }
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs())
-	_, err := interceptor(ctx, nil, nil, handler)
+	_, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "/abcmovies.api.v1.CoreService/GetJob"}, handler)
 	if got := status.Code(err); got != codes.Unauthenticated {
 		t.Fatalf("got code %v, want %v", got, codes.Unauthenticated)
 	}
@@ -106,7 +107,7 @@ func TestAuthInterceptor_MalformedToken(t *testing.T) {
 	interceptor := apiserver.AuthUnaryInterceptor(session)
 	handler := func(ctx context.Context, req any) (any, error) { return "ok", nil }
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Basic abc"))
-	_, err := interceptor(ctx, nil, nil, handler)
+	_, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "/abcmovies.api.v1.CoreService/GetJob"}, handler)
 	if got := status.Code(err); got != codes.Unauthenticated {
 		t.Fatalf("got code %v, want %v", got, codes.Unauthenticated)
 	}
@@ -346,7 +347,7 @@ func TestServer_SignUp_Login_GetJob_Flow(t *testing.T) {
 		return "ok", nil
 	}
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+loginResp.Token))
-	resp, err := interceptor(ctx, nil, nil, handler)
+	resp, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "/abcmovies.api.v1.CoreService/GetJob"}, handler)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -431,7 +432,7 @@ func TestPerUserBlobEncryption_FullFlow(t *testing.T) {
 		return "ok", nil
 	}
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+loginResp.Token))
-	_, err = interceptor(ctx, nil, nil, aliceHandler)
+	_, err = interceptor(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "/abcmovies.api.v1.CoreService/GetJob"}, aliceHandler)
 	if err != nil {
 		t.Fatalf("interceptor: %v", err)
 	}
@@ -485,7 +486,7 @@ func TestPerUserBlobEncryption_FullFlow(t *testing.T) {
 		return "ok", nil
 	}
 	bobMeta := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+bobLoginResp.Token))
-	_, err = interceptor(bobMeta, nil, nil, bobHandler)
+	_, err = interceptor(bobMeta, nil, &grpc.UnaryServerInfo{FullMethod: "/abcmovies.api.v1.CoreService/GetJob"}, bobHandler)
 	if err != nil {
 		t.Fatalf("interceptor bob: %v", err)
 	}
