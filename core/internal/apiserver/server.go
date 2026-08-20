@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Server implements the CoreService (PLAN.md §8).
@@ -61,7 +62,24 @@ func (s *Server) CreateJob(ctx context.Context, job *corev1.Job) error {
 	if err != nil {
 		return fmt.Errorf("marshal job: %w", err)
 	}
-	return s.stores.Jobs.Put(ctx, "job:"+job.GetId(), raw)
+	if err := s.stores.Jobs.Put(ctx, "job:"+job.GetId(), raw); err != nil {
+		return err
+	}
+	// Publish job-status event (PLAN.md §9.2, M0 acceptance).
+	s.bus.Publish(&corev1.EventEnvelope{
+		Id:       fmt.Sprintf("evt-job-%s", job.GetId()),
+		Type:     corev1.EventType_EVENT_TYPE_JOB_STATUS,
+		Audience: corev1.EventAudience_EVENT_AUDIENCE_USER,
+		UserId:   job.GetOwnerUserId(),
+		Payload: &corev1.EventEnvelope_JobStatus{
+			JobStatus: &corev1.JobStatusEvent{
+				JobId:  job.GetId(),
+				Status: job.GetStatus(),
+			},
+		},
+		EmittedAt: timestamppb.Now(),
+	})
+	return nil
 }
 
 // Subscribe streams events to the client. The stream stays open until the

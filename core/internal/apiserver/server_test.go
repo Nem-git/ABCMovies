@@ -24,6 +24,8 @@ func testStores(t *testing.T) config.Stores {
 		Vault:        store.NewInMemory(),
 		WatchHistory: store.NewInMemory(),
 		Jobs:         store.NewInMemory(),
+		Sessions:     store.NewInMemory(),
+		Users:        store.NewInMemory(),
 	}
 }
 
@@ -492,5 +494,107 @@ func TestPerUserBlobEncryption_FullFlow(t *testing.T) {
 	_, err = stores.WatchHistory.Get(bobCtx, "movie:1")
 	if err == nil {
 		t.Fatal("bob should not be able to read alice's data")
+	}
+}
+
+func TestServer_CreateJob_PublishesEvent(t *testing.T) {
+	bus := apiserver.NewInMemoryBus()
+	defer bus.Close()
+	authenticator, session := testAuth(t)
+	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
+
+	ch := bus.Subscribe("test-sub")
+	defer bus.Unsubscribe("test-sub")
+
+	job := &corev1.Job{
+		Id:          "job-evt-1",
+		Kind:        corev1.JobKind_JOB_KIND_REFRESH,
+		Status:      corev1.JobStatus_JOB_STATUS_QUEUED,
+		OwnerUserId: "user:alice",
+	}
+	if err := srv.CreateJob(context.Background(), job); err != nil {
+		t.Fatalf("CreateJob: %v", err)
+	}
+
+	select {
+	case event := <-ch:
+		if event.GetType() != corev1.EventType_EVENT_TYPE_JOB_STATUS {
+			t.Fatalf("event type = %v, want %v", event.GetType(), corev1.EventType_EVENT_TYPE_JOB_STATUS)
+		}
+		if event.GetAudience() != corev1.EventAudience_EVENT_AUDIENCE_USER {
+			t.Fatalf("event audience = %v, want %v", event.GetAudience(), corev1.EventAudience_EVENT_AUDIENCE_USER)
+		}
+		if event.GetUserId() != "user:alice" {
+			t.Fatalf("event user_id = %q, want %q", event.GetUserId(), "user:alice")
+		}
+		payload := event.GetJobStatus()
+		if payload == nil {
+			t.Fatal("event payload should be JobStatus")
+		}
+		if payload.GetJobId() != "job-evt-1" {
+			t.Fatalf("payload job_id = %q, want %q", payload.GetJobId(), "job-evt-1")
+		}
+		if payload.GetStatus() != corev1.JobStatus_JOB_STATUS_QUEUED {
+			t.Fatalf("payload status = %v, want %v", payload.GetStatus(), corev1.JobStatus_JOB_STATUS_QUEUED)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for job-status event")
+	}
+}
+
+func TestServer_SignUp_DuplicateUsername(t *testing.T) {
+	bus := apiserver.NewInMemoryBus()
+	defer bus.Close()
+	authenticator, session := testAuth(t)
+	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
+
+	_, err := srv.SignUp(context.Background(), &apiv1.SignUpRequest{
+		Username: "alice",
+		AuthMethod: &apiv1.SignUpRequest_Password{
+			Password: &apiv1.PasswordSignUp{Password: []byte("password123")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("first SignUp: %v", err)
+	}
+
+	_, err = srv.SignUp(context.Background(), &apiv1.SignUpRequest{
+		Username: "alice",
+		AuthMethod: &apiv1.SignUpRequest_Password{
+			Password: &apiv1.PasswordSignUp{Password: []byte("other456")},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error for duplicate username")
+	}
+}
+
+func TestServer_Login_BeforeSignUp(t *testing.T) {
+	bus := apiserver.NewInMemoryBus()
+	defer bus.Close()
+	authenticator, session := testAuth(t)
+	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
+
+	_, err := srv.Login(context.Background(), &apiv1.LoginRequest{
+		Username: "nobody",
+		AuthMethod: &apiv1.LoginRequest_Password{
+			Password: &apiv1.PasswordLogin{Password: []byte("password123")},
+		},
+	})
+	if got := status.Code(err); got != codes.Unauthenticated {
+		t.Fatalf("got code %v, want %v", got, codes.Unauthenticated)
+	}
+}
+
+func TestServer_GetJob_AuthBehavior(t *testing.T) {
+	bus := apiserver.NewInMemoryBus()
+	defer bus.Close()
+	authenticator, session := testAuth(t)
+	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
+
+	// GetJob without auth metadata returns NotFound (auth is at interceptor level).
+	_, err := srv.GetJob(context.Background(), &apiv1.GetJobRequest{JobId: "job-1"})
+	if got := status.Code(err); got != codes.NotFound {
+		t.Fatalf("got code %v, want %v", got, codes.NotFound)
 	}
 }

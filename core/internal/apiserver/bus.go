@@ -10,6 +10,7 @@ import (
 type Bus interface {
 	Subscribe(id string) <-chan *corev1.EventEnvelope
 	Unsubscribe(id string)
+	Publish(event *corev1.EventEnvelope)
 }
 
 // InMemoryBus is an in-memory event bus. It is ephemeral: a lost notification
