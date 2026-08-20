@@ -73,6 +73,9 @@ func TestLogin_Success(t *testing.T) {
 	if result.UserID != "user:alice" {
 		t.Fatalf("UserID = %q, want %q", result.UserID, "user:alice")
 	}
+	if len(result.DEK) == 0 {
+		t.Fatal("DEK should not be empty")
+	}
 }
 
 func TestLogin_WrongPassword(t *testing.T) {

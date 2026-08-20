@@ -7,28 +7,37 @@ import (
 	"encoding/hex"
 	"fmt"
 	"time"
-
-	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
 const tokenLen = 32
 
-// Session manages API session tokens (TECHNICAL-DECISIONS §1.12).
-// Tokens are opaque bearer tokens; the store holds the token's SHA-256
-// hash, never the token value.
-type Session struct {
-	store store.Store
-	ttl   time.Duration
+// Session defines the session operations used by the API layer.
+type Session interface {
+	Mint(userID string) (string, error)
+	Validate(token string) (string, error)
+	Revoke(token string) error
+	StoreDEK(userID string, dek []byte)
+	GetDEK(userID string) []byte
 }
 
-// NewSession returns a Session backed by the given store with the given TTL.
-func NewSession(store store.Store, ttl time.Duration) *Session {
-	return &Session{store: store, ttl: ttl}
+// InMemorySession is a Session backed by a TokenStore and DEKCache.
+// Tokens are opaque bearer tokens; the store holds the token's SHA-256
+// hash, never the token value.
+type InMemorySession struct {
+	tokens TokenStore
+	deks   DEKCache
+	ttl    time.Duration
+}
+
+// NewInMemorySession returns a Session backed by the given stores with the
+// given TTL.
+func NewInMemorySession(tokens TokenStore, deks DEKCache, ttl time.Duration) *InMemorySession {
+	return &InMemorySession{tokens: tokens, deks: deks, ttl: ttl}
 }
 
 // Mint generates a new session token, stores its hash, and returns the
 // raw token string.
-func (s *Session) Mint(userID string) (string, error) {
+func (s *InMemorySession) Mint(userID string) (string, error) {
 	b := make([]byte, tokenLen)
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("session: generate token: %w", err)
@@ -41,7 +50,7 @@ func (s *Session) Mint(userID string) (string, error) {
 	expiry := time.Now().Add(s.ttl).UTC().Format(time.RFC3339)
 	value := []byte(userID + "\n" + expiry)
 
-	if err := s.store.Put(context.TODO(), key, value); err != nil {
+	if err := s.tokens.Save(context.TODO(), key, value); err != nil {
 		return "", fmt.Errorf("session: store: %w", err)
 	}
 	return token, nil
@@ -49,11 +58,11 @@ func (s *Session) Mint(userID string) (string, error) {
 
 // Validate checks a token and returns the associated user ID.
 // Returns an error if the token is invalid or expired.
-func (s *Session) Validate(token string) (string, error) {
+func (s *InMemorySession) Validate(token string) (string, error) {
 	hash := sha256.Sum256([]byte(token))
 	key := "session:" + hex.EncodeToString(hash[:])
 
-	value, err := s.store.Get(context.TODO(), key)
+	value, err := s.tokens.Load(context.TODO(), key)
 	if err != nil {
 		return "", fmt.Errorf("session: invalid token")
 	}
@@ -78,7 +87,7 @@ func (s *Session) Validate(token string) (string, error) {
 	}
 	if time.Now().After(expiry) {
 		// Clean up expired token.
-		_ = s.store.Delete(context.TODO(), key)
+		_ = s.tokens.Delete(context.TODO(), key)
 		return "", fmt.Errorf("session: token expired")
 	}
 
@@ -86,8 +95,20 @@ func (s *Session) Validate(token string) (string, error) {
 }
 
 // Revoke removes a session token.
-func (s *Session) Revoke(token string) error {
+func (s *InMemorySession) Revoke(token string) error {
 	hash := sha256.Sum256([]byte(token))
 	key := "session:" + hex.EncodeToString(hash[:])
-	return s.store.Delete(context.TODO(), key)
+	return s.tokens.Delete(context.TODO(), key)
+}
+
+// GetDEK retrieves a cached DEK for the given user ID. Returns nil if not
+// cached (e.g. session was not created via login).
+func (s *InMemorySession) GetDEK(userID string) []byte {
+	return s.deks.GetDEK(userID)
+}
+
+// StoreDEK caches a user's DEK for the session lifetime. Called after login
+// when the server unwraps the DEK from the password-KEK.
+func (s *InMemorySession) StoreDEK(userID string, dek []byte) {
+	s.deks.StoreDEK(userID, dek)
 }

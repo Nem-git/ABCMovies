@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/nem-git/abcmovies/core/internal/auth"
+	"github.com/nem-git/abcmovies/core/internal/store"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -13,7 +14,10 @@ import (
 
 type contextKey string
 
-const userIDKey contextKey = "user_id"
+const (
+	userIDKey contextKey = "user_id"
+	dekKey    contextKey = "user_dek"
+)
 
 // UserIDFromContext extracts the authenticated user ID from the context.
 func UserIDFromContext(ctx context.Context) (string, bool) {
@@ -21,10 +25,19 @@ func UserIDFromContext(ctx context.Context) (string, bool) {
 	return uid, ok
 }
 
+// DEKFromContext extracts the user's DEK from the context. The DEK is set
+// by the auth interceptor after login and enables per-user blob encryption.
+// Returns nil if no DEK is available (e.g. the session was not created via
+// login).
+func DEKFromContext(ctx context.Context) []byte {
+	dek, _ := ctx.Value(dekKey).([]byte)
+	return dek
+}
+
 // AuthUnaryInterceptor returns a unary server interceptor that extracts a
 // bearer token from gRPC metadata and injects the user ID into the context.
 // The token is validated against the session store.
-func AuthUnaryInterceptor(session *auth.Session) grpc.UnaryServerInterceptor {
+func AuthUnaryInterceptor(session auth.Session) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
 		req any,
@@ -35,14 +48,20 @@ func AuthUnaryInterceptor(session *auth.Session) grpc.UnaryServerInterceptor {
 		if err != nil {
 			return nil, err
 		}
-		return handler(context.WithValue(ctx, userIDKey, uid), req)
+		ctx = context.WithValue(ctx, userIDKey, uid)
+		if dek := session.GetDEK(uid); dek != nil {
+			ctx = context.WithValue(ctx, dekKey, dek)
+			ctx = context.WithValue(ctx, store.UserBlobUserIDKey, uid)
+			ctx = context.WithValue(ctx, store.UserBlobDEKKey, dek)
+		}
+		return handler(ctx, req)
 	}
 }
 
 // AuthStreamInterceptor returns a stream server interceptor that extracts a
 // bearer token from gRPC metadata and injects the user ID into the stream
 // context.
-func AuthStreamInterceptor(session *auth.Session) grpc.StreamServerInterceptor {
+func AuthStreamInterceptor(session auth.Session) grpc.StreamServerInterceptor {
 	return func(
 		srv any,
 		ss grpc.ServerStream,
@@ -53,12 +72,18 @@ func AuthStreamInterceptor(session *auth.Session) grpc.StreamServerInterceptor {
 		if err != nil {
 			return err
 		}
-		wrapped := &authStream{ServerStream: ss, ctx: context.WithValue(ss.Context(), userIDKey, uid)}
+		ctx := context.WithValue(ss.Context(), userIDKey, uid)
+		if dek := session.GetDEK(uid); dek != nil {
+			ctx = context.WithValue(ctx, dekKey, dek)
+			ctx = context.WithValue(ctx, store.UserBlobUserIDKey, uid)
+			ctx = context.WithValue(ctx, store.UserBlobDEKKey, dek)
+		}
+		wrapped := &authStream{ServerStream: ss, ctx: ctx}
 		return handler(srv, wrapped)
 	}
 }
 
-func authenticate(ctx context.Context, session *auth.Session) (string, error) {
+func authenticate(ctx context.Context, session auth.Session) (string, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return "", status.Error(codes.Unauthenticated, "missing metadata")

@@ -20,9 +20,15 @@ type Capability struct {
 	Version uint32
 }
 
-// Registry is the wiring cabinet (§4 of PLAN.md): it handshakes declared
-// slots and keeps a live table of what is admitted.
-type Registry struct {
+// Registry defines the slot registry operations used by the composition root.
+type Registry interface {
+	Admit(name string, server corev1.MetaServiceServer) ([]Capability, error)
+	Close()
+}
+
+// InProcessRegistry handshakes declared slots and keeps a live table of what
+// is admitted. It uses an in-process gRPC transport (bufconn).
+type InProcessRegistry struct {
 	slots map[string]*slotEntry
 }
 
@@ -33,16 +39,16 @@ type slotEntry struct {
 	listener     *bufconn.Listener
 }
 
-// New returns an empty registry.
-func New() *Registry {
-	return &Registry{slots: map[string]*slotEntry{}}
+// NewInProcess returns an empty in-process registry.
+func NewInProcess() *InProcessRegistry {
+	return &InProcessRegistry{slots: map[string]*slotEntry{}}
 }
 
 // Admit handshakes an in-process slot over an in-memory transport: it serves
 // the slot's Meta service on a buffer connection, asks CapabilityQuery, and
 // validates the declaration. An invalid declaration is rejected (§3.3 of
 // PLAN.md: nothing is assumed, everything is asked).
-func (r *Registry) Admit(name string, server corev1.MetaServiceServer) ([]Capability, error) {
+func (r *InProcessRegistry) Admit(name string, server corev1.MetaServiceServer) ([]Capability, error) {
 	if _, exists := r.slots[name]; exists {
 		return nil, fmt.Errorf("registry: slot %q already admitted", name)
 	}
@@ -87,7 +93,7 @@ func (r *Registry) Admit(name string, server corev1.MetaServiceServer) ([]Capabi
 }
 
 // Capabilities returns the admitted capabilities of a slot.
-func (r *Registry) Capabilities(name string) ([]Capability, bool) {
+func (r *InProcessRegistry) Capabilities(name string) ([]Capability, bool) {
 	entry, ok := r.slots[name]
 	if !ok {
 		return nil, false
@@ -96,7 +102,7 @@ func (r *Registry) Capabilities(name string) ([]Capability, bool) {
 }
 
 // Close tears down every admitted slot's transport.
-func (r *Registry) Close() {
+func (r *InProcessRegistry) Close() {
 	for _, entry := range r.slots {
 		_ = entry.conn.Close()
 		entry.server.Stop()

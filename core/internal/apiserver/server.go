@@ -6,36 +6,62 @@ import (
 	"sync/atomic"
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
+	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	"github.com/nem-git/abcmovies/core/internal/auth"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/schema"
+	"github.com/nem-git/abcmovies/core/internal/store"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 // Server implements the CoreService (PLAN.md §8).
 type Server struct {
 	apiv1.UnimplementedCoreServiceServer
-	bus     *Bus
+	bus     Bus
 	stores  config.Stores
 	auth    auth.Authenticator
-	session *auth.Session
+	session auth.Session
 	seq     atomic.Int64
 }
 
 // NewServer returns a CoreService backed by the given bus, stores, and auth.
-func NewServer(bus *Bus, stores config.Stores, authenticator auth.Authenticator, session *auth.Session) *Server {
+func NewServer(bus Bus, stores config.Stores, authenticator auth.Authenticator, session auth.Session) *Server {
 	return &Server{bus: bus, stores: stores, auth: authenticator, session: session}
 }
 
-// GetJob returns a job's current state. For M0, no jobs exist yet — the call
-// always returns NotFound, proving the full vertical slice works.
+// GetJob returns a job's current state from the jobs store (PLAN.md §9.1).
 func (s *Server) GetJob(ctx context.Context, req *apiv1.GetJobRequest) (*apiv1.GetJobResponse, error) {
 	if err := schema.ValidateGetJobRequest(req); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-	_ = ctx // M0: no job store yet
-	return nil, status.Error(codes.NotFound, "job not found")
+	raw, err := s.stores.Jobs.Get(ctx, "job:"+req.GetJobId())
+	if err == store.ErrKeyNotFound {
+		return nil, status.Error(codes.NotFound, "job not found")
+	}
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to read job")
+	}
+	var job corev1.Job
+	if err := proto.Unmarshal(raw, &job); err != nil {
+		return nil, status.Error(codes.Internal, "corrupted job data")
+	}
+	return &apiv1.GetJobResponse{Job: &job}, nil
+}
+
+// CreateJob persists a job in the jobs store. This is an internal method for
+// M0 — it proves the jobs storage class works end-to-end. A public CreateJob
+// RPC is not yet exposed (the proto does not define one).
+func (s *Server) CreateJob(ctx context.Context, job *corev1.Job) error {
+	if err := schema.ValidateJob(job); err != nil {
+		return err
+	}
+	raw, err := proto.Marshal(job)
+	if err != nil {
+		return fmt.Errorf("marshal job: %w", err)
+	}
+	return s.stores.Jobs.Put(ctx, "job:"+job.GetId(), raw)
 }
 
 // Subscribe streams events to the client. The stream stays open until the
@@ -90,6 +116,8 @@ func (s *Server) Login(ctx context.Context, req *apiv1.LoginRequest) (*apiv1.Log
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to create session")
 	}
+	// Cache the DEK for per-user blob encryption.
+	s.session.StoreDEK(result.UserID, result.DEK)
 	return &apiv1.LoginResponse{
 		Token: token,
 	}, nil

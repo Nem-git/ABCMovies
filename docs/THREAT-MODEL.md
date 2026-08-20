@@ -11,7 +11,7 @@ PLAN.md §7.6's honesty principle governs everything here: there is no mathemati
 | Account sessions (tokens/cookies) | Vault | **Policy-not-proof**: host holds the relay key and can decrypt | Attacker can use accounts on the user's behalf; leaking them logs everyone out (§7.6) |
 | Host relay key | Instance keystore | Disclosed server secret, scoped to account sessions only | Decrypts all member relays; rotation kills every member relay at once |
 | User blobs (history, playlists, derived library) | Per-user encrypted stores | User's DEK; host unwraps during processing (process promise, not proof) | Loss = user's personal data; compromise = privacy break |
-| Password / recovery-key material | Password seen by server during auth only; recovery key never leaves client | Server-side derivation | Server cannot persist plaintext password (process-discipline, §7.6); recovery key is the sole reset path |
+| Password / recovery-key material | Password seen by server during auth only; recovery key generated server-side, shown once at signup, then never stored or transmitted again | Server-side derivation | Server cannot persist plaintext password (process-discipline, §7.6); recovery key is the sole reset path |
 | Content keys | Content-key cache | Encrypted at rest; a hint, not a guarantee (§6.6) | Attacker could decrypt cached media keys; fail-fast re-license limits window |
 | Media bytes | In flight only | Transient; never cached (§2.4) | Eavesdropping (mitigated by transport encryption) |
 | Audit/usage logs | Ops stores | Content-blind: volume and timing only (§1.3) | Log leak reveals nothing about item identity |
@@ -52,7 +52,8 @@ PLAN.md §7.6's honesty principle governs everything here: there is no mathemati
 ## 4. Trust boundaries
 
 ```text
- Client (browser/CLI)          holds password + recovery key; sends password to server
+ Client (browser/CLI)          holds password + recovery key (shown once at signup, then discarded);
+        │                        sends password to server; recovery key never stored or retransmitted
         │  API (chosen transport, §8) server derives password-KEK; never persists plaintext (T5)
         ▼
  CORE                          holds relay key, DEKs during processing, vault access;

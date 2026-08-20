@@ -17,7 +17,6 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/builtin"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/registry"
-	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
 func main() {
@@ -41,17 +40,17 @@ func main() {
 		_ = stores.Vault.Close()
 		_ = stores.WatchHistory.Close()
 		_ = stores.Jobs.Close()
+		_ = stores.Sessions.Close()
 	}()
 
 	// Set up auth system.
 	userStore := auth.NewMemoryUserStore()
-	_ = store.NewInMemory() // unused for now; session store will be wired later
-	sessionStore := store.NewInMemory()
+	tokenStore, dekCache := config.BuildAuth(stores.Sessions)
 	authenticator := auth.NewPasswordAuthenticator(userStore)
 	tokenTTL := config.ParseTokenTTL(cfg.Auth.TokenTTL)
-	session := auth.NewSession(sessionStore, tokenTTL)
+	session := auth.NewInMemorySession(tokenStore, dekCache, tokenTTL)
 
-	r := registry.New()
+	r := registry.NewInProcess()
 	defer r.Close()
 
 	caps, err := r.Admit("builtin", builtin.New())
@@ -65,7 +64,7 @@ func main() {
 		fmt.Printf("  %s v%d\n", c.Name, c.Version)
 	}
 
-	bus := apiserver.NewBus()
+	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 
 	srv := apiserver.NewServer(bus, stores, authenticator, session)

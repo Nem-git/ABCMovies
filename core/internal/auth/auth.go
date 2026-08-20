@@ -37,6 +37,7 @@ type SignUpResult struct {
 // LoginResult contains the output of a successful login.
 type LoginResult struct {
 	UserID string
+	DEK    []byte // unwrapped DEK, for per-user blob encryption
 }
 
 // Authenticator defines the interface for user authentication methods.
@@ -46,7 +47,8 @@ type Authenticator interface {
 	// recovery key.
 	SignUp(username string, password []byte) (*SignUpResult, error)
 
-	// Login authenticates a user and returns a session-ready user ID.
+	// Login authenticates a user and returns a session-ready user ID and the
+	// unwrapped DEK for per-user blob encryption.
 	Login(username string, password []byte) (*LoginResult, error)
 }
 
@@ -153,8 +155,15 @@ func (a *PasswordAuthenticator) Login(username string, password []byte) (*LoginR
 		return nil, fmt.Errorf("auth: invalid credentials")
 	}
 
+	// Unwrap the DEK using the password-KEK.
+	dek, err := unwrapKey(userData.WrappedDEK, passwordKEK)
+	if err != nil {
+		return nil, fmt.Errorf("auth: unwrap DEK: %w", err)
+	}
+
 	return &LoginResult{
 		UserID: "user:" + username,
+		DEK:    dek,
 	}, nil
 }
 
@@ -173,6 +182,24 @@ func wrapKey(key, wrappingKey []byte) ([]byte, error) {
 		return nil, fmt.Errorf("wrap: generate nonce: %w", err)
 	}
 	return aead.Seal(nonce, nonce, key, nil), nil
+}
+
+// unwrapKey decrypts a wrapped key using AES-GCM with the given unwrapping key.
+func unwrapKey(wrapped, unwrappingKey []byte) ([]byte, error) {
+	block, err := aes.NewCipher(unwrappingKey)
+	if err != nil {
+		return nil, fmt.Errorf("unwrap: aes cipher: %w", err)
+	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("unwrap: gcm: %w", err)
+	}
+	nonceSize := aead.NonceSize()
+	if len(wrapped) < nonceSize {
+		return nil, fmt.Errorf("unwrap: ciphertext too short")
+	}
+	nonce, ciphertext := wrapped[:nonceSize], wrapped[nonceSize:]
+	return aead.Open(nil, nonce, ciphertext, nil)
 }
 
 // bytesEqual returns true if two byte slices are equal.

@@ -27,12 +27,13 @@ func testStores(t *testing.T) config.Stores {
 	}
 }
 
-func testAuth(t *testing.T) (*auth.PasswordAuthenticator, *auth.Session) {
+func testAuth(t *testing.T) (*auth.PasswordAuthenticator, auth.Session) {
 	t.Helper()
 	userStore := auth.NewMemoryUserStore()
-	sessionStore := store.NewInMemory()
+	tokens := auth.NewStoreTokenStore(store.NewInMemory())
+	deks := auth.NewStoreDEKCache(store.NewInMemory())
 	authenticator := auth.NewPasswordAuthenticator(userStore)
-	session := auth.NewSession(sessionStore, time.Hour)
+	session := auth.NewInMemorySession(tokens, deks, time.Hour)
 	return authenticator, session
 }
 
@@ -97,7 +98,7 @@ func TestAuthInterceptor_MalformedToken(t *testing.T) {
 }
 
 func TestBus_PublishSubscribe(t *testing.T) {
-	bus := apiserver.NewBus()
+	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 
 	ch := bus.Subscribe("test")
@@ -120,7 +121,7 @@ func TestBus_PublishSubscribe(t *testing.T) {
 }
 
 func TestBus_Unsubscribe(t *testing.T) {
-	bus := apiserver.NewBus()
+	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 
 	ch := bus.Subscribe("test")
@@ -137,7 +138,7 @@ func TestBus_Unsubscribe(t *testing.T) {
 }
 
 func TestBus_PublishSlow(t *testing.T) {
-	bus := apiserver.NewBus()
+	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 
 	// Subscribe with a full buffer channel (capacity 64).
@@ -163,7 +164,7 @@ func TestBus_PublishSlow(t *testing.T) {
 }
 
 func TestServer_GetJob_NotFound(t *testing.T) {
-	bus := apiserver.NewBus()
+	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
 	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
@@ -175,7 +176,7 @@ func TestServer_GetJob_NotFound(t *testing.T) {
 }
 
 func TestServer_GetJob_EmptyID(t *testing.T) {
-	bus := apiserver.NewBus()
+	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
 	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
@@ -187,7 +188,7 @@ func TestServer_GetJob_EmptyID(t *testing.T) {
 }
 
 func TestServer_SignUp_Success(t *testing.T) {
-	bus := apiserver.NewBus()
+	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
 	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
@@ -210,7 +211,7 @@ func TestServer_SignUp_Success(t *testing.T) {
 }
 
 func TestServer_SignUp_EmptyUsername(t *testing.T) {
-	bus := apiserver.NewBus()
+	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
 	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
@@ -222,7 +223,7 @@ func TestServer_SignUp_EmptyUsername(t *testing.T) {
 }
 
 func TestServer_Login_Success(t *testing.T) {
-	bus := apiserver.NewBus()
+	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
 	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
@@ -254,7 +255,7 @@ func TestServer_Login_Success(t *testing.T) {
 }
 
 func TestServer_Login_WrongPassword(t *testing.T) {
-	bus := apiserver.NewBus()
+	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
 	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
@@ -281,7 +282,7 @@ func TestServer_Login_WrongPassword(t *testing.T) {
 }
 
 func TestServer_SignUp_Login_GetJob_Flow(t *testing.T) {
-	bus := apiserver.NewBus()
+	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
 	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
@@ -339,4 +340,144 @@ func TestServer_SignUp_Login_GetJob_Flow(t *testing.T) {
 	}
 
 	_ = signUpResp // recovery key available for future use
+}
+
+func TestServer_GetJob_CreateAndRetrieve(t *testing.T) {
+	bus := apiserver.NewInMemoryBus()
+	defer bus.Close()
+	authenticator, session := testAuth(t)
+	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
+
+	// Create a job.
+	job := &corev1.Job{
+		Id:     "job-001",
+		Kind:   corev1.JobKind_JOB_KIND_REFRESH,
+		Status: corev1.JobStatus_JOB_STATUS_QUEUED,
+	}
+	if err := srv.CreateJob(context.Background(), job); err != nil {
+		t.Fatalf("CreateJob: %v", err)
+	}
+
+	// Retrieve it through GetJob.
+	resp, err := srv.GetJob(context.Background(), &apiv1.GetJobRequest{JobId: "job-001"})
+	if err != nil {
+		t.Fatalf("GetJob: %v", err)
+	}
+	if resp.GetJob().GetId() != "job-001" {
+		t.Fatalf("Job ID = %q, want %q", resp.GetJob().GetId(), "job-001")
+	}
+	if resp.GetJob().GetKind() != corev1.JobKind_JOB_KIND_REFRESH {
+		t.Fatalf("Job Kind = %v, want %v", resp.GetJob().GetKind(), corev1.JobKind_JOB_KIND_REFRESH)
+	}
+	if resp.GetJob().GetStatus() != corev1.JobStatus_JOB_STATUS_QUEUED {
+		t.Fatalf("Job Status = %v, want %v", resp.GetJob().GetStatus(), corev1.JobStatus_JOB_STATUS_QUEUED)
+	}
+}
+
+func TestPerUserBlobEncryption_FullFlow(t *testing.T) {
+	bus := apiserver.NewInMemoryBus()
+	defer bus.Close()
+	authenticator, session := testAuth(t)
+	stores := testStores(t)
+
+	// Wrap WatchHistory with UserBlobStore for per-user encryption.
+	inner := stores.WatchHistory
+	stores.WatchHistory = store.NewUserBlobStore(inner)
+
+	srv := apiserver.NewServer(bus, stores, authenticator, session)
+
+	// 1. Sign up Alice.
+	_, err := srv.SignUp(context.Background(), &apiv1.SignUpRequest{
+		Username: "alice",
+		AuthMethod: &apiv1.SignUpRequest_Password{
+			Password: &apiv1.PasswordSignUp{Password: []byte("password123")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SignUp alice: %v", err)
+	}
+
+	// 2. Login Alice — DEK gets cached.
+	loginResp, err := srv.Login(context.Background(), &apiv1.LoginRequest{
+		Username: "alice",
+		AuthMethod: &apiv1.LoginRequest_Password{
+			Password: &apiv1.PasswordLogin{Password: []byte("password123")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Login alice: %v", err)
+	}
+
+	// 3. Get an authenticated context with Alice's DEK.
+	interceptor := apiserver.AuthUnaryInterceptor(session)
+	var aliceCtx context.Context
+	aliceHandler := func(ctx context.Context, req any) (any, error) {
+		aliceCtx = ctx
+		return "ok", nil
+	}
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+loginResp.Token))
+	_, err = interceptor(ctx, nil, nil, aliceHandler)
+	if err != nil {
+		t.Fatalf("interceptor: %v", err)
+	}
+
+	// 4. Put a value through WatchHistory using Alice's context.
+	if err := stores.WatchHistory.Put(aliceCtx, "movie:1", []byte("watched-at-noon")); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+
+	// 5. Verify the raw value on the inner store is encrypted.
+	raw, err := inner.Get(context.Background(), "user:user:alice:movie:1")
+	if err != nil {
+		t.Fatalf("inner Get: %v", err)
+	}
+	if string(raw) == "watched-at-noon" {
+		t.Fatal("raw value contains plaintext — not encrypted")
+	}
+
+	// 6. Get the value back — should decrypt correctly.
+	got, err := stores.WatchHistory.Get(aliceCtx, "movie:1")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if string(got) != "watched-at-noon" {
+		t.Fatalf("Get = %q, want %q", got, "watched-at-noon")
+	}
+
+	// 7. Sign up Bob, login, and verify he can't read Alice's data.
+	_, err = srv.SignUp(context.Background(), &apiv1.SignUpRequest{
+		Username: "bob",
+		AuthMethod: &apiv1.SignUpRequest_Password{
+			Password: &apiv1.PasswordSignUp{Password: []byte("password456")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SignUp bob: %v", err)
+	}
+	bobLoginResp, err := srv.Login(context.Background(), &apiv1.LoginRequest{
+		Username: "bob",
+		AuthMethod: &apiv1.LoginRequest_Password{
+			Password: &apiv1.PasswordLogin{Password: []byte("password456")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Login bob: %v", err)
+	}
+
+	var bobCtx context.Context
+	bobHandler := func(ctx context.Context, req any) (any, error) {
+		bobCtx = ctx
+		return "ok", nil
+	}
+	bobMeta := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+bobLoginResp.Token))
+	_, err = interceptor(bobMeta, nil, nil, bobHandler)
+	if err != nil {
+		t.Fatalf("interceptor bob: %v", err)
+	}
+
+	// Bob should not be able to read Alice's data.
+	_, err = stores.WatchHistory.Get(bobCtx, "movie:1")
+	if err == nil {
+		t.Fatal("bob should not be able to read alice's data")
+	}
 }

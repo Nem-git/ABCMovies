@@ -283,7 +283,7 @@ func validateAPIMessage(msgType string, msg json.RawMessage) (bool, error) {
 }
 
 func runMetaCase(s suite, c fixture) error {
-	reg := registry.New()
+	reg := registry.NewInProcess()
 	defer reg.Close()
 
 	if c.Expected.Admitted {

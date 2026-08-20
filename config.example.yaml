@@ -21,3 +21,4 @@ stores:
   vault: local-file # durable, must not lose; never a real credential in dev
   watch-history: in-memory # durable, per-user encrypted in production
   jobs: in-memory # checkpointed state
+  sessions: in-memory # session tokens + DEK cache

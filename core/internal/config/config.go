@@ -12,6 +12,7 @@ import (
 
 	"go.yaml.in/yaml/v4"
 
+	"github.com/nem-git/abcmovies/core/internal/auth"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
@@ -30,6 +31,7 @@ type Config struct {
 		VaultKey     string `yaml:"vault-key"`
 		WatchHistory string `yaml:"watch-history"`
 		Jobs         string `yaml:"jobs"`
+		Sessions     string `yaml:"sessions"`
 	} `yaml:"stores"`
 }
 
@@ -40,6 +42,7 @@ type Stores struct {
 	Vault        store.Store
 	WatchHistory store.Store
 	Jobs         store.Store
+	Sessions     store.Store
 }
 
 func Default() *Config {
@@ -51,6 +54,7 @@ func Default() *Config {
 	c.Stores.VaultKey = "generated"
 	c.Stores.WatchHistory = "in-memory"
 	c.Stores.Jobs = "in-memory"
+	c.Stores.Sessions = "in-memory"
 	return c
 }
 
@@ -90,10 +94,19 @@ func BuildStores(ctx context.Context, cfg *Config, logger *slog.Logger) (Stores,
 	if err != nil {
 		return s, fmt.Errorf("stores.watch-history: %w", err)
 	}
+	// WatchHistory is a per-user encrypted blob (PLAN.md §2.4, IMPLEMENTATION.md
+	// §1.3). Wrap with UserBlobStore so values are encrypted with the caller's
+	// DEK from the request context.
+	s.WatchHistory = store.NewUserBlobStore(s.WatchHistory)
 
 	s.Jobs, err = buildStore(ctx, cfg.Stores.Jobs, "")
 	if err != nil {
 		return s, fmt.Errorf("stores.jobs: %w", err)
+	}
+
+	s.Sessions, err = buildStore(ctx, cfg.Stores.Sessions, "")
+	if err != nil {
+		return s, fmt.Errorf("stores.sessions: %w", err)
 	}
 
 	// Vault requires an AEAD cipher.
@@ -185,4 +198,10 @@ func ParseTokenTTL(val string) time.Duration {
 		return defaultTTL
 	}
 	return d
+}
+
+// BuildAuth creates the auth-layer stores (TokenStore and DEKCache) from the
+// given session backend store.
+func BuildAuth(sessionStore store.Store) (auth.TokenStore, auth.DEKCache) {
+	return auth.NewStoreTokenStore(sessionStore), auth.NewStoreDEKCache(sessionStore)
 }
