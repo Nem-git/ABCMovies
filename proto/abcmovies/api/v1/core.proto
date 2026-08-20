@@ -70,9 +70,6 @@ message SignUpResponse {
   // A one-time recovery key (128-bit base32, 26 chars). Shown once;
   // the server never stores it (PLAN.md §7.6).
   string recovery_key = 2;
-
-  // The DEK wrapped by the recovery-KEK, for password reset.
-  bytes wrapped_recovery = 3;
 }
 
 message LoginRequest {
