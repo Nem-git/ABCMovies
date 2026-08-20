@@ -19,9 +19,6 @@ service CoreService {
   // Auth: create a new user account (PLAN.md §7.6).
   rpc SignUp(SignUpRequest) returns (SignUpResponse);
 
-  // Auth: get the salt for a user's password (PLAN.md §7.6).
-  rpc GetSalt(GetSaltRequest) returns (GetSaltResponse);
-
   // Auth: authenticate and receive a session token (PLAN.md §7.6).
   rpc Login(LoginRequest) returns (LoginResponse);
 }
@@ -74,21 +71,8 @@ message SignUpResponse {
   // the server never stores it (PLAN.md §7.6).
   string recovery_key = 2;
 
-  // The DEK wrapped by the password-KEK, for client-side recovery.
-  bytes wrapped_dek = 3;
-
   // The DEK wrapped by the recovery-KEK, for password reset.
-  bytes wrapped_recovery = 4;
-}
-
-message GetSaltRequest {
-  // The username to look up. Required.
-  string username = 1;
-}
-
-message GetSaltResponse {
-  // The salt used for this user's password hash.
-  bytes salt = 1;
+  bytes wrapped_recovery = 3;
 }
 
 message LoginRequest {
@@ -111,7 +95,4 @@ message PasswordLogin {
 message LoginResponse {
   // An opaque bearer token for API authentication (TECHNICAL-DECISIONS §1.12).
   string token = 1;
-
-  // The DEK wrapped by the password-KEK, for client-side recovery.
-  bytes wrapped_dek = 2;
 }
