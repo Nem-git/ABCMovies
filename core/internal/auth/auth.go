@@ -292,3 +292,30 @@ func (s *MemoryUserStore) PutUser(username string, data *UserData) error {
 	s.users[username] = data
 	return nil
 }
+
+// CompositeAuthenticator routes auth requests to method-specific
+// authenticators via a map-based registry. No ordering or fallback.
+type CompositeAuthenticator struct {
+	methods map[string]Authenticator
+}
+
+// Get returns the Authenticator for the given method, or nil if not found.
+func (c *CompositeAuthenticator) Get(method string) (Authenticator, bool) {
+	a, ok := c.methods[method]
+	return a, ok
+}
+
+// NewAuthenticators creates a CompositeAuthenticator from the configured
+// method names. Currently only "password" is supported.
+func NewAuthenticators(methods []string, userStore UserStore) (*CompositeAuthenticator, error) {
+	m := make(map[string]Authenticator, len(methods))
+	for _, name := range methods {
+		switch name {
+		case "password":
+			m[name] = NewPasswordAuthenticator(userStore)
+		default:
+			return nil, fmt.Errorf("auth: unknown method %q", name)
+		}
+	}
+	return &CompositeAuthenticator{methods: m}, nil
+}

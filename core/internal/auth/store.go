@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
@@ -62,4 +64,37 @@ func (a *StoreDEKCache) GetDEK(userID string) []byte {
 		return nil
 	}
 	return val
+}
+
+// StoreUserStore adapts a store.Store to the UserStore interface.
+// UserData is JSON-serialized for persistence. Key names are stored in
+// cleartext; only the values (which contain auth material) are encrypted
+// at rest when the underlying store is a vault.
+type StoreUserStore struct {
+	store store.Store
+}
+
+// NewStoreUserStore returns a UserStore backed by the given store.Store.
+func NewStoreUserStore(s store.Store) *StoreUserStore {
+	return &StoreUserStore{store: s}
+}
+
+func (a *StoreUserStore) GetUser(username string) (*UserData, error) {
+	raw, err := a.store.Get(context.TODO(), "user:"+username)
+	if err != nil {
+		return nil, fmt.Errorf("user not found")
+	}
+	var data UserData
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return nil, fmt.Errorf("user data corrupted: %w", err)
+	}
+	return &data, nil
+}
+
+func (a *StoreUserStore) PutUser(username string, data *UserData) error {
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("marshal user data: %w", err)
+	}
+	return a.store.Put(context.TODO(), "user:"+username, raw)
 }

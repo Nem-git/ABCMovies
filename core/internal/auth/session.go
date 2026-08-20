@@ -20,24 +20,24 @@ type Session interface {
 	GetDEK(userID string) []byte
 }
 
-// InMemorySession is a Session backed by a TokenStore and DEKCache.
+// SessionHandler is a Session backed by a TokenStore and DEKCache.
 // Tokens are opaque bearer tokens; the store holds the token's SHA-256
 // hash, never the token value.
-type InMemorySession struct {
+type SessionHandler struct {
 	tokens TokenStore
 	deks   DEKCache
 	ttl    time.Duration
 }
 
-// NewInMemorySession returns a Session backed by the given stores with the
+// NewSessionHandler returns a Session backed by the given stores with the
 // given TTL.
-func NewInMemorySession(tokens TokenStore, deks DEKCache, ttl time.Duration) *InMemorySession {
-	return &InMemorySession{tokens: tokens, deks: deks, ttl: ttl}
+func NewSessionHandler(tokens TokenStore, deks DEKCache, ttl time.Duration) *SessionHandler {
+	return &SessionHandler{tokens: tokens, deks: deks, ttl: ttl}
 }
 
 // Mint generates a new session token, stores its hash, and returns the
 // raw token string.
-func (s *InMemorySession) Mint(userID string) (string, error) {
+func (s *SessionHandler) Mint(userID string) (string, error) {
 	b := make([]byte, tokenLen)
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("session: generate token: %w", err)
@@ -58,7 +58,7 @@ func (s *InMemorySession) Mint(userID string) (string, error) {
 
 // Validate checks a token and returns the associated user ID.
 // Returns an error if the token is invalid or expired.
-func (s *InMemorySession) Validate(token string) (string, error) {
+func (s *SessionHandler) Validate(token string) (string, error) {
 	hash := sha256.Sum256([]byte(token))
 	key := "session:" + hex.EncodeToString(hash[:])
 
@@ -95,7 +95,7 @@ func (s *InMemorySession) Validate(token string) (string, error) {
 }
 
 // Revoke removes a session token.
-func (s *InMemorySession) Revoke(token string) error {
+func (s *SessionHandler) Revoke(token string) error {
 	hash := sha256.Sum256([]byte(token))
 	key := "session:" + hex.EncodeToString(hash[:])
 	return s.tokens.Delete(context.TODO(), key)
@@ -103,12 +103,12 @@ func (s *InMemorySession) Revoke(token string) error {
 
 // GetDEK retrieves a cached DEK for the given user ID. Returns nil if not
 // cached (e.g. session was not created via login).
-func (s *InMemorySession) GetDEK(userID string) []byte {
+func (s *SessionHandler) GetDEK(userID string) []byte {
 	return s.deks.GetDEK(userID)
 }
 
 // StoreDEK caches a user's DEK for the session lifetime. Called after login
 // when the server unwraps the DEK from the password-KEK.
-func (s *InMemorySession) StoreDEK(userID string, dek []byte) {
+func (s *SessionHandler) StoreDEK(userID string, dek []byte) {
 	s.deks.StoreDEK(userID, dek)
 }

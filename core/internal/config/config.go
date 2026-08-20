@@ -16,6 +16,12 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
+// StoreConfig describes a single store backend.
+type StoreConfig struct {
+	Backend string `yaml:"backend"`
+	Path    string `yaml:"path,omitempty"`
+}
+
 type Config struct {
 	Core struct {
 		API struct {
@@ -23,15 +29,17 @@ type Config struct {
 		} `yaml:"api"`
 	} `yaml:"core"`
 	Auth struct {
-		TokenTTL string `yaml:"token-ttl"` // e.g. "168h" for 7 days
+		Methods  []string `yaml:"methods"`
+		TokenTTL string   `yaml:"token-ttl"`
 	} `yaml:"auth"`
 	Stores struct {
-		Caches       string `yaml:"caches"`
-		Vault        string `yaml:"vault"`
-		VaultKey     string `yaml:"vault-key"`
-		WatchHistory string `yaml:"watch-history"`
-		Jobs         string `yaml:"jobs"`
-		Sessions     string `yaml:"sessions"`
+		Caches       StoreConfig `yaml:"caches"`
+		Vault        StoreConfig `yaml:"vault"`
+		VaultKey     string      `yaml:"vault-key"`
+		WatchHistory StoreConfig `yaml:"watch-history"`
+		Jobs         StoreConfig `yaml:"jobs"`
+		Sessions     StoreConfig `yaml:"sessions"`
+		Users        StoreConfig `yaml:"users"`
 	} `yaml:"stores"`
 }
 
@@ -43,18 +51,21 @@ type Stores struct {
 	WatchHistory store.Store
 	Jobs         store.Store
 	Sessions     store.Store
+	Users        store.Store
 }
 
 func Default() *Config {
 	c := &Config{}
 	c.Core.API.Bind = "127.0.0.1:8443"
-	c.Auth.TokenTTL = "168h" // 7 days
-	c.Stores.Caches = "in-memory"
-	c.Stores.Vault = "in-memory"
+	c.Auth.Methods = []string{"password"}
+	c.Auth.TokenTTL = "168h"
+	c.Stores.Caches = StoreConfig{Backend: "in-memory"}
+	c.Stores.Vault = StoreConfig{Backend: "in-memory"}
 	c.Stores.VaultKey = "generated"
-	c.Stores.WatchHistory = "in-memory"
-	c.Stores.Jobs = "in-memory"
-	c.Stores.Sessions = "in-memory"
+	c.Stores.WatchHistory = StoreConfig{Backend: "in-memory"}
+	c.Stores.Jobs = StoreConfig{Backend: "in-memory"}
+	c.Stores.Sessions = StoreConfig{Backend: "in-memory"}
+	c.Stores.Users = StoreConfig{Backend: "in-memory"}
 	return c
 }
 
@@ -76,21 +87,19 @@ func Load(path string) (*Config, error) {
 	return c, nil
 }
 
-// BuildStores instantiates store backends from the config. "in-memory" creates
-// an InMemory store; "local-file" creates a SQLite store (for caches, jobs,
-// watch-history) or a Vault (for vault). The vault-key config controls the
-// AEAD cipher: "generated" creates a random key at startup (dev mode);
-// otherwise the value is treated as a hex-encoded 32-byte key.
+// BuildStores instantiates store backends from the config. Each store class
+// gets a default file path to prevent collisions when multiple stores use
+// "local-file" (PLAN.md §2.4).
 func BuildStores(ctx context.Context, cfg *Config, logger *slog.Logger) (Stores, error) {
 	var s Stores
 	var err error
 
-	s.Cache, err = buildStore(ctx, cfg.Stores.Caches, "")
+	s.Cache, err = buildStore(ctx, cfg.Stores.Caches, "data/caches.db")
 	if err != nil {
 		return s, fmt.Errorf("stores.caches: %w", err)
 	}
 
-	s.WatchHistory, err = buildStore(ctx, cfg.Stores.WatchHistory, "")
+	s.WatchHistory, err = buildStore(ctx, cfg.Stores.WatchHistory, "data/watch-history.db")
 	if err != nil {
 		return s, fmt.Errorf("stores.watch-history: %w", err)
 	}
@@ -99,18 +108,23 @@ func BuildStores(ctx context.Context, cfg *Config, logger *slog.Logger) (Stores,
 	// DEK from the request context.
 	s.WatchHistory = store.NewUserBlobStore(s.WatchHistory)
 
-	s.Jobs, err = buildStore(ctx, cfg.Stores.Jobs, "")
+	s.Jobs, err = buildStore(ctx, cfg.Stores.Jobs, "data/jobs.db")
 	if err != nil {
 		return s, fmt.Errorf("stores.jobs: %w", err)
 	}
 
-	s.Sessions, err = buildStore(ctx, cfg.Stores.Sessions, "")
+	s.Sessions, err = buildStore(ctx, cfg.Stores.Sessions, "data/sessions.db")
 	if err != nil {
 		return s, fmt.Errorf("stores.sessions: %w", err)
 	}
 
+	s.Users, err = buildStore(ctx, cfg.Stores.Users, "data/users.db")
+	if err != nil {
+		return s, fmt.Errorf("stores.users: %w", err)
+	}
+
 	// Vault requires an AEAD cipher.
-	switch cfg.Stores.Vault {
+	switch cfg.Stores.Vault.Backend {
 	case "in-memory":
 		s.Vault = store.NewInMemory()
 	case "local-file":
@@ -118,28 +132,33 @@ func BuildStores(ctx context.Context, cfg *Config, logger *slog.Logger) (Stores,
 		if vaultErr != nil {
 			return s, fmt.Errorf("stores.vault key: %w", vaultErr)
 		}
-		s.Vault, err = store.NewVault(ctx, "vault.db", aead)
+		vaultPath := cfg.Stores.Vault.Path
+		if vaultPath == "" {
+			vaultPath = "data/vault.db"
+		}
+		s.Vault, err = store.NewVault(ctx, vaultPath, aead)
 		if err != nil {
 			return s, fmt.Errorf("stores.vault: %w", err)
 		}
 	default:
-		return s, fmt.Errorf("stores.vault: unknown backend %q", cfg.Stores.Vault)
+		return s, fmt.Errorf("stores.vault: unknown backend %q", cfg.Stores.Vault.Backend)
 	}
 
 	return s, nil
 }
 
-func buildStore(_ context.Context, backend, path string) (store.Store, error) {
-	switch backend {
+func buildStore(_ context.Context, cfg StoreConfig, defaultPath string) (store.Store, error) {
+	switch cfg.Backend {
 	case "in-memory":
 		return store.NewInMemory(), nil
 	case "local-file":
+		path := cfg.Path
 		if path == "" {
-			path = "store.db"
+			path = defaultPath
 		}
 		return store.NewSQLite(context.Background(), path)
 	default:
-		return nil, fmt.Errorf("unknown backend %q", backend)
+		return nil, fmt.Errorf("unknown backend %q", cfg.Backend)
 	}
 }
 
@@ -200,8 +219,19 @@ func ParseTokenTTL(val string) time.Duration {
 	return d
 }
 
-// BuildAuth creates the auth-layer stores (TokenStore and DEKCache) from the
-// given session backend store.
-func BuildAuth(sessionStore store.Store) (auth.TokenStore, auth.DEKCache) {
-	return auth.NewStoreTokenStore(sessionStore), auth.NewStoreDEKCache(sessionStore)
+// BuildAuth creates the auth-layer stores from the given backend stores.
+func BuildAuth(users, sessions store.Store) (auth.UserStore, auth.TokenStore, auth.DEKCache) {
+	return auth.NewStoreUserStore(users),
+		auth.NewStoreTokenStore(sessions),
+		auth.NewStoreDEKCache(sessions)
+}
+
+// BuildAuthenticator creates a CompositeAuthenticator from the configured methods.
+func BuildAuthenticator(methods []string, userStore auth.UserStore) (*auth.CompositeAuthenticator, error) {
+	return auth.NewAuthenticators(methods, userStore)
+}
+
+// BuildSession creates a SessionHandler from the given stores and TTL.
+func BuildSession(tokens auth.TokenStore, deks auth.DEKCache, ttl time.Duration) auth.Session {
+	return auth.NewSessionHandler(tokens, deks, ttl)
 }

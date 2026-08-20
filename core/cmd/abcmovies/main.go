@@ -13,7 +13,6 @@ import (
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
-	"github.com/nem-git/abcmovies/core/internal/auth"
 	"github.com/nem-git/abcmovies/core/internal/builtin"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/registry"
@@ -43,12 +42,15 @@ func main() {
 		_ = stores.Sessions.Close()
 	}()
 
-	// Set up auth system.
-	userStore := auth.NewMemoryUserStore()
-	tokenStore, dekCache := config.BuildAuth(stores.Sessions)
-	authenticator := auth.NewPasswordAuthenticator(userStore)
+	// Set up auth system from config.
+	userStore, tokenStore, dekCache := config.BuildAuth(stores.Users, stores.Sessions)
+	composite, err := config.BuildAuthenticator(cfg.Auth.Methods, userStore)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "abcmovies: auth: %v\n", err)
+		os.Exit(1)
+	}
 	tokenTTL := config.ParseTokenTTL(cfg.Auth.TokenTTL)
-	session := auth.NewInMemorySession(tokenStore, dekCache, tokenTTL)
+	session := config.BuildSession(tokenStore, dekCache, tokenTTL)
 
 	r := registry.NewInProcess()
 	defer r.Close()
@@ -67,7 +69,7 @@ func main() {
 	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 
-	srv := apiserver.NewServer(bus, stores, authenticator, session)
+	srv := apiserver.NewServer(bus, stores, composite, session)
 	gs := grpc.NewServer(
 		grpc.UnaryInterceptor(apiserver.AuthUnaryInterceptor(session)),
 		grpc.StreamInterceptor(apiserver.AuthStreamInterceptor(session)),

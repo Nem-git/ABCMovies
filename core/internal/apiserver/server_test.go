@@ -27,25 +27,38 @@ func testStores(t *testing.T) config.Stores {
 	}
 }
 
-func testAuth(t *testing.T) (*auth.PasswordAuthenticator, auth.Session) {
+func testAuth(t *testing.T) (*auth.CompositeAuthenticator, auth.Session) {
 	t.Helper()
 	userStore := auth.NewMemoryUserStore()
 	tokens := auth.NewStoreTokenStore(store.NewInMemory())
 	deks := auth.NewStoreDEKCache(store.NewInMemory())
-	authenticator := auth.NewPasswordAuthenticator(userStore)
-	session := auth.NewInMemorySession(tokens, deks, time.Hour)
-	return authenticator, session
+	composite, err := auth.NewAuthenticators([]string{"password"}, userStore)
+	if err != nil {
+		t.Fatalf("NewAuthenticators: %v", err)
+	}
+	session := auth.NewSessionHandler(tokens, deks, time.Hour)
+	return composite, session
+}
+
+func getPasswordAuth(t *testing.T, c *auth.CompositeAuthenticator) *auth.PasswordAuthenticator {
+	t.Helper()
+	a, ok := c.Get("password")
+	if !ok {
+		t.Fatal("password authenticator not found in composite")
+	}
+	return a.(*auth.PasswordAuthenticator)
 }
 
 func TestAuthInterceptor_ValidToken(t *testing.T) {
 	authenticator, session := testAuth(t)
 
 	// Create a user and get a token.
-	_, err := authenticator.SignUp("alice", []byte("password123"))
+	pwd := getPasswordAuth(t, authenticator)
+	_, err := pwd.SignUp("alice", []byte("password123"))
 	if err != nil {
 		t.Fatalf("signup: %v", err)
 	}
-	result, err := authenticator.Login("alice", []byte("password123"))
+	result, err := pwd.Login("alice", []byte("password123"))
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}

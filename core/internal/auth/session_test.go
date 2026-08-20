@@ -11,7 +11,7 @@ import (
 func TestSession_Mint_Validate(t *testing.T) {
 	tokens := auth.NewStoreTokenStore(store.NewInMemory())
 	deks := auth.NewStoreDEKCache(store.NewInMemory())
-	session := auth.NewInMemorySession(tokens, deks, time.Hour)
+	session := auth.NewSessionHandler(tokens, deks, time.Hour)
 
 	token, err := session.Mint("user:alice")
 	if err != nil {
@@ -33,7 +33,7 @@ func TestSession_Mint_Validate(t *testing.T) {
 func TestSession_Validate_InvalidToken(t *testing.T) {
 	tokens := auth.NewStoreTokenStore(store.NewInMemory())
 	deks := auth.NewStoreDEKCache(store.NewInMemory())
-	session := auth.NewInMemorySession(tokens, deks, time.Hour)
+	session := auth.NewSessionHandler(tokens, deks, time.Hour)
 
 	_, err := session.Validate("nonexistent-token")
 	if err == nil {
@@ -44,7 +44,7 @@ func TestSession_Validate_InvalidToken(t *testing.T) {
 func TestSession_Revoke(t *testing.T) {
 	tokens := auth.NewStoreTokenStore(store.NewInMemory())
 	deks := auth.NewStoreDEKCache(store.NewInMemory())
-	session := auth.NewInMemorySession(tokens, deks, time.Hour)
+	session := auth.NewSessionHandler(tokens, deks, time.Hour)
 
 	token, _ := session.Mint("user:alice")
 
@@ -62,7 +62,7 @@ func TestSession_Revoke(t *testing.T) {
 func TestSession_TokenExpiry(t *testing.T) {
 	tokens := auth.NewStoreTokenStore(store.NewInMemory())
 	deks := auth.NewStoreDEKCache(store.NewInMemory())
-	session := auth.NewInMemorySession(tokens, deks, time.Millisecond)
+	session := auth.NewSessionHandler(tokens, deks, time.Millisecond)
 
 	token, _ := session.Mint("user:alice")
 
@@ -78,7 +78,7 @@ func TestSession_TokenExpiry(t *testing.T) {
 func TestSession_DifferentUsers(t *testing.T) {
 	tokens := auth.NewStoreTokenStore(store.NewInMemory())
 	deks := auth.NewStoreDEKCache(store.NewInMemory())
-	session := auth.NewInMemorySession(tokens, deks, time.Hour)
+	session := auth.NewSessionHandler(tokens, deks, time.Hour)
 
 	token1, _ := session.Mint("user:alice")
 	token2, _ := session.Mint("user:bob")

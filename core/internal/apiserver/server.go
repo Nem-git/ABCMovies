@@ -21,13 +21,13 @@ type Server struct {
 	apiv1.UnimplementedCoreServiceServer
 	bus     Bus
 	stores  config.Stores
-	auth    auth.Authenticator
+	auth    *auth.CompositeAuthenticator
 	session auth.Session
 	seq     atomic.Int64
 }
 
 // NewServer returns a CoreService backed by the given bus, stores, and auth.
-func NewServer(bus Bus, stores config.Stores, authenticator auth.Authenticator, session auth.Session) *Server {
+func NewServer(bus Bus, stores config.Stores, authenticator *auth.CompositeAuthenticator, session auth.Session) *Server {
 	return &Server{bus: bus, stores: stores, auth: authenticator, session: session}
 }
 
@@ -88,12 +88,18 @@ func (s *Server) Subscribe(req *apiv1.SubscribeRequest, stream apiv1.CoreService
 	}
 }
 
-// SignUp creates a new user account.
+// SignUp creates a new user account. The auth method is determined by the
+// oneof field in the request.
 func (s *Server) SignUp(ctx context.Context, req *apiv1.SignUpRequest) (*apiv1.SignUpResponse, error) {
 	if err := schema.ValidateSignUpRequest(req); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-	result, err := s.auth.SignUp(req.GetUsername(), req.GetPassword().GetPassword())
+	method := authMethod(req.GetPassword(), nil)
+	a, ok := s.auth.Get(method)
+	if !ok {
+		return nil, status.Errorf(codes.InvalidArgument, "unsupported auth method: %s", method)
+	}
+	result, err := a.SignUp(req.GetUsername(), req.GetPassword().GetPassword())
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -103,12 +109,18 @@ func (s *Server) SignUp(ctx context.Context, req *apiv1.SignUpRequest) (*apiv1.S
 	}, nil
 }
 
-// Login authenticates a user and returns a session token.
+// Login authenticates a user and returns a session token. The auth method
+// is determined by the oneof field in the request.
 func (s *Server) Login(ctx context.Context, req *apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
 	if err := schema.ValidateLoginRequest(req); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-	result, err := s.auth.Login(req.GetUsername(), req.GetPassword().GetPassword())
+	method := authMethod(nil, req.GetPassword())
+	a, ok := s.auth.Get(method)
+	if !ok {
+		return nil, status.Errorf(codes.InvalidArgument, "unsupported auth method: %s", method)
+	}
+	result, err := a.Login(req.GetUsername(), req.GetPassword().GetPassword())
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
 	}
@@ -121,4 +133,15 @@ func (s *Server) Login(ctx context.Context, req *apiv1.LoginRequest) (*apiv1.Log
 	return &apiv1.LoginResponse{
 		Token: token,
 	}, nil
+}
+
+// authMethod returns the method name from the non-nil oneof field.
+func authMethod(passwordSignUp *apiv1.PasswordSignUp, passwordLogin *apiv1.PasswordLogin) string {
+	if passwordSignUp != nil {
+		return "password"
+	}
+	if passwordLogin != nil {
+		return "password"
+	}
+	return ""
 }

@@ -16,8 +16,8 @@ import (
 // each other's blobs.
 //
 // Keys are stored with a "user:<id>:" prefix so that different users' data is
-// isolated even when sharing the same underlying store. Keys themselves are
-// not encrypted; only values are.
+// isolated even when sharing the same underlying store. Key names are stored in
+// cleartext; only values are encrypted.
 type UserBlobStore struct {
 	inner Store
 }
