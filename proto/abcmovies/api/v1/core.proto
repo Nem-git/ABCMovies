@@ -15,6 +15,15 @@ service CoreService {
 
   // Events: server-streaming subscription (PLAN.md §9.2).
   rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
+
+  // Auth: create a new user account (PLAN.md §7.6).
+  rpc SignUp(SignUpRequest) returns (SignUpResponse);
+
+  // Auth: get the salt for a user's password (PLAN.md §7.6).
+  rpc GetSalt(GetSaltRequest) returns (GetSaltResponse);
+
+  // Auth: authenticate and receive a session token (PLAN.md §7.6).
+  rpc Login(LoginRequest) returns (LoginResponse);
 }
 
 message GetJobRequest {
@@ -36,4 +45,73 @@ message SubscribeRequest {
 message SubscribeResponse {
   // A single event delivered to the subscriber.
   abcmovies.core.v1.EventEnvelope event = 1;
+}
+
+// --- Auth messages (PLAN.md §7.6) ---
+
+message SignUpRequest {
+  // The desired username. Required; must be unique per instance.
+  string username = 1;
+
+  // The authentication method and its parameters.
+  oneof auth_method {
+    PasswordSignUp password = 2;
+  }
+}
+
+// Password-based sign-up. The server derives the password-KEK from the
+// password using Argon2id (TECHNICAL-DECISIONS §1.11).
+message PasswordSignUp {
+  // The user's password. Required.
+  bytes password = 1;
+}
+
+message SignUpResponse {
+  // The newly created user ID.
+  string user_id = 1;
+
+  // A one-time recovery key (128-bit base32, 26 chars). Shown once;
+  // the server never stores it (PLAN.md §7.6).
+  string recovery_key = 2;
+
+  // The DEK wrapped by the password-KEK, for client-side recovery.
+  bytes wrapped_dek = 3;
+
+  // The DEK wrapped by the recovery-KEK, for password reset.
+  bytes wrapped_recovery = 4;
+}
+
+message GetSaltRequest {
+  // The username to look up. Required.
+  string username = 1;
+}
+
+message GetSaltResponse {
+  // The salt used for this user's password hash.
+  bytes salt = 1;
+}
+
+message LoginRequest {
+  // The username. Required.
+  string username = 1;
+
+  // The authentication method and its parameters.
+  oneof auth_method {
+    PasswordLogin password = 2;
+  }
+}
+
+// Password-based login. The server re-derives the password-KEK from the
+// password using the stored salt, then verifies and mints a session token.
+message PasswordLogin {
+  // The user's password. Required.
+  bytes password = 1;
+}
+
+message LoginResponse {
+  // An opaque bearer token for API authentication (TECHNICAL-DECISIONS §1.12).
+  string token = 1;
+
+  // The DEK wrapped by the password-KEK, for client-side recovery.
+  bytes wrapped_dek = 2;
 }
