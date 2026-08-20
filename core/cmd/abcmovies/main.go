@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -11,17 +13,43 @@ import (
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
+	"github.com/nem-git/abcmovies/core/internal/auth"
 	"github.com/nem-git/abcmovies/core/internal/builtin"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/registry"
+	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
 func main() {
+	logger := slog.Default()
+	ctx := context.Background()
+
 	cfg, err := config.Load("")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "abcmovies: config: %v\n", err)
 		os.Exit(1)
 	}
+
+	// Build store backends from config.
+	stores, err := config.BuildStores(ctx, cfg, logger)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "abcmovies: stores: %v\n", err)
+		os.Exit(1)
+	}
+	defer func() {
+		_ = stores.Cache.Close()
+		_ = stores.Vault.Close()
+		_ = stores.WatchHistory.Close()
+		_ = stores.Jobs.Close()
+	}()
+
+	// Set up auth system.
+	userStore := auth.NewMemoryUserStore()
+	_ = store.NewInMemory() // unused for now; session store will be wired later
+	sessionStore := store.NewInMemory()
+	authenticator := auth.NewPasswordAuthenticator(userStore)
+	tokenTTL := config.ParseTokenTTL(cfg.Auth.TokenTTL)
+	session := auth.NewSession(sessionStore, tokenTTL)
 
 	r := registry.New()
 	defer r.Close()
@@ -40,10 +68,10 @@ func main() {
 	bus := apiserver.NewBus()
 	defer bus.Close()
 
-	srv := apiserver.NewServer(bus)
+	srv := apiserver.NewServer(bus, stores, authenticator, session)
 	gs := grpc.NewServer(
-		grpc.UnaryInterceptor(apiserver.AuthUnaryInterceptor()),
-		grpc.StreamInterceptor(apiserver.AuthStreamInterceptor()),
+		grpc.UnaryInterceptor(apiserver.AuthUnaryInterceptor(session)),
+		grpc.StreamInterceptor(apiserver.AuthStreamInterceptor(session)),
 	)
 	apiv1.RegisterCoreServiceServer(gs, srv)
 

@@ -35,3 +35,37 @@ func ValidateSubscribeRequest(r *apiv1.SubscribeRequest) error {
 	}
 	return nil
 }
+
+// ValidateSignUpRequest checks a SignUpRequest.
+func ValidateSignUpRequest(r *apiv1.SignUpRequest) error {
+	if r == nil {
+		return fmt.Errorf("sign_up_request: nil")
+	}
+	if r.GetUsername() == "" {
+		return fmt.Errorf("sign_up_request: username is required")
+	}
+	if r.GetPassword() == nil {
+		return fmt.Errorf("sign_up_request: password method is required")
+	}
+	if len(r.GetPassword().GetPassword()) == 0 {
+		return fmt.Errorf("sign_up_request: password is required")
+	}
+	return nil
+}
+
+// ValidateLoginRequest checks a LoginRequest.
+func ValidateLoginRequest(r *apiv1.LoginRequest) error {
+	if r == nil {
+		return fmt.Errorf("login_request: nil")
+	}
+	if r.GetUsername() == "" {
+		return fmt.Errorf("login_request: username is required")
+	}
+	if r.GetPassword() == nil {
+		return fmt.Errorf("login_request: password method is required")
+	}
+	if len(r.GetPassword().GetPassword()) == 0 {
+		return fmt.Errorf("login_request: password is required")
+	}
+	return nil
+}

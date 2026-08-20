@@ -6,6 +6,8 @@ import (
 	"sync/atomic"
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
+	"github.com/nem-git/abcmovies/core/internal/auth"
+	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/schema"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -14,13 +16,16 @@ import (
 // Server implements the CoreService (PLAN.md §8).
 type Server struct {
 	apiv1.UnimplementedCoreServiceServer
-	bus *Bus
-	seq atomic.Int64
+	bus     *Bus
+	stores  config.Stores
+	auth    auth.Authenticator
+	session *auth.Session
+	seq     atomic.Int64
 }
 
-// NewServer returns a CoreService backed by the given bus.
-func NewServer(bus *Bus) *Server {
-	return &Server{bus: bus}
+// NewServer returns a CoreService backed by the given bus, stores, and auth.
+func NewServer(bus *Bus, stores config.Stores, authenticator auth.Authenticator, session *auth.Session) *Server {
+	return &Server{bus: bus, stores: stores, auth: authenticator, session: session}
 }
 
 // GetJob returns a job's current state. For M0, no jobs exist yet — the call
@@ -55,4 +60,37 @@ func (s *Server) Subscribe(req *apiv1.SubscribeRequest, stream apiv1.CoreService
 			return stream.Context().Err()
 		}
 	}
+}
+
+// SignUp creates a new user account.
+func (s *Server) SignUp(ctx context.Context, req *apiv1.SignUpRequest) (*apiv1.SignUpResponse, error) {
+	if err := schema.ValidateSignUpRequest(req); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	result, err := s.auth.SignUp(req.GetUsername(), req.GetPassword().GetPassword())
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &apiv1.SignUpResponse{
+		UserId:      result.UserID,
+		RecoveryKey: result.RecoveryKey,
+	}, nil
+}
+
+// Login authenticates a user and returns a session token.
+func (s *Server) Login(ctx context.Context, req *apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+	if err := schema.ValidateLoginRequest(req); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	result, err := s.auth.Login(req.GetUsername(), req.GetPassword().GetPassword())
+	if err != nil {
+		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
+	}
+	token, err := s.session.Mint(result.UserID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to create session")
+	}
+	return &apiv1.LoginResponse{
+		Token: token,
+	}, nil
 }

@@ -110,12 +110,12 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 ### 1.11 Crypto, normalization, and transport-security primitives
 
 - **Decision:**
-  - Client-side key derivation with **Argon2id** (§7.6 of PLAN.md).
+  - Server-side key derivation with **Argon2id** (§7.6 of PLAN.md).
   - User blobs encrypted with the DEK under **AES-GCM** (§7.6 of PLAN.md).
   - Recovery key: a **~128-bit base32-encoded** random string (§7.6 of PLAN.md).
   - Title normalization: **Unicode NFKD** (§5.3 of PLAN.md).
   - Transport encryption: **TLS** on all network transports (THREAT-MODEL.md T11, OPERATIONS.md §1).
-  - **Pinned parameters** — frozen at M0; any change is a security-sensitive change (IMPLEMENTATION.md §8.3) and breaks already-stored blobs: Argon2id **m=19 MiB, t=2, p=1** (RFC 9106 first profile), run **client-side**; AES-256-GCM with **256-bit keys (32 B)**, **128-bit tag**, **12-byte random nonce generated fresh per encryption**; recovery key **128-bit random, base32, 26 characters**, shown once at signup.
+  - **Pinned parameters** — frozen at M0; any change is a security-sensitive change (IMPLEMENTATION.md §8.3) and breaks already-stored blobs: Argon2id **m=19 MiB, t=2, p=1** (RFC 9106 first profile), run **server-side**; AES-256-GCM with **256-bit keys (32 B)**, **128-bit tag**, **12-byte random nonce generated fresh per encryption**; recovery key **128-bit random, base32, 26 characters**, shown once at signup.
 - **Rationale:** standard, well-audited primitives; the exact algorithms are pinned with the toolchain (§1.4).
 - **Consequence:** IMPLEMENTATION.md §8.3's security-sensitive-update scrutiny and THREAT-MODEL.md refer to these primitives generically; the specifics live here.
 

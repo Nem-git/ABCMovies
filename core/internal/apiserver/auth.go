@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/nem-git/abcmovies/core/internal/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -22,15 +23,15 @@ func UserIDFromContext(ctx context.Context) (string, bool) {
 
 // AuthUnaryInterceptor returns a unary server interceptor that extracts a
 // bearer token from gRPC metadata and injects the user ID into the context.
-// For M0 the token is not validated; any Bearer token sets user "user:1".
-func AuthUnaryInterceptor() grpc.UnaryServerInterceptor {
+// The token is validated against the session store.
+func AuthUnaryInterceptor(session *auth.Session) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
 		req any,
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (any, error) {
-		uid, err := authenticate(ctx)
+		uid, err := authenticate(ctx, session)
 		if err != nil {
 			return nil, err
 		}
@@ -41,14 +42,14 @@ func AuthUnaryInterceptor() grpc.UnaryServerInterceptor {
 // AuthStreamInterceptor returns a stream server interceptor that extracts a
 // bearer token from gRPC metadata and injects the user ID into the stream
 // context.
-func AuthStreamInterceptor() grpc.StreamServerInterceptor {
+func AuthStreamInterceptor(session *auth.Session) grpc.StreamServerInterceptor {
 	return func(
 		srv any,
 		ss grpc.ServerStream,
 		info *grpc.StreamServerInfo,
 		handler grpc.StreamHandler,
 	) error {
-		uid, err := authenticate(ss.Context())
+		uid, err := authenticate(ss.Context(), session)
 		if err != nil {
 			return err
 		}
@@ -57,7 +58,7 @@ func AuthStreamInterceptor() grpc.StreamServerInterceptor {
 	}
 }
 
-func authenticate(ctx context.Context) (string, error) {
+func authenticate(ctx context.Context, session *auth.Session) (string, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return "", status.Error(codes.Unauthenticated, "missing metadata")
@@ -71,8 +72,13 @@ func authenticate(ctx context.Context) (string, error) {
 	if !strings.HasPrefix(token, prefix) {
 		return "", status.Error(codes.Unauthenticated, "invalid token format")
 	}
-	_ = token[len(prefix):] // M0: token not validated
-	return "user:1", nil
+	rawToken := token[len(prefix):]
+
+	uid, err := session.Validate(rawToken)
+	if err != nil {
+		return "", status.Error(codes.Unauthenticated, "invalid or expired token")
+	}
+	return uid, nil
 }
 
 type authStream struct {

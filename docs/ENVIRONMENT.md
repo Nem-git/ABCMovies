@@ -57,7 +57,7 @@ The walking skeleton (IMPLEMENTATION.md §2, M0) is the smallest thing that prov
 
 - The check recipe is green (lint, build, fixture suites, tests).
 - The registry boots and handshakes the built-in slot; the meta-contract fixture passes (§3.3 of PLAN.md).
-- A user can authenticate (username + password, client-side key derivation — §7.6 of PLAN.md, IMPLEMENTATION.md §1.3).
+- A user can authenticate (username + password, server-side key derivation — §7.6 of PLAN.md, IMPLEMENTATION.md §1.3).
 - One object persists in each storage class (§2.4 of PLAN.md): a rebuildable cache, a vault item, a per-user encrypted blob, a job.
 - One synchronous call and one event reach the web client.
 

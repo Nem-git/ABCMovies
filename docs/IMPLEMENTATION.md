@@ -25,7 +25,7 @@ PLAN.md §2.3 defines the load-bearing contracts — the canonical set, not re-e
 
 PLAN.md §7.6 splits the system into encrypted user blobs and policy-not-proof vault material — the distinction is trust and disclosure, not mathematics. This is not just a privacy story; it changes *what code may exist*:
 
-- Key derivation is **client-side**; the server must never see the raw password or recovery key. This puts a hard boundary in the API: login submits a derived material — which the server then holds as the unwrapping key — never a plaintext secret.
+- Key derivation is **server-side**; the server derives the password-KEK from the user's password using Argon2id and stores the hash for verification. The server also derives the recovery-KEK from the recovery key. This keeps the crypto complexity on the server, where Argon2id's memory cost (19 MiB) is practical.
 - The vault is decrypted in memory only during a relay, and the host-held relay key (§7.6 of PLAN.md) is a disclosed server secret, scoped to account sessions and never to user blobs. These are operational disciplines the core code must enforce (no persistence, no logging of decrypted material), not features that can be bolted on later. Build the discipline into the vault's test suite from day one.
 
 ## 2. Build order: prove the skeleton first
@@ -35,7 +35,7 @@ Do not build features in PLAN.md's section order. Build a **walking skeleton** �
 **Milestone 0 — the walking skeleton.** One in-process slot, the registry, one store, and the API server. The skeleton:
 
 - Boots the registry, handshakes a single built-in slot, passes the meta-contract fixture (§3.3 of PLAN.md).
-- Authenticates a user (username + password, client-side key derivation, §7.6).
+- Authenticates a user (username + password, server-side key derivation, §7.6).
 - Persists one object in each storage class (§2.4): a rebuildable cache, a vault item, a per-user encrypted blob, a job.
 - Exposes one synchronous call and one event over the inbound API (§8) to a minimal web client.
 - Runs the whole thing under the test suite and in CI.

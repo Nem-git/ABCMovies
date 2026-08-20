@@ -97,7 +97,7 @@ The storage-agnostic rule from §2.4 is also tested: **media bytes are never cac
 
 The trust model of PLAN.md §7.6 carries implementation duties (IMPLEMENTATION.md §1.3), and the discipline is enforced in the vault's test suite from day one:
 
-- **Key derivation is client-side**: the server never sees the raw password or recovery key. The test suite proves login submits derived material — which the server then holds as the unwrapping key — never a plaintext secret.
+- **Key derivation is server-side**: the server receives the raw password during authentication and derives the password-KEK using Argon2id. The test suite proves the server stores only derived material (password-KEK hash) — the plaintext password is never persisted.
 - **Encrypted at rest.** A vault file on disk is ciphertext; the suite proves plaintext is not recoverable from the file without the key.
 - **In-memory only during use.** The suite proves decrypted material is held only for the duration of a relay.
 - **Nothing logged.** A negative test proves decrypted material never reaches a logger — this is the "never logged" half of the discipline, tested as a failure condition.
