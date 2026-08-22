@@ -43,7 +43,7 @@ func (i authInterceptor) auth(ctx context.Context, procedure string, header http
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or expired token"))
 	}
-	return i.session.PrincipalContext(ctx, uid), nil
+	return i.session.PrincipalContext(ctx, uid, strings.TrimPrefix(raw, prefix)), nil
 }
 
 func (i authInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {

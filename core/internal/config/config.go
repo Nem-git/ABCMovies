@@ -31,6 +31,13 @@ type Config struct {
 	Auth struct {
 		Methods  []string `yaml:"methods"`
 		TokenTTL string   `yaml:"token-ttl"`
+		// DEKCache selects where unwrapped per-session data-encryption keys
+		// live: "memory" (default) keeps them in process memory only;
+		// "encrypted-store" persists them in the sessions store sealed with
+		// the vault cipher — no plaintext key material reaches disk either
+		// way (IMPLEMENTATION.md §1.3). With an ephemeral vault key,
+		// encrypted-store entries are unreadable after a restart.
+		DEKCache string `yaml:"dek-cache"`
 	} `yaml:"auth"`
 	Stores struct {
 		Caches       StoreConfig `yaml:"caches"`
@@ -59,6 +66,7 @@ func Default() *Config {
 	c.Core.API.Bind = "127.0.0.1:8443"
 	c.Auth.Methods = []string{"password"}
 	c.Auth.TokenTTL = "168h"
+	c.Auth.DEKCache = "memory"
 	c.Stores.Caches = StoreConfig{Backend: "in-memory"}
 	c.Stores.Vault = StoreConfig{Backend: "in-memory"}
 	c.Stores.VaultKey = "generated"
@@ -219,11 +227,33 @@ func ParseTokenTTL(val string) time.Duration {
 	return d
 }
 
-// BuildAuth creates the auth-layer stores from the given backend stores.
-func BuildAuth(users, sessions store.Store) (auth.UserStore, auth.TokenStore, auth.DEKCache) {
-	return auth.NewStoreUserStore(users),
-		auth.NewStoreTokenStore(sessions),
-		auth.NewStoreDEKCache(sessions)
+// VaultAEAD returns the AEAD cipher for vault-class encryption, loading or
+// generating the configured vault key. Callers that need the cipher outside
+// store construction (the sealed DEK cache) use this instead of reaching
+// into BuildStores.
+func VaultAEAD(cfg *Config, logger *slog.Logger) (cipher.AEAD, error) {
+	return loadOrGenerateVaultKey(cfg.Stores.VaultKey, logger)
+}
+
+// BuildAuth creates the auth-layer stores from the given backend stores and
+// the configured DEK-cache mode ("memory" or "encrypted-store"; empty means
+// memory). The encrypted-store mode seals every entry with aead, which must
+// then be non-nil.
+func BuildAuth(users, sessions store.Store, dekCacheMode string, aead cipher.AEAD) (auth.UserStore, auth.TokenStore, auth.DEKCache, error) {
+	var deks auth.DEKCache
+	switch dekCacheMode {
+	case "", "memory":
+		deks = auth.NewMemoryDEKCache()
+	case "encrypted-store":
+		sealed, err := auth.NewSealedDEKCache(sessions, aead)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("auth: dek-cache: %w", err)
+		}
+		deks = sealed
+	default:
+		return nil, nil, nil, fmt.Errorf("auth: unknown dek-cache mode %q (want \"memory\" or \"encrypted-store\")", dekCacheMode)
+	}
+	return auth.NewStoreUserStore(users), auth.NewStoreTokenStore(sessions), deks, nil
 }
 
 // BuildAuthenticator creates a CompositeAuthenticator from the configured methods.

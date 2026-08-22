@@ -119,7 +119,7 @@ Real decryption cannot be a fixture (decrypting real content is not something a 
 ## 9. Layout and naming conventions
 
 - **`fixtures/<contract>/v<version>/`** — the immutable per-version suites, plus `handshake/` and `negative/` subdirectories.
-- **`tests/`** — mirrors the milestone structure (M0–M9) so a milestone's acceptance criteria are findable next to its number.
+- **Milestone tests under `<component>/tests/`** — white-box tests for a milestone's acceptance criteria live beside the component they verify (e.g. `core/tests/m0`), mirroring M0–M9; Go's internal-package rule keeps them inside their component. The top-level `tests/` tree is reserved for black-box suites over public seams and fixtures.
 - **Unit tests colocated with code** — the normal convention, since they test pure logic.
 - **One requirement → one fixture** (IMPLEMENTATION.md §1.1): each requirement keyword (MUST/SHOULD/MAY) is traceable to a fixture by name, so "is this done?" has a mechanical answer.
 

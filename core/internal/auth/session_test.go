@@ -10,7 +10,7 @@ import (
 
 func TestSession_Mint_Validate(t *testing.T) {
 	tokens := auth.NewStoreTokenStore(store.NewInMemory())
-	deks := auth.NewStoreDEKCache(store.NewInMemory())
+	deks := auth.NewMemoryDEKCache()
 	session := auth.NewSessionHandler(tokens, deks, time.Hour)
 
 	token, err := session.Mint("user:alice")
@@ -32,7 +32,7 @@ func TestSession_Mint_Validate(t *testing.T) {
 
 func TestSession_Validate_InvalidToken(t *testing.T) {
 	tokens := auth.NewStoreTokenStore(store.NewInMemory())
-	deks := auth.NewStoreDEKCache(store.NewInMemory())
+	deks := auth.NewMemoryDEKCache()
 	session := auth.NewSessionHandler(tokens, deks, time.Hour)
 
 	_, err := session.Validate("nonexistent-token")
@@ -43,7 +43,7 @@ func TestSession_Validate_InvalidToken(t *testing.T) {
 
 func TestSession_Revoke(t *testing.T) {
 	tokens := auth.NewStoreTokenStore(store.NewInMemory())
-	deks := auth.NewStoreDEKCache(store.NewInMemory())
+	deks := auth.NewMemoryDEKCache()
 	session := auth.NewSessionHandler(tokens, deks, time.Hour)
 
 	token, _ := session.Mint("user:alice")
@@ -59,9 +59,60 @@ func TestSession_Revoke(t *testing.T) {
 	}
 }
 
+func TestSession_DEK_PerSessionKeying(t *testing.T) {
+	tokens := auth.NewStoreTokenStore(store.NewInMemory())
+	deks := auth.NewMemoryDEKCache()
+	session := auth.NewSessionHandler(tokens, deks, time.Hour)
+
+	tokenA, _ := session.Mint("user:alice")
+	tokenB, _ := session.Mint("user:alice") // second session, same user
+
+	dek := []byte("data-encryption-key")
+	if err := session.StoreDEK(tokenA, dek); err != nil {
+		t.Fatalf("StoreDEK: %v", err)
+	}
+
+	// The DEK is bound to token A's session only.
+	if got := session.GetDEK(tokenA); string(got) != string(dek) {
+		t.Fatalf("GetDEK(session A) = %q, want %q", got, dek)
+	}
+	if got := session.GetDEK(tokenB); got != nil {
+		t.Fatalf("GetDEK(session B) = %q, want nil", got)
+	}
+
+	// Revoking session A drops its key material; session B keeps living.
+	if err := session.Revoke(tokenA); err != nil {
+		t.Fatalf("Revoke: %v", err)
+	}
+	if got := session.GetDEK(tokenA); got != nil {
+		t.Fatalf("GetDEK after Revoke = %v, want nil", got)
+	}
+}
+
+func TestSession_DEK_EvictedOnExpiry(t *testing.T) {
+	tokens := auth.NewStoreTokenStore(store.NewInMemory())
+	deks := auth.NewMemoryDEKCache()
+	session := auth.NewSessionHandler(tokens, deks, time.Millisecond)
+
+	token, _ := session.Mint("user:alice")
+	if err := session.StoreDEK(token, []byte("key")); err != nil {
+		t.Fatalf("StoreDEK: %v", err)
+	}
+
+	time.Sleep(5 * time.Millisecond)
+
+	// Validating the expired token cleans up token and key material.
+	if _, err := session.Validate(token); err == nil {
+		t.Fatal("expected error for expired token")
+	}
+	if got := session.GetDEK(token); got != nil {
+		t.Fatalf("GetDEK after expiry = %v, want nil", got)
+	}
+}
+
 func TestSession_TokenExpiry(t *testing.T) {
 	tokens := auth.NewStoreTokenStore(store.NewInMemory())
-	deks := auth.NewStoreDEKCache(store.NewInMemory())
+	deks := auth.NewMemoryDEKCache()
 	session := auth.NewSessionHandler(tokens, deks, time.Millisecond)
 
 	token, _ := session.Mint("user:alice")
@@ -77,7 +128,7 @@ func TestSession_TokenExpiry(t *testing.T) {
 
 func TestSession_DifferentUsers(t *testing.T) {
 	tokens := auth.NewStoreTokenStore(store.NewInMemory())
-	deks := auth.NewStoreDEKCache(store.NewInMemory())
+	deks := auth.NewMemoryDEKCache()
 	session := auth.NewSessionHandler(tokens, deks, time.Hour)
 
 	token1, _ := session.Mint("user:alice")

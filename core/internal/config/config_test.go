@@ -164,7 +164,10 @@ func TestBuildStores_UnknownBackend(t *testing.T) {
 func TestBuildAuth(t *testing.T) {
 	userStore := store.NewInMemory()
 	sessionStore := store.NewInMemory()
-	users, tokens, deks := config.BuildAuth(userStore, sessionStore)
+	users, tokens, deks, err := config.BuildAuth(userStore, sessionStore, "memory", nil)
+	if err != nil {
+		t.Fatalf("BuildAuth: %v", err)
+	}
 	if users == nil {
 		t.Fatal("UserStore is nil")
 	}
@@ -176,10 +179,30 @@ func TestBuildAuth(t *testing.T) {
 	}
 }
 
+func TestBuildAuth_DEKCacheModes(t *testing.T) {
+	userStore := store.NewInMemory()
+	sessionStore := store.NewInMemory()
+
+	// Empty mode means memory (default).
+	_, _, _, err := config.BuildAuth(userStore, sessionStore, "", nil)
+	if err != nil {
+		t.Fatalf("BuildAuth(empty): %v", err)
+	}
+	if _, _, _, err := config.BuildAuth(userStore, sessionStore, "encrypted-store", nil); err == nil {
+		t.Fatal("expected error for encrypted-store without cipher")
+	}
+	if _, _, _, err := config.BuildAuth(userStore, sessionStore, "bogus", nil); err == nil {
+		t.Fatal("expected error for unknown dek-cache mode")
+	}
+}
+
 func TestBuildSession(t *testing.T) {
 	userStore := store.NewInMemory()
 	sessionStore := store.NewInMemory()
-	_, tokStore, dekCache := config.BuildAuth(userStore, sessionStore)
+	_, tokStore, dekCache, err := config.BuildAuth(userStore, sessionStore, "memory", nil)
+	if err != nil {
+		t.Fatalf("BuildAuth: %v", err)
+	}
 	session := config.BuildSession(tokStore, dekCache, time.Hour)
 	if session == nil {
 		t.Fatal("BuildSession returned nil")
@@ -188,7 +211,10 @@ func TestBuildSession(t *testing.T) {
 
 func TestBuildAuthenticator_Password(t *testing.T) {
 	userStore := store.NewInMemory()
-	users, _, _ := config.BuildAuth(userStore, store.NewInMemory())
+	users, _, _, err := config.BuildAuth(userStore, store.NewInMemory(), "memory", nil)
+	if err != nil {
+		t.Fatalf("BuildAuth: %v", err)
+	}
 	composite, err := config.BuildAuthenticator([]string{"password"}, users)
 	if err != nil {
 		t.Fatalf("BuildAuthenticator: %v", err)
@@ -204,8 +230,11 @@ func TestBuildAuthenticator_Password(t *testing.T) {
 
 func TestBuildAuthenticator_Unknown(t *testing.T) {
 	userStore := store.NewInMemory()
-	users, _, _ := config.BuildAuth(userStore, store.NewInMemory())
-	_, err := config.BuildAuthenticator([]string{"oauth"}, users)
+	users, _, _, err := config.BuildAuth(userStore, store.NewInMemory(), "memory", nil)
+	if err != nil {
+		t.Fatalf("BuildAuth: %v", err)
+	}
+	_, err = config.BuildAuthenticator([]string{"oauth"}, users)
 	if err == nil {
 		t.Fatal("expected error for unknown method")
 	}

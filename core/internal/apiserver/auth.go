@@ -42,12 +42,12 @@ var publicMethods = map[string]bool{
 }
 
 // AuthContext returns ctx carrying the authenticated principal's identity:
-// the user ID plus, when available, the session's DEK for per-user blob
+// the user ID plus, when available, this session's DEK for per-user blob
 // encryption. It is the injection half of the auth interceptors and is
 // reused by non-gRPC terminations of the same service implementation.
-func AuthContext(ctx context.Context, session auth.Session, uid string) context.Context {
+func AuthContext(ctx context.Context, session auth.Session, uid, token string) context.Context {
 	ctx = context.WithValue(ctx, userIDKey, uid)
-	if dek := session.GetDEK(uid); dek != nil {
+	if dek := session.GetDEK(token); dek != nil {
 		ctx = context.WithValue(ctx, dekKey, dek)
 		ctx = context.WithValue(ctx, store.UserBlobUserIDKey, uid)
 		ctx = context.WithValue(ctx, store.UserBlobDEKKey, dek)
@@ -66,11 +66,11 @@ func AuthUnaryInterceptor(session auth.Session) grpc.UnaryServerInterceptor {
 		handler grpc.UnaryHandler,
 	) (any, error) {
 		if !publicMethods[info.FullMethod] {
-			uid, err := authenticate(ctx, session)
+			rawToken, uid, err := authenticate(ctx, session)
 			if err != nil {
 				return nil, err
 			}
-			ctx = AuthContext(ctx, session, uid)
+			ctx = AuthContext(ctx, session, uid, rawToken)
 		}
 		return handler(ctx, req)
 	}
@@ -89,37 +89,37 @@ func AuthStreamInterceptor(session auth.Session) grpc.StreamServerInterceptor {
 		if publicMethods[info.FullMethod] {
 			return handler(srv, ss)
 		}
-		uid, err := authenticate(ss.Context(), session)
+		rawToken, uid, err := authenticate(ss.Context(), session)
 		if err != nil {
 			return err
 		}
-		ctx := AuthContext(ss.Context(), session, uid)
+		ctx := AuthContext(ss.Context(), session, uid, rawToken)
 		wrapped := &authStream{ServerStream: ss, ctx: ctx}
 		return handler(srv, wrapped)
 	}
 }
 
-func authenticate(ctx context.Context, session auth.Session) (string, error) {
+func authenticate(ctx context.Context, session auth.Session) (string, string, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		return "", status.Error(codes.Unauthenticated, "missing metadata")
+		return "", "", status.Error(codes.Unauthenticated, "missing metadata")
 	}
 	values := md.Get("authorization")
 	if len(values) == 0 {
-		return "", status.Error(codes.Unauthenticated, "missing authorization")
+		return "", "", status.Error(codes.Unauthenticated, "missing authorization")
 	}
 	token := values[0]
 	const prefix = "Bearer "
 	if !strings.HasPrefix(token, prefix) {
-		return "", status.Error(codes.Unauthenticated, "invalid token format")
+		return "", "", status.Error(codes.Unauthenticated, "invalid token format")
 	}
 	rawToken := token[len(prefix):]
 
 	uid, err := session.Validate(rawToken)
 	if err != nil {
-		return "", status.Error(codes.Unauthenticated, "invalid or expired token")
+		return "", "", status.Error(codes.Unauthenticated, "invalid or expired token")
 	}
-	return uid, nil
+	return rawToken, uid, nil
 }
 
 type authStream struct {

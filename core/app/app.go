@@ -11,6 +11,7 @@ package app
 
 import (
 	"context"
+	"crypto/cipher"
 	"fmt"
 	"log/slog"
 
@@ -25,13 +26,13 @@ import (
 
 // Session is the authentication surface a serving layer uses: validate a
 // presented bearer token and obtain a context carrying the authenticated
-// principal's identity (user ID and DEK).
+// principal's identity (user ID and session DEK).
 type Session interface {
 	// Validate resolves a bearer token to its user ID.
 	Validate(token string) (string, error)
-	// PrincipalContext returns ctx carrying the user's identity, ready to
-	// be handed to the service implementation.
-	PrincipalContext(ctx context.Context, userID string) context.Context
+	// PrincipalContext returns ctx carrying the authenticated identity —
+	// the user ID plus this session's DEK, resolved from the same token.
+	PrincipalContext(ctx context.Context, userID, token string) context.Context
 }
 
 // Stack is the composed core: the service implementation plus everything
@@ -60,7 +61,19 @@ func Build(configPath string, logger *slog.Logger) (*Stack, error) {
 		return nil, fmt.Errorf("stores: %w", err)
 	}
 
-	users, tokens, deks := config.BuildAuth(stores.Users, stores.Sessions)
+	var vaultAEAD cipher.AEAD
+	if cfg.Auth.DEKCache == "encrypted-store" {
+		vaultAEAD, err = config.VaultAEAD(cfg, logger)
+		if err != nil {
+			_ = closeStores(stores)
+			return nil, fmt.Errorf("dek-cache: %w", err)
+		}
+	}
+	users, tokens, deks, err := config.BuildAuth(stores.Users, stores.Sessions, cfg.Auth.DEKCache, vaultAEAD)
+	if err != nil {
+		_ = closeStores(stores)
+		return nil, fmt.Errorf("auth: %w", err)
+	}
 	composite, err := config.BuildAuthenticator(cfg.Auth.Methods, users)
 	if err != nil {
 		_ = closeStores(stores)
@@ -141,6 +154,6 @@ func (s *sessionSeam) Validate(token string) (string, error) {
 	return s.session.Validate(token)
 }
 
-func (s *sessionSeam) PrincipalContext(ctx context.Context, userID string) context.Context {
-	return apiserver.AuthContext(ctx, s.session, userID)
+func (s *sessionSeam) PrincipalContext(ctx context.Context, userID, token string) context.Context {
+	return apiserver.AuthContext(ctx, s.session, userID, token)
 }

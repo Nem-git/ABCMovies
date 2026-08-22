@@ -206,6 +206,9 @@ func ValidateJob(job *corev1.Job) error {
 	if job.GetStatus() == corev1.JobStatus_JOB_STATUS_UNSPECIFIED {
 		return fmt.Errorf("job: status is required")
 	}
+	if job.GetOwnerUserId() == "" {
+		return fmt.Errorf("job: owner_user_id is required (a job's event audience is its owner; PLAN.md §9.2)")
+	}
 	if p := job.GetProgress(); p != nil && p.GetPercent() > 100 {
 		return fmt.Errorf("job: progress percent must be at most 100")
 	}

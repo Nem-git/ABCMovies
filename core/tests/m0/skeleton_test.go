@@ -26,8 +26,8 @@ func TestWalkingSkeleton(t *testing.T) {
 		t.Fatal("expected non-empty token")
 	}
 
-	// --- 2. Events: subscribe ---
-	eventCh := stack.bus.Subscribe("skeleton-sub")
+	// --- 2. Events: subscribe as alice (the job's owner below) ---
+	eventCh := stack.bus.Subscribe("skeleton-sub", "user:alice")
 	defer stack.bus.Unsubscribe("skeleton-sub")
 
 	// --- 3. Jobs: create, retrieve, receive event ---

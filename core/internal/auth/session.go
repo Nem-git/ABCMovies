@@ -16,8 +16,12 @@ type Session interface {
 	Mint(userID string) (string, error)
 	Validate(token string) (string, error)
 	Revoke(token string) error
-	StoreDEK(userID string, dek []byte)
-	GetDEK(userID string) []byte
+	// StoreDEK caches the user's unwrapped DEK under this session's key.
+	// The entry lives exactly as long as the session: Revoke and expiry
+	// drop it together with the token (IMPLEMENTATION.md §1.3).
+	StoreDEK(token string, dek []byte) error
+	// GetDEK returns the DEK cached for this session's token, or nil.
+	GetDEK(token string) []byte
 }
 
 // SessionHandler is a Session backed by a TokenStore and DEKCache.
@@ -86,29 +90,40 @@ func (s *SessionHandler) Validate(token string) (string, error) {
 		return "", fmt.Errorf("session: corrupted expiry")
 	}
 	if time.Now().After(expiry) {
-		// Clean up expired token.
+		// Clean up the expired token together with its cached DEK.
 		_ = s.tokens.Delete(context.TODO(), key)
+		_ = s.deks.DeleteDEK(dekKey(token))
 		return "", fmt.Errorf("session: token expired")
 	}
 
 	return userID, nil
 }
 
-// Revoke removes a session token.
+// dekKey derives a DEK cache key from a bearer token. The DEK entry shares
+// the token's hash, so token and key material are evicted as one unit.
+func dekKey(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return "dek:" + hex.EncodeToString(hash[:])
+}
+
+// Revoke removes a session: its token record and its cached DEK go together.
 func (s *SessionHandler) Revoke(token string) error {
 	hash := sha256.Sum256([]byte(token))
 	key := "session:" + hex.EncodeToString(hash[:])
-	return s.tokens.Delete(context.TODO(), key)
+	if err := s.tokens.Delete(context.TODO(), key); err != nil {
+		return err
+	}
+	return s.deks.DeleteDEK(dekKey(token))
 }
 
-// GetDEK retrieves a cached DEK for the given user ID. Returns nil if not
-// cached (e.g. session was not created via login).
-func (s *SessionHandler) GetDEK(userID string) []byte {
-	return s.deks.GetDEK(userID)
+// GetDEK retrieves the DEK cached for this session's token. Returns nil if
+// none is cached (e.g. the session was not created via login).
+func (s *SessionHandler) GetDEK(token string) []byte {
+	return s.deks.GetDEK(dekKey(token))
 }
 
-// StoreDEK caches a user's DEK for the session lifetime. Called after login
-// when the server unwraps the DEK from the password-KEK.
-func (s *SessionHandler) StoreDEK(userID string, dek []byte) {
-	s.deks.StoreDEK(userID, dek)
+// StoreDEK caches the user's unwrapped DEK under this session's key.
+// Called after login, when the server unwraps the DEK with the password-KEK.
+func (s *SessionHandler) StoreDEK(token string, dek []byte) error {
+	return s.deks.StoreDEK(dekKey(token), dek)
 }

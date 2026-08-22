@@ -30,9 +30,10 @@ func TestStorage_Jobs_PersistAndRetrieve(t *testing.T) {
 	stack := newFullStack(t)
 
 	job := &corev1.Job{
-		Id:     "job-storage-1",
-		Kind:   corev1.JobKind_JOB_KIND_REFRESH,
-		Status: corev1.JobStatus_JOB_STATUS_QUEUED,
+		Id:          "job-storage-1",
+		Kind:        corev1.JobKind_JOB_KIND_REFRESH,
+		Status:      corev1.JobStatus_JOB_STATUS_QUEUED,
+		OwnerUserId: "user:alice",
 	}
 	if err := stack.server.CreateJob(t.Context(), job); err != nil {
 		t.Fatalf("CreateJob: %v", err)

@@ -15,6 +15,15 @@ auth:
     - password
   # Session token TTL (Go duration string). Default: 168h (7 days).
   token-ttl: 168h
+  # Where unwrapped per-session data-encryption keys live.
+  #   memory (default): process memory only; nothing persists, but users
+  #     must log in again after a restart.
+  #   encrypted-store: persisted in the sessions store sealed with the
+  #     vault cipher (no plaintext key material reaches disk either way).
+  #     With an ephemeral vault key (vault-key: generated) sealed entries
+  #     are unreadable after a restart, i.e. memory-equivalent; pair with
+  #     a pinned hex vault key to survive restarts without re-login.
+  dek-cache: memory
 
 slots:
   # The built-in in-process slot (docs/PLAN.md §4, §1.1).

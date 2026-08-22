@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/cipher"
 	"fmt"
 	"log/slog"
 	"net"
@@ -43,7 +44,19 @@ func main() {
 	}()
 
 	// Set up auth system from config.
-	userStore, tokenStore, dekCache := config.BuildAuth(stores.Users, stores.Sessions)
+	var vaultAEAD cipher.AEAD
+	if cfg.Auth.DEKCache == "encrypted-store" {
+		vaultAEAD, err = config.VaultAEAD(cfg, logger)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "abcmovies: dek-cache: %v\n", err)
+			os.Exit(1)
+		}
+	}
+	userStore, tokenStore, dekCache, err := config.BuildAuth(stores.Users, stores.Sessions, cfg.Auth.DEKCache, vaultAEAD)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "abcmovies: auth: %v\n", err)
+		os.Exit(1)
+	}
 	composite, err := config.BuildAuthenticator(cfg.Auth.Methods, userStore)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "abcmovies: auth: %v\n", err)

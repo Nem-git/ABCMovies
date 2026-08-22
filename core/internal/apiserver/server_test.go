@@ -34,7 +34,7 @@ func testAuth(t *testing.T) (*auth.CompositeAuthenticator, auth.Session) {
 	t.Helper()
 	userStore := auth.NewMemoryUserStore()
 	tokens := auth.NewStoreTokenStore(store.NewInMemory())
-	deks := auth.NewStoreDEKCache(store.NewInMemory())
+	deks := auth.NewMemoryDEKCache()
 	composite, err := auth.NewAuthenticators([]string{"password"}, userStore)
 	if err != nil {
 		t.Fatalf("NewAuthenticators: %v", err)
@@ -117,7 +117,7 @@ func TestBus_PublishSubscribe(t *testing.T) {
 	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 
-	ch := bus.Subscribe("test")
+	ch := bus.Subscribe("test", "user:1")
 	event := &corev1.EventEnvelope{
 		Id:       "evt-1",
 		Type:     corev1.EventType_EVENT_TYPE_JOB_STATUS,
@@ -140,7 +140,7 @@ func TestBus_Unsubscribe(t *testing.T) {
 	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 
-	ch := bus.Subscribe("test")
+	ch := bus.Subscribe("test", "user:1")
 	bus.Unsubscribe("test")
 
 	// Channel should be closed.
@@ -158,7 +158,7 @@ func TestBus_PublishSlow(t *testing.T) {
 	defer bus.Close()
 
 	// Subscribe with a full buffer channel (capacity 64).
-	ch := bus.Subscribe("slow")
+	ch := bus.Subscribe("slow", "user:1")
 
 	// Publish 65 events: the 65th should not block (dropped silently).
 	for i := range 70 {
@@ -366,9 +366,10 @@ func TestServer_GetJob_CreateAndRetrieve(t *testing.T) {
 
 	// Create a job.
 	job := &corev1.Job{
-		Id:     "job-001",
-		Kind:   corev1.JobKind_JOB_KIND_REFRESH,
-		Status: corev1.JobStatus_JOB_STATUS_QUEUED,
+		Id:          "job-001",
+		Kind:        corev1.JobKind_JOB_KIND_REFRESH,
+		Status:      corev1.JobStatus_JOB_STATUS_QUEUED,
+		OwnerUserId: "user:alice",
 	}
 	if err := srv.CreateJob(context.Background(), job); err != nil {
 		t.Fatalf("CreateJob: %v", err)
@@ -504,7 +505,7 @@ func TestServer_CreateJob_PublishesEvent(t *testing.T) {
 	authenticator, session := testAuth(t)
 	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
 
-	ch := bus.Subscribe("test-sub")
+	ch := bus.Subscribe("test-sub", "user:alice")
 	defer bus.Unsubscribe("test-sub")
 
 	job := &corev1.Job{

@@ -1,6 +1,7 @@
 package m0_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/auth"
+	"github.com/nem-git/abcmovies/core/internal/store"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -150,7 +152,7 @@ func TestAuth_TokenExpiry(t *testing.T) {
 	// Create a short-lived session.
 	shortSession := auth.NewSessionHandler(
 		auth.NewStoreTokenStore(stack.stores.Sessions),
-		auth.NewStoreDEKCache(stack.stores.Sessions),
+		auth.NewMemoryDEKCache(),
 		1, // 1 nanosecond — expires immediately
 	)
 	loginResp, err := stack.server.Login(t.Context(), &apiv1.LoginRequest{
@@ -247,5 +249,60 @@ func TestAuth_RecoveryKey_ShownOnce(t *testing.T) {
 	// recovery key itself. The recovery key should not appear in any stored data.
 	if userData.WrappedRecovery == nil {
 		t.Fatal("WrappedRecovery should be set")
+	}
+}
+
+// TestAuth_DEKNeverPersistedWithMemoryCache proves that with the default
+// (memory) DEK cache, unwrapped key material never reaches any store
+// (PLAN.md §7.6, IMPLEMENTATION.md §1.3): after login, no entry in the
+// sessions store — where tokens live — contains the session DEK, and only
+// the logging-in session can retrieve it.
+func TestAuth_DEKNeverPersistedWithMemoryCache(t *testing.T) {
+	stack := newFullStack(t)
+
+	const password = "dek-leak-check-password"
+	signUp(t, stack.server, "alice", password)
+	token := login(t, stack.server, "alice", password)
+
+	// Recover the raw DEK through the authenticator, exactly as the server
+	// did during login.
+	pwdAuth, ok := stack.auth.Get("password")
+	if !ok {
+		t.Fatal("password authenticator not found")
+	}
+	result, err := pwdAuth.(*auth.PasswordAuthenticator).Login("alice", []byte(password))
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	dek := result.DEK
+	if len(dek) == 0 {
+		t.Fatal("expected a non-empty DEK")
+	}
+
+	// No entry in any store class may contain the plaintext DEK bytes.
+	for name, s := range map[string]store.Store{
+		"sessions":     stack.stores.Sessions,
+		"users":        stack.stores.Users,
+		"watchHistory": stack.stores.WatchHistory,
+		"jobs":         stack.stores.Jobs,
+	} {
+		keys, err := s.List(context.Background(), "")
+		if err != nil {
+			t.Fatalf("list %s store: %v", name, err)
+		}
+		for _, key := range keys {
+			val, err := s.Get(context.Background(), key)
+			if err != nil {
+				t.Fatalf("read %s/%s: %v", name, key, err)
+			}
+			if bytes.Contains(val, dek) {
+				t.Errorf("plaintext DEK persisted in %s store under %q", name, key)
+			}
+		}
+	}
+
+	// The DEK is reachable only through this session's token.
+	if got := stack.session.GetDEK(token); !bytes.Equal(got, dek) {
+		t.Fatalf("GetDEK(session) = %q, want the login DEK", got)
 	}
 }

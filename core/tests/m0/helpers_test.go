@@ -30,7 +30,10 @@ func newFullStack(t *testing.T) *fullStack {
 	}
 	stores.WatchHistory = store.NewUserBlobStore(stores.WatchHistory)
 
-	users, tokens, deks := config.BuildAuth(stores.Users, stores.Sessions)
+	users, tokens, deks, err := config.BuildAuth(stores.Users, stores.Sessions, c.Auth.DEKCache, nil)
+	if err != nil {
+		t.Fatalf("BuildAuth: %v", err)
+	}
 	composite, err := config.BuildAuthenticator([]string{"password"}, users)
 	if err != nil {
 		t.Fatalf("BuildAuthenticator: %v", err)

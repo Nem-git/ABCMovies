@@ -34,11 +34,12 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 │   ├── abcmovies/slots/v1/    # slot kinds (PLAN.md §3.1)
 │   └── abcmovies/api/v1/      # inbound API service surface (§8)
 ├── core/                 # the core service (packages of the repo-root Go module)
-│   └── app/              # exported bootstrap seam for in-process embedders (§1.2)
+│   ├── app/              # exported bootstrap seam for in-process embedders (§1.2)
+│   └── tests/            # milestone tests, white-box, mirror M0–M9
 ├── adapters/             # built-in slot implementations (Go, one dir per adapter)
 ├── frontends/            # frontend clients (web, CLI)
 ├── fixtures/             # fixture suites: fixtures/<contract>/v<version>/ (+ handshake/, negative/)
-├── tests/                # milestone tests, mirrors M0–M9
+├── tests/                # black-box suites over public seams/fixtures (reserved; empty until the first such suite)
 ├── docs/                 # PLAN.md, IMPLEMENTATION.md, ENVIRONMENT.md, TESTING.md, CI-CD.md,
 │                         # TECHNICAL-DECISIONS.md, SCOPE.md, RESEARCH.md, THREAT-MODEL.md, OPERATIONS.md
 ├── Containerfile         # dev + CI image (ENVIRONMENT.md §3)
@@ -54,7 +55,7 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 └── LICENSE               # AGPL-3.0
 ```
 
-- **Rationale:** mirrors the plan's own separations — contracts (proto/), core, slots (adapters/), clients (frontends/), conformance (fixtures/), milestones (tests/). Proto directories mirror the package paths (`abcmovies.<kind>.v1`), so the schema linter's package-directory-match rule holds with no exceptions (§1.18).
+- **Rationale:** mirrors the plan's own separations — contracts (proto/), core, slots (adapters/), clients (frontends/), conformance (fixtures/), milestone tests beside their component (core/tests/). Proto directories mirror the package paths (`abcmovies.<kind>.v1`), so the schema linter's package-directory-match rule holds with no exceptions (§1.18). Milestone tests are white-box — they verify stored bytes and internal state — and Go's internal-package rule confines imports of `core/internal/*` to `core/`, so they live under `core/tests/`; the top-level `tests/` tree hosts black-box suites over public seams when one exists. Empty placeholder directories are not tracked; a directory in this tree materializes with its first real content (e.g. `adapters/jellyfin/` at M1).
 
 ### 1.4 Version pins
 
@@ -176,6 +177,12 @@ Each decision records the choice, the rationale, and the constraint it satisfies
   - `cases/*.json` — one file per case, each a sample request with its expected response for `handshake`/`positive` kinds, or an invalid declaration the registry must reject for `negative` kind.
 - **Rationale:** JSON is a language-neutral data format (the conformance gate is language-neutral, TESTING.md §2.1); one case per file keeps negative fixtures (mandatory for anything that accepts input) readable and diffable.
 - **Consequence:** the format is data, not code — any adapter in any language can run a suite; the generic runner (`core/cmd/fixture-runner`, TESTING.md §3) consumes it.
+
+### 1.20 Session DEK cache — **memory by default, sealed-store opt-in**
+
+- **Decision:** unwrapped per-session data-encryption keys (the DEK the server holds after login to serve per-user encrypted blobs, §7.6 of PLAN.md) are cached **per session, not per user**, and live in process **memory by default** (`auth.dek-cache: memory`). An operator may opt into `auth.dek-cache: encrypted-store`, which persists entries in the sessions store sealed with the vault cipher. Either way, no plaintext key material reaches disk; an entry's lifetime is exactly its session's — revoked or expired tokens evict their key material with them.
+- **Rationale:** user-keyed caches leak across sessions: a second session inherits key material minted for another login, and logout cannot evict without breaking concurrent sessions. Per-session keying makes revocation and expiry exact. Memory-only keeps the strongest default (nothing persists); encrypted-store exists for instances that must survive restarts without re-login.
+- **Consequence:** with `memory` (default) a restart requires users to log in again. With `encrypted-store` and an ephemeral vault key, sealed entries are unreadable after a restart — memory-equivalent semantics; pair it with a pinned hex vault key to persist. The knob ships in `config.example.yaml`; the default is frozen for v1.
 
 ## 2. Open implementation items (recorded, not decided)
 

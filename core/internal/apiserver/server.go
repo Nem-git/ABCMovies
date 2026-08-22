@@ -88,8 +88,9 @@ func (s *Server) Subscribe(req *apiv1.SubscribeRequest, stream apiv1.CoreService
 	if err := schema.ValidateSubscribeRequest(req); err != nil {
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
+	uid, _ := UserIDFromContext(stream.Context())
 	id := fmt.Sprintf("sub-%d", s.seq.Add(1))
-	ch := s.bus.Subscribe(id)
+	ch := s.bus.Subscribe(id, uid)
 	defer s.bus.Unsubscribe(id)
 	for {
 		select {
@@ -146,8 +147,12 @@ func (s *Server) Login(ctx context.Context, req *apiv1.LoginRequest) (*apiv1.Log
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to create session")
 	}
-	// Cache the DEK for per-user blob encryption.
-	s.session.StoreDEK(result.UserID, result.DEK)
+	// Cache the DEK for this session: per-user blob stores decrypt with it
+	// until the session ends. The entry is keyed by the token and evicted
+	// with it (IMPLEMENTATION.md §1.3).
+	if err := s.session.StoreDEK(token, result.DEK); err != nil {
+		return nil, status.Error(codes.Internal, "failed to cache session key material")
+	}
 	return &apiv1.LoginResponse{
 		Token: token,
 	}, nil

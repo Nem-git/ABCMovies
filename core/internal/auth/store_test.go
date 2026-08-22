@@ -1,7 +1,10 @@
 package auth_test
 
 import (
+	"bytes"
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
 	"testing"
 
 	"github.com/nem-git/abcmovies/core/internal/auth"
@@ -43,34 +46,126 @@ func TestStoreTokenStore_Load_NotFound(t *testing.T) {
 	}
 }
 
-func TestStoreDEKCache_RoundTrip(t *testing.T) {
-	s := store.NewInMemory()
-	dc := auth.NewStoreDEKCache(s)
-
-	dek := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
-	dc.StoreDEK("user:user:alice", dek)
-
-	got := dc.GetDEK("user:user:alice")
-	if len(got) == 0 {
-		t.Fatal("GetDEK should return the stored DEK")
+func testAEAD(t *testing.T) cipher.AEAD {
+	t.Helper()
+	block, err := aes.NewCipher(bytes.Repeat([]byte{7}, 32))
+	if err != nil {
+		t.Fatalf("NewCipher: %v", err)
 	}
-	if len(got) != len(dek) {
-		t.Fatalf("GetDEK length = %d, want %d", len(got), len(dek))
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		t.Fatalf("NewGCM: %v", err)
 	}
-	for i := range got {
-		if got[i] != dek[i] {
-			t.Fatalf("GetDEK[%d] = %d, want %d", i, got[i], dek[i])
-		}
+	return aead
+}
+
+func TestMemoryDEKCache_RoundTrip(t *testing.T) {
+	dc := auth.NewMemoryDEKCache()
+
+	dek := bytes.Repeat([]byte{1}, 32)
+	if err := dc.StoreDEK("dek:session-a", dek); err != nil {
+		t.Fatalf("StoreDEK: %v", err)
+	}
+
+	got := dc.GetDEK("dek:session-a")
+	if !bytes.Equal(got, dek) {
+		t.Fatalf("GetDEK = %v, want %v", got, dek)
+	}
+
+	// Mutating the returned slice must not corrupt the cached entry.
+	got[0] = 0xff
+	if again := dc.GetDEK("dek:session-a"); again[0] != 0x01 {
+		t.Fatal("mutated caller slice leaked into the cached DEK")
 	}
 }
 
-func TestStoreDEKCache_GetDEK_Missing(t *testing.T) {
-	s := store.NewInMemory()
-	dc := auth.NewStoreDEKCache(s)
+func TestMemoryDEKCache_GetDEK_Missing(t *testing.T) {
+	dc := auth.NewMemoryDEKCache()
 
-	got := dc.GetDEK("nonexistent")
-	if got != nil {
-		t.Fatalf("GetDEK for missing user should return nil, got %v", got)
+	if got := dc.GetDEK("nonexistent"); got != nil {
+		t.Fatalf("GetDEK for missing session should return nil, got %v", got)
+	}
+}
+
+func TestMemoryDEKCache_DeleteDEK(t *testing.T) {
+	dc := auth.NewMemoryDEKCache()
+
+	if err := dc.StoreDEK("dek:session-a", []byte("key")); err != nil {
+		t.Fatalf("StoreDEK: %v", err)
+	}
+	// Deleting a missing key is a no-op.
+	if err := dc.DeleteDEK("nonexistent"); err != nil {
+		t.Fatalf("DeleteDEK missing: %v", err)
+	}
+	if err := dc.DeleteDEK("dek:session-a"); err != nil {
+		t.Fatalf("DeleteDEK: %v", err)
+	}
+	if got := dc.GetDEK("dek:session-a"); got != nil {
+		t.Fatalf("GetDEK after DeleteDEK = %v, want nil", got)
+	}
+}
+
+func TestSealedDEKCache_RoundTrip(t *testing.T) {
+	s := store.NewInMemory()
+	dc, err := auth.NewSealedDEKCache(s, testAEAD(t))
+	if err != nil {
+		t.Fatalf("NewSealedDEKCache: %v", err)
+	}
+
+	dek := bytes.Repeat([]byte{2}, 32)
+	if err := dc.StoreDEK("session-a", dek); err != nil {
+		t.Fatalf("StoreDEK: %v", err)
+	}
+
+	// The stored blob must not contain the plaintext key material.
+	blob, err := s.Get(context.Background(), "dek:session-a")
+	if err != nil {
+		t.Fatalf("raw Get: %v", err)
+	}
+	if bytes.Contains(blob, dek) {
+		t.Fatal("sealed cache wrote plaintext DEK to the backing store")
+	}
+
+	if got := dc.GetDEK("session-a"); !bytes.Equal(got, dek) {
+		t.Fatalf("GetDEK = %v, want %v", got, dek)
+	}
+}
+
+func TestSealedDEKCache_GetDEK_Missing(t *testing.T) {
+	dc, err := auth.NewSealedDEKCache(store.NewInMemory(), testAEAD(t))
+	if err != nil {
+		t.Fatalf("NewSealedDEKCache: %v", err)
+	}
+
+	if got := dc.GetDEK("nonexistent"); got != nil {
+		t.Fatalf("GetDEK for missing session should return nil, got %v", got)
+	}
+}
+
+func TestSealedDEKCache_DeleteDEK(t *testing.T) {
+	s := store.NewInMemory()
+	dc, err := auth.NewSealedDEKCache(s, testAEAD(t))
+	if err != nil {
+		t.Fatalf("NewSealedDEKCache: %v", err)
+	}
+
+	if err := dc.StoreDEK("session-a", []byte("key")); err != nil {
+		t.Fatalf("StoreDEK: %v", err)
+	}
+	if err := dc.DeleteDEK("session-a"); err != nil {
+		t.Fatalf("DeleteDEK: %v", err)
+	}
+	if _, err := s.Get(context.Background(), "dek:session-a"); err == nil {
+		t.Fatal("sealed entry still present after DeleteDEK")
+	}
+}
+
+func TestSealedDEKCache_RequiresStoreAndCipher(t *testing.T) {
+	if _, err := auth.NewSealedDEKCache(nil, testAEAD(t)); err == nil {
+		t.Fatal("expected error without backing store")
+	}
+	if _, err := auth.NewSealedDEKCache(store.NewInMemory(), nil); err == nil {
+		t.Fatal("expected error without cipher")
 	}
 }
 
