@@ -13,11 +13,11 @@ import (
 )
 
 type fullStack struct {
-	stores      config.Stores
-	auth        *auth.CompositeAuthenticator
-	session     auth.Session
-	bus         *apiserver.InMemoryBus
-	server      *apiserver.Server
+	stores  config.Stores
+	auth    *auth.CompositeAuthenticator
+	session auth.Session
+	bus     *apiserver.InMemoryBus
+	server  *apiserver.Server
 }
 
 func newFullStack(t *testing.T) *fullStack {
@@ -43,11 +43,11 @@ func newFullStack(t *testing.T) *fullStack {
 	srv := apiserver.NewServer(bus, stores, composite, session)
 
 	return &fullStack{
-		stores:      stores,
-		auth:        composite,
-		session:     session,
-		bus:         bus,
-		server:      srv,
+		stores:  stores,
+		auth:    composite,
+		session: session,
+		bus:     bus,
+		server:  srv,
 	}
 }
 

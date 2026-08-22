@@ -184,9 +184,9 @@ func TestWireAPI_BadTokenRejected(t *testing.T) {
 	ctx := t.Context()
 
 	for name, token := range map[string]string{
-		"malformed":   "Basic abc",
-		"not-bearer":  "random-string",
-		"unknown":     "Bearer no-such-token",
+		"malformed":  "Basic abc",
+		"not-bearer": "random-string",
+		"unknown":    "Bearer no-such-token",
 	} {
 		if _, err := client.GetJob(authedCtx(ctx, token), &apiv1.GetJobRequest{JobId: "x"}); status.Code(err) != codes.Unauthenticated {
 			t.Fatalf("%s token: got %v, want Unauthenticated", name, status.Code(err))

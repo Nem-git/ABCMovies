@@ -1,10 +1,11 @@
-module github.com/nem-git/abcmovies/core
+module github.com/nem-git/abcmovies
 
 go 1.26
 
 toolchain go1.26.6
 
 require (
+	connectrpc.com/connect v1.20.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.6
 	golang.org/x/crypto v0.55.0
 	google.golang.org/grpc v1.83.0
@@ -34,6 +35,7 @@ require (
 )
 
 tool (
+	connectrpc.com/connect/cmd/protoc-gen-connect-go
 	golang.org/x/vuln/cmd/govulncheck
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc
 	google.golang.org/protobuf/cmd/protoc-gen-go

@@ -3,7 +3,12 @@
   "private": true,
   "description": "ABCMovies developer tooling (formatting, linting)",
   "devDependencies": {
+    "@bufbuild/protoc-gen-es": "^2.14.0",
+    "esbuild": "^0.28.2",
     "markdownlint-cli2": "^0.23.2",
     "prettier": "^3.9.6"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
   }
 }

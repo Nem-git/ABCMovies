@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ABCMovies</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 42rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      section {
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+      }
+      input {
+        margin: 0.25rem 0.5rem 0.25rem 0;
+        padding: 0.35rem;
+      }
+      button {
+        padding: 0.35rem 0.9rem;
+        cursor: pointer;
+      }
+      #log {
+        background: #111;
+        color: #cfe;
+        min-height: 8rem;
+        padding: 0.75rem;
+        border-radius: 8px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.85rem;
+        white-space: pre-wrap;
+      }
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>ABCMovies</h1>
+
+    <section id="auth">
+      <h2>Account</h2>
+      <input id="username" placeholder="username" autocomplete="username" />
+      <input
+        id="password"
+        type="password"
+        placeholder="password"
+        autocomplete="current-password"
+      />
+      <button id="signup">Sign up</button>
+      <button id="login">Log in</button>
+      <p id="recovery" class="hidden"></p>
+    </section>
+
+    <section id="jobs">
+      <h2>Jobs</h2>
+      <input id="jobId" placeholder="job id" />
+      <button id="getJob">Get job</button>
+      <button id="subscribe">Subscribe to events</button>
+    </section>
+
+    <section>
+      <h2>Log</h2>
+      <div id="log"></div>
+    </section>
+
+    <script src="bundle.js"></script>
+  </body>
+</html>

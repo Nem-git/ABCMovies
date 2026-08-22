@@ -31,6 +31,18 @@ Recorded as the starting point for the v2 spike; **not** a decision.
 - License negotiation is a challenge/response exchange (init data → license server → keys), which maps to `acquire-keys` (§6.6) at the message-shape level.
 - Whether a real adapter is feasible depends on: a specific provider, its CDM/lockdown posture, and device-credential lifecycle. The plan's mock/synthetic-fixture admission path (TESTING.md §7) is designed exactly for this uncertainty.
 
+### 2.3 Embedding-surface layout survey (M0)
+
+Evidence behind the `core/app` bootstrap seam recorded in TECHNICAL-DECISIONS.md §1.2; **not** a decision.
+
+- Go's `internal/` rule is directory-based: `core/internal/*` is importable only from within `core/`, so any in-process embedder outside `core/` needs an exported package that itself imports the internals — the wrapper must sit inside the boundary's parent directory for the import to be legal.
+- **etcd** ships exactly this shape as its public embedding API: `go.etcd.io/etcd/server/v3/embed` (`StartEtcd(cfg) (*Etcd, error)`, `Close()`, plus hooks like `ServiceRegister func(*grpc.Server)`) lives inside the server module and imports server internals; consumers never see them.
+- **HashiCorp Vault** is the stronger form: the exposed contract lives in its own separately versioned module (`hashicorp/vault/sdk`, alongside `api`), so plugin authors physically cannot reach implementation internals — at the cost of multi-module sync and release discipline.
+- **Kubernetes** publishes curated `k8s.io/*` staging modules (client-go etc.) while its monorepo `pkg/` tree stays de-facto internal by convention.
+- **CockroachDB** puts everything under `pkg/` with almost no `internal/`; layering rules are enforced by custom lint tooling rather than the compiler.
+- The `golang-standards/project-layout` README itself notes `pkg/` is convention only and "`internal` ... is enforced by Go" — the compiler mechanism is the stronger gate.
+- Consequence observed in-repo: with consumers inside the same module (frontends), a root-level `pkg/` either cannot import `core/internal/*` at all, or (after moving internals to a root `internal/`) would let frontends bypass the seam entirely. Drawing the boundary at `core/` with the facade beside the internals gives compiler enforcement of the narrow surface.
+
 ## 3. How findings become decisions
 
 1. A spike completes and its findings are written here.

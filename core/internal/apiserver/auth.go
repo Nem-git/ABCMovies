@@ -41,6 +41,20 @@ var publicMethods = map[string]bool{
 	"/abcmovies.api.v1.CoreService/Login":  true,
 }
 
+// AuthContext returns ctx carrying the authenticated principal's identity:
+// the user ID plus, when available, the session's DEK for per-user blob
+// encryption. It is the injection half of the auth interceptors and is
+// reused by non-gRPC terminations of the same service implementation.
+func AuthContext(ctx context.Context, session auth.Session, uid string) context.Context {
+	ctx = context.WithValue(ctx, userIDKey, uid)
+	if dek := session.GetDEK(uid); dek != nil {
+		ctx = context.WithValue(ctx, dekKey, dek)
+		ctx = context.WithValue(ctx, store.UserBlobUserIDKey, uid)
+		ctx = context.WithValue(ctx, store.UserBlobDEKKey, dek)
+	}
+	return ctx
+}
+
 // AuthUnaryInterceptor returns a unary server interceptor that extracts a
 // bearer token from gRPC metadata and injects the user ID into the context.
 // The token is validated against the session store.
@@ -56,12 +70,7 @@ func AuthUnaryInterceptor(session auth.Session) grpc.UnaryServerInterceptor {
 			if err != nil {
 				return nil, err
 			}
-			ctx = context.WithValue(ctx, userIDKey, uid)
-			if dek := session.GetDEK(uid); dek != nil {
-				ctx = context.WithValue(ctx, dekKey, dek)
-				ctx = context.WithValue(ctx, store.UserBlobUserIDKey, uid)
-				ctx = context.WithValue(ctx, store.UserBlobDEKKey, dek)
-			}
+			ctx = AuthContext(ctx, session, uid)
 		}
 		return handler(ctx, req)
 	}
@@ -84,12 +93,7 @@ func AuthStreamInterceptor(session auth.Session) grpc.StreamServerInterceptor {
 		if err != nil {
 			return err
 		}
-		ctx := context.WithValue(ss.Context(), userIDKey, uid)
-		if dek := session.GetDEK(uid); dek != nil {
-			ctx = context.WithValue(ctx, dekKey, dek)
-			ctx = context.WithValue(ctx, store.UserBlobUserIDKey, uid)
-			ctx = context.WithValue(ctx, store.UserBlobDEKKey, dek)
-		}
+		ctx := AuthContext(ss.Context(), session, uid)
 		wrapped := &authStream{ServerStream: ss, ctx: ctx}
 		return handler(srv, wrapped)
 	}

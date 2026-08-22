@@ -14,5 +14,8 @@ plugins:
     opt:
       - paths=source_relative
       - require_unimplemented_servers=false
+  - local: protoc-gen-connect-go
+    out: core/gen
+    opt: paths=source_relative
 inputs:
   - directory: proto

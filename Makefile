@@ -11,20 +11,27 @@ MISESHIMS := $(HOME)/.local/share/mise/shims
 export PATH := $(GOBIN):$(GOPATHBIN):$(MISESHIMS):$(PATH)
 export GOBIN GOMODCACHE GOCACHE
 
-.PHONY: deps proto fmt secret-scan lint build test-unit fixtures vuln check run
+.PHONY: deps proto web-build fmt secret-scan lint build test-unit fixtures vuln check run run-web
 
 deps:
 	mkdir -p $(GOBIN)
-	cd core && GOBIN=$(GOBIN) $(GO) install tool
+	GOBIN=$(GOBIN) $(GO) install tool
 	$(NPM) ci
+	cd frontends/web && $(NPM) ci
 
 proto:
 	$(BUF) generate
+	$(BUF) generate --template buf.gen.web.yaml
 	$(BUF) format -w proto
+
+web-build:
+	cd frontends/web && $(NPM) run build
+	cp frontends/web/src/index.html frontends/web/serving/dist/index.html
+	cp frontends/web/dist/bundle.js frontends/web/serving/dist/bundle.js
 
 fmt:
 	$(BUF) format -w proto
-	cd core && $(GOLANGCI) fmt
+	$(GOLANGCI) fmt ./core/... ./frontends/web/...
 	npx --no-install prettier . --write
 
 # Scans the committed tree (not git history): `gitleaks detect` alone would
@@ -35,29 +42,32 @@ secret-scan:
 	git archive HEAD | tar -x -C /tmp/abcmovies-secret-scan
 	$(GITLEAKS) detect --no-git --source /tmp/abcmovies-secret-scan --redact; status=$$?; rm -rf /tmp/abcmovies-secret-scan; exit $$status
 
-lint:
+lint: web-build
 	$(BUF) lint
 	git diff --exit-code -- proto
 # 	$(BUF) breaking --against .git#branch=dev,ref=0a716ba
-	cd core && $(GOLANGCI) run ./cmd/... ./internal/...
+	$(GOLANGCI) run ./core/... ./frontends/web/...
 	npx --no-install prettier . --check
 	npx --no-install markdownlint-cli2
 	$(MAKE) secret-scan
 
-build:
-	cd core && $(GO) build ./...
+build: web-build
+	$(GO) build ./core/... ./frontends/web/...
 
-test-unit:
-	cd core && $(GO) test -race ./...
+test-unit: web-build
+	$(GO) test -race ./core/... ./frontends/web/...
 
-vuln:
-	cd core && $(GO) tool govulncheck ./...
+vuln: web-build
+	$(GO) tool govulncheck ./core/... ./frontends/web/...
 
-fixtures: proto
-	cd core && $(GO) build -o $(GOBIN)/fixture-runner ./cmd/fixture-runner
+fixtures: proto web-build
+	$(GO) build -o $(GOBIN)/fixture-runner ./core/cmd/fixture-runner
 	$(GOBIN)/fixture-runner fixtures
 
 check: deps proto lint build test-unit fixtures vuln
 
 run:
-	cd core && $(GO) run ./cmd/abcmovies
+	$(GO) run ./core/cmd/abcmovies
+
+run-web: web-build
+	$(GO) run ./frontends/web

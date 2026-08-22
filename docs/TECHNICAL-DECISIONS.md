@@ -21,6 +21,7 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 - **Consequence — the browser (hardest client, §8.1):** a browser cannot speak raw gRPC. The web frontend reaches the API over **gRPC-Web** — the same Protobuf contract in a browser-compatible wire encoding (no HTTP/JSON gateway; gRPC-Web is not a REST/JSON API and never a second dialect of the core API). The gRPC-Web termination is part of the **frontend's serving layer** — a thin wrapper around the core's gRPC server, owned and built by the frontend project (`frontends/web/`) — so the core itself stays a pure gRPC service and never changes for a browser. In v1 that serving layer imports the core in-process, so the deployment remains one process, one port.
   - This is a **reusable client-integration pattern, not an in-repo detail**: any frontend project — first- or third-party — terminates gRPC-Web in its own serving layer and reaches the core over plain gRPC; a browser never talks to the core directly, so CORS never enters the core path. Non-browser clients (CLI tools, other services) reach the core over plain gRPC with no translation layer. Clients generate their own stubs from the published, versioned contracts (PLAN.md §2.1, §3.4) and authenticate with the opaque bearer token (§1.12). The in-repo web frontend is the reference implementation of the pattern.
 - **Consequence:** streaming events use gRPC server-streaming; the event bus (PLAN.md §9.2) stays in-process pub/sub, with gRPC streams as the subscriber transport.
+- **Concrete realization (M0):** the serving layer composes the core through its exported bootstrap seam (`core/app`) and wraps the service implementation with **Connect** handlers (`connectrpc.com/connect`), which serve gRPC-Web, plain gRPC, and the Connect protocol from one HTTP port; the browser page uses the gRPC-Web transport explicitly. The wrapper library `improbable-eng/grpc-web` was evaluated and rejected: maintenance mode since 2023, no release since 2021. Two adapter details live in the frontend: grpc status errors are translated to their connect equivalents (the two code spaces share one numbering), and bearer-token authentication runs as a connect interceptor mirroring the gRPC interceptors' public-method allowlist. The alternative of transcoding the gRPC server directly via `connectrpc.com/vanguard` (its `vanguardgrpc` subpackage would eliminate the hand-written adapter) was evaluated and deferred: the library is alpha, and the adapter is small and fully covered by integration tests; revisit if the adapter's maintenance cost grows. Browser stubs are generated from the same schemas by `protoc-gen-es`, pinned as npm dev dependencies (versions in the lockfile, like the formatters).
 
 ### 1.3 Repository layout
 
@@ -32,7 +33,8 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 │   ├── abcmovies/core/v1/     # load-bearing contracts (PLAN.md §2.3)
 │   ├── abcmovies/slots/v1/    # slot kinds (PLAN.md §3.1)
 │   └── abcmovies/api/v1/      # inbound API service surface (§8)
-├── core/                 # Go module: the core service
+├── core/                 # the core service (packages of the repo-root Go module)
+│   └── app/              # exported bootstrap seam for in-process embedders (§1.2)
 ├── adapters/             # built-in slot implementations (Go, one dir per adapter)
 ├── frontends/            # frontend clients (web, CLI)
 ├── fixtures/             # fixture suites: fixtures/<contract>/v<version>/ (+ handshake/, negative/)
@@ -40,7 +42,8 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 ├── docs/                 # PLAN.md, IMPLEMENTATION.md, ENVIRONMENT.md, TESTING.md, CI-CD.md,
 │                         # TECHNICAL-DECISIONS.md, SCOPE.md, RESEARCH.md, THREAT-MODEL.md, OPERATIONS.md
 ├── Containerfile         # dev + CI image (ENVIRONMENT.md §3)
-├── Makefile              # make deps / proto / fmt / secret-scan / lint / build / test-unit / vuln / check / run
+├── Makefile              # make deps / proto / web-build / fmt / secret-scan / lint / build / test-unit / vuln / check / run / run-web
+├── go.mod, go.sum        # repo-root Go module: core + frontends together (§1.4)
 ├── .tool-versions        # canonical version pins (ENVIRONMENT.md §1)
 ├── package.json          # formatting/linting tooling pins: prettier, markdownlint-cli2 (§1.4)
 ├── .golangci.yml         # golangci-lint v2 config — gofumpt formatting enforcement
@@ -56,7 +59,7 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 ### 1.4 Version pins
 
 - **Decision:** pins live at **one home per tool kind**, never duplicated: the core language pins itself via its manifest's `toolchain` directive (auto-enforced on every tool invocation), and the schema tooling + linter live in `.tool-versions` at the repo root, referenced by the Containerfile and CI (ENVIRONMENT.md §1, CI-CD.md §3). A change to a pin invalidates caches (CI-CD.md §8). Go is not listed in `.tool-versions` because the Go toolchain cannot be version-switched on hosts where developers already manage Go; the manifest's `toolchain` directive (GOTOOLCHAIN=auto) makes the manifest authoritative anyway, so listing Go twice would reintroduce the exact split-brain this rule prevents.
-- **Initial pin set** (re-verified at M0 scaffolding, IMPLEMENTATION.md §8.4): Go **`go 1.26` / `toolchain go1.26.6`** in `core/go.mod`; **buf 1.72.0**, **golangci-lint v2.12.2**, **node 24.19.0** (runtime for the formatting tooling), and **gitleaks 8.24.3** (secret-leak scan) in `.tool-versions`; as Go tool dependencies in `core/go.mod` (executables installed to `bin/` by `make deps`, §1.6): protoc-gen-go **v1.36.12** (always equal to the `google.golang.org/protobuf` runtime version), protoc-gen-go-grpc **v1.6.2**, grpc-go **v1.83.0**, and **govulncheck v1.7.0** (vulnerability scan, `make vuln`). The node-based formatters are npm dev dependencies (`prettier`, `markdownlint-cli2`), pinned in `package-lock.json` — their versions live there, not in `.tool-versions`.
+- **Initial pin set** (re-verified at M0 scaffolding, IMPLEMENTATION.md §8.4): Go **`go 1.26` / `toolchain go1.26.6`** in the repo-root `go.mod`; **buf 1.72.0**, **golangci-lint v2.12.2**, **node 24.19.0** (runtime for the formatting tooling), and **gitleaks 8.24.3** (secret-leak scan) in `.tool-versions`; as Go tool dependencies in the repo-root `go.mod` (executables installed to `bin/` by `make deps`, §1.6): protoc-gen-go **v1.36.12** (always equal to the `google.golang.org/protobuf` runtime version), protoc-gen-go-grpc **v1.6.2**, protoc-gen-connect-go (§1.2), grpc-go **v1.83.0**, and **govulncheck v1.7.0** (vulnerability scan, `make vuln`). The node-based tools are npm dev dependencies — the formatters (`prettier`, `markdownlint-cli2`) at the repo root, and the web codegen/bundling tools (`protoc-gen-es`, `esbuild`, §1.2) likewise at the root — pinned in their `package-lock.json`; their versions live there, not in `.tool-versions`.
 
 ### 1.5 Instance config location and secrets convention
 
@@ -70,10 +73,12 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 | Recipe | Runs |
 | --- | --- |
 | `make deps` | language-level dependencies from the pinned versions (Go tools, `npm ci`) |
-| `make proto` | regenerate code from the `.proto` schemas |
+| `make proto` | regenerate code from the `.proto` schemas (Go + web stubs) |
+| `make web-build` | bundle the web frontend (`frontends/web`) into its embeddable `dist/` |
 | `make fmt` | rewrite formatting in place — `buf format`, gofumpt, prettier |
 | `make check` | lint + build + full suite (unit, round-trip, integration, fixture suites) + vuln — the CI gate |
 | `make run` | boot the skeleton (registry, slot, API server) |
+| `make run-web` | boot the web frontend's serving layer (core embedded in-process, §1.2) |
 | `make lint` / `make build` / `make test-unit` / `make vuln` | the individual stages `make check` composes |
 
 `make lint` enforces all formatting and hygiene mechanically: buf lint + format freshness on the schemas, gofumpt on Go, prettier on JSON/YAML, markdownlint on Markdown, and the secret-leak scan (`make secret-scan`). `make test-unit` runs the unit suites with the race detector. `make vuln` runs govulncheck against the module. CI runs these recipes verbatim (CI-CD.md §1); it never invents its own commands.
@@ -123,7 +128,7 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 
 - **Decision:** the inbound API (§8 of PLAN.md) authenticates with a single mechanism: an **opaque bearer token** presented as a wire-level `Authorization: Bearer <token>` header (or the gRPC-Web equivalent). This authenticates API sessions; the engine-granted relay capability for sink bytes (§3.6 of PLAN.md) and the vault's keys (§7.6 of PLAN.md) are separate mechanisms and never conflated with it.
 - **Rationale:** one mechanism serves every client type — browser (through the frontend's serving layer, §1.2), CLI tools, and other services — and matches the "one inbound protocol" goal. Opaque tokens avoid the JWKS/issuer machinery a signed JWT would require of a self-hosted instance with no identity provider.
-- **Consequence:** the sessions store holds the token's hash, never the token value; a token is minted at login and revoked per session. Delivery-session liveness is separate: heartbeat and TTL (§9.1 of PLAN.md, defaults in §1.14).
+- **Consequence:** the sessions store holds the token's hash, never the token value; a token is minted at login and revoked per session. Authentication resolves a **principal** — today always an authenticated user (`user:<id>`); guest access (deferred to v2, SCOPE.md) would be an additional principal kind (`guest:<deviceId>`) added without changing the mechanism, and until then every non-public method requires a valid token. Delivery-session liveness is separate: heartbeat and TTL (§9.1 of PLAN.md, defaults in §1.14).
 
 ### 1.13 Delivery sinks — **two co-equal v1 sinks**
 
