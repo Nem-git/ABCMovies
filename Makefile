@@ -46,7 +46,7 @@ secret-scan:
 lint: web-build
 	$(BUF) lint
 	git diff --exit-code -- proto
-# 	$(BUF) breaking --against .git#branch=dev,ref=0a716ba
+	$(BUF) breaking --against '.git#ref=refs/remotes/origin/main'
 	$(GOLANGCI) run ./core/... ./frontends/web/...
 	npx --no-install prettier . --check
 	npx --no-install markdownlint-cli2
