@@ -1,0 +1,7 @@
+{
+  "name": "invalid-declaration-rejected",
+  "declaration": [{ "name": "", "version": 0 }],
+  "expected": {
+    "admitted": false
+  }
+}

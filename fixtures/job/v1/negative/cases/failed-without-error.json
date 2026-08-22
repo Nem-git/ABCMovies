@@ -1,0 +1,11 @@
+{
+  "name": "failed-without-error",
+  "message": {
+    "id": "job_88888888888888888888888888888888",
+    "kind": "JOB_KIND_REFRESH",
+    "status": "JOB_STATUS_FAILED"
+  },
+  "expected": {
+    "valid": false
+  }
+}

@@ -1,58 +1,74 @@
-.PHONY: generate test vet build run tidy clean
+GO        ?= go
+BUF       ?= buf
+GOLANGCI  ?= golangci-lint
+NPM       ?= npm
+GITLEAKS  ?= gitleaks
+GOBIN     := $(CURDIR)/bin
+GOMODCACHE := $(CURDIR)/.gomodcache
+GOCACHE   := $(CURDIR)/.gocache
+GOPATHBIN := $(shell $(GO) env GOPATH)/bin
+MISESHIMS := $(HOME)/.local/share/mise/shims
+export PATH := $(GOBIN):$(GOPATHBIN):$(MISESHIMS):$(PATH)
+export GOBIN GOMODCACHE GOCACHE
 
-# Watch .templ files, regenerate, and proxy to the Go server with browser auto-reload.
-live/proxy:
-	go tool templ generate --watch --open-browser=false --proxy="http://127.0.0.1:8080" --proxybind="0.0.0.0" -v
+.PHONY: deps proto web-build fmt secret-scan lint build test-unit fixtures vuln check run run-web
 
-# run tailwindcss to generate the style.css bundle in watch mode.
-live/tailwind:
-	tailwindcss -i ./internal/web/static/css/input.css -o ./internal/web/static/css/style.css --minify --watch=always
+deps:
+	mkdir -p $(GOBIN)
+	GOBIN=$(GOBIN) $(GO) install tool
+	$(NPM) ci
+	cd frontends/web && $(NPM) ci
 
-# run esbuild to generate the index.js bundle in watch mode.
-live/esbuild:
-	esbuild ./internal/web/static/js/index.ts --bundle --outdir=./internal/web/static/js/ --minify --watch=forever
+proto:
+	$(BUF) generate
+	$(BUF) generate --template buf.gen.web.yaml
+	$(BUF) format -w proto
 
-# Watch CSS output, send browser reload when tailwind finishes compiling.
-live/sync:
-	air -c ./config/air/static.toml
+web-build:
+	cd frontends/web && $(NPM) run build
+	mkdir -p frontends/web/serving/dist
+	cp frontends/web/src/index.html frontends/web/serving/dist/index.html
+	cp frontends/web/dist/bundle.js frontends/web/serving/dist/bundle.js
 
-live/go:
-	air -c ./config/air/go.toml
+fmt:
+	$(BUF) format -w proto
+	$(GOLANGCI) fmt ./core/... ./frontends/web/...
+	npx --no-install prettier . --write
 
-# start all watch processes in parallel.
-live:
-	make -j5 live/proxy live/sync live/tailwind live/esbuild live/go
-generate/css:
-	./tailwindcss -i ./internal/web/static/css/input.css -o ./internal/web/static/css/style.css --minify
+# Scans the committed tree (not git history): `gitleaks detect` alone would
+# scan every commit, and the repo's pre-scaffold history predates ABCMovies.
+# Extracting HEAD means the gate is "the tree that would ship has no secrets".
+secret-scan:
+	rm -rf /tmp/abcmovies-secret-scan && mkdir -p /tmp/abcmovies-secret-scan
+	git archive HEAD | tar -x -C /tmp/abcmovies-secret-scan
+	$(GITLEAKS) detect --no-git --source /tmp/abcmovies-secret-scan --redact; status=$$?; rm -rf /tmp/abcmovies-secret-scan; exit $$status
 
-# Unsure about what this index.ts is supposed to be for
-generate/js:
-	./esbuild ./internal/web/static/js/index.ts --bundle --outdir=./internal/web/static/js/ --minify
+lint: web-build
+	$(BUF) lint
+	git diff --exit-code -- proto
+# 	$(BUF) breaking --against .git#branch=dev,ref=0a716ba
+	$(GOLANGCI) run ./core/... ./frontends/web/...
+	npx --no-install prettier . --check
+	npx --no-install markdownlint-cli2
+	$(MAKE) secret-scan
 
-generate/templ:
-	go tool templ generate
+build: web-build
+	$(GO) build ./core/... ./frontends/web/...
 
-generate/go:
-	go generate ./...
+test-unit: web-build
+	$(GO) test -race ./core/... ./frontends/web/...
 
-# generates oas code, css, js, templ
-generate:
-	make -j4 generate/css generate/js generate/templ generate/go
+vuln: web-build
+	$(GO) tool govulncheck ./core/... ./frontends/web/...
 
-test:
-	go test -v ./...
+fixtures: proto web-build
+	$(GO) build -o $(GOBIN)/fixture-runner ./core/cmd/fixture-runner
+	$(GOBIN)/fixture-runner fixtures
 
-vet:
-	go vet ./...
-
-build:
-	go build -o bin/abcmovies ./cmd/
+check: deps proto lint build test-unit fixtures vuln
 
 run:
-	go run ./cmd/ -config config.yaml
+	$(GO) run ./core/cmd/abcmovies
 
-tidy:
-	go mod tidy
-
-clean:
-	rm -rf bin/
+run-web: web-build
+	$(GO) run ./frontends/web

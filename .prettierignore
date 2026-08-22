@@ -1,0 +1,27 @@
+# VCS and tooling
+.git/
+.mise/
+bin/
+.gomodcache/
+.gocache/
+
+# Generated code (Go) — gofumpt's job, not prettier's
+core/gen/
+
+# Node
+node_modules/
+package-lock.json
+
+# Markdown — markdownlint-cli2's job, not prettier's
+docs/
+README.md
+AGENTS.md
+CONTRIBUTING.md
+
+# Local instance config and secrets (never committed)
+config/
+.env
+.env.example
+
+# License
+LICENSE

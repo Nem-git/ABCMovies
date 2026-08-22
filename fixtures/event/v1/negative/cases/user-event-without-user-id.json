@@ -1,0 +1,15 @@
+{
+  "name": "user-event-without-user-id",
+  "message": {
+    "id": "evt_33333333333333333333333333333333",
+    "type": "EVENT_TYPE_JOB_STATUS",
+    "audience": "EVENT_AUDIENCE_USER",
+    "job_status": {
+      "job_id": "job_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d",
+      "status": "JOB_STATUS_RUNNING"
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}

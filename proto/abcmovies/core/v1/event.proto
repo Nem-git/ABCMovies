@@ -1,0 +1,136 @@
+syntax = "proto3";
+
+package abcmovies.core.v1;
+
+import "abcmovies/core/v1/job.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+// The Event envelope contract (docs/PLAN.md §9.2): the wrapper around every
+// notification. Events are at-most-once notifications, not a durable record —
+// if a subscriber misses one it recovers by querying the job, no loss. Events
+// are tenancy-routed: the audience field plus per-connection scope filters
+// bound who may see an event; this is an authorization boundary at the bus, not
+// a convenience flag. This message is load-bearing (PLAN.md §2.3); its schema
+// is frozen once approved.
+
+// EventType enumerates the notifications the system emits (PLAN.md §9.2).
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  // A job changed status (PLAN.md §9.1).
+  EVENT_TYPE_JOB_STATUS = 1;
+  // Two providers look like the same title but identity proof is missing or
+  // contradictory; the entries stay apart (PLAN.md §2.3, §5.3).
+  EVENT_TYPE_MERGE_CONFLICT = 2;
+  // Static play failed over to another provider carrying the title; the switch
+  // is never silent (PLAN.md §6.5).
+  EVENT_TYPE_PROVIDER_SWITCHED = 3;
+  // An account session was linked.
+  EVENT_TYPE_ACCOUNT_SESSION_LINKED = 4;
+  // An account session expired (PLAN.md §7.5); also emitted for every session
+  // bound to a replaced device (PLAN.md §3.5).
+  EVENT_TYPE_ACCOUNT_SESSION_EXPIRED = 5;
+  // An account session was revoked.
+  EVENT_TYPE_ACCOUNT_SESSION_REVOKED = 6;
+  // A title left or joined a provider account (PLAN.md §5.4).
+  EVENT_TYPE_AVAILABILITY_CHANGED = 7;
+}
+
+// EventAudience fixes how the event is tenancy-routed (PLAN.md §9.2).
+enum EventAudience {
+  EVENT_AUDIENCE_UNSPECIFIED = 0;
+  // Routed to a single user (a job's audience is its memberUserId).
+  EVENT_AUDIENCE_USER = 1;
+  // Routed to an account owner only (account life-cycle events).
+  EVENT_AUDIENCE_OWNER = 2;
+  // Account-scoped: every member and guest whose library derives from the
+  // account (availability events).
+  EVENT_AUDIENCE_ACCOUNT = 3;
+}
+
+// JobStatusEvent reports a job state transition (PLAN.md §9.1). Job-status
+// queries remain the system of record; the event is the notification.
+message JobStatusEvent {
+  // The job whose status changed.
+  string job_id = 1;
+  // The new status.
+  JobStatus status = 2;
+}
+
+// MergeConflictEvent reports that two provider items could not be merged and
+// the entries stay apart (PLAN.md §2.3, §5.3).
+message MergeConflictEvent {
+  // The provider slot involved.
+  string provider = 1;
+  // The provider item id.
+  string provider_id = 2;
+  // The LibraryEntry id the item would have merged into.
+  string entry_id = 3;
+  // Why the merge could not be corroborated.
+  string reason = 4;
+}
+
+// ProviderSwitchedEvent reports a static-play failover to another provider
+// carrying the title; the switch is never silent (PLAN.md §6.5).
+message ProviderSwitchedEvent {
+  // The provider the session came from.
+  string from_provider = 1;
+  // The provider the session switched to.
+  string to_provider = 2;
+  // Why the switch happened.
+  string reason = 3;
+  // The playback position the session resumes at (seek to the nearest keyframe
+  // at or before it).
+  google.protobuf.Duration resume_point = 4;
+  // The delivery job that switched.
+  string job_id = 5;
+}
+
+// AccountSessionEvent reports an account-session lifecycle change: linked,
+// expired, or revoked (PLAN.md §7.5, §9.2).
+message AccountSessionEvent {
+  // The account the session belongs to.
+  string account_id = 1;
+  // The provider slot.
+  string provider = 2;
+}
+
+// AvailabilityEvent reports that a title left or joined a provider account,
+// invalidating every affected derived cache (PLAN.md §5.4, §9.2).
+message AvailabilityEvent {
+  // The account whose availability changed.
+  string account_id = 1;
+  // The provider slot.
+  string provider = 2;
+  // The LibraryEntry id affected.
+  string entry_id = 3;
+  // Whether the title is now present (true) or left (false).
+  bool present = 4;
+}
+
+// EventEnvelope wraps every notification (PLAN.md §9.2).
+message EventEnvelope {
+  // The event's id.
+  string id = 1;
+  // The event type. Required.
+  EventType type = 2;
+  // How the event is tenancy-routed. Required.
+  EventAudience audience = 3;
+  // The user the event is routed to; required when audience is USER or OWNER.
+  string user_id = 4;
+  // The account the event is scoped to; required when audience is ACCOUNT.
+  string account_id = 5;
+  // Scope filters a connection subscribes with; a subscriber only sees events
+  // for entities it is authenticated to see (PLAN.md §9.2).
+  repeated string scopes = 6;
+  // Exactly one payload, matching the event type.
+  oneof payload {
+    JobStatusEvent job_status = 7;
+    MergeConflictEvent merge_conflict = 8;
+    ProviderSwitchedEvent provider_switched = 9;
+    AccountSessionEvent account_session = 10;
+    AvailabilityEvent availability = 11;
+  }
+  // When the event was emitted.
+  google.protobuf.Timestamp emitted_at = 12;
+}

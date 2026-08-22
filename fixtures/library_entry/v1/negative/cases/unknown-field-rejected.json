@@ -1,0 +1,11 @@
+{
+  "name": "unknown-field-rejected",
+  "message": {
+    "id": "le_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "kind": "ENTRY_KIND_MOVIE",
+    "some_future_field": "not part of v1"
+  },
+  "expected": {
+    "valid": false
+  }
+}

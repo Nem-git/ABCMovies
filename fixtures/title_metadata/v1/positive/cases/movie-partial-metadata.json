@@ -1,0 +1,15 @@
+{
+  "name": "movie-partial-metadata",
+  "message": {
+    "title": "Inception",
+    "year": 2010,
+    "posterUrl": "https://art.example.org/tt1375666/poster.jpg",
+    "rating": 8.8,
+    "movie": {
+      "runtimeMinutes": 148
+    }
+  },
+  "expected": {
+    "valid": true
+  }
+}

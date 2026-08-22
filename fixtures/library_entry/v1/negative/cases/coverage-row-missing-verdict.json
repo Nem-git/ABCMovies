@@ -1,0 +1,16 @@
+{
+  "name": "coverage-row-missing-verdict",
+  "message": {
+    "id": "le_44444444444444444444444444444444",
+    "kind": "ENTRY_KIND_MOVIE",
+    "coverage": {
+      "providerA:123": {
+        "present": true,
+        "via": "account:providerA:host"
+      }
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}

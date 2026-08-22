@@ -1,0 +1,38 @@
+{
+  "name": "carried-in-and-locations",
+  "message": {
+    "type": "MEDIA_SOURCE_TYPE_STATIC",
+    "seekable": "SEEKABLE_FULL",
+    "addressable": "ADDRESSABLE_WHOLE_MUX",
+    "tracks": [
+      {
+        "id": "mux",
+        "video": {
+          "codec": "hevc",
+          "bitrate": 6000000,
+          "width": 1920,
+          "height": 1080,
+          "frame_rate": 24.0,
+          "range": "VIDEO_RANGE_HDR10_PLUS"
+        },
+        "delivery": {
+          "locations": ["https://cdn.example/mux.mkv"]
+        }
+      },
+      {
+        "id": "sub-en",
+        "subtitle": {
+          "format": "srt",
+          "language": "en"
+        },
+        "delivery": {
+          "carried_in": "mux",
+          "locations": ["https://cdn.example/en-sidecar.srt"]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "valid": true
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "get-job-empty-id",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": { "jobId": "" },
+  "type": "GetJobRequest"
+}

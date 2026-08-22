@@ -1,0 +1,169 @@
+syntax = "proto3";
+
+package abcmovies.core.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// The LibraryEntry contract (docs/PLAN.md §2.3, §5.3): the merged, canonical
+// entry for a movie or series. One entry aggregates what the user's reachable
+// providers carry (coverage), the external identities that fix what it is, and
+// a reference to structured content metadata (TitleMetadata). This message is
+// load-bearing (PLAN.md §2.3); its schema is frozen once approved.
+
+// EntryKind fixes whether the entry is a movie or a series. Seasons and
+// episodes are never library entries; they stay provider-native sub-items
+// (PLAN.md §2.3).
+enum EntryKind {
+  ENTRY_KIND_UNSPECIFIED = 0;
+  // A single feature-length or short film.
+  ENTRY_KIND_MOVIE = 1;
+  // A series; its seasons and episodes are never merged or cross-corresponded.
+  ENTRY_KIND_SERIES = 2;
+}
+
+// CoverageVerdict is the identity confidence carried by one coverage row:
+// corroborated rows have identity proof, presence-only rows are display-only.
+// The coverage map as a whole is display-only and can never drive identity
+// (PLAN.md §5.3).
+enum CoverageVerdict {
+  COVERAGE_VERDICT_UNSPECIFIED = 0;
+  // Identity proof exists for this row (e.g. a matching provider-supplied
+  // external ID, PLAN.md §5.3).
+  COVERAGE_VERDICT_CORROBORATED = 1;
+  // Only a same-named item was observed; shown but never trusted.
+  COVERAGE_VERDICT_PRESENCE_ONLY = 2;
+}
+
+// IdentityVerdict is the confidence attached to one external-identity claim.
+// Matching on any namespace agreement is evidence; corroboration across
+// namespaces strengthens the verdict (PLAN.md §2.3, §5.3).
+enum IdentityVerdict {
+  IDENTITY_VERDICT_UNSPECIFIED = 0;
+  // The claim is corroborated across namespaces or by a provider-supplied ID.
+  IDENTITY_VERDICT_CORROBORATED = 1;
+  // The claim comes from a single source and has not been corroborated.
+  IDENTITY_VERDICT_SINGLE_SOURCE = 2;
+}
+
+// SeasonRange is an inclusive range of season numbers, e.g. seasons 1 through
+// 3 and season 5 as [1,3] and [5,5]. Series only (PLAN.md §5.3).
+message SeasonRange {
+  // First season of the range (inclusive).
+  uint32 start = 1;
+  // Last season of the range (inclusive).
+  uint32 end = 2;
+}
+
+// CoverageRow records one provider's claim about the title: whether the
+// provider carries it, (series only) which seasons, and with what identity
+// confidence and provenance. Rows are per provider slot, keyed by a
+// `provider:nativeId`-style scoped key (PLAN.md §5.3).
+message CoverageRow {
+  // Whether the provider carries the title right now, from the last
+  // sync/usage (PLAN.md §5.4).
+  bool present = 1;
+  // Series only: which seasons the provider has, as inclusive, non-contiguous
+  // ranges. Display information, never merged or asserted (PLAN.md §5.3).
+  repeated SeasonRange seasons = 2;
+  // Identity confidence for this row. Required on every row.
+  CoverageVerdict verdict = 3;
+  // Provenance: which reachable account observed it, `account:provider:host`.
+  // Required on present rows (PLAN.md §5.3).
+  string via = 4;
+  // When the row was last verified.
+  google.protobuf.Timestamp last_verified = 5;
+}
+
+// ExternalIdentity is one namespace claim about the title's canonical
+// identity. Multiple namespaces coexist on one entry, each with provenance
+// (which catalogue slot supplied it) and a verdict (PLAN.md §2.3, §5.3).
+message ExternalIdentity {
+  // The identity namespace, e.g. an external catalogue's ID scheme.
+  string namespace = 1;
+  // The identity value within the namespace.
+  string value = 2;
+  // Provenance: which catalogue slot supplied this claim.
+  string provenance = 3;
+  // Confidence in the claim. Required.
+  IdentityVerdict verdict = 4;
+}
+
+// EnrichmentSource records which slot contributed a metadata field. Keyed by
+// field path on the TitleMetadata message (e.g. "base.poster_url",
+// "movie.runtime_minutes") (PLAN.md §5.2).
+message EnrichmentSource {
+  // The slot that supplied this field (e.g. "catalogue:tmdb",
+  // "provider:jellyfin").
+  string slot = 1;
+  // When the field was last fetched from the source.
+  google.protobuf.Timestamp fetched_at = 2;
+}
+
+// TitleMetadata is the structured content metadata for a title. One record per
+// title, stored in the metadata cache (PLAN.md §2.4). Contributed by catalogue
+// slots (preferred, globally authoritative) and provider adapters (fallback,
+// per-account) with field-level merging and provenance (PLAN.md §5.2).
+message TitleMetadata {
+  // Universal fields — populated for both movies and series.
+  string title = 1;
+  uint32 year = 2;
+  string description = 3;
+  string poster_url = 4;
+  // Numeric score on a 0–10 scale, e.g. 8.7.
+  float rating = 5;
+  // Audience/content rating, e.g. "PG-13", "TV-MA".
+  string content_rating = 6;
+  repeated string genres = 7;
+  string original_language = 8;
+  repeated string cast = 9;
+  repeated string directors = 10;
+
+  // Kind-specific extensions — exactly one populated, matching the
+  // LibraryEntry's kind.
+  oneof kind_specific {
+    MovieSpecific movie = 11;
+    SeriesSpecific series = 12;
+  }
+
+  // Per-field provenance: key = field path (e.g. "base.poster_url",
+  // "movie.runtime_minutes"), value = source. Absent fields are unpopulated.
+  map<string, EnrichmentSource> source = 13;
+
+  // Catalogue-specific or provider-specific fields not covered by the typed
+  // schema. Keyed by source-defined field name; values are opaque strings.
+  map<string, string> extra = 14;
+}
+
+// Movie-specific metadata. Populated when LibraryEntry.kind == MOVIE.
+message MovieSpecific {
+  // Runtime in minutes.
+  uint32 runtime_minutes = 1;
+}
+
+// Series-specific metadata. Populated when LibraryEntry.kind == SERIES.
+message SeriesSpecific {
+  // Total number of seasons known to the source.
+  uint32 total_seasons = 1;
+  // Total number of episodes known to the source.
+  uint32 total_episodes = 2;
+}
+
+// LibraryEntry is the merged, canonical entry for a movie or series
+// (PLAN.md §2.3).
+message LibraryEntry {
+  // Immutable entry ID: `le_` + a 128-bit random value (TECHNICAL-DECISIONS
+  // §1.17). Opaque, immutable, never derived from content.
+  string id = 1;
+  // movie or series. Required.
+  EntryKind kind = 2;
+  // Which providers carry the title, keyed by `provider:nativeId`-style scoped
+  // key. Display-only: asserts presence, never identity (PLAN.md §5.3).
+  map<string, CoverageRow> coverage = 3;
+  // External identity claims, each with provenance and verdict.
+  repeated ExternalIdentity external_identities = 4;
+  // Metadata cache lookup key: the canonical external ID for this title
+  // (e.g. "tmdb:tt0111161"). Resolves through the metadata cache's
+  // external-ID-to-record lookup map (PLAN.md §2.4, §5.2). Empty when no
+  // external ID exists and no structured metadata is available.
+  string metadata_ref = 5;
+}

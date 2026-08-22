@@ -1,0 +1,22 @@
+{
+  "name": "running-delivery-job",
+  "message": {
+    "id": "job_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d",
+    "kind": "JOB_KIND_DELIVERY",
+    "status": "JOB_STATUS_RUNNING",
+    "owner_user_id": "usr_456",
+    "delivery": {
+      "provider": "providerA",
+      "account_id": "acct_123",
+      "member_user_id": "usr_456",
+      "sink": "device:living-room"
+    },
+    "progress": {
+      "percent": 42,
+      "message": "resolving manifest"
+    }
+  },
+  "expected": {
+    "valid": true
+  }
+}

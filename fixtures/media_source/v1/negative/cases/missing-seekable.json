@@ -1,0 +1,26 @@
+{
+  "name": "missing-seekable",
+  "message": {
+    "type": "MEDIA_SOURCE_TYPE_STATIC",
+    "addressable": "ADDRESSABLE_PER_TRACK",
+    "tracks": [
+      {
+        "id": "v",
+        "video": {
+          "codec": "h264",
+          "bitrate": 1000000,
+          "width": 1280,
+          "height": 720,
+          "frame_rate": 24.0,
+          "range": "VIDEO_RANGE_SDR"
+        },
+        "delivery": {
+          "locations": ["https://cdn.example/v.m3u8"]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "valid": false
+  }
+}

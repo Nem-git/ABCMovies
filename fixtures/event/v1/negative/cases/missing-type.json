@@ -1,0 +1,15 @@
+{
+  "name": "missing-type",
+  "message": {
+    "id": "evt_11111111111111111111111111111111",
+    "audience": "EVENT_AUDIENCE_USER",
+    "user_id": "usr_456",
+    "job_status": {
+      "job_id": "job_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d",
+      "status": "JOB_STATUS_RUNNING"
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}

@@ -1,0 +1,189 @@
+syntax = "proto3";
+
+package abcmovies.core.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+// The MediaSource contract (docs/PLAN.md §6.2): the manifest. One object that
+// answers "what is a playable thing?" for one provider's version of a title.
+// It is self-sufficient — anyone downstream can act on it without asking the
+// provider again — and it is the unit of internal consistency: everything in
+// one manifest comes from one master, so its tracks always play in sync. It
+// carries content and how to fetch it, never account identity (PLAN.md §2.3).
+// This message is load-bearing (PLAN.md §2.3); its schema is frozen once
+// approved.
+
+// MediaSourceType distinguishes finite content from an endless live stream.
+enum MediaSourceType {
+  MEDIA_SOURCE_TYPE_UNSPECIFIED = 0;
+  // Finite content.
+  MEDIA_SOURCE_TYPE_STATIC = 1;
+  // An endless live stream.
+  MEDIA_SOURCE_TYPE_LIVE = 2;
+}
+
+// Seekable is the declared per-source seek capability, reported by the adapter
+// — a capability, not a truth about the title (PLAN.md §6.2). Providers differ
+// on the same title; live may be seekable only within a DVR window.
+enum Seekable {
+  SEEKABLE_UNSPECIFIED = 0;
+  // No seeking.
+  SEEKABLE_NONE = 1;
+  // The whole content is seekable.
+  SEEKABLE_FULL = 2;
+  // Seekable only within a DVR window; the span lives in MediaSource.dvr_window.
+  SEEKABLE_DVR_WINDOW = 3;
+}
+
+// Addressable is the container-level fetch unit (PLAN.md §6.2).
+enum Addressable {
+  ADDRESSABLE_UNSPECIFIED = 0;
+  // Each track has its own locations; no carried_in references.
+  ADDRESSABLE_PER_TRACK = 1;
+  // The whole muxed container is the fetch unit; tracks carry full descriptors
+  // plus carried_in references instead of per-track locations.
+  ADDRESSABLE_WHOLE_MUX = 2;
+}
+
+// VideoRange is the HDR range of a video track.
+enum VideoRange {
+  VIDEO_RANGE_UNSPECIFIED = 0;
+  VIDEO_RANGE_SDR = 1;
+  VIDEO_RANGE_HDR10 = 2;
+  VIDEO_RANGE_HDR10_PLUS = 3;
+  VIDEO_RANGE_DOLBY_VISION = 4;
+}
+
+// AudioRole is the role of an audio track: main, descriptive, or commentary
+// (PLAN.md §6.2). Unset means the default main.
+enum AudioRole {
+  AUDIO_ROLE_UNSPECIFIED = 0;
+  AUDIO_ROLE_MAIN = 1;
+  AUDIO_ROLE_DESCRIPTIVE = 2;
+  AUDIO_ROLE_COMMENTARY = 3;
+}
+
+// SubtitleRole is drawn from the standard subtitle-role vocabulary (PLAN.md
+// §6.2): subtitle, sdh, signs-songs, easyreader, commentary. `main` is a valid
+// role for audio, never for subtitles. Unset means the default subtitle.
+enum SubtitleRole {
+  SUBTITLE_ROLE_UNSPECIFIED = 0;
+  SUBTITLE_ROLE_SUBTITLE = 1;
+  SUBTITLE_ROLE_SDH = 2;
+  SUBTITLE_ROLE_SIGNS_SONGS = 3;
+  SUBTITLE_ROLE_EASYREADER = 4;
+  SUBTITLE_ROLE_COMMENTARY = 5;
+}
+
+// TrackDrm describes how to license an encrypted track (PLAN.md §6.2, §6.6).
+// Optional and absent for most tracks; carried but never populated by a v1
+// adapter (SCOPE.md §1).
+message TrackDrm {
+  // The DRM system identifier.
+  string system = 1;
+  // The license endpoint URL.
+  string license_url = 2;
+  // Initialization data needed to start license negotiation.
+  bytes init_data = 3;
+  // Engine-side only: how to authenticate the license call. Never forwarded to
+  // sinks or frontends, never logged (PLAN.md §6.2).
+  string auth_context = 4;
+}
+
+// TrackDelivery describes how to fetch one track's bytes (PLAN.md §6.2).
+// Per-track delivery is non-exclusive: a track may have locations, carried_in,
+// or both. Burned-in subtitle tracks carry no delivery at all.
+message TrackDelivery {
+  // One or more URLs/endpoints that can serve the track's bytes (fallbacks and
+  // quality variants). Present for PER_TRACK and side-car tracks.
+  repeated string locations = 1;
+  // For WHOLE_MUX manifests: the id of the container track that carries this
+  // track. When the track also has locations, either may be used; when present
+  // alone, the container is fetched and demuxed if the sink needs it split.
+  string carried_in = 2;
+  // Engine-side only: cookies, headers, tokens to attach to the URLs. Never
+  // forwarded to sinks or frontends, never logged (PLAN.md §6.2).
+  string auth_context = 3;
+  // DRM system + license URL, when the track is encrypted. Absent for most
+  // tracks.
+  TrackDrm drm = 4;
+  // When the URLs stop being valid (stream URLs expire in minutes-to-hours).
+  google.protobuf.Timestamp expiry = 5;
+  // Engine-side only: the provider operation that yields a fresh source when
+  // expiry hits. Frontends get a session-level refresh verb, never the raw
+  // provider method (PLAN.md §6.2).
+  string refresh_path = 6;
+}
+
+// VideoTrack carries a video track's media properties (PLAN.md §6.2).
+message VideoTrack {
+  string codec = 1;
+  // Bits per second.
+  uint32 bitrate = 2;
+  // Frame width in pixels.
+  uint32 width = 3;
+  // Frame height in pixels.
+  uint32 height = 4;
+  // Frames per second.
+  float frame_rate = 5;
+  VideoRange range = 6;
+}
+
+// AudioTrack carries an audio track's media properties (PLAN.md §6.2).
+message AudioTrack {
+  string codec = 1;
+  // Bits per second.
+  uint32 bitrate = 2;
+  // Language tag, e.g. "en".
+  string language = 3;
+  // Channel layout, e.g. "5.1".
+  string channel_layout = 4;
+  // main, descriptive, or commentary. Unset means main.
+  AudioRole role = 5;
+}
+
+// SubtitleTrack carries a subtitle track's media properties (PLAN.md §6.2).
+// Burned-in subtitles are degenerate subtitle tracks: they carry language,
+// role, and forced only, and no delivery fields — metadata describing what is
+// already baked into the video.
+message SubtitleTrack {
+  // Subtitle format, e.g. "webvtt". Empty for burned-in subtitles.
+  string format = 1;
+  // Language tag, e.g. "en".
+  string language = 2;
+  // Standard role. Unset means subtitle. `main` is never a subtitle role.
+  SubtitleRole role = 3;
+  // Forced subtitles; only meaningful with the subtitle role.
+  bool forced = 4;
+}
+
+// Track is one playable stream within the manifest (PLAN.md §6.2). Tracks are
+// scoped to their manifest; selection never spans manifests.
+message Track {
+  // Stable within the manifest; referenced by carried_in and by resume
+  // markers (PLAN.md §6.5).
+  string id = 1;
+  // Exactly one media type.
+  oneof media {
+    VideoTrack video = 2;
+    AudioTrack audio = 3;
+    SubtitleTrack subtitle = 4;
+  }
+  // How to fetch the track's bytes. Absent only for burned-in subtitle tracks.
+  TrackDelivery delivery = 5;
+}
+
+// MediaSource is the manifest (PLAN.md §6.2).
+message MediaSource {
+  // static or live. Required.
+  MediaSourceType type = 1;
+  // Declared per-source seek capability. Required.
+  Seekable seekable = 2;
+  // The DVR window span; required when seekable is DVR_WINDOW.
+  google.protobuf.Duration dvr_window = 3;
+  // Container-level fetch unit. Required.
+  Addressable addressable = 4;
+  // The track set; a manifest holds at least one track.
+  repeated Track tracks = 5;
+}

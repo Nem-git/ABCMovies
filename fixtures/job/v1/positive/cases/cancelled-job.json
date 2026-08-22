@@ -1,0 +1,17 @@
+{
+  "name": "cancelled-job",
+  "message": {
+    "id": "job_8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a",
+    "kind": "JOB_KIND_DELIVERY",
+    "status": "JOB_STATUS_CANCELLED",
+    "owner_user_id": "usr_456",
+    "delivery": {
+      "provider": "providerA",
+      "account_id": "acct_123",
+      "member_user_id": "usr_456"
+    }
+  },
+  "expected": {
+    "valid": true
+  }
+}

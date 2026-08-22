@@ -1,0 +1,17 @@
+{
+  "name": "external-identity-missing-verdict",
+  "message": {
+    "id": "le_88888888888888888888888888888888",
+    "kind": "ENTRY_KIND_MOVIE",
+    "external_identities": [
+      {
+        "namespace": "tmdb",
+        "value": "tt0111161",
+        "provenance": "catalogue:tmdb"
+      }
+    ]
+  },
+  "expected": {
+    "valid": false
+  }
+}

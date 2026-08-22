@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+package abcmovies.api.v1;
+
+import "abcmovies/core/v1/event.proto";
+import "abcmovies/core/v1/job.proto";
+
+// The inbound API service surface (docs/TECHNICAL-DECISIONS §1.3, PLAN.md §8).
+// Clients reach in; the core never reaches out. Two communication styles:
+// synchronous request-reply and server-streaming events.
+
+service CoreService {
+  // Synchronous: get a job's current state (PLAN.md §9.1).
+  rpc GetJob(GetJobRequest) returns (GetJobResponse);
+
+  // Events: server-streaming subscription (PLAN.md §9.2).
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
+
+  // Auth: create a new user account (PLAN.md §7.6).
+  rpc SignUp(SignUpRequest) returns (SignUpResponse);
+
+  // Auth: authenticate and receive a session token (PLAN.md §7.6).
+  rpc Login(LoginRequest) returns (LoginResponse);
+}
+
+message GetJobRequest {
+  // The job id to look up. Required.
+  string job_id = 1;
+}
+
+message GetJobResponse {
+  // The job, or absent when not found.
+  abcmovies.core.v1.Job job = 1;
+}
+
+message SubscribeRequest {
+  // Scope filters for this connection; a subscriber only sees events for
+  // entities it is authenticated to see (PLAN.md §9.2).
+  repeated string scopes = 1;
+}
+
+message SubscribeResponse {
+  // A single event delivered to the subscriber.
+  abcmovies.core.v1.EventEnvelope event = 1;
+}
+
+// --- Auth messages (PLAN.md §7.6) ---
+
+message SignUpRequest {
+  // The desired username. Required; must be unique per instance.
+  string username = 1;
+
+  // The authentication method and its parameters.
+  oneof auth_method {
+    PasswordSignUp password = 2;
+  }
+}
+
+// Password-based sign-up. The server derives the password-KEK from the
+// password using Argon2id (TECHNICAL-DECISIONS §1.11).
+message PasswordSignUp {
+  // The user's password. Required.
+  bytes password = 1;
+}
+
+message SignUpResponse {
+  // The newly created user ID.
+  string user_id = 1;
+
+  // A one-time recovery key (128-bit base32, 26 chars). Shown once;
+  // the server never stores it (PLAN.md §7.6).
+  string recovery_key = 2;
+}
+
+message LoginRequest {
+  // The username. Required.
+  string username = 1;
+
+  // The authentication method and its parameters.
+  oneof auth_method {
+    PasswordLogin password = 2;
+  }
+}
+
+// Password-based login. The server re-derives the password-KEK from the
+// password using the stored salt, then verifies and mints a session token.
+message PasswordLogin {
+  // The user's password. Required.
+  bytes password = 1;
+}
+
+message LoginResponse {
+  // An opaque bearer token for API authentication (TECHNICAL-DECISIONS §1.12).
+  string token = 1;
+}

@@ -1,0 +1,13 @@
+{
+  "name": "failed-job",
+  "message": {
+    "id": "job_7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f",
+    "kind": "JOB_KIND_REFRESH",
+    "status": "JOB_STATUS_FAILED",
+    "owner_user_id": "usr_123",
+    "error": "providerA rejected credentials"
+  },
+  "expected": {
+    "valid": true
+  }
+}

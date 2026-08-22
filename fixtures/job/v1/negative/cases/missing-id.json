@@ -1,0 +1,10 @@
+{
+  "name": "missing-id",
+  "message": {
+    "kind": "JOB_KIND_REFRESH",
+    "status": "JOB_STATUS_QUEUED"
+  },
+  "expected": {
+    "valid": false
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "provider-switched-event",
+  "message": {
+    "id": "evt_3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f",
+    "type": "EVENT_TYPE_PROVIDER_SWITCHED",
+    "audience": "EVENT_AUDIENCE_USER",
+    "user_id": "usr_456",
+    "scopes": ["job:job_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d"],
+    "provider_switched": {
+      "from_provider": "providerA",
+      "to_provider": "providerB",
+      "reason": "playback error",
+      "resume_point": "534.5s",
+      "job_id": "job_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d"
+    }
+  },
+  "expected": {
+    "valid": true
+  }
+}

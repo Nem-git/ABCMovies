@@ -1,0 +1,19 @@
+{
+  "name": "merge-conflict-event",
+  "message": {
+    "id": "evt_2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e",
+    "type": "EVENT_TYPE_MERGE_CONFLICT",
+    "audience": "EVENT_AUDIENCE_ACCOUNT",
+    "account_id": "acct_123",
+    "scopes": ["library:le_93fa6c2e1d7b4f8a9e0c5d6b7a8f9e01"],
+    "merge_conflict": {
+      "provider": "providerA",
+      "provider_id": "providerA:123",
+      "entry_id": "le_93fa6c2e1d7b4f8a9e0c5d6b7a8f9e01",
+      "reason": "no corroborating identity"
+    }
+  },
+  "expected": {
+    "valid": true
+  }
+}

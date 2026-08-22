@@ -1,0 +1,20 @@
+{
+  "name": "done-delivery-job",
+  "message": {
+    "id": "job_5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d",
+    "kind": "JOB_KIND_DELIVERY",
+    "status": "JOB_STATUS_DONE",
+    "owner_user_id": "usr_456",
+    "delivery": {
+      "provider": "providerA",
+      "account_id": "acct_123",
+      "member_user_id": "usr_456"
+    },
+    "progress": {
+      "percent": 100
+    }
+  },
+  "expected": {
+    "valid": true
+  }
+}

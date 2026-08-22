@@ -1,0 +1,16 @@
+{
+  "name": "wrong-payload-for-type",
+  "message": {
+    "id": "evt_88888888888888888888888888888888",
+    "type": "EVENT_TYPE_AVAILABILITY_CHANGED",
+    "audience": "EVENT_AUDIENCE_ACCOUNT",
+    "account_id": "acct_123",
+    "job_status": {
+      "job_id": "job_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d",
+      "status": "JOB_STATUS_RUNNING"
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}

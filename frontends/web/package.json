@@ -1,0 +1,13 @@
+{
+  "name": "abcmovies-web",
+  "private": true,
+  "description": "ABCMovies reference web frontend",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --format=esm --target=es2020 --outfile=dist/bundle.js"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.14.0",
+    "@connectrpc/connect-web": "^2.1.2"
+  }
+}

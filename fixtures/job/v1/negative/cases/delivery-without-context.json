@@ -1,0 +1,11 @@
+{
+  "name": "delivery-without-context",
+  "message": {
+    "id": "job_33333333333333333333333333333333",
+    "kind": "JOB_KIND_DELIVERY",
+    "status": "JOB_STATUS_RUNNING"
+  },
+  "expected": {
+    "valid": false
+  }
+}

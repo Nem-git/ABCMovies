@@ -1,0 +1,12 @@
+{
+  "name": "awaiting-action-without-action",
+  "message": {
+    "id": "job_44444444444444444444444444444444",
+    "kind": "JOB_KIND_RE_AUTH",
+    "status": "JOB_STATUS_AWAITING_ACTION",
+    "owner_user_id": "usr_456"
+  },
+  "expected": {
+    "valid": false
+  }
+}

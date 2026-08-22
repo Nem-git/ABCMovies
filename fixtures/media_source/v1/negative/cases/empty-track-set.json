@@ -1,0 +1,12 @@
+{
+  "name": "empty-track-set",
+  "message": {
+    "type": "MEDIA_SOURCE_TYPE_STATIC",
+    "seekable": "SEEKABLE_FULL",
+    "addressable": "ADDRESSABLE_PER_TRACK",
+    "tracks": []
+  },
+  "expected": {
+    "valid": false
+  }
+}

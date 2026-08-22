@@ -1,0 +1,13 @@
+{
+  "name": "queued-refresh-job",
+  "message": {
+    "id": "job_4f3a2b1c9d8e7f6a5b4c3d2e1f0a9b8c",
+    "kind": "JOB_KIND_REFRESH",
+    "status": "JOB_STATUS_QUEUED",
+    "owner_user_id": "usr_123",
+    "idempotency_key": "refresh-2026-08-16T00:00:00Z"
+  },
+  "expected": {
+    "valid": true
+  }
+}

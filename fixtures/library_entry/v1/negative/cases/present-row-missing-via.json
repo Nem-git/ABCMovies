@@ -1,0 +1,16 @@
+{
+  "name": "present-row-missing-via",
+  "message": {
+    "id": "le_55555555555555555555555555555555",
+    "kind": "ENTRY_KIND_MOVIE",
+    "coverage": {
+      "providerA:123": {
+        "present": true,
+        "verdict": "COVERAGE_VERDICT_CORROBORATED"
+      }
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}

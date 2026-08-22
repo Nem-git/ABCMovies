@@ -1,0 +1,12 @@
+{
+  "name": "unknown-field-rejected",
+  "message": {
+    "id": "job_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "kind": "JOB_KIND_REFRESH",
+    "status": "JOB_STATUS_QUEUED",
+    "some_future_field": "not part of v1"
+  },
+  "expected": {
+    "valid": false
+  }
+}

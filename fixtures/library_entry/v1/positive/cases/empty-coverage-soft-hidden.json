@@ -1,0 +1,18 @@
+{
+  "name": "empty-coverage-soft-hidden",
+  "message": {
+    "id": "le_1029384756abcdef1029384756abcdef",
+    "kind": "ENTRY_KIND_MOVIE",
+    "external_identities": [
+      {
+        "namespace": "imdb",
+        "value": "tt0111161",
+        "provenance": "catalogue:imdb",
+        "verdict": "IDENTITY_VERDICT_SINGLE_SOURCE"
+      }
+    ]
+  },
+  "expected": {
+    "valid": true
+  }
+}

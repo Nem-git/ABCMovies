@@ -1,0 +1,145 @@
+syntax = "proto3";
+
+package abcmovies.core.v1;
+
+// The Job contract (docs/PLAN.md §9.1): the representation of all long-running
+// work, with visible status. Job-status queries are the system of record; every
+// state transition is emitted as an event (§9.2). A delivery session is a kind
+// of job (PLAN.md §2.3). This message is load-bearing (PLAN.md §2.3); its
+// schema is frozen once approved.
+
+// JobKind distinguishes the kinds of long-running work.
+enum JobKind {
+  JOB_KIND_UNSPECIFIED = 0;
+  // A delivery session: one play or download (PLAN.md §2.3, §6).
+  JOB_KIND_DELIVERY = 1;
+  // A scheduled whole-catalogue sync (PLAN.md §5.4).
+  JOB_KIND_REFRESH = 2;
+  // Re-linking an expired provider session (PLAN.md §7.5).
+  JOB_KIND_RE_AUTH = 3;
+}
+
+// JobStatus is the visible status of a job (PLAN.md §9.1).
+enum JobStatus {
+  JOB_STATUS_UNSPECIFIED = 0;
+  // Queued, waiting for a slot.
+  JOB_STATUS_QUEUED = 1;
+  // Running.
+  JOB_STATUS_RUNNING = 2;
+  // Blocked on a human step (PLAN.md §9.1, §7.5); the job carries who must act.
+  JOB_STATUS_AWAITING_ACTION = 3;
+  // Finished successfully.
+  JOB_STATUS_DONE = 4;
+  // Failed; the job carries the error.
+  JOB_STATUS_FAILED = 5;
+  // Cancelled.
+  JOB_STATUS_CANCELLED = 6;
+}
+
+// ActionType is the closed common set of actions a generic frontend can render
+// (PLAN.md §9.1). Actions outside this set are open passthrough prompts
+// (AwaitingAction.passthrough).
+enum ActionType {
+  ACTION_TYPE_UNSPECIFIED = 0;
+  // Re-link an expired account session (PLAN.md §7.5).
+  ACTION_TYPE_RELINK = 1;
+  // Complete a captcha.
+  ACTION_TYPE_CAPTCHA = 2;
+  // Enter an email code.
+  ACTION_TYPE_EMAIL_CODE = 3;
+  // Pair the instance as a registered device (PLAN.md §3.5).
+  ACTION_TYPE_DEVICE_PAIRING = 4;
+}
+
+// JobProgress is the visible progress of a running job (PLAN.md §9.1).
+message JobProgress {
+  // Completion percentage, 0 through 100.
+  uint32 percent = 1;
+  // Human-readable status message.
+  string message = 2;
+}
+
+// Policy is a generic policy map — limit-type to value — so new limit kinds
+// need no schema change (PLAN.md §7.2). Values are strings (e.g. "3",
+// "unlimited").
+message Policy {
+  // Limit-type to value, e.g. concurrentStreams -> "3", bandwidth ->
+  // "unlimited" (TECHNICAL-DECISIONS §1.14).
+  map<string, string> limits = 1;
+}
+
+// DeliveryContext is the account context a delivery session carries, so the
+// engine can police, audit, and revoke (PLAN.md §2.3, §6.1).
+message DeliveryContext {
+  // The provider slot.
+  string provider = 1;
+  // The account whose session is used.
+  string account_id = 2;
+  // The user the delivery is attributed to (a guest is `guest:<deviceId>`).
+  string member_user_id = 3;
+  // The policy in effect for this delivery.
+  Policy policy = 4;
+  // The provider's declared upstream limit; the engine enforces
+  // min(policy, provider_cap) (PLAN.md §7.2).
+  Policy provider_cap = 5;
+  // The sink this delivery drives; one session drives exactly one sink
+  // (PLAN.md §6.4).
+  string sink = 6;
+  // Reference to the resolved manifest (PLAN.md §6.5 resume key).
+  string manifest_ref = 7;
+  // Source-native resume markers, keyed by track id (PLAN.md §6.5).
+  map<string, string> track_markers = 8;
+  // The selected download target (PLAN.md §6.3).
+  string selected_target = 9;
+  // The target container (PLAN.md §6.3).
+  string container = 10;
+}
+
+// PassthroughPrompt is an open passthrough action: an opaque structured prompt
+// the adapter defines and interprets, rendered by a generic frontend as a
+// fallback form rather than failing on an action it has never seen (PLAN.md
+// §9.1).
+message PassthroughPrompt {
+  // The adapter that owns this prompt.
+  string adapter = 1;
+  // The adapter-defined structured descriptor.
+  string descriptor = 2;
+}
+
+// AwaitingAction names the human step a job is blocked on, and who must act
+// (PLAN.md §9.1, §7.5).
+message AwaitingAction {
+  // A common action any generic frontend can render, or an open passthrough
+  // prompt.
+  oneof kind {
+    ActionType common = 1;
+    PassthroughPrompt passthrough = 2;
+  }
+  // The only user who may act (for a re-auth job, the account owner).
+  string actor_user_id = 3;
+}
+
+// Job is the system-of-record representation of long-running work (PLAN.md
+// §9.1).
+message Job {
+  // The job's id.
+  string id = 1;
+  // The kind of work. Required.
+  JobKind kind = 2;
+  // The visible status. Required.
+  JobStatus status = 3;
+  // Progress; present while running.
+  JobProgress progress = 4;
+  // The user the job is attributed to.
+  string owner_user_id = 5;
+  // Idempotency key: session start takes one; retries are safe; double-start
+  // is impossible (PLAN.md §9.1).
+  string idempotency_key = 6;
+  // The delivery context; required when kind is DELIVERY.
+  DeliveryContext delivery = 7;
+  // The human step this job is blocked on; required when status is
+  // AWAITING_ACTION.
+  AwaitingAction awaiting_action = 8;
+  // The failure reason; required when status is FAILED.
+  string error = 9;
+}

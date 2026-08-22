@@ -1,0 +1,8 @@
+{
+  "name": "get-job-valid-request",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": { "jobId": "job-1" },
+  "type": "GetJobRequest"
+}

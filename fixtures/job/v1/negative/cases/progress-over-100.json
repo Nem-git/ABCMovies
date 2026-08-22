@@ -1,0 +1,19 @@
+{
+  "name": "progress-over-100",
+  "message": {
+    "id": "job_99999999999999999999999999999999",
+    "kind": "JOB_KIND_DELIVERY",
+    "status": "JOB_STATUS_RUNNING",
+    "delivery": {
+      "provider": "providerA",
+      "account_id": "acct_123",
+      "member_user_id": "usr_456"
+    },
+    "progress": {
+      "percent": 101
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}

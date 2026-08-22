@@ -1,0 +1,10 @@
+{
+  "name": "missing-kind",
+  "message": {
+    "id": "job_11111111111111111111111111111111",
+    "status": "JOB_STATUS_QUEUED"
+  },
+  "expected": {
+    "valid": false
+  }
+}

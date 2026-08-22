@@ -1,0 +1,56 @@
+# ABCMovies instance configuration (example).
+# Copy to config/instance.yaml (gitignored) and adjust for your instance.
+# Only variable NAMES are documented here; values live in .env (see .env.example).
+# See docs/ENVIRONMENT.md §6 for the config and secrets conventions.
+
+core:
+  # Inbound API bind address (gRPC, docs/PLAN.md §8).
+  api:
+    bind: '127.0.0.1:8443'
+
+auth:
+  # Enabled authentication methods (used by CompositeAuthenticator).
+  # Each entry maps to a proto oneof field in SignUpRequest/LoginRequest.
+  methods:
+    - password
+  # Session token TTL (Go duration string). Default: 168h (7 days).
+  token-ttl: 168h
+  # Where unwrapped per-session data-encryption keys live.
+  #   memory (default): process memory only; nothing persists, but users
+  #     must log in again after a restart.
+  #   encrypted-store: persisted in the sessions store sealed with the
+  #     vault cipher (no plaintext key material reaches disk either way).
+  #     With an ephemeral vault key (vault-key: generated) sealed entries
+  #     are unreadable after a restart, i.e. memory-equivalent; pair with
+  #     a pinned hex vault key to survive restarts without re-login.
+  dek-cache: memory
+
+slots:
+  # The built-in in-process slot (docs/PLAN.md §4, §1.1).
+  builtin:
+    transport: in-process
+    enabled: true
+
+stores:
+  # One backend per store class (docs/PLAN.md §2.4). Dev defaults are
+  # lightweight; production uses the pinned backends (§1.16).
+  # Each class has a default file path to prevent collisions when multiple
+  # stores use "local-file" (e.g. data/caches.db, data/vault.db).
+  caches:
+    backend: in-memory
+  vault:
+    backend: local-file
+    # path: data/vault.db  # default
+    # vault-key: generated  # or 64 hex chars for a stable key
+  watch-history:
+    backend: in-memory
+    # path: data/watch-history.db  # default
+  jobs:
+    backend: in-memory
+    # path: data/jobs.db  # default
+  sessions:
+    backend: in-memory
+    # path: data/sessions.db  # default
+  users:
+    backend: in-memory
+    # path: data/users.db  # default

@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package abcmovies.core.v1;
+
+// The meta-contract (docs/PLAN.md §3.3): the contract of contracts.
+// Every slot answers CapabilityQuery first; nothing is assumed, everything is asked.
+
+message CapabilityQueryRequest {}
+
+message Capability {
+  string name = 1;
+  uint32 version = 2;
+}
+
+message CapabilityQueryResponse {
+  repeated Capability capabilities = 1;
+}
+
+service MetaService {
+  rpc CapabilityQuery(CapabilityQueryRequest) returns (CapabilityQueryResponse);
+}

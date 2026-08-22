@@ -1,0 +1,8 @@
+{
+  "name": "get-job-valid-response-null-job",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {},
+  "type": "GetJobResponse"
+}
