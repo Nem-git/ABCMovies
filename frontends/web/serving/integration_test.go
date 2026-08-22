@@ -31,7 +31,7 @@ func (b bearerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 
 // newWebStack boots the serving layer under httptest and returns a
 // gRPC-Web client for it.
-func newWebStack(t *testing.T) (*Server, apiv1connect.CoreServiceClient, string) {
+func newWebStack(t *testing.T) (*Server, apiv1connect.CoreServiceClient, *httptest.Server) {
 	t.Helper()
 
 	srv, err := New("", nil)
@@ -44,7 +44,7 @@ func newWebStack(t *testing.T) (*Server, apiv1connect.CoreServiceClient, string)
 	t.Cleanup(ts.Close)
 
 	client := apiv1connect.NewCoreServiceClient(ts.Client(), ts.URL, connect.WithGRPCWeb())
-	return srv, client, ts.URL
+	return srv, client, ts
 }
 
 func signUpAndLogin(t *testing.T, ctx context.Context, client apiv1connect.CoreServiceClient) string {
@@ -79,8 +79,9 @@ func authedClient(baseURL, token string) apiv1connect.CoreServiceClient {
 // does — over the gRPC-Web protocol: sign up, log in, receive a live
 // job-status event through Subscribe, and read the job back with GetJob.
 func TestWebClient_FullFlow(t *testing.T) {
-	srv, client, baseURL := newWebStack(t)
+	srv, client, ts := newWebStack(t)
 	ctx := t.Context()
+	baseURL := ts.URL
 
 	token := signUpAndLogin(t, ctx, client)
 	authed := authedClient(baseURL, token)
@@ -164,13 +165,150 @@ func TestWebClient_FullFlow(t *testing.T) {
 	}
 }
 
+// TestDebugJob_Unauthorized proves the debug endpoint enforces the same
+// authentication rule as the protected RPC methods: missing and unknown
+// bearer tokens are rejected.
+func TestDebugJob_Unauthorized(t *testing.T) {
+	_, _, ts := newWebStack(t)
+	ctx := t.Context()
+	baseURL := ts.URL
+
+	for _, tc := range []struct {
+		name   string
+		token  string
+		status int
+	}{
+		{"missing", "", http.StatusUnauthorized},
+		{"unknown", "definitely-not-a-valid-token", http.StatusUnauthorized},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/debug/job", nil)
+			if err != nil {
+				t.Fatalf("new request: %v", err)
+			}
+			if tc.token != "" {
+				req.Header.Set("Authorization", "Bearer "+tc.token)
+			}
+			res, err := ts.Client().Do(req)
+			if err != nil {
+				t.Fatalf("POST /debug/job: %v", err)
+			}
+			_ = res.Body.Close()
+			if res.StatusCode != tc.status {
+				t.Fatalf("POST /debug/job status = %d, want %d", res.StatusCode, tc.status)
+			}
+		})
+	}
+}
+
+// TestDebugJob_CreatesJobAndEvents drives the manual-testing path end to
+// end: a logged-in browser session subscribes, triggers the debug probe
+// endpoint, observes live job-status events over gRPC-Web, and reads the
+// final job state back through GetJob.
+func TestDebugJob_CreatesJobAndEvents(t *testing.T) {
+	_, client, ts := newWebStack(t)
+	ctx := t.Context()
+	baseURL := ts.URL
+
+	token := signUpAndLogin(t, ctx, client)
+	authed := authedClient(baseURL, token)
+
+	type received struct {
+		msg *apiv1.SubscribeResponse
+		err error
+	}
+	eventCh := make(chan received, 64)
+
+	// The connect client's Subscribe call does not return until the server
+	// sends its first bytes, and the ephemeral bus registers subscribers
+	// asynchronously — so the prober runs first, keeping probe events
+	// flowing until the subscription is live and delivers one.
+	stop := make(chan struct{})
+	proberDone := make(chan struct{})
+	go func() {
+		defer close(proberDone)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/debug/job", nil)
+			if err != nil {
+				t.Errorf("new request: %v", err)
+				return
+			}
+			req.Header.Set("Authorization", "Bearer "+token)
+			res, err := ts.Client().Do(req)
+			if err != nil {
+				t.Errorf("POST /debug/job: %v", err)
+				return
+			}
+			_ = res.Body.Close()
+			if res.StatusCode != http.StatusOK {
+				t.Errorf("POST /debug/job status = %d, want 200", res.StatusCode)
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	}()
+
+	stream, err := authed.Subscribe(ctx, connect.NewRequest(&apiv1.SubscribeRequest{}))
+	if err != nil {
+		close(stop)
+		t.Fatalf("Subscribe over gRPC-Web: %v", err)
+	}
+	go func() {
+		for stream.Receive() {
+			eventCh <- received{msg: stream.Msg()}
+		}
+		eventCh <- received{err: stream.Err()}
+	}()
+
+	var doneEvent *corev1.JobStatusEvent
+	deadline := time.After(5 * time.Second)
+
+loop:
+	for {
+		select {
+		case r := <-eventCh:
+			if r.err != nil {
+				close(stop)
+				t.Fatalf("stream Receive: %v", r.err)
+			}
+			js := r.msg.GetEvent().GetJobStatus()
+			if js == nil || !strings.HasPrefix(js.GetJobId(), "probe-") {
+				continue
+			}
+			if js.GetStatus() == corev1.JobStatus_JOB_STATUS_DONE {
+				doneEvent = js
+				break loop
+			}
+		case <-deadline:
+			t.Fatal("timed out waiting for probe job-status events over gRPC-Web")
+		}
+	}
+	close(stop)
+	<-proberDone
+
+	jobID := doneEvent.GetJobId()
+	getRes, err := authed.GetJob(ctx, connect.NewRequest(&apiv1.GetJobRequest{JobId: jobID}))
+	if err != nil {
+		t.Fatalf("GetJob over gRPC-Web: %v", err)
+	}
+	if got := getRes.Msg.GetJob(); got.GetId() != jobID || got.GetStatus() != corev1.JobStatus_JOB_STATUS_DONE {
+		t.Fatalf("GetJob = {id: %q, status: %v}, want {%q, DONE}", got.GetId(), got.GetStatus(), jobID)
+	}
+}
+
 // TestWebClient_AuthEnforced proves the connect termination enforces the
 // same authentication rules as the gRPC one: protected methods reject
 // missing, malformed, and unknown tokens; a valid token reaches business
 // logic.
 func TestWebClient_AuthEnforced(t *testing.T) {
-	_, client, baseURL := newWebStack(t)
+	_, client, ts := newWebStack(t)
 	ctx := t.Context()
+	baseURL := ts.URL
 
 	token := signUpAndLogin(t, ctx, client)
 
