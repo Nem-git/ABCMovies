@@ -26,6 +26,7 @@ proto:
 
 web-build:
 	cd frontends/web && $(NPM) run build
+	mkdir -p frontends/web/serving/dist
 	cp frontends/web/src/index.html frontends/web/serving/dist/index.html
 	cp frontends/web/dist/bundle.js frontends/web/serving/dist/bundle.js
 
