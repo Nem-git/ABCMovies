@@ -1,0 +1,14 @@
+{
+  "name": "provider-declares-meta-and-browse-v1",
+  "declaration": [
+    { "name": "meta", "version": 1 },
+    { "name": "browse", "version": 1 }
+  ],
+  "expected": {
+    "admitted": true,
+    "capabilities": [
+      { "name": "meta", "version": 1 },
+      { "name": "browse", "version": 1 }
+    ]
+  }
+}

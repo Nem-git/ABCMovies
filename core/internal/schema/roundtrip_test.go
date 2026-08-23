@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 )
 
 // The load-bearing contracts (PLAN.md §2.3), exercised identically here and in
@@ -23,6 +24,11 @@ var loadBearingContracts = []string{
 	"job",
 	"event",
 	"title_metadata",
+	// The provider slot's whole-catalogue sync contract — the messages the
+	// account source cache persists. Its suite keeps both sync directions in
+	// one directory, distinguished by each case's type field.
+	"provider_sync_request",
+	"provider_sync_response",
 }
 
 func newMessage(contract string) proto.Message {
@@ -37,6 +43,10 @@ func newMessage(contract string) proto.Message {
 		return &corev1.EventEnvelope{}
 	case "title_metadata":
 		return &corev1.TitleMetadata{}
+	case "provider_sync_request":
+		return &slotsv1.CatalogueSyncRequest{}
+	case "provider_sync_response":
+		return &slotsv1.CatalogueSyncResponse{}
 	}
 	panic("unknown contract " + contract)
 }
@@ -45,6 +55,7 @@ func newMessage(contract string) proto.Message {
 // need; the authoritative shape lives in fixtures/<contract>/v1/positive/.
 type fixtureCase struct {
 	Name    string          `json:"name"`
+	Type    string          `json:"type"`
 	Message json.RawMessage `json:"message"`
 }
 
@@ -56,13 +67,19 @@ type testB interface {
 
 func loadPositiveFixtures(t testB, contract string) []fixtureCase {
 	t.Helper()
-	root := filepath.Join("..", "..", "..", "fixtures", contract, "v1", "positive", "cases")
+	// Contracts sharing a fixture directory with sibling message types read
+	// only the cases whose type matches (see loadBearingContracts).
+	dir, wantType := contract, ""
+	switch contract {
+	case "provider_sync_request":
+		dir, wantType = "provider", "CatalogueSyncRequest"
+	case "provider_sync_response":
+		dir, wantType = "provider", "CatalogueSyncResponse"
+	}
+	root := filepath.Join("..", "..", "..", "fixtures", dir, "v1", "positive", "cases")
 	paths, err := filepath.Glob(filepath.Join(root, "*.json"))
 	if err != nil {
 		t.Fatalf("%s: glob positive cases: %v", contract, err)
-	}
-	if len(paths) == 0 {
-		t.Fatalf("%s: no positive fixture cases found under %s", contract, root)
 	}
 	cases := make([]fixtureCase, 0, len(paths))
 	for _, p := range paths {
@@ -74,7 +91,13 @@ func loadPositiveFixtures(t testB, contract string) []fixtureCase {
 		if err := json.Unmarshal(b, &c); err != nil {
 			t.Fatalf("%s: parse %s: %v", contract, p, err)
 		}
+		if wantType != "" && c.Type != wantType {
+			continue
+		}
 		cases = append(cases, c)
+	}
+	if len(cases) == 0 {
+		t.Fatalf("%s: no positive fixture cases found under %s", contract, root)
 	}
 	return cases
 }

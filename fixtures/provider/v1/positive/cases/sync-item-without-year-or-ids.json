@@ -1,0 +1,17 @@
+{
+  "name": "sync-item-without-year-or-ids",
+  "type": "CatalogueSyncResponse",
+  "message": {
+    "items": [
+      {
+        "native_id": "jellyfin-2b3c4d5e6f708192a3b4c5d6e7f8091a",
+        "kind": "ITEM_KIND_MOVIE",
+        "title": "Unidentified Feature"
+      }
+    ],
+    "next_page_token": ""
+  },
+  "expected": {
+    "valid": true
+  }
+}

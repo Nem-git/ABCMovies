@@ -1,0 +1,7 @@
+{
+  "contract": "provider",
+  "version": "v1",
+  "kind": "handshake",
+  "slot": "jellyfin",
+  "transport": "bufconn"
+}

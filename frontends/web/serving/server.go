@@ -34,6 +34,7 @@ func New(configPath string, logger *slog.Logger) (*Server, error) {
 	)
 	mux.Handle(path, handler)
 	mux.Handle("POST /debug/job", debugJobHandler{stack: stack})
+	mux.Handle("GET /debug/capabilities", debugCapabilitiesHandler{stack: stack})
 	mux.Handle("/", staticHandler())
 
 	return &Server{mux: mux, stack: stack}, nil

@@ -28,8 +28,32 @@ auth:
 slots:
   # The built-in in-process slot (docs/PLAN.md §4, §1.1).
   builtin:
-    transport: in-process
     enabled: true
+
+  # One open-ended instance list per slot kind (docs/PLAN.md §3.1). Adding an
+  # instance of an existing adapter is pure configuration; kinds whose
+  # milestones have not landed must stay empty lists (or be omitted).
+  providers: []
+  catalogue: []
+  sinks: []
+  subtitle-sources: []
+  drm: []
+
+  # Example of a provider entry — copy into `providers:` and enable.
+  #
+  # providers:
+  #   - adapter: jellyfin
+  #     id: primary
+  #     transport: in-process   # v1 ships in-process only
+  #     enabled: true
+  #     # Optional override; otherwise the cadence the adapter declares at
+  #     # handshake applies (see TECHNICAL-DECISIONS.md for precedence).
+  #     sync-cadence: 6h
+  #     accounts:
+  #       - id: primary
+  #         url: 'http://jellyfin.local:8096'
+  #         username: your-jellyfin-user
+  #         password-env: JELLYFIN_PASSWORD
 
 stores:
   # One backend per store class (docs/PLAN.md §2.4). Dev defaults are
@@ -54,3 +78,8 @@ stores:
   users:
     backend: in-memory
     # path: data/users.db  # default
+  # The account source cache (docs/PLAN.md §5.4) — what each linked account
+  # carries. Durable by default; rebuilding from the provider is the fallback.
+  source-cache:
+    backend: local-file
+    # path: data/source-cache.db  # default

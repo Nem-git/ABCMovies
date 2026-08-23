@@ -1,0 +1,11 @@
+{
+  "name": "sync-continuation-page-request",
+  "type": "CatalogueSyncRequest",
+  "message": {
+    "account_id": "acc_93fa6c2e1d7b4f8a9e0c5d6b7a8f9e01",
+    "page_token": "offset=50"
+  },
+  "expected": {
+    "valid": true
+  }
+}

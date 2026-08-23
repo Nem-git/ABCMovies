@@ -20,6 +20,13 @@ type Capability struct {
 	Version uint32
 }
 
+// SlotInfo is what a slot declared at handshake: its capabilities plus any
+// per-capability operating policy it declared alongside them.
+type SlotInfo struct {
+	Capabilities []Capability
+	Policy       map[string]string
+}
+
 // Registry defines the slot registry operations used by the composition root.
 type Registry interface {
 	Admit(name string, server corev1.MetaServiceServer) ([]Capability, error)
@@ -34,6 +41,7 @@ type InProcessRegistry struct {
 
 type slotEntry struct {
 	capabilities []Capability
+	policy       map[string]string
 	server       *grpc.Server
 	conn         *grpc.ClientConn
 	listener     *bufconn.Listener
@@ -88,7 +96,13 @@ func (r *InProcessRegistry) Admit(name string, server corev1.MetaServiceServer) 
 		caps = append(caps, Capability{Name: c.GetName(), Version: c.GetVersion()})
 	}
 
-	r.slots[name] = &slotEntry{capabilities: caps, server: srv, conn: conn, listener: lis}
+	r.slots[name] = &slotEntry{
+		capabilities: caps,
+		policy:       resp.GetPolicy(),
+		server:       srv,
+		conn:         conn,
+		listener:     lis,
+	}
 	return caps, nil
 }
 
@@ -99,6 +113,34 @@ func (r *InProcessRegistry) Capabilities(name string) ([]Capability, bool) {
 		return nil, false
 	}
 	return entry.capabilities, true
+}
+
+// Policy returns the operating policy a slot declared at handshake, e.g.
+// {"browse.sync-cadence": "6h"}. Absent keys were simply not declared; the
+// caller applies its own precedence around them. Unknown slot → nil, false.
+func (r *InProcessRegistry) Policy(name string) (map[string]string, bool) {
+	entry, ok := r.slots[name]
+	if !ok {
+		return nil, false
+	}
+	return entry.policy, true
+}
+
+// Snapshot returns every admitted slot with what it declared at handshake.
+// The order of slots is not specified; callers that display them sort
+// themselves. The returned maps are copies.
+func (r *InProcessRegistry) Snapshot() map[string]SlotInfo {
+	out := make(map[string]SlotInfo, len(r.slots))
+	for name, entry := range r.slots {
+		caps := make([]Capability, len(entry.capabilities))
+		copy(caps, entry.capabilities)
+		policy := make(map[string]string, len(entry.policy))
+		for k, v := range entry.policy {
+			policy[k] = v
+		}
+		out[name] = SlotInfo{Capabilities: caps, Policy: policy}
+	}
+	return out
 }
 
 // Close tears down every admitted slot's transport.

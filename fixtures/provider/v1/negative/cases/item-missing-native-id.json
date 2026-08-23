@@ -1,0 +1,15 @@
+{
+  "name": "item-missing-native-id",
+  "type": "CatalogueSyncResponse",
+  "message": {
+    "items": [
+      {
+        "kind": "ITEM_KIND_MOVIE",
+        "title": "No Native Key"
+      }
+    ]
+  },
+  "expected": {
+    "valid": false
+  }
+}
