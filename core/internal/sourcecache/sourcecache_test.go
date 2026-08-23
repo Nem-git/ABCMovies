@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"testing"
 
+	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
@@ -37,8 +38,7 @@ func movie(id string) *slotsv1.CatalogueItem {
 	return &slotsv1.CatalogueItem{
 		NativeId: id,
 		Kind:     slotsv1.ItemKind_ITEM_KIND_MOVIE,
-		Title:    "T " + id,
-		Year:     2001,
+		Metadata: &corev1.TitleMetadata{Title: "T " + id, Year: 2001},
 		ExternalIds: []*slotsv1.ExternalId{
 			{Namespace: "imdb", Value: "tt" + id},
 		},
@@ -108,7 +108,7 @@ func TestSyncAbortsOnContractViolationWithoutCompleting(t *testing.T) {
 	f := &fakeProvider{pages: []*slotsv1.CatalogueSyncResponse{
 		{Items: []*slotsv1.CatalogueItem{movie("1")}, NextPageToken: "p1"},
 		// Second page violates the contract: item without native_id.
-		{Items: []*slotsv1.CatalogueItem{{Kind: slotsv1.ItemKind_ITEM_KIND_MOVIE, Title: "Broken"}}},
+		{Items: []*slotsv1.CatalogueItem{{Kind: slotsv1.ItemKind_ITEM_KIND_MOVIE, Metadata: &corev1.TitleMetadata{Title: "Broken"}}}},
 	}}
 	s, cache := newSync(t, f)
 

@@ -339,15 +339,18 @@ func decodePageToken(token string) (int, error) {
 }
 
 // encodePage converts an upstream page into a contract response, mapping
-// kinds, years, and ProviderIds (namespace lower-cased; empty assertions
+// kinds, metadata (title and production year inside the embedded
+// TitleMetadata), and ProviderIds (namespace lower-cased; empty assertions
 // dropped), and minting the next token from the upstream offset arithmetic.
 func encodePage(offset int, page *itemsPage) *slotsv1.CatalogueSyncResponse {
 	out := &slotsv1.CatalogueSyncResponse{}
 	for _, it := range page.Items {
 		item := &slotsv1.CatalogueItem{
 			NativeId: it.Id,
-			Title:    it.Name,
-			Year:     uint32(max(it.ProductionYear, 0)), //nolint:gosec // production year fits comfortably
+			Metadata: &corev1.TitleMetadata{Title: it.Name},
+		}
+		if it.ProductionYear > 0 {
+			item.Metadata.Year = uint32(it.ProductionYear) //nolint:gosec // guarded above
 		}
 		switch it.Type {
 		case "Movie":

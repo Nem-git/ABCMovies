@@ -94,6 +94,7 @@ Stores are classified by durability (can we afford to lose it?) times who may re
 | Store | Durability | Who reads | Notes |
 | --- | --- | --- | --- |
 | Account source cache | Durable; rebuildable for library-class providers, best-effort for lazy ones | Host | Per (streaming-provider account, provider): what that account can see. Rebuildable from the provider for **library-class** providers (whole-catalogue sync); **best-effort, rebuild-by-usage** for lazy providers with no index (§5.4). *Keyed by the streaming account, not by the instance user* — every member and guest who uses that host-provided account shares the same cache |
+| Identity store (provider item registry) | Durable; not rebuildable without full identity re-resolution | Host | Per (provider slot, native item id): the `{ entryId, proof }` mapping (§5.3), plus the canonical LibraryEntries and their never-destroyed aliases. Carries identity **proof only**, never coverage; losing it forces whole-library identity re-resolution |
 | Metadata cache | Durable, safe to rebuild | Host | Per title (global, shared): one TitleMetadata record per title (structured content metadata with per-field provenance, §5.2); an external-ID-to-record lookup map for resolution; contributed by catalogue slots (preferred) and provider adapters (fallback); rebuildable from sources. *Global across all users and accounts* |
 | Content-key cache | Durable, safe to rebuild | Host | Per (provider, contentId): DRM content keys — the key is a property of the content, not of who licensed it, so the cache is global. Entries carry only key material (encrypted at rest) and validity; TTL = license validity. A **hint, not a guarantee**: invalidated by fail-fast re-license on decrypt failure, never by credential rotation (§6.6) |
 | Vault (tokens/sessions) | Durable, must not lose | Owner's key, at rest | Account sessions encrypted with per-session keys, wrapped by the owner's KEKs and a host-held relay key (§7.6); losing it logs everyone out |
@@ -157,6 +158,8 @@ The **meta-contract** (`CapabilityQuery`) is the contract of contracts: the firs
 One rule for all messages: **additive changes (new fields) never bump a version; consumers must ignore unknown fields. Breaking changes require a new contract version and a new handshake.** This applies uniformly to RPC contracts and event contracts. The schema encoding preserves unknown fields, which makes the additive rule native.
 
 A slot **declares only versions it has passed the fixture suite for** (§2.5) — declaration and verified behavior must agree. Wire-additive is not behavior-compatible: a change that is additive in the wire format but alters behavior in practice (a field whose presence changes meaning for consumers that read it) is still breaking and needs a new version. A consumer that ignores the new field has not implemented the new version and must declare the version it actually implements.
+
+**Pre-release exemption.** Until the first release ships, built-in slot contracts are exempt from the version-bump rule: their consumers are entirely in-repo and updated atomically in the same change, so breaking evolution without a new version is accepted for them. The exemption ends at first release; from then on the rule above applies without exception.
 
 ### 3.5 Account linking
 
@@ -603,5 +606,7 @@ Key decisions, pointing to where they are argued in the body:
 | Play sessions stay alive by heartbeat; downloads don't (fetch progress is the heartbeat) | §9.1 |
 | The built-in sink is the user's device; instance-local disk is a second v1 sink; sink deliverables are not caches | §6.4 |
 | Structured content metadata (TitleMetadata) replaces flat metadata_links; one record per title with external-ID-to-record lookup; per-field provenance from catalogues (preferred) and providers (fallback); no denormalized snapshot on LibraryEntry | §2.3, §2.4, §5.2 |
+| Until first release, built-in slot contracts may evolve breaking-ly without a version bump: consumers are entirely in-repo and updated atomically; the breaking-change gate stays off until then | §3.4 |
+| Catalogue items carry all their content metadata inside an embedded TitleMetadata; which of those fields count as matching evidence is decided by the matching engine, never by the schema | §3.4, §5.3 |
 
 **Scope of this log.** This log records *product* decisions only. Implementation decisions (language, transport, tooling) are recorded in TECHNICAL-DECISIONS.md; scope and acceptance live in SCOPE.md; feasibility evidence lives in RESEARCH.md. This document deliberately stays agnostic about all three.

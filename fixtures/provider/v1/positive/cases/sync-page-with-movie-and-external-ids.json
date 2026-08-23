@@ -6,12 +6,14 @@
       {
         "native_id": "jellyfin-0f1e2d3c4b5a69788796a5b4c3d2e1f0",
         "kind": "ITEM_KIND_MOVIE",
-        "title": "The Shawshank Redemption",
-        "year": 1994,
         "external_ids": [
           { "namespace": "imdb", "value": "tt0111161" },
           { "namespace": "tmdb", "value": "278" }
-        ]
+        ],
+        "metadata": {
+          "title": "The Shawshank Redemption",
+          "year": 1994
+        }
       }
     ],
     "next_page_token": ""

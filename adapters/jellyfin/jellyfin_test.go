@@ -177,7 +177,9 @@ func TestCatalogueSyncMapsKindsYearsAndExternalIds(t *testing.T) {
 	}
 	movie := resp.GetItems()[0]
 	if movie.GetKind() != slotsv1.ItemKind_ITEM_KIND_MOVIE ||
-		movie.GetNativeId() != "m1" || movie.GetTitle() != "The Shawshank Redemption" || movie.GetYear() != 1994 {
+		movie.GetNativeId() != "m1" ||
+		movie.GetMetadata().GetTitle() != "The Shawshank Redemption" ||
+		movie.GetMetadata().GetYear() != 1994 {
 		t.Fatalf("movie mapping wrong: %+v", movie)
 	}
 	if len(movie.GetExternalIds()) != 2 {
@@ -191,7 +193,7 @@ func TestCatalogueSyncMapsKindsYearsAndExternalIds(t *testing.T) {
 		t.Fatalf("external ids not lower-cased/mapped: %v", ns)
 	}
 	series := resp.GetItems()[1]
-	if series.GetKind() != slotsv1.ItemKind_ITEM_KIND_SERIES || series.GetYear() != 0 {
+	if series.GetKind() != slotsv1.ItemKind_ITEM_KIND_SERIES || series.GetMetadata().GetYear() != 0 {
 		t.Fatalf("series mapping wrong: %+v", series)
 	}
 	if resp.GetNextPageToken() != "" {
@@ -241,7 +243,7 @@ func TestCatalogueSyncReauthenticatesOnceAfter401(t *testing.T) {
 }
 
 func TestNewRejectsIncompleteAccounts(t *testing.T) {
-	os.Unsetenv(testPasswordEnv)
+	_ = os.Unsetenv(testPasswordEnv)
 	for _, a := range []Account{
 		{ID: "", URL: "http://x", Username: "u", PasswordEnv: "P"},
 		{ID: "a", URL: "", Username: "u", PasswordEnv: "P"},

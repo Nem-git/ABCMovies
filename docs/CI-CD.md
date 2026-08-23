@@ -12,7 +12,7 @@ One pipeline definition per milestone (M0–M9, IMPLEMENTATION.md §3). The pipe
 | --- | --- | --- |
 | **lint** | Formatting and style checks on all code and schemas | Style is non-negotiable and mechanical |
 | **typecheck / build** | Compile the core and adapters; regenerate and verify schema-generated code is up to date | The repo compiles from a clean checkout |
-| **schema checks** | Lint and breaking-change detection on schemas (§3) | Contract drift is caught in CI, not production (§2.5 of PLAN.md) |
+| **schema checks** | Schema lint; breaking-change detection is disabled until first release (TECHNICAL-DECISIONS.md §1.24) | Schema hygiene is mechanical; contract drift is caught by fixtures and review pre-release |
 | **unit + round-trip** | TESTING.md §4.1, §4.2 | Fast hermetic correctness |
 | **fixtures** | The fixture suite for every built-in adapter, at the version each declares (TESTING.md §3) | The conformance gate — the load-bearing stage |
 | **integration** | Vertical-slice tests (TESTING.md §4.3), including the vault/secrets suite (TESTING.md §6) | Cross-layer wiring works end to end |
@@ -72,7 +72,7 @@ CD is deliberately modest — the artifact is the container image (§1, image st
 The stages in §1 are vendor-neutral. The concrete platform and its exact mapping are recorded in TECHNICAL-DECISIONS.md §1.7; the general shape transfers to any platform with the same stages:
 
 - **lint, typecheck/build** — a job per stage on a fresh runner from the pinned toolchain (the same image as ENVIRONMENT.md §3).
-- **schema checks** — a dedicated job running the schema lint and breaking-change tooling against the schemas; fail on breaking change without a version bump.
+- **schema checks** — a dedicated job running the schema lint against the schemas; breaking-change detection is disabled until the first release (TECHNICAL-DECISIONS.md §1.24).
 - **unit + round-trip** — a job running the fast hermetic suites.
 - **fixtures** — the load-bearing job: runs the fixture suites for every built-in adapter. This job is the conformance gate and is a required check on every PR.
 - **integration** — the cross-layer job, including the vault/secrets suite (never skippable).

@@ -2,18 +2,22 @@ syntax = "proto3";
 
 package abcmovies.slots.v1;
 
+import "abcmovies/core/v1/library_entry.proto";
+
 // The provider slot's whole-catalogue sync contract (docs/PLAN.md §3.1, §5.4):
 // a library-class provider answers "what's in this account's library?" with a
 // paginated list of its native items. The catalogue index is the browse
 // capability of a library-class provider; search and produce-sources are
 // separate capabilities declared only when implemented (PLAN.md §3.2).
 //
-// Items are availability plus identity metadata only (PLAN.md §5.3): a stable
-// provider-native key, what kind of title it is, display fields, and the
-// provider-supplied external IDs that count as authoritative identity
-// assertions. Seasons and episodes are deliberately absent — they are
-// provider-native sub-items never merged or cross-corresponded; adding them
-// later is an additive change (PLAN.md §3.4).
+// Items are availability plus identity material (PLAN.md §5.3): a stable
+// provider-native key, what kind of title it is, the provider-supplied
+// external IDs that count as authoritative identity assertions, and the
+// item's content metadata — which carries the remaining matching evidence
+// (title, year) plus whatever else the provider supplies. Seasons and
+// episodes are deliberately absent — they are provider-native sub-items never
+// merged or cross-corresponded; adding them later is an additive change
+// (PLAN.md §3.4).
 
 // ExternalId is one provider-supplied identity assertion in an external
 // namespace (e.g. imdb → "tt0111161"). A matching provider-supplied ID alone
@@ -37,20 +41,16 @@ enum ItemKind {
 }
 
 // CatalogueItem is one provider-native catalogue entry: availability plus
-// identity metadata. The core maps these onto LibraryEntries through the
+// identity material. The core maps these onto LibraryEntries through the
 // provider item registry (PLAN.md §5.3); the mapping is never done here.
 message CatalogueItem {
   // The provider's stable native key for this item. Required.
   string native_id = 1;
   // What kind of title this is. Required.
   ItemKind kind = 2;
-  // Display title as the provider carries it.
-  string title = 3;
-  // Production year, when known; 0 means unknown. Compared exactly by
-  // matching (PLAN.md §5.3), so adapters must not guess.
-  uint32 year = 4;
   // Provider-supplied external IDs — identity assertions, not guesses.
-  repeated ExternalId external_ids = 5;
+  repeated ExternalId external_ids = 3;
+  abcmovies.core.v1.TitleMetadata metadata = 4;
 }
 
 // CatalogueSyncRequest asks for one page of an account's catalogue. Pages are
