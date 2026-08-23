@@ -63,18 +63,24 @@ type Item struct {
 	Metadata    *corev1.TitleMetadata
 }
 
-// Decide applies the merge rule to two provider items. A matching
-// provider-supplied external ID merges outright; otherwise the items merge
-// only when kinds and normalized titles agree (plus exact year for movies)
-// and at least one ranked signal matches exactly. Everything else stays
-// separate — conservative matching favors unlinked duplicates over wrong
-// merges (PLAN.md §5.3). Merging is never destructive: callers record the
-// verdict as proof in the provider item registry.
+// Decide applies the merge rule to two provider items. Kinds must always
+// agree — a movie and a series never merge, even when a provider-supplied
+// external ID matches (that situation is contradictory data, handled
+// upstream as a conflict). Between same-kind items, a matching
+// provider-supplied external ID merges outright; otherwise they merge only
+// when normalized titles agree (plus exact year for movies) and at least one
+// ranked signal matches exactly. Everything else stays separate —
+// conservative matching favors unlinked duplicates over wrong merges
+// (PLAN.md §5.3). Merging is never destructive: callers record the verdict
+// as proof in the provider item registry.
 func Decide(a, b Item) Verdict {
+	if !sameKind(a.Kind, b.Kind) {
+		return Verdict{}
+	}
 	if corroborationMatch(a.ExternalIDs, b.ExternalIDs) {
 		return Verdict{Merge: true, Corroborated: true}
 	}
-	if !sameKind(a.Kind, b.Kind) || !titlesMatch(a.Metadata, b.Metadata) {
+	if !titlesMatch(a.Metadata, b.Metadata) {
 		return Verdict{}
 	}
 	// Year gates movies only: compared exactly, unknown years fail. Series

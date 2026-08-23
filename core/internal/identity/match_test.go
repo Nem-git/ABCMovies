@@ -54,6 +54,17 @@ func TestDecideCorroborationRequiresNamespaceAndValueToMatch(t *testing.T) {
 	}
 }
 
+func TestDecideCorroborationStillRequiresSameKind(t *testing.T) {
+	t.Parallel()
+	a := movieItem("It", 2017, nil, extID("imdb", "tt4906026"))
+	b := movieItem("It", 2017, nil, extID("imdb", "tt4906026"))
+	b.Kind = slotsv1.ItemKind_ITEM_KIND_SERIES
+	got := Decide(a, b)
+	if got.Merge || got.Corroborated {
+		t.Fatalf("matching IDs across kinds is contradictory data, not a merge: %+v", got)
+	}
+}
+
 func TestDecideHeuristicMergesPerSignal(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
