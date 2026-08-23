@@ -1,0 +1,21 @@
+{
+  "name": "duplicate-native-id-on-one-page",
+  "type": "CatalogueSyncResponse",
+  "message": {
+    "items": [
+      {
+        "native_id": "jellyfin-5e6f708192a3b4c5d6e7f8091a2b3c4d",
+        "kind": "ITEM_KIND_MOVIE",
+        "title": "Listed Twice"
+      },
+      {
+        "native_id": "jellyfin-5e6f708192a3b4c5d6e7f8091a2b3c4d",
+        "kind": "ITEM_KIND_MOVIE",
+        "title": "Listed Twice"
+      }
+    ]
+  },
+  "expected": {
+    "valid": false
+  }
+}

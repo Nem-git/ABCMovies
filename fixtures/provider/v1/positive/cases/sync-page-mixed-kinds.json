@@ -1,0 +1,23 @@
+{
+  "name": "sync-page-mixed-kinds",
+  "type": "CatalogueSyncResponse",
+  "message": {
+    "items": [
+      {
+        "native_id": "jellyfin-0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "kind": "ITEM_KIND_MOVIE",
+        "title": "The Shawshank Redemption",
+        "year": 1994
+      },
+      {
+        "native_id": "jellyfin-1a2b3c4d5e6f708192a3b4c5d6e7f809",
+        "kind": "ITEM_KIND_SERIES",
+        "title": "Breaking Bad"
+      }
+    ],
+    "next_page_token": ""
+  },
+  "expected": {
+    "valid": true
+  }
+}

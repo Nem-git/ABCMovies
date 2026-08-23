@@ -17,33 +17,33 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/builtin"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/registry"
+	"github.com/nem-git/abcmovies/core/internal/scheduler"
+	"github.com/nem-git/abcmovies/core/internal/slotwiring"
+
+	"github.com/nem-git/abcmovies/core/app"
 )
+
+// instanceConfigPath is the documented instance configuration location
+// (ENVIRONMENT.md §6); a missing file means defaults.
+const instanceConfigPath = "config/instance.yaml"
 
 func main() {
 	logger := slog.Default()
 	ctx := context.Background()
 
-	cfg, err := config.Load("")
+	cfg, err := config.Load(instanceConfigPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "abcmovies: config: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Build store backends from config.
 	stores, err := config.BuildStores(ctx, cfg, logger)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "abcmovies: stores: %v\n", err)
 		os.Exit(1)
 	}
-	defer func() {
-		_ = stores.Cache.Close()
-		_ = stores.Vault.Close()
-		_ = stores.WatchHistory.Close()
-		_ = stores.Jobs.Close()
-		_ = stores.Sessions.Close()
-	}()
+	defer func() { _ = config.CloseStores(stores) }()
 
-	// Set up auth system from config.
 	var vaultAEAD cipher.AEAD
 	if cfg.Auth.DEKCache == "encrypted-store" {
 		vaultAEAD, err = config.VaultAEAD(cfg, logger)
@@ -62,22 +62,35 @@ func main() {
 		fmt.Fprintf(os.Stderr, "abcmovies: auth: %v\n", err)
 		os.Exit(1)
 	}
-	tokenTTL := config.ParseTokenTTL(cfg.Auth.TokenTTL)
-	session := config.BuildSession(tokenStore, dekCache, tokenTTL)
+	session := config.BuildSession(tokenStore, dekCache, config.ParseTokenTTL(cfg.Auth.TokenTTL))
 
 	r := registry.NewInProcess()
 	defer r.Close()
 
-	caps, err := r.Admit("builtin", builtin.New())
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "abcmovies: %v\n", err)
-		os.Exit(1)
+	if cfg.Slots.Builtin.Enabled {
+		if _, err := r.Admit("builtin", builtin.New()); err != nil {
+			fmt.Fprintf(os.Stderr, "abcmovies: %v\n", err)
+			os.Exit(1)
+		}
+		logger.Info("built-in slot admitted", "slot", "builtin")
 	}
 
-	fmt.Println("registry up; built-in slot admitted:")
-	for _, c := range caps {
-		fmt.Printf("  %s v%d\n", c.Name, c.Version)
+	sched := scheduler.New(0, logger)
+	jobs, err := slotwiring.SetupAll(ctx, cfg.Slots, slotwiring.Deps{
+		Ctx:         ctx,
+		Registry:    r,
+		SealedBlobs: app.NewSealedBlobs(stores.Vault),
+		SourceCache: stores.SourceCache,
+		Logger:      logger,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "abcmovies: slots: %v\n", err)
+		os.Exit(1)
 	}
+	for _, j := range jobs {
+		sched.Register(j)
+	}
+	go sched.Run(ctx)
 
 	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
@@ -96,7 +109,7 @@ func main() {
 	}
 
 	go func() {
-		fmt.Printf("listening on %s\n", cfg.Core.API.Bind)
+		logger.Info("listening", "address", cfg.Core.API.Bind)
 		if err := gs.Serve(lis); err != nil {
 			fmt.Fprintf(os.Stderr, "abcmovies: serve: %v\n", err)
 		}
@@ -106,6 +119,6 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	fmt.Println("\nshutting down...")
+	logger.Info("shutting down")
 	gs.GracefulStop()
 }

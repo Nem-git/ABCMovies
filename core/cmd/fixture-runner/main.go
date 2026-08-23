@@ -12,6 +12,7 @@ import (
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/builtin"
 	"github.com/nem-git/abcmovies/core/internal/registry"
 	"github.com/nem-git/abcmovies/core/internal/schema"
@@ -33,16 +34,20 @@ type capability struct {
 type expected struct {
 	Admitted     bool         `json:"admitted"`
 	Capabilities []capability `json:"capabilities"`
+	// Policy pins the operating policy a slot declared at handshake; absent
+	// means "do not assert". Only keys listed here are compared.
+	Policy map[string]string `json:"policy"`
 	// Valid states whether a schema fixture must validate (PLAN.md §2.5).
 	// Required for schema suites; ignored by handshake suites.
 	Valid *bool `json:"valid"`
 }
 
 type fixture struct {
-	Name        string       `json:"name"`
-	Request     string       `json:"request"`
-	Declaration []capability `json:"declaration"`
-	Expected    expected     `json:"expected"`
+	Name        string            `json:"name"`
+	Request     string            `json:"request"`
+	Declaration []capability      `json:"declaration"`
+	Policy      map[string]string `json:"policy"`
+	Expected    expected          `json:"expected"`
 	// Message is a protojson-encoded contract instance, used by schema suites.
 	Message json.RawMessage `json:"message"`
 	// Type identifies the message type for API contract validation.
@@ -145,6 +150,8 @@ func runCase(s suite, c fixture) error {
 		return runMetaCase(s, c)
 	case "library_entry", "media_source", "job", "event", "title_metadata":
 		return runSchemaCase(s, c)
+	case "provider":
+		return runProviderCase(s, c)
 	case "api":
 		return runAPICase(s, c)
 	default:
@@ -226,6 +233,81 @@ func validateContract(contract string, msg json.RawMessage) (bool, error) {
 		return false, fmt.Errorf("unknown contract %q", contract)
 	}
 	return valid, err
+}
+
+// runProviderCase executes provider-slot fixtures: handshake cases admit a
+// slot declaring its capabilities and pin what the registry reports back;
+// schema-style positive/negative cases validate request and response pages of
+// the whole-catalogue sync contract (PLAN.md §5.4).
+func runProviderCase(s suite, c fixture) error {
+	switch s.Kind {
+	case "handshake":
+		reg := registry.NewInProcess()
+		defer reg.Close()
+		slot := &declaredSlot{caps: toCoreCaps(c.Declaration), policy: c.Policy}
+		caps, err := reg.Admit(c.Name, slot)
+		if !c.Expected.Admitted {
+			if err == nil {
+				return fmt.Errorf("invalid declaration was admitted: %v", c.Declaration)
+			}
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("handshake: %w", err)
+		}
+		want := c.Expected.Capabilities
+		got := make([]registry.Capability, 0, len(caps))
+		for _, cap_ := range caps {
+			got = append(got, registry.Capability{Name: cap_.Name, Version: cap_.Version})
+		}
+		if !equalCaps(got, want) {
+			return fmt.Errorf("capabilities mismatch: got %v, want %v", got, want)
+		}
+		if len(c.Expected.Policy) > 0 {
+			policy, _ := reg.Policy(c.Name)
+			for k, want := range c.Expected.Policy {
+				if policy[k] != want {
+					return fmt.Errorf("policy %q mismatch: got %q, want %q", k, policy[k], want)
+				}
+			}
+		}
+		return nil
+	case "positive", "negative":
+		if c.Expected.Valid == nil {
+			return fmt.Errorf("expected.valid is required for provider schema suites")
+		}
+		valid, err := validateProviderMessage(c.Type, c.Message)
+		if valid != *c.Expected.Valid {
+			if *c.Expected.Valid {
+				return fmt.Errorf("expected valid:true, got invalid: %v", err)
+			}
+			return fmt.Errorf("expected valid:false, but the message validated cleanly")
+		}
+		return nil
+	default:
+		return fmt.Errorf("kind %q is not supported for provider suites", s.Kind)
+	}
+}
+
+func validateProviderMessage(msgType string, msg json.RawMessage) (bool, error) {
+	switch msgType {
+	case "CatalogueSyncRequest":
+		var m slotsv1.CatalogueSyncRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateCatalogueSyncRequest(&m)
+		return err == nil, err
+	case "CatalogueSyncResponse":
+		var m slotsv1.CatalogueSyncResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateCatalogueSyncResponse(&m)
+		return err == nil, err
+	default:
+		return false, fmt.Errorf("unknown provider message type %q", msgType)
+	}
 }
 
 func runAPICase(s suite, c fixture) error {
@@ -333,9 +415,10 @@ func toCoreCaps(caps []capability) []*corev1.Capability {
 
 type declaredSlot struct {
 	corev1.UnimplementedMetaServiceServer
-	caps []*corev1.Capability
+	caps   []*corev1.Capability
+	policy map[string]string
 }
 
 func (d *declaredSlot) CapabilityQuery(_ context.Context, _ *corev1.CapabilityQueryRequest) (*corev1.CapabilityQueryResponse, error) {
-	return &corev1.CapabilityQueryResponse{Capabilities: d.caps}, nil
+	return &corev1.CapabilityQueryResponse{Capabilities: d.caps, Policy: d.policy}, nil
 }

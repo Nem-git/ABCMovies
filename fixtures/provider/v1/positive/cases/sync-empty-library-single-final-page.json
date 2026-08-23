@@ -1,0 +1,11 @@
+{
+  "name": "sync-empty-library-single-final-page",
+  "type": "CatalogueSyncResponse",
+  "message": {
+    "items": [],
+    "next_page_token": ""
+  },
+  "expected": {
+    "valid": true
+  }
+}

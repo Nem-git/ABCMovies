@@ -22,6 +22,45 @@ type StoreConfig struct {
 	Path    string `yaml:"path,omitempty"`
 }
 
+// AccountConfig declares one streaming-provider account (IMPLEMENTATION.md §3:
+// operator-declared accounts). The password is never written down — it is
+// resolved from an environment variable named by password-env, and the
+// provider session token that replaces it is stored sealed in the vault.
+type AccountConfig struct {
+	ID          string `yaml:"id"`
+	URL         string `yaml:"url"`
+	Username    string `yaml:"username"`
+	PasswordEnv string `yaml:"password-env"`
+}
+
+// SlotEntry is one declared slot instance within a kind list. The kind comes
+// from which list it sits in (PLAN.md §3.1 fixes five kinds); adapter selects
+// the implementation registered for it. Adding an instance of an existing
+// adapter is a pure config change.
+type SlotEntry struct {
+	Adapter     string          `yaml:"adapter"`
+	ID          string          `yaml:"id"`
+	Transport   string          `yaml:"transport"`
+	Enabled     bool            `yaml:"enabled"`
+	SyncCadence string          `yaml:"sync-cadence"`
+	Accounts    []AccountConfig `yaml:"accounts"`
+}
+
+// SlotsConfig mirrors PLAN.md §3.1's taxonomy: the built-in reference slot,
+// then one open-ended instance list per slot kind. Lists for kinds whose
+// milestones have not landed stay empty; their shape is already fixed so a
+// future milestone never rewrites this schema.
+type SlotsConfig struct {
+	Builtin struct {
+		Enabled bool `yaml:"enabled"`
+	} `yaml:"builtin"`
+	Providers       []SlotEntry `yaml:"providers"`
+	Catalogue       []SlotEntry `yaml:"catalogue"`
+	Sinks           []SlotEntry `yaml:"sinks"`
+	SubtitleSources []SlotEntry `yaml:"subtitle-sources"`
+	Drm             []SlotEntry `yaml:"drm"`
+}
+
 type Config struct {
 	Core struct {
 		API struct {
@@ -47,7 +86,9 @@ type Config struct {
 		Jobs         StoreConfig `yaml:"jobs"`
 		Sessions     StoreConfig `yaml:"sessions"`
 		Users        StoreConfig `yaml:"users"`
+		SourceCache  StoreConfig `yaml:"source-cache"`
 	} `yaml:"stores"`
+	Slots SlotsConfig `yaml:"slots"`
 }
 
 // Stores holds the instantiated store backends for each storage class
@@ -59,6 +100,7 @@ type Stores struct {
 	Jobs         store.Store
 	Sessions     store.Store
 	Users        store.Store
+	SourceCache  store.Store
 }
 
 func Default() *Config {
@@ -74,6 +116,13 @@ func Default() *Config {
 	c.Stores.Jobs = StoreConfig{Backend: "in-memory"}
 	c.Stores.Sessions = StoreConfig{Backend: "in-memory"}
 	c.Stores.Users = StoreConfig{Backend: "in-memory"}
+	// Dev default stays lightweight like every other class; the example
+	// config recommends local-file for instances that want restart-fast
+	// catalogues instead of a rebuild-from-provider.
+	c.Stores.SourceCache = StoreConfig{Backend: "in-memory"}
+	// The built-in reference slot is part of every instance; kind lists start
+	// empty and grow through operator config.
+	c.Slots.Builtin.Enabled = true
 	return c
 }
 
@@ -92,7 +141,48 @@ func Load(path string) (*Config, error) {
 	if err := yaml.Unmarshal(b, c); err != nil {
 		return nil, fmt.Errorf("config: parse %s: %w", path, err)
 	}
+	if err := validateSlots(c.Slots); err != nil {
+		return nil, fmt.Errorf("config: slots: %w", err)
+	}
 	return c, nil
+}
+
+// validateSlots enforces the invariants the slot taxonomy implies (PLAN.md
+// §3.1): instance IDs are unique across every kind, each entry names its
+// adapter, and v1 speaks exactly one transport — a subprocess entry must fail
+// loudly rather than be silently ignored.
+func validateSlots(slots SlotsConfig) error {
+	seen := map[string]string{}
+	for _, list := range []struct {
+		kind    string
+		entries []SlotEntry
+	}{
+		{"providers", slots.Providers},
+		{"catalogue", slots.Catalogue},
+		{"sinks", slots.Sinks},
+		{"subtitle-sources", slots.SubtitleSources},
+		{"drm", slots.Drm},
+	} {
+		for _, e := range list.entries {
+			if e.ID == "" {
+				return fmt.Errorf("%s entry: id is required", list.kind)
+			}
+			if prev := seen[e.ID]; prev != "" {
+				return fmt.Errorf("duplicate slot id %q (also in %s)", e.ID, prev)
+			}
+			seen[e.ID] = list.kind
+			if e.Adapter == "" {
+				return fmt.Errorf("slot %q: adapter is required", e.ID)
+			}
+			switch e.Transport {
+			case "", "in-process":
+				// v1 ships in-process only; empty means the default.
+			default:
+				return fmt.Errorf("slot %q: unsupported transport %q (v1 supports \"in-process\")", e.ID, e.Transport)
+			}
+		}
+	}
+	return nil
 }
 
 // BuildStores instantiates store backends from the config. Each store class
@@ -131,6 +221,11 @@ func BuildStores(ctx context.Context, cfg *Config, logger *slog.Logger) (Stores,
 		return s, fmt.Errorf("stores.users: %w", err)
 	}
 
+	s.SourceCache, err = buildStore(ctx, cfg.Stores.SourceCache, "data/source-cache.db")
+	if err != nil {
+		return s, fmt.Errorf("stores.source-cache: %w", err)
+	}
+
 	// Vault requires an AEAD cipher.
 	switch cfg.Stores.Vault.Backend {
 	case "in-memory":
@@ -153,6 +248,18 @@ func BuildStores(ctx context.Context, cfg *Config, logger *slog.Logger) (Stores,
 	}
 
 	return s, nil
+}
+
+// CloseStores releases every store backend in the set; the first error wins,
+// all stores get closed regardless.
+func CloseStores(s Stores) error {
+	var firstErr error
+	for _, c := range []store.Store{s.Cache, s.Vault, s.WatchHistory, s.Jobs, s.Sessions, s.Users, s.SourceCache} {
+		if err := c.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 func buildStore(_ context.Context, cfg StoreConfig, defaultPath string) (store.Store, error) {

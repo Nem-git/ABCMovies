@@ -122,6 +122,67 @@ func (s *Stack) EnqueueJob(ctx context.Context, job *corev1.Job) error {
 // the embedder's own transport.
 func (s *Stack) Auth() Session { return s.session }
 
+// SlotCapability is one admitted slot's declared contract name and version.
+type SlotCapability struct {
+	Slot    string
+	Name    string
+	Version uint32
+}
+
+// Capabilities returns what every admitted slot declared at handshake
+// (PLAN.md §3.2: nothing is assumed, everything is asked). The result is a
+// copy; mutating it does not affect the registry.
+func (s *Stack) Capabilities() []SlotCapability {
+	snap := s.registry.Snapshot()
+	out := make([]SlotCapability, 0, len(snap))
+	for slot, info := range snap {
+		for _, c := range info.Capabilities {
+			out = append(out, SlotCapability{Slot: slot, Name: c.Name, Version: c.Version})
+		}
+	}
+	return out
+}
+
+// SealedBlobs is a small sealed-at-rest key/value surface over the vault
+// store class. Slots that need to persist a credential (e.g. a provider
+// session token) declare their own narrow interface with these exact method
+// signatures; Go interfaces are structural, so this type satisfies them
+// without the adapter importing anything from the core.
+type SealedBlobs struct {
+	vault interface {
+		Put(ctx context.Context, key string, value []byte) error
+		Get(ctx context.Context, key string) ([]byte, error)
+	}
+}
+
+// Save stores blob under key, sealed by the vault's own cipher.
+func (b SealedBlobs) Save(ctx context.Context, key string, blob []byte) error {
+	return b.vault.Put(ctx, key, blob)
+}
+
+// Load returns the blob under key, or nil when absent — absence is not an
+// error for callers restoring credentials.
+func (b SealedBlobs) Load(ctx context.Context, key string) ([]byte, error) {
+	blob, err := b.vault.Get(ctx, key)
+	if err != nil {
+		return nil, nil
+	}
+	return blob, nil
+}
+
+// SealedBlobs exposes the vault-backed blob store to embedders and wiring.
+func (s *Stack) SealedBlobs() SealedBlobs { return SealedBlobs{vault: s.stores.Vault} }
+
+// NewSealedBlobs builds a SealedBlobs over any store backend — the
+// composition root uses it when wiring slots outside a full Stack.
+func NewSealedBlobs(vault interface {
+	Put(ctx context.Context, key string, value []byte) error
+	Get(ctx context.Context, key string) ([]byte, error)
+},
+) SealedBlobs {
+	return SealedBlobs{vault: vault}
+}
+
 // Close releases every resource the composed stack holds.
 func (s *Stack) Close() {
 	s.bus.Close()
@@ -130,19 +191,7 @@ func (s *Stack) Close() {
 }
 
 func closeStores(stores config.Stores) error {
-	var firstErr error
-	for _, c := range []interface{ Close() error }{
-		stores.Cache,
-		stores.Vault,
-		stores.WatchHistory,
-		stores.Jobs,
-		stores.Sessions,
-	} {
-		if err := c.Close(); err != nil && firstErr == nil {
-			firstErr = err
-		}
-	}
-	return firstErr
+	return config.CloseStores(stores)
 }
 
 // sessionSeam adapts the internal session to the exported seam.

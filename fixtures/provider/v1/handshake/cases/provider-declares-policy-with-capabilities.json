@@ -1,0 +1,20 @@
+{
+  "name": "provider-declares-policy-with-capabilities",
+  "declaration": [
+    { "name": "meta", "version": 1 },
+    { "name": "browse", "version": 1 }
+  ],
+  "policy": {
+    "browse.sync-cadence": "6h"
+  },
+  "expected": {
+    "admitted": true,
+    "capabilities": [
+      { "name": "meta", "version": 1 },
+      { "name": "browse", "version": 1 }
+    ],
+    "policy": {
+      "browse.sync-cadence": "6h"
+    }
+  }
+}

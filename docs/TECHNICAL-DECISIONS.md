@@ -184,6 +184,30 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 - **Rationale:** user-keyed caches leak across sessions: a second session inherits key material minted for another login, and logout cannot evict without breaking concurrent sessions. Per-session keying makes revocation and expiry exact. Memory-only keeps the strongest default (nothing persists); encrypted-store exists for instances that must survive restarts without re-login.
 - **Consequence:** with `memory` (default) a restart requires users to log in again. With `encrypted-store` and an ephemeral vault key, sealed entries are unreadable after a restart — memory-equivalent semantics; pair it with a pinned hex vault key to persist. The knob ships in `config.example.yaml`; the default is frozen for v1.
 
+### 1.21 Provider capability mapping — **whole-catalogue sync declares `browse` v1**
+
+- **Decision:** a library-class provider's whole-catalogue sync surface ("what's in this account's library?", §5.4 of PLAN.md) is declared at handshake as capability **`browse` version 1**. Search and produce-sources get their own capability names and are declared only when their fixture suites exist. Within the sync contract (`proto/abcmovies/slots/v1/provider.proto`):
+  - every request names its target `account_id` from day one — adding it later would be wire-additive but behavior-breaking, since old adapters would answer any account with their configured default;
+  - pages use **opaque continuation tokens**, so an adapter maps them onto whatever its provider offers (Jellyfin's offset pagination stays behind the adapter);
+  - TV seasons and episodes are outside contract v1; adding them later is additive;
+  - items removed upstream are not deleted from the cache in M1; deletion reconciliation arrives with the identity work (M2).
+- **Rationale:** the catalogue index is the browse surface of a library-class provider (§3.2 of PLAN.md); naming it once here keeps adapters, fixtures, and the registry consistent.
+- **Consequence:** adapters declare `meta` + `browse` v1 and nothing more until further suites ship; the provider fixture suite (`fixtures/provider/v1/`) is the conformance gate for all of the above.
+
+### 1.22 Source-cache refresh mechanism
+
+- **Decision:** each linked account's catalogue re-syncs on the shipped default cadence (§1.14: **6 h**), overridable per slot via `sync-cadence`. Syncs are spread by **±10 % jitter** of the wait so accounts never fire in lockstep; a failing sync backs off exponentially starting at **1 minute**, capped at **24 hours**, resetting to the normal cadence after a success.
+- **Cadence precedence:** an adapter MAY declare its own polite default in its handshake response, under the `policy` map added to `CapabilityQueryResponse` (additive; e.g. Jellyfin declares `browse.sync-cadence: 6h`). Resolution order: explicit operator config wins over the adapter-declared value, which wins over the shipped scheduler default. An explicit config value or adapter declaration that fails to parse is a startup error, never silently ignored. (Representation of the declaration channel itself: §1.23.)
+- **Rationale:** a self-hosted instance must tolerate a provider being down without spinning or giving up; jitter keeps many accounts from hammering providers simultaneously. Letting adapters state their own default keeps new slots well-behaved with zero operator config, while the config override keeps the operator sovereign.
+- **Consequence:** these are the values `core/internal/scheduler` runs; changing them is a decision-record change, not a code-taste question. The aggregate multi-provider governor remains deferred to its planned milestone (§1.14).
+
+### 1.23 Handshake operating-policy representation
+
+- **Decision:** slot-declared operating policy travels in the `policy` map on `CapabilityQueryResponse` — a plain `map<string,string>` added to the frozen v1 contract. Each key is declared by an adapter and interpreted only by that adapter's wiring; the core stores the map opaquely and ignores unknown keys, so adapters can grow their vocabulary without touching the contract.
+- **Promotion path (deliberately kept open):** if a key ever proves *universally meaningful across providers* rather than common within one, promote it to a typed field on the response. Promotion is an ordinary additive change (declare the typed field, deprecate the map key, remove once no slot sends it); going back — typed → map — would be breaking. That asymmetry is why typing starts deferred: it can be adopted later at low cost, but locking vocabulary in early cannot be undone cheaply.
+- **Rationale:** exactly one policy exists today (§1.22's sync cadence). Typing every future key up front turns adapter evolution into contract ceremony and accumulates fields whose validity depends on which capability a slot speaks; the map ties each key to whoever declares it.
+- **Consequence:** well-known key names live beside their adapters (wiring + decision entries), never in a shared registry; the core must never branch on key names — the moment it wants to is the moment to revisit this entry and promote the key instead.
+
 ## 2. Open implementation items (recorded, not decided)
 
 These are deferred by design or pending follow-on choices:

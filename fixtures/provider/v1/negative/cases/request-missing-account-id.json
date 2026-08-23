@@ -1,0 +1,10 @@
+{
+  "name": "request-missing-account-id",
+  "type": "CatalogueSyncRequest",
+  "message": {
+    "page_token": ""
+  },
+  "expected": {
+    "valid": false
+  }
+}

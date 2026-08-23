@@ -3,6 +3,7 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -139,12 +140,16 @@ func TestBuildStores_InMemory(t *testing.T) {
 	if stores.Users == nil {
 		t.Fatal("Users store is nil")
 	}
+	if stores.SourceCache == nil {
+		t.Fatal("SourceCache store is nil")
+	}
 }
 
 func TestBuildStores_VaultDefaultPath(t *testing.T) {
 	dir := t.TempDir()
 	c := config.Default()
 	c.Stores.Vault = config.StoreConfig{Backend: "local-file", Path: filepath.Join(dir, "vault.db")}
+	c.Stores.SourceCache = config.StoreConfig{Backend: "local-file", Path: filepath.Join(dir, "source-cache.db")}
 	c.Stores.VaultKey = "generated"
 	_, err := config.BuildStores(t.Context(), c, nil)
 	if err != nil {
@@ -237,5 +242,98 @@ func TestBuildAuthenticator_Unknown(t *testing.T) {
 	_, err = config.BuildAuthenticator([]string{"oauth"}, users)
 	if err == nil {
 		t.Fatal("expected error for unknown method")
+	}
+}
+
+func TestLoad_SlotLists(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	yaml := []byte(`
+slots:
+  builtin:
+    enabled: false
+  providers:
+    - adapter: jellyfin
+      id: primary
+      enabled: true
+      sync-cadence: 15m
+      accounts:
+        - id: primary
+          url: http://jellyfin.local:8096
+          username: bob
+          password-env: JELLYFIN_PASSWORD
+`)
+	if err := os.WriteFile(path, yaml, 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	c, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if c.Slots.Builtin.Enabled {
+		t.Fatal("builtin should be disabled by the file")
+	}
+	if len(c.Slots.Providers) != 1 {
+		t.Fatalf("providers = %d entries, want 1", len(c.Slots.Providers))
+	}
+	p := c.Slots.Providers[0]
+	if p.Adapter != "jellyfin" || p.ID != "primary" || !p.Enabled || p.SyncCadence != "15m" {
+		t.Fatalf("provider entry mismatch: %+v", p)
+	}
+	if len(p.Accounts) != 1 || p.Accounts[0].PasswordEnv != "JELLYFIN_PASSWORD" {
+		t.Fatalf("accounts mismatch: %+v", p.Accounts)
+	}
+}
+
+func TestValidateSlots_Rejections(t *testing.T) {
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr string
+	}{
+		{
+			name:    "missing id",
+			yaml:    "slots:\n  providers:\n    - adapter: jellyfin\n      enabled: true\n",
+			wantErr: "id is required",
+		},
+		{
+			name:    "missing adapter",
+			yaml:    "slots:\n  providers:\n    - id: primary\n      enabled: true\n",
+			wantErr: "adapter is required",
+		},
+		{
+			name: "duplicate id across kinds",
+			yaml: `slots:
+  providers:
+    - adapter: jellyfin
+      id: primary
+      enabled: true
+  sinks:
+    - adapter: jellyfin
+      id: primary
+      enabled: true
+`,
+			wantErr: `duplicate slot id "primary"`,
+		},
+		{
+			name:    "unsupported transport",
+			yaml:    "slots:\n  providers:\n    - adapter: jellyfin\n      id: primary\n      transport: subprocess\n      enabled: true\n",
+			wantErr: `unsupported transport "subprocess"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "config.yaml")
+			if err := os.WriteFile(path, []byte(tt.yaml), 0o644); err != nil {
+				t.Fatalf("write config: %v", err)
+			}
+			_, err := config.Load(path)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("want error containing %q, got %v", tt.wantErr, err)
+			}
+		})
 	}
 }

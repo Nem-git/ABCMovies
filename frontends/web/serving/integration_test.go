@@ -2,6 +2,7 @@ package serving
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -198,6 +199,59 @@ func TestDebugJob_Unauthorized(t *testing.T) {
 				t.Fatalf("POST /debug/job status = %d, want %d", res.StatusCode, tc.status)
 			}
 		})
+	}
+}
+
+// TestDebugCapabilities reports admitted capabilities to a logged-in session
+// and rejects unauthenticated callers, mirroring the debug-job rules.
+func TestDebugCapabilities(t *testing.T) {
+	_, client, ts := newWebStack(t)
+	ctx := t.Context()
+	token := signUpAndLogin(t, ctx, client)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+"/debug/capabilities", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := ts.Client().Do(req)
+	if err != nil {
+		t.Fatalf("GET /debug/capabilities: %v", err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("GET /debug/capabilities status = %d, want 200", res.StatusCode)
+	}
+	var caps []struct {
+		Slot    string `json:"Slot"`
+		Name    string `json:"Name"`
+		Version uint32 `json:"Version"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&caps); err != nil {
+		t.Fatalf("decode capabilities: %v", err)
+	}
+	found := false
+	for _, c := range caps {
+		if c.Slot == "builtin" && c.Name == "meta" && c.Version == 1 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("builtin meta v1 missing from %v", caps)
+	}
+
+	// Unauthenticated callers are rejected like every protected method.
+	bare, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+"/debug/capabilities", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	res2, err := ts.Client().Do(bare)
+	if err != nil {
+		t.Fatalf("GET /debug/capabilities unauthenticated: %v", err)
+	}
+	_ = res2.Body.Close()
+	if res2.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated status = %d, want 401", res2.StatusCode)
 	}
 }
 

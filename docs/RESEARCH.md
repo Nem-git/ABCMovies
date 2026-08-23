@@ -24,6 +24,34 @@ Recorded as the starting point for the M1 spike; **not** a decision.
 - Open-source server (AGPL-licensed), no detection-risk posture comparable to commercial streaming services.
 - To be verified during the spike: exact endpoint shapes, item-ID stability across refreshes, metadata completeness (title/year/external IDs) for the identity registry (§5.3), and what a *media source* manifest (§6.2) looks like for `produce-sources`.
 
+### 2.1.1 M1 live spike — **done** (verified against a Jellyfin 10.11 instance)
+
+Evidence behind TECHNICAL-DECISIONS.md §1.8 and §1.21; **not** a decision. Verified with a
+throwaway probe script plus the real adapter driving a live server over `AuthenticateByName`
+and `/Items`.
+
+- **Auth flow:** `POST /Users/AuthenticateByName` with JSON `{Username, Pw}` and a
+  `MediaBrowser`-scheme `Authorization` header returns `{AccessToken, User.Id}` in the body.
+  The legacy `X-Emby-Token` header is deprecated and removed on 10.9+ — tokens travel only
+  in the header scheme. Wrong credentials are rejected cleanly (HTTP 401).
+- **Catalogue index:** `GET /Items` with `userId`, `includeItemTypes=Movie,Series`,
+  `recursive=true`, offset params (`startIndex`/`limit`) answers with
+  `{Items[], TotalRecordCount, StartIndex}`. Offset pagination is sufficient behind opaque
+  continuation tokens.
+- **Identity metadata:** `BaseItemDto.ProviderIds` carries exactly the §5.3 assertion shape,
+  e.g. `{"Imdb": "tt1424797", "Tmdb": "26280"}`. **On 10.9+ it is omitted unless explicitly
+  requested** via `fields=ProviderIds` — verified by A/B query; without it every identity
+  assertion silently disappears from the index. The adapter pins this with a fixture-backed
+  regression test.
+- **Item-ID stability:** native IDs are stable across repeated fetches of an unchanged
+  library (verified by diffing consecutive page fetches). A rescan-rescan stability check
+  remains outstanding until the test library changes, but no mechanism suggests instability:
+  IDs are content-addressed GUIDs, not list positions.
+- **Rate limits / detection posture:** no documented rate limiting anywhere in the spec or
+  observed behavior; defensive backoff is kept anyway (TECHNICAL-DECISIONS.md §1.22).
+- **Not yet probed (deferred to their own milestones):** playback/session endpoints for
+  `produce-sources` manifests (§6.2), and multi-user scoping beyond a single account.
+
 ### 2.2 DRM baseline (pre-spike notes)
 
 Recorded as the starting point for the v2 spike; **not** a decision.

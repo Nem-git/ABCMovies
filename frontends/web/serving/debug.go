@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -60,6 +61,32 @@ func (h debugJobHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]string{"job_id": jobID}); err != nil {
+		http.Error(w, fmt.Sprintf("encode response: %v", err), http.StatusInternalServerError)
+	}
+}
+
+// debugCapabilitiesHandler serves GET /debug/capabilities: it reports what
+// every admitted slot declared at handshake (PLAN.md §3.2). It exists so an
+// operator can see, from a browser session, which capabilities the running
+// instance actually has — the registry is the single source of that truth.
+type debugCapabilitiesHandler struct {
+	stack *app.Stack
+}
+
+func (h debugCapabilitiesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if _, ok := bearerUser(r, h.stack.Auth()); !ok {
+		http.Error(w, "missing or invalid bearer token", http.StatusUnauthorized)
+		return
+	}
+	caps := h.stack.Capabilities()
+	sort.Slice(caps, func(i, j int) bool {
+		if caps[i].Slot != caps[j].Slot {
+			return caps[i].Slot < caps[j].Slot
+		}
+		return caps[i].Name < caps[j].Name
+	})
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(caps); err != nil {
 		http.Error(w, fmt.Sprintf("encode response: %v", err), http.StatusInternalServerError)
 	}
 }

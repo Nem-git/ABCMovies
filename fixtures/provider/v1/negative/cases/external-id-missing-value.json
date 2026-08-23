@@ -1,0 +1,17 @@
+{
+  "name": "external-id-missing-value",
+  "type": "CatalogueSyncResponse",
+  "message": {
+    "items": [
+      {
+        "native_id": "jellyfin-4d5e6f708192a3b4c5d6e7f8091a2b3c",
+        "kind": "ITEM_KIND_MOVIE",
+        "title": "Half An Assertion",
+        "external_ids": [{ "namespace": "imdb" }]
+      }
+    ]
+  },
+  "expected": {
+    "valid": false
+  }
+}

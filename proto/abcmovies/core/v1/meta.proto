@@ -14,6 +14,11 @@ message Capability {
 
 message CapabilityQueryResponse {
   repeated Capability capabilities = 1;
+  // Declared per-capability operating policy, keyed by capability name
+  // (e.g. "browse.sync-cadence" → a duration string). Additive in v1: slots
+  // declare, the core reads; unknown keys are ignored. Values whose home is
+  // the decision log are pinned there (TECHNICAL-DECISIONS.md), not here.
+  map<string, string> policy = 2;
 }
 
 service MetaService {
