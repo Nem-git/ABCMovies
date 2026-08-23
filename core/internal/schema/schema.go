@@ -49,7 +49,7 @@ func validateCoverageRow(kind corev1.EntryKind, key string, row *corev1.Coverage
 	if row.GetVerdict() == corev1.CoverageVerdict_COVERAGE_VERDICT_UNSPECIFIED {
 		return fmt.Errorf("library entry: coverage row %q: verdict is required", key)
 	}
-	if row.GetPresent() && row.GetVia() == "" {
+	if row.GetPresent() && len(row.GetVia()) == 0 {
 		return fmt.Errorf("library entry: coverage row %q: a present row requires provenance (via)", key)
 	}
 	if len(row.GetSeasons()) > 0 && kind == corev1.EntryKind_ENTRY_KIND_MOVIE {

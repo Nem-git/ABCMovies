@@ -585,6 +585,7 @@ Key decisions, pointing to where they are argued in the body:
 | Guests are device identities, not user accounts; member-scoping holds; guest libraries cache under `guest:<deviceId>` with a device-session TTL; guests get rate limits + a concurrency cap | §2.2, §5.1 |
 | Three identifier kinds are separate: entry ID, provider item ID, external-identity set; coverage asserts presence, never identity; merge-conflicts never merge silently | §2.3, §5.3 |
 | Provider item registry is durable state holding identity proof only — coverage lives in per-account availability and is projected per-user; availability refresh is a pure lookup; identity resolution only on first-seen / metadata change / corroboration need | §5.3 |
+| Coverage provenance is multi-account (`CoverageRow.via` repeated, breaking pre-release); the provider namespace is the slot instance id, never the adapter name | §5.3 |
 | Media bytes are never cached — caches hold metadata and keys only | §2.4 |
 | Conformance: reject, don't downgrade; fixtures may be negative; slots declare only versions they pass | §2.5, §3.4 |
 | Auth methods: closed common set + opaque passthrough; device-binding re-provisioning expires affected sessions | §3.5 |

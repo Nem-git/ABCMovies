@@ -213,8 +213,15 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 
 - **Decision:** until the first release ships (SCOPE.md), built-in slot contracts may evolve **breaking-ly without a version bump**: every consumer is in-repo and is updated atomically in the same change, so version-bump ceremony (new suite, new handshake, per-break log entries) buys nothing while no external consumers exist. The `buf breaking` stage is disabled for this period — commented out of the Makefile's lint recipe rather than scoped per package. The exemption ends at first release: before any contract is published, the gate returns and PLAN.md's versioning rule applies without exception.
 - **First use:** the whole-catalogue sync item (`CatalogueItem`) dropped its top-level `title`/`year` fields; all content metadata — including those two matching-evidence values — now travels inside an embedded `TitleMetadata` (`metadata`). Which fields drive a merge is decided by the core's matching engine, never by the schema.
+- **First use:** `CoverageRow.via` became **repeated**: one coverage claim can be observed by several linked accounts of one provider slot, and last-writer-wins attribution silently lost that fact. Each element keeps the documented `account:provider:host` form; derivations sort elements so rebuilds are deterministic.
 - **Rationale:** single-operator pre-release project; the load-bearing freeze exists to protect external consumers that do not yet exist.
 - **Consequence:** load-bearing (`core/v1`) and API (`api/v1`) schemas lose automated drift detection too, not just slot contracts. Compensating controls: fixture suites and round-trip tests catch shape changes from below, review discipline catches them from above (AGENTS.md protected-file process). A re-enabled gate must be paired with a published baseline tag.
+
+### 1.25 Provider namespace — **the slot instance id**
+
+- **Decision:** everything keyed by "provider" — source-cache keys, provider-item-registry mappings (`(provider, nativeId) → {entryId, proof}`), coverage keys, availability- and merge-conflict-event payloads — uses the **slot instance id** (`SlotEntry.id`, e.g. `home-jellyfin`), never the adapter name. An adapter name cannot disambiguate two deployed instances of one adapter (two separate Jellyfin servers numbering their items identically); the slot id scopes identity per deployment while accounts of one slot share it deliberately (same server ⇒ same items ⇒ shared identity work).
+- **Rationale:** PLAN.md §2.3's scoped provider item ID (`provider:nativeId`) needs `provider` to mean what the operator actually deployed; §5.3's coverage map keys its rows by providerId for the same reason.
+- **Consequence:** renaming a slot id in config re-keys identity state (fresh resolutions; old aliases stay resolvable but unused) — treat slot ids as stable identifiers. Recorded alongside the M2 identity work.
 
 ## 2. Open implementation items (recorded, not decided)
 

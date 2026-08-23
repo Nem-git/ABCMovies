@@ -7,11 +7,19 @@
       "providerA:456": {
         "present": true,
         "seasons": [
-          { "start": 1, "end": 3 },
-          { "start": 5, "end": 5 }
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 5,
+            "end": 5
+          }
         ],
         "verdict": "COVERAGE_VERDICT_PRESENCE_ONLY",
-        "via": "account:providerA:host",
+        "via": [
+          "account:providerA:host"
+        ],
         "last_verified": "2026-08-16T10:00:00Z"
       }
     },
