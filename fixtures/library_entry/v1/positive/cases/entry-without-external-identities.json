@@ -7,9 +7,7 @@
       "providerA:789": {
         "present": true,
         "verdict": "COVERAGE_VERDICT_CORROBORATED",
-        "via": [
-          "account:providerA:host"
-        ]
+        "via": ["account:providerA:host"]
       }
     }
   },

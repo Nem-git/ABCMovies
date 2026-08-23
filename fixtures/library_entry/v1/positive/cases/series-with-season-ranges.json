@@ -17,9 +17,7 @@
           }
         ],
         "verdict": "COVERAGE_VERDICT_PRESENCE_ONLY",
-        "via": [
-          "account:providerA:host"
-        ],
+        "via": ["account:providerA:host"],
         "last_verified": "2026-08-16T10:00:00Z"
       }
     },

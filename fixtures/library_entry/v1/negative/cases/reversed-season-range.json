@@ -13,9 +13,7 @@
           }
         ],
         "verdict": "COVERAGE_VERDICT_PRESENCE_ONLY",
-        "via": [
-          "account:providerA:host"
-        ]
+        "via": ["account:providerA:host"]
       }
     }
   },
