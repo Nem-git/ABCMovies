@@ -95,17 +95,70 @@ type mappingRecord struct {
 // entryRecord is the canonical identity material of one LibraryEntry: what
 // matching compares against. Title, year and kind are fixed at creation;
 // external-ID assertions and corroborating signals accumulate as items merge
-// in — merging is a union onto the canonical entry (PLAN.md §5.3).
+// in — merging is a union onto the canonical entry (PLAN.md §5.3). Every
+// claim keeps its provenance: which providers supplied it (PLAN.md §5.3,
+// provenance retention is mandatory).
 type entryRecord struct {
-	ID               string                `json:"id"`
-	Kind             slotsv1.ItemKind      `json:"kind"`
-	Title            string                `json:"title"`
-	Year             uint32                `json:"year"`
-	Directors        []string              `json:"directors,omitempty"`
-	Cast             []string              `json:"cast,omitempty"`
-	OriginalLanguage string                `json:"originalLanguage,omitempty"`
-	RuntimeMinutes   uint32                `json:"runtimeMinutes,omitempty"`
-	ExternalIDs      []*slotsv1.ExternalId `json:"externalIds"`
+	ID               string           `json:"id"`
+	Kind             slotsv1.ItemKind `json:"kind"`
+	Title            string           `json:"title"`
+	Year             uint32           `json:"year"`
+	Directors        []string         `json:"directors,omitempty"`
+	Cast             []string         `json:"cast,omitempty"`
+	OriginalLanguage string           `json:"originalLanguage,omitempty"`
+	RuntimeMinutes   uint32           `json:"runtimeMinutes,omitempty"`
+	Claims           []idClaim        `json:"claims"`
+}
+
+// idClaim is one external-identity assertion on an entry plus its provenance:
+// the set of providers that supplied it. A claim asserted by several
+// providers is the same title confirmed by independent catalogues.
+type idClaim struct {
+	Namespace string   `json:"ns"`
+	Value     string   `json:"value"`
+	Suppliers []string `json:"suppliers,omitempty"`
+}
+
+func (c idClaim) key() string { return c.Namespace + "\x00" + c.Value }
+
+// IdentityClaim is the public view of one accumulated identity assertion.
+type IdentityClaim struct {
+	// Namespace and value of the claim, e.g. imdb / tt0133093.
+	Namespace string
+	Value     string
+	// Suppliers lists the providers that have asserted this claim.
+	Suppliers []string
+}
+
+// Canonical is an entry's stable identity surface: what it is and which
+// external identities back that. Coverage never appears here — the registry
+// carries proof only, never coverage (IMPLEMENTATION.md M2).
+type Canonical struct {
+	Kind   slotsv1.ItemKind
+	Title  string
+	Year   uint32
+	Claims []IdentityClaim
+}
+
+// Canonical returns the entry's canonical identity material. The second
+// return is false for unknown ids.
+func (r *Registry) Canonical(ctx context.Context, entryID string) (Canonical, bool, error) {
+	if entryID == "" {
+		return Canonical{}, false, fmt.Errorf("itemregistry: entry id is required")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	rec, err := r.getEntry(ctx, entryID)
+	if err != nil || rec == nil {
+		return Canonical{}, false, err
+	}
+	out := Canonical{Kind: rec.Kind, Title: rec.Title, Year: rec.Year}
+	for _, c := range rec.Claims {
+		suppliers := append([]string(nil), c.Suppliers...)
+		sort.Strings(suppliers)
+		out.Claims = append(out.Claims, IdentityClaim{Namespace: c.Namespace, Value: c.Value, Suppliers: suppliers})
+	}
+	return out, true, nil
 }
 
 // item renders the entry's accumulated identity material for comparison.
@@ -114,7 +167,11 @@ func (e *entryRecord) item() identity.Item {
 	if e.RuntimeMinutes > 0 {
 		md.KindSpecific = &corev1.TitleMetadata_Movie{Movie: &corev1.MovieSpecific{RuntimeMinutes: e.RuntimeMinutes}}
 	}
-	return identity.Item{Kind: e.Kind, ExternalIDs: e.ExternalIDs, Metadata: md}
+	ids := make([]*slotsv1.ExternalId, 0, len(e.Claims))
+	for _, c := range e.Claims {
+		ids = append(ids, &slotsv1.ExternalId{Namespace: c.Namespace, Value: c.Value})
+	}
+	return identity.Item{Kind: e.Kind, ExternalIDs: ids, Metadata: md}
 }
 
 // Registry is the provider item registry over a Store (PLAN.md §2.4 identity
@@ -187,13 +244,13 @@ func (r *Registry) Resolve(ctx context.Context, provider string, item *slotsv1.C
 			Cast:             unionStrings(nil, md.GetCast()),
 			OriginalLanguage: md.GetOriginalLanguage(),
 			RuntimeMinutes:   md.GetMovie().GetRuntimeMinutes(),
-			ExternalIDs:      cleanIDs(proof.ExternalIDs),
+			Claims:           claimsFromIDs(proof.ExternalIDs, provider),
 		}); err != nil {
 			return nil, err
 		}
 		out.EntryID, out.Status = id, StatusCreated
 	default:
-		if err := r.absorb(ctx, target, item); err != nil {
+		if err := r.absorb(ctx, target, item, provider); err != nil {
 			return nil, err
 		}
 		out.EntryID, out.Status = target, StatusAttached
@@ -323,8 +380,9 @@ func (r *Registry) mergesInto(ctx context.Context, entryID string, live identity
 
 // absorb unions the item's provider-supplied external IDs and corroborating
 // signals into the entry's accumulated identity material (and the external-ID
-// index), so later items can corroborate against them.
-func (r *Registry) absorb(ctx context.Context, entryID string, item *slotsv1.CatalogueItem) error {
+// index), so later items can corroborate against them. The supplying provider
+// is recorded on every claim the item asserts.
+func (r *Registry) absorb(ctx context.Context, entryID string, item *slotsv1.CatalogueItem, supplier string) error {
 	rec, err := r.getEntry(ctx, entryID)
 	if err != nil {
 		return err
@@ -333,7 +391,7 @@ func (r *Registry) absorb(ctx context.Context, entryID string, item *slotsv1.Cat
 		return fmt.Errorf("itemregistry: entry %q vanished during absorb", entryID)
 	}
 	md := item.GetMetadata()
-	rec.ExternalIDs = unionIDs(rec.ExternalIDs, item.GetExternalIds())
+	rec.Claims = unionClaims(rec.Claims, item.GetExternalIds(), supplier)
 	rec.Directors = unionStrings(rec.Directors, md.GetDirectors())
 	rec.Cast = unionStrings(rec.Cast, md.GetCast())
 	if rec.OriginalLanguage == "" {
@@ -360,11 +418,11 @@ func (r *Registry) putEntry(ctx context.Context, rec *entryRecord) error {
 			return err
 		}
 	}
-	for _, id := range rec.ExternalIDs {
-		if id.GetNamespace() == "" || id.GetValue() == "" {
+	for _, c := range rec.Claims {
+		if c.Namespace == "" || c.Value == "" {
 			continue
 		}
-		if err := r.st.Put(ctx, extIndexPrefix(id.GetNamespace(), id.GetValue())+rec.ID, []byte{}); err != nil {
+		if err := r.st.Put(ctx, extIndexPrefix(c.Namespace, c.Value)+rec.ID, []byte{}); err != nil {
 			return err
 		}
 	}
@@ -446,36 +504,46 @@ func marshal(rec mappingRecord) []byte {
 	return b
 }
 
-// cleanIDs copies valid, de-duplicated external IDs.
-func cleanIDs(ids []*slotsv1.ExternalId) []*slotsv1.ExternalId {
-	return unionIDs(nil, ids)
+// claimsFromIDs seeds provenance-carrying claims from one provider's
+// assertions.
+func claimsFromIDs(ids []*slotsv1.ExternalId, supplier string) []idClaim {
+	return unionClaims(nil, ids, supplier)
 }
 
-// unionIDs appends the valid IDs of add that are not yet present.
-func unionIDs(base, add []*slotsv1.ExternalId) []*slotsv1.ExternalId {
-	seen := map[string]bool{}
-	out := make([]*slotsv1.ExternalId, 0, len(base)+len(add))
-	for _, id := range base {
-		if id == nil || id.GetNamespace() == "" || id.GetValue() == "" {
-			continue
-		}
-		k := id.GetNamespace() + "\x00" + id.GetValue()
-		if !seen[k] {
-			seen[k] = true
-			out = append(out, id)
-		}
+// unionClaims merges a provider's assertions into the claim set: known claims
+// gain the supplier, unknown ones are appended.
+func unionClaims(base []idClaim, add []*slotsv1.ExternalId, supplier string) []idClaim {
+	out := base
+	index := make(map[string]int, len(base)+len(add))
+	for i, c := range out {
+		index[c.key()] = i
 	}
 	for _, id := range add {
 		if id == nil || id.GetNamespace() == "" || id.GetValue() == "" {
 			continue
 		}
-		k := id.GetNamespace() + "\x00" + id.GetValue()
-		if !seen[k] {
-			seen[k] = true
-			out = append(out, id)
+		probe := idClaim{Namespace: id.GetNamespace(), Value: id.GetValue()}
+		if i, ok := index[probe.key()]; ok {
+			if !contains(out[i].Suppliers, supplier) {
+				out[i].Suppliers = append(out[i].Suppliers, supplier)
+				sort.Strings(out[i].Suppliers)
+			}
+			continue
 		}
+		probe.Suppliers = []string{supplier}
+		index[probe.key()] = len(out)
+		out = append(out, probe)
 	}
 	return out
+}
+
+func contains(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 // unionStrings appends members of add that base does not already contain,

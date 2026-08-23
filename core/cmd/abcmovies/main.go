@@ -13,12 +13,16 @@ import (
 	"google.golang.org/grpc"
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
+	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/builtin"
 	"github.com/nem-git/abcmovies/core/internal/config"
+	"github.com/nem-git/abcmovies/core/internal/itemregistry"
+	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/registry"
 	"github.com/nem-git/abcmovies/core/internal/scheduler"
 	"github.com/nem-git/abcmovies/core/internal/slotwiring"
+	"github.com/nem-git/abcmovies/core/internal/sourcecache"
 
 	"github.com/nem-git/abcmovies/core/app"
 )
@@ -26,6 +30,25 @@ import (
 // instanceConfigPath is the documented instance configuration location
 // (ENVIRONMENT.md §6); a missing file means defaults.
 const instanceConfigPath = "config/instance.yaml"
+
+// eventRouter forwards availability events to the bus and invalidates
+// derived libraries. The library service is wired after slot setup completes,
+// so events emitted during initial syncs only reach the bus.
+type eventRouter struct {
+	bus *apiserver.InMemoryBus
+	lib *library.Service
+}
+
+func (r *eventRouter) Publish(env *corev1.EventEnvelope) {
+	if av := env.GetAvailability(); av != nil {
+		r.bus.Publish(env)
+		if r.lib != nil {
+			if err := r.lib.InvalidateAccount(av.GetProvider(), av.GetAccountId()); err != nil {
+				slog.Default().Warn("derived-library invalidation failed; caches rebuild on next read", "error", err)
+			}
+		}
+	}
+}
 
 func main() {
 	logger := slog.Default()
@@ -76,26 +99,50 @@ func main() {
 	}
 
 	sched := scheduler.New(0, logger)
+
+	// The provider item registry is instance-wide identity state over the
+	// source-cache store; key prefixes keep the two uses disjoint. No owner
+	// id yet: operator-facing merge-conflict notifications arrive with the
+	// operator surface, until then the registry suppresses them.
+	itemReg, err := itemregistry.New(stores.SourceCache, "")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "abcmovies: item registry: %v\n", err)
+		os.Exit(1)
+	}
+
+	router := &eventRouter{bus: apiserver.NewInMemoryBus()}
+	defer router.bus.Close()
+
+	var reaches []library.Reach
 	jobs, err := slotwiring.SetupAll(ctx, cfg.Slots, slotwiring.Deps{
-		Ctx:         ctx,
-		Registry:    r,
-		SealedBlobs: app.NewSealedBlobs(stores.Vault),
-		SourceCache: stores.SourceCache,
-		Logger:      logger,
+		Ctx:          ctx,
+		Registry:     r,
+		SealedBlobs:  app.NewSealedBlobs(stores.Vault),
+		SourceCache:  stores.SourceCache,
+		Logger:       logger,
+		ItemRegistry: itemReg,
+		EventSink:    router,
+		OnReach: func(provider string, sync *sourcecache.Synchronizer, accountID string) {
+			reaches = append(reaches, library.Reach{Sync: sync, AccountID: accountID})
+		},
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "abcmovies: slots: %v\n", err)
 		os.Exit(1)
 	}
+	libSvc, err := library.NewService(reaches, itemReg, stores.SourceCache, logger)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "abcmovies: library: %v\n", err)
+		os.Exit(1)
+	}
+	router.lib = libSvc
+
 	for _, j := range jobs {
 		sched.Register(j)
 	}
 	go sched.Run(ctx)
 
-	bus := apiserver.NewInMemoryBus()
-	defer bus.Close()
-
-	srv := apiserver.NewServer(bus, stores, composite, session)
+	srv := apiserver.NewServer(router.bus, stores, composite, session)
 	gs := grpc.NewServer(
 		grpc.UnaryInterceptor(apiserver.AuthUnaryInterceptor(session)),
 		grpc.StreamInterceptor(apiserver.AuthStreamInterceptor(session)),

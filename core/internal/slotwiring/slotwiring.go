@@ -19,8 +19,10 @@ import (
 	"time"
 
 	"github.com/nem-git/abcmovies/core/internal/config"
+	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/registry"
 	"github.com/nem-git/abcmovies/core/internal/scheduler"
+	"github.com/nem-git/abcmovies/core/internal/sourcecache"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
@@ -34,6 +36,15 @@ type Deps struct {
 	}
 	SourceCache store.Store
 	Logger      *slog.Logger
+	// ItemRegistry is the instance-wide provider item registry (identity is
+	// global state, not per-slot). Provider factories require it.
+	ItemRegistry *itemregistry.Registry
+	// EventSink receives availability events emitted by source-cache syncs;
+	// nil drops them.
+	EventSink sourcecache.EventSink
+	// OnReach is called once per wired provider account so the composition
+	// can collect what feeds derived libraries; nil ignores them.
+	OnReach func(provider string, sync *sourcecache.Synchronizer, accountID string)
 }
 
 // providerFactory admits one slot instance and returns its recurring jobs.

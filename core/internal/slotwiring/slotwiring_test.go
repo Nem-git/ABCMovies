@@ -111,3 +111,14 @@ func TestUnimplementedKindsRejected(t *testing.T) {
 		t.Fatalf("want not-implemented-yet error, got %v", err)
 	}
 }
+
+// TestProviderNamespaceIsSlotID pins the identity-scoping convention
+// (TECHNICAL-DECISIONS.md §1.25): two instances of one adapter must not share
+// a provider namespace, or their item ids would collide.
+func TestProviderNamespaceIsSlotID(t *testing.T) {
+	t.Parallel()
+	entry := config.SlotEntry{Adapter: "jellyfin", ID: "home-jellyfin"}
+	if got := providerNamespace(entry); got != "home-jellyfin" {
+		t.Fatalf("provider namespace = %q, want the slot id", got)
+	}
+}

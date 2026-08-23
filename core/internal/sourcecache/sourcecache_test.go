@@ -8,6 +8,8 @@ import (
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
+	"github.com/nem-git/abcmovies/core/internal/itemregistry"
+	"github.com/nem-git/abcmovies/core/internal/schema"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
@@ -147,4 +149,295 @@ func TestNewRejectsMissingParts(t *testing.T) {
 	if _, err := New("jellyfin", &fakeProvider{}, nil, nil); err == nil {
 		t.Fatal("nil cache accepted")
 	}
+}
+
+// captureSink records every published envelope.
+type captureSink struct{ envs []*corev1.EventEnvelope }
+
+func (c *captureSink) Publish(e *corev1.EventEnvelope) { c.envs = append(c.envs, e) }
+
+// stubLookup answers from a fixed native-id → entry-id map.
+type stubLookup struct{ entries map[string]string }
+
+func (s *stubLookup) Lookup(_ context.Context, _, nativeID string) (string, bool, error) {
+	id, ok := s.entries[nativeID]
+	return id, ok, nil
+}
+
+var fullCatalogue = []*slotsv1.CatalogueSyncResponse{
+	{Items: []*slotsv1.CatalogueItem{movie("1"), movie("2")}, NextPageToken: "p1"},
+	{Items: []*slotsv1.CatalogueItem{movie("3")}},
+}
+
+func TestDeletionReconcilesAfterCompleteSync(t *testing.T) {
+	f := &fakeProvider{pages: fullCatalogue}
+	sink := &captureSink{}
+	reg := &stubLookup{entries: map[string]string{"2": "le_e2", "3": "le_e3"}}
+	cache := store.NewInMemory()
+	s, err := New("jellyfin", f, cache, slog.Default(), WithEntryLookup(reg), WithEventsSink(sink))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ctx := context.Background()
+
+	if _, err := s.SyncAccount(ctx, "primary"); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	items, _ := s.ListItems(ctx, "primary")
+	if len(items) != 3 {
+		t.Fatalf("setup: cached %d items, want 3", len(items))
+	}
+	// The setup sync reported arrivals for the mapped items; item 1 is
+	// deliberately absent from the stub to exercise the skip path.
+	if len(sink.envs) != 2 {
+		t.Fatalf("setup published %d events, want one per mapped arrival", len(sink.envs))
+	}
+	sink.envs = nil
+
+	// The provider now reports only item 1.
+	f.pages = []*slotsv1.CatalogueSyncResponse{{Items: []*slotsv1.CatalogueItem{movie("1")}}}
+	stats, err := s.SyncAccount(ctx, "primary")
+	if err != nil {
+		t.Fatalf("second sync: %v", err)
+	}
+	if stats.Items != 1 || stats.Removed != 2 {
+		t.Fatalf("stats = %+v, want items=1 removed=2", stats)
+	}
+	items, err = s.ListItems(ctx, "primary")
+	if err != nil || len(items) != 1 || items[0].GetNativeId() != "1" {
+		t.Fatalf("cache after reconciliation = %d items (err=%v)", len(items), err)
+	}
+
+	if len(sink.envs) != 2 {
+		t.Fatalf("published %d events, want one per removal", len(sink.envs))
+	}
+	var gone *corev1.AvailabilityEvent
+	for _, env := range sink.envs {
+		if err := schema.ValidateEventEnvelope(env); err != nil {
+			t.Fatalf("published envelope invalid: %v", err)
+		}
+		av := env.GetAvailability()
+		if av.GetPresent() {
+			t.Fatalf("removal must report present=false: %+v", av)
+		}
+		if env.GetAudience() != corev1.EventAudience_EVENT_AUDIENCE_ACCOUNT || env.GetAccountId() != "primary" {
+			t.Fatalf("event must be account-scoped: %+v", env)
+		}
+		if av.GetEntryId() == "le_e3" {
+			gone = av
+		}
+	}
+	if gone == nil {
+		t.Fatal("no event carried the registry-resolved entry id")
+	}
+	if gone.GetProvider() != "jellyfin" {
+		t.Fatalf("availability event names wrong provider: %+v", gone)
+	}
+}
+
+func TestRemovedItemWithoutMappingSkipsEvent(t *testing.T) {
+	f := &fakeProvider{pages: fullCatalogue}
+	sink := &captureSink{}
+	cache := store.NewInMemory()
+	s, err := New("jellyfin", f, cache, slog.Default(), WithEntryLookup(&stubLookup{}), WithEventsSink(sink))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ctx := context.Background()
+	if _, err := s.SyncAccount(ctx, "primary"); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+
+	f.pages = []*slotsv1.CatalogueSyncResponse{{Items: []*slotsv1.CatalogueItem{movie("1")}}}
+	stats, err := s.SyncAccount(ctx, "primary")
+	if err != nil {
+		t.Fatalf("second sync: %v", err)
+	}
+	if stats.Removed != 2 {
+		t.Fatalf("removed = %d, want 2", stats.Removed)
+	}
+	if len(sink.envs) != 0 {
+		t.Fatalf("unmapped removals must not emit events with blank entries: %d published", len(sink.envs))
+	}
+}
+
+func TestFailedSyncNeverReconcilesDeletions(t *testing.T) {
+	f := &fakeProvider{pages: fullCatalogue}
+	cache := store.NewInMemory()
+	s, err := New("jellyfin", f, cache, slog.Default())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ctx := context.Background()
+	if _, err := s.SyncAccount(ctx, "primary"); err != nil {
+		t.Fatalf("setup sync: %v", err)
+	}
+	before, ok, _ := s.Manifest(ctx, "primary")
+	if !ok {
+		t.Fatal("setup manifest missing")
+	}
+
+	// A provider that dies mid-run must not be read as a mass deletion.
+	broken := &fakeProvider{
+		pages:      []*slotsv1.CatalogueSyncResponse{{Items: []*slotsv1.CatalogueItem{movie("1")}, NextPageToken: "p1"}, {}},
+		failOnPage: 2,
+	}
+	s2, err := New("jellyfin", broken, cache, slog.Default())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if _, err := s2.SyncAccount(ctx, "primary"); err == nil {
+		t.Fatal("provider error swallowed")
+	}
+	items, err := s.ListItems(ctx, "primary")
+	if err != nil {
+		t.Fatalf("ListItems: %v", err)
+	}
+	if len(items) != 3 {
+		t.Fatalf("failed run deleted items: %d remain", len(items))
+	}
+	after, ok, _ := s.Manifest(ctx, "primary")
+	if !ok || !after.LastCompleteSync.Equal(before.LastCompleteSync) {
+		t.Fatalf("failed run advanced the completion marker: %+v -> %+v", before, after)
+	}
+}
+
+func TestRemovalWithoutCollaboratorsStillDeletes(t *testing.T) {
+	f := &fakeProvider{pages: fullCatalogue}
+	s, _ := newSync(t, f)
+	ctx := context.Background()
+	if _, err := s.SyncAccount(ctx, "primary"); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+
+	f.pages = []*slotsv1.CatalogueSyncResponse{{Items: []*slotsv1.CatalogueItem{movie("1"), movie("2")}}}
+	stats, err := s.SyncAccount(ctx, "primary")
+	if err != nil {
+		t.Fatalf("second sync: %v", err)
+	}
+	if stats.Removed != 1 {
+		t.Fatalf("removed = %d, want 1 even without registry/sink wired", stats.Removed)
+	}
+	items, _ := s.ListItems(ctx, "primary")
+	if len(items) != 2 {
+		t.Fatalf("cached %d items after deletion, want 2", len(items))
+	}
+}
+
+// resolvingProvider adapts *itemregistry.Registry to the ItemResolver
+// interface for tests that exercise the full sync → identity → event path.
+type resolveInto struct{ r *itemregistry.Registry }
+
+func (a resolveInto) Resolve(ctx context.Context, provider string, item *slotsv1.CatalogueItem) error {
+	_, err := a.r.Resolve(ctx, provider, item)
+	return err
+}
+
+func TestArrivalEventsCarryResolvedEntryIDs(t *testing.T) {
+	f := &fakeProvider{pages: fullCatalogue}
+	sink := &captureSink{}
+	cache := store.NewInMemory()
+	reg, err := itemregistry.New(cache, "operator")
+	if err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+	s, err := New("jellyfin", f, cache, slog.Default(),
+		WithEntryLookup(reg), WithEventsSink(sink), WithItemResolver(resolveInto{reg}))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	stats, err := s.SyncAccount(context.Background(), "primary")
+	if err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	// The first sync is three arrivals; every item resolved during paging,
+	// so each arrival carries its entry id.
+	if stats.Items != 3 || len(sink.envs) != 3 {
+		t.Fatalf("stats=%+v events=%d, want 3 arrivals reported", stats, len(sink.envs))
+	}
+	for _, env := range sink.envs {
+		if err := schema.ValidateEventEnvelope(env); err != nil {
+			t.Fatalf("arrival envelope invalid: %v", err)
+		}
+		av := env.GetAvailability()
+		if !av.GetPresent() || av.GetEntryId() == "" || av.GetAccountId() != "primary" {
+			t.Fatalf("arrival event = %+v", av)
+		}
+	}
+
+	// A steady-state resync changes nothing and emits nothing.
+	sink.envs = nil
+	stats, err = s.SyncAccount(context.Background(), "primary")
+	if err != nil || stats.Removed != 0 || len(sink.envs) != 0 {
+		t.Fatalf("steady state: stats=%+v events=%d err=%v", stats, len(sink.envs), err)
+	}
+}
+
+func TestSwapSyncEmitsArrivalAndDeparture(t *testing.T) {
+	f := &fakeProvider{pages: fullCatalogue}
+	sink := &captureSink{}
+	cache := store.NewInMemory()
+	reg, _ := itemregistry.New(cache, "")
+	s, _ := New("jellyfin", f, cache, slog.Default(),
+		WithEntryLookup(reg), WithEventsSink(sink), WithItemResolver(resolveInto{reg}))
+	ctx := context.Background()
+	if _, err := s.SyncAccount(ctx, "primary"); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	sink.envs = nil
+
+	f.pages = []*slotsv1.CatalogueSyncResponse{{Items: []*slotsv1.CatalogueItem{movie("1"), movie("4")}}}
+	stats, err := s.SyncAccount(ctx, "primary")
+	if err != nil {
+		t.Fatalf("swap sync: %v", err)
+	}
+	// Items 2 and 3 left, item 4 arrived.
+	if stats.Items != 2 || stats.Removed != 2 || len(sink.envs) != 3 {
+		t.Fatalf("stats=%+v events=%d, want two departures and one arrival", stats, len(sink.envs))
+	}
+	presents := map[bool]bool{}
+	for _, env := range sink.envs {
+		presents[env.GetAvailability().GetPresent()] = true
+	}
+	if !presents[true] || !presents[false] {
+		t.Fatalf("expected both a present=true and a present=false event: %v", presents)
+	}
+}
+
+func TestResolverFailureAbortsRunWithoutCompleting(t *testing.T) {
+	f := &fakeProvider{pages: fullCatalogue}
+	cache := store.NewInMemory()
+	reg, _ := itemregistry.New(cache, "")
+	sink := &captureSink{}
+	resolver := failingResolver{}
+	s, _ := New("jellyfin", f, cache, slog.Default(),
+		WithEntryLookup(reg), WithEventsSink(sink), WithItemResolver(resolver))
+	ctx := context.Background()
+
+	if _, err := s.SyncAccount(ctx, "primary"); err == nil {
+		t.Fatal("resolver failure swallowed")
+	}
+	// Page items land before resolution runs (mirroring contract-violation
+	// semantics), but the run aborts before completing anything.
+	items, err := s.ListItems(ctx, "primary")
+	if err != nil {
+		t.Fatalf("ListItems: %v", err)
+	}
+	if len(items) != 1 || items[0].GetNativeId() != "1" {
+		t.Fatalf("failed run must stop at the failing item: %d items", len(items))
+	}
+	if _, ok, _ := s.Manifest(ctx, "primary"); ok {
+		t.Fatal("failed run advanced the completion marker")
+	}
+	if len(sink.envs) != 0 {
+		t.Fatalf("failed run emitted events: %d", len(sink.envs))
+	}
+}
+
+// failingResolver rejects the configured native id.
+type failingResolver struct{}
+
+func (failingResolver) Resolve(_ context.Context, _ string, item *slotsv1.CatalogueItem) error {
+	return fmt.Errorf("identity service unavailable")
 }

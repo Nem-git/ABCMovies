@@ -303,3 +303,35 @@ func TestSQLiteBackendDurability(t *testing.T) {
 		t.Fatalf("recycle after reopen = %+v", out)
 	}
 }
+
+func TestCanonicalExposesClaimsWithProvenance(t *testing.T) {
+	r := newTestRegistry(t)
+	ctx := context.Background()
+	a, err := r.Resolve(ctx, "jellyfin", movie("a1", "The Matrix", 1999, nil, &slotsv1.ExternalId{Namespace: "imdb", Value: "tt0133093"}))
+	if err != nil || a.Status != StatusCreated {
+		t.Fatalf("a: %+v err=%v", a, err)
+	}
+	// A second provider asserting the same claim corroborates it; a new claim
+	// arrives single-supplier.
+	if _, err := r.Resolve(ctx, "tmdb", movie("b1", "The Matrix", 1999, nil, &slotsv1.ExternalId{Namespace: "imdb", Value: "tt0133093"})); err != nil {
+		t.Fatalf("b: %v", err)
+	}
+
+	canon, ok, err := r.Canonical(ctx, a.EntryID)
+	if err != nil || !ok {
+		t.Fatalf("Canonical: %v ok=%v", err, ok)
+	}
+	if canon.Title != "The Matrix" || canon.Year != 1999 || canon.Kind != slotsv1.ItemKind_ITEM_KIND_MOVIE {
+		t.Fatalf("canonical = %+v", canon)
+	}
+	if len(canon.Claims) != 1 {
+		t.Fatalf("claims = %+v, want exactly the imdb assertion", canon.Claims)
+	}
+	claim := canon.Claims[0]
+	if claim.Namespace != "imdb" || claim.Value != "tt0133093" {
+		t.Fatalf("claim = %+v", claim)
+	}
+	if len(claim.Suppliers) != 2 || claim.Suppliers[0] != "jellyfin" || claim.Suppliers[1] != "tmdb" {
+		t.Fatalf("suppliers = %v, want both providers recorded", claim.Suppliers)
+	}
+}
