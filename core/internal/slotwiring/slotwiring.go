@@ -20,6 +20,7 @@ import (
 
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
+	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/registry"
 	"github.com/nem-git/abcmovies/core/internal/scheduler"
 	"github.com/nem-git/abcmovies/core/internal/sourcecache"
@@ -42,13 +43,12 @@ type Deps struct {
 	// EventSink receives availability events emitted by source-cache syncs;
 	// nil drops them.
 	EventSink sourcecache.EventSink
-	// OnReach is called once per wired provider account so the composition
-	// can collect what feeds derived libraries; nil ignores them.
-	OnReach func(provider string, sync *sourcecache.Synchronizer, accountID string)
 }
 
-// providerFactory admits one slot instance and returns its recurring jobs.
-type providerFactory func(entry config.SlotEntry, deps Deps) ([]scheduler.Job, error)
+// providerFactory admits one slot instance and returns its recurring jobs
+// plus the reaches (synchronizer + account pairs) it makes available for
+// derived libraries.
+type providerFactory func(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library.Reach, error)
 
 var providers = map[string]providerFactory{}
 
@@ -62,10 +62,10 @@ func RegisterProvider(adapter string, f providerFactory) {
 }
 
 // SetupProviders admits every enabled provider entry and returns the jobs
-// implementing their refresh cadence. An unknown adapter or a failing
-// handshake aborts startup loudly — a half-wired instance is worse than a
-// down one.
-func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, error) {
+// implementing their refresh cadence plus the reaches their accounts expose.
+// An unknown adapter or a failing handshake aborts startup loudly — a
+// half-wired instance is worse than a down one.
+func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []library.Reach, error) {
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -76,6 +76,7 @@ func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, err
 	}
 
 	var jobs []scheduler.Job
+	var reaches []library.Reach
 	for _, entry := range entries {
 		if !entry.Enabled {
 			logger.Info("slot disabled by config; skipping", "slot", entry.ID, "adapter", entry.Adapter)
@@ -83,22 +84,23 @@ func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, err
 		}
 		f, ok := providers[entry.Adapter]
 		if !ok {
-			return nil, fmt.Errorf("slot %q: unknown provider adapter %q (registered: %v)", entry.ID, entry.Adapter, keys(providers))
+			return nil, nil, fmt.Errorf("slot %q: unknown provider adapter %q (registered: %v)", entry.ID, entry.Adapter, keys(providers))
 		}
-		entryJobs, err := f(entry, deps)
+		entryJobs, entryReaches, err := f(entry, deps)
 		if err != nil {
-			return nil, fmt.Errorf("slot %q (adapter %q): %w", entry.ID, entry.Adapter, err)
+			return nil, nil, fmt.Errorf("slot %q (adapter %q): %w", entry.ID, entry.Adapter, err)
 		}
 		jobs = append(jobs, entryJobs...)
+		reaches = append(reaches, entryReaches...)
 	}
-	return jobs, nil
+	return jobs, reaches, nil
 }
 
 // SetupAll walks every slot kind from config. Provider wiring is fully
 // implemented; the remaining kinds are stubs that fail loudly if an operator
 // ever declares one before its milestone lands — silent ignoring would make
 // a typo look like a working deployment.
-func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]scheduler.Job, error) {
+func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]scheduler.Job, []library.Reach, error) {
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -106,12 +108,10 @@ func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]sched
 	deps.Ctx = ctx
 	deps.Logger = logger
 
-	var jobs []scheduler.Job
-	pJobs, err := SetupProviders(slots.Providers, deps)
+	pJobs, reaches, err := SetupProviders(slots.Providers, deps)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	jobs = append(jobs, pJobs...)
 
 	for _, kind := range []struct {
 		name    string
@@ -123,10 +123,10 @@ func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]sched
 		{"drm", slots.Drm},
 	} {
 		if len(kind.entries) > 0 {
-			return nil, fmt.Errorf("%s slots are not implemented yet; remove the %q entries or wait for their milestone", kind.name, kind.name+"s")
+			return nil, nil, fmt.Errorf("%s slots are not implemented yet; remove the %q entries or wait for their milestone", kind.name, kind.name+"s")
 		}
 	}
-	return jobs, nil
+	return pJobs, reaches, nil
 }
 
 // DeclaredCadence resolves a sync cadence by precedence: explicit operator

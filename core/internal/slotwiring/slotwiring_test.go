@@ -72,7 +72,7 @@ func TestUnknownAdapterRejected(t *testing.T) {
 	reg := registry.NewInProcess()
 	defer reg.Close()
 
-	_, err := SetupProviders([]config.SlotEntry{{
+	_, _, err := SetupProviders([]config.SlotEntry{{
 		ID: "primary", Adapter: "jellifin", Enabled: true, // deliberate typo
 	}}, Deps{Registry: reg, Logger: slog.Default()})
 	if err == nil || !strings.Contains(err.Error(), "unknown provider adapter") {
@@ -87,7 +87,7 @@ func TestDisabledEntriesAreSkipped(t *testing.T) {
 	reg := registry.NewInProcess()
 	defer reg.Close()
 
-	jobs, err := SetupProviders([]config.SlotEntry{{
+	jobs, _, err := SetupProviders([]config.SlotEntry{{
 		ID: "primary", Adapter: "jellyfin", Enabled: false,
 		Accounts: []config.AccountConfig{{ID: "primary"}}, // no URL/password on purpose
 	}}, Deps{Registry: reg, Logger: slog.Default()})
@@ -106,7 +106,7 @@ func TestUnimplementedKindsRejected(t *testing.T) {
 	slots := config.SlotsConfig{}
 	slots.Catalogue = []config.SlotEntry{{ID: "trakt", Adapter: "trakt", Enabled: true}}
 
-	if _, err := SetupAll(context.Background(), slots, Deps{}); err == nil ||
+	if _, _, err := SetupAll(context.Background(), slots, Deps{}); err == nil ||
 		!strings.Contains(err.Error(), "not implemented yet") {
 		t.Fatalf("want not-implemented-yet error, got %v", err)
 	}
