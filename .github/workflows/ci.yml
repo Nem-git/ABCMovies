@@ -33,7 +33,7 @@ env:
   GOTOOLCHAIN: auto
   # The milestone whose acceptance criteria gate the next image tag
   # (CI-CD.md §5; IMPLEMENTATION.md §3). Bump this when the milestone ships.
-  MILESTONE: m1
+  MILESTONE: m2
 
 jobs:
   lint:
