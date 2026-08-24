@@ -223,6 +223,13 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 - **Rationale:** PLAN.md §2.3's scoped provider item ID (`provider:nativeId`) needs `provider` to mean what the operator actually deployed; §5.3's coverage map keys its rows by providerId for the same reason.
 - **Consequence:** renaming a slot id in config re-keys identity state (fresh resolutions; old aliases stay resolvable but unused) — treat slot ids as stable identifiers. Recorded alongside the M2 identity work.
 
+### 1.26 Merge-conflict events — **emission proven now, delivery deferred to M6**
+
+- **Decision:** the provider item registry detects recycled native IDs and proof divergences and builds OWNER-audience merge-conflict envelopes whenever constructed with an owner id; the M2 milestone tests prove that end to end (M2 acceptance "merge-conflict events"). Production composition deliberately constructs the registry **without** an owner id, so a running instance emits none until the operator surface exists. There is no owner concept before sharing lands (M6), and an OWNER-audience event needs a concrete owner user id for tenancy-routed delivery — inventing owner semantics earlier would be a product decision taken silently in wiring code.
+- **The suppressed path is three gates**, named here so the deferral reads as one decision, not three oversights: (1) the empty owner id suppresses emission at the source; (2) the sync path cannot carry envelopes — the source-cache resolver seam returns only an error and the slot-wiring adapter discards the registry's returned events; (3) the event mux forwards availability payloads only. Enabling delivery therefore means owner semantics, a resolver-seam extension, and a mux routing rule together — not a one-liner.
+- **Rationale:** PLAN.md's safety half holds unconditionally — conflicting identities never merge silently, entries stay apart, and the registry keeps both mappings durably. Only the report waits; the event bus is ephemeral by design, so events emitted today could not be replayed later anyway.
+- **Consequence:** until M6, a divergence is observable only in stored state (both registry mappings), never via events or UI. M2 closes on its milestone tests proving emission capability; the delivery half rides with M6's account-scoped event routing and owner roles.
+
 ## 2. Open implementation items (recorded, not decided)
 
 These are deferred by design or pending follow-on choices:
@@ -230,6 +237,7 @@ These are deferred by design or pending follow-on choices:
 - **Subprocess slot supervision mechanics** — per-slot transport config (§3.1 of PLAN.md); decided when the first subprocess slot ships. v1 ships **no subprocess slots**: all built-in adapters are in-process (§1.1); the Jellyfin adapter is in-process Go making outbound HTTP calls.
 - **Store backends** — resolved for v1: SQLite (§1.16); non-SQLite backends remain possible per class at implementation time.
 - **Version-pin values** — resolved: initial set in §1.4, re-verified at M0 scaffolding.
+- **Merge-conflict event delivery** — deferred to M6 alongside owner semantics and account-scoped routing (§1.26); emission capability exists and is test-proven.
 
 ## 3. Relationship to the other documents
 
