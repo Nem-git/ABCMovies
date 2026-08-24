@@ -1,0 +1,55 @@
+{
+  "name": "title-normalization-merges",
+  "accounts": [
+    {
+      "id": "acct-a",
+      "provider": "providerA",
+      "items": [
+        {
+          "nativeId": "ge1",
+          "kind": "ITEM_KIND_MOVIE",
+          "metadata": {
+            "title": "The Great Escape",
+            "year": 1963,
+            "directors": ["John Sturges"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "acct-b",
+      "provider": "providerB",
+      "items": [
+        {
+          "nativeId": "ge2",
+          "kind": "ITEM_KIND_MOVIE",
+          "metadata": {
+            "title": " great   ESCAPE ",
+            "year": 1963,
+            "directors": ["John Sturges"]
+          }
+        }
+      ]
+    }
+  ],
+  "expected_library": {
+    "entries": [
+      {
+        "kind": "ENTRY_KIND_MOVIE",
+        "external_identities": [],
+        "coverage": {
+          "providerA:ge1": {
+            "present": true,
+            "verdict": "COVERAGE_VERDICT_PRESENCE_ONLY",
+            "via": ["acct-a:providerA:host"]
+          },
+          "providerB:ge2": {
+            "present": true,
+            "verdict": "COVERAGE_VERDICT_PRESENCE_ONLY",
+            "via": ["acct-b:providerB:host"]
+          }
+        }
+      }
+    ]
+  }
+}

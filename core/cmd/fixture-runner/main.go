@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -14,8 +16,12 @@ import (
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/builtin"
+	"github.com/nem-git/abcmovies/core/internal/itemregistry"
+	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/registry"
 	"github.com/nem-git/abcmovies/core/internal/schema"
+	"github.com/nem-git/abcmovies/core/internal/sourcecache"
+	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
 type suite struct {
@@ -52,6 +58,43 @@ type fixture struct {
 	Message json.RawMessage `json:"message"`
 	// Type identifies the message type for API contract validation.
 	Type string `json:"type"`
+	// Accounts and ExpectedLibrary drive pipeline suites (library_merge):
+	// each account's items are synced through the real source cache → item
+	// registry pipeline, then the derived per-user library is compared
+	// against the expectation.
+	Accounts        []mergeAccount `json:"accounts"`
+	ExpectedLibrary *mergeLibrary  `json:"expected_library"`
+}
+
+// mergeAccount is one linked account of one provider slot in a pipeline
+// fixture. The provider string is the slot-scoped namespace
+// (TECHNICAL-DECISIONS.md §1.25).
+type mergeAccount struct {
+	ID       string            `json:"id"`
+	Provider string            `json:"provider"`
+	Items    []json.RawMessage `json:"items"`
+}
+
+type mergeLibrary struct {
+	Entries []entrySummary `json:"entries"`
+}
+
+type entrySummary struct {
+	Kind               string                `json:"kind"`
+	ExternalIdentities []identitySummary     `json:"external_identities"`
+	Coverage           map[string]rowSummary `json:"coverage"`
+}
+
+type identitySummary struct {
+	Namespace string `json:"namespace"`
+	Value     string `json:"value"`
+	Verdict   string `json:"verdict"`
+}
+
+type rowSummary struct {
+	Present bool     `json:"present"`
+	Verdict string   `json:"verdict"`
+	Via     []string `json:"via"`
 }
 
 func main() {
@@ -150,6 +193,8 @@ func runCase(s suite, c fixture) error {
 		return runMetaCase(s, c)
 	case "library_entry", "media_source", "job", "event", "title_metadata":
 		return runSchemaCase(s, c)
+	case "library_merge":
+		return runLibraryMergeCase(s, c)
 	case "provider":
 		return runProviderCase(s, c)
 	case "api":
@@ -239,6 +284,120 @@ func validateContract(contract string, msg json.RawMessage) (bool, error) {
 // slot declaring its capabilities and pin what the registry reports back;
 // schema-style positive/negative cases validate request and response pages of
 // the whole-catalogue sync contract (PLAN.md §5.4).
+// runLibraryMergeCase executes pipeline fixtures: every account's catalogue
+// is synced through the production source cache and item registry, the
+// per-user library is derived exactly as main.go derives it, and the result
+// is compared entry-for-entry against the expectation. Positive cases pin
+// merges that must happen; negative cases pin separations that must not be
+// merged (no merge without corroboration — THREAT-MODEL.md T14).
+func runLibraryMergeCase(s suite, c fixture) error {
+	if c.ExpectedLibrary == nil {
+		return fmt.Errorf("expected_library is required for pipeline suites")
+	}
+	ctx := context.Background()
+	st := store.NewInMemory()
+	reg, err := itemregistry.New(st, "")
+	if err != nil {
+		return fmt.Errorf("registry: %w", err)
+	}
+
+	reaches := make([]library.Reach, 0, len(c.Accounts))
+	for _, acct := range c.Accounts {
+		items := make([]*slotsv1.CatalogueItem, 0, len(acct.Items))
+		for i, raw := range acct.Items {
+			var item slotsv1.CatalogueItem
+			if err := protojson.Unmarshal(raw, &item); err != nil {
+				return fmt.Errorf("account %q item %d: %w", acct.ID, i, err)
+			}
+			items = append(items, &item)
+		}
+		syncer, err := sourcecache.New(acct.Provider, &cannedProvider{items}, st, slog.Default(),
+			sourcecache.WithEntryLookup(reg),
+			sourcecache.WithItemResolver(registryResolver{reg}))
+		if err != nil {
+			return fmt.Errorf("source cache: %w", err)
+		}
+		if _, err := syncer.SyncAccount(ctx, acct.ID); err != nil {
+			return fmt.Errorf("sync %q: %w", acct.ID, err)
+		}
+		reaches = append(reaches, library.Reach{Sync: syncer, AccountID: acct.ID})
+	}
+
+	svc, err := library.NewService(reaches, reg, st, slog.Default())
+	if err != nil {
+		return fmt.Errorf("library service: %w", err)
+	}
+	lib, err := svc.Library(ctx, "fixture-user")
+	if err != nil {
+		return fmt.Errorf("derive library: %w", err)
+	}
+
+	got := summarize(lib)
+	want := c.ExpectedLibrary.Entries
+	sortEntries(got)
+	sortEntries(want)
+	if !reflect.DeepEqual(got, want) {
+		return fmt.Errorf("derived library mismatch:\n got: %s\nwant: %s", render(got), render(want))
+	}
+	return nil
+}
+
+type cannedProvider struct{ items []*slotsv1.CatalogueItem }
+
+func (p *cannedProvider) CatalogueSync(_ context.Context, _ *slotsv1.CatalogueSyncRequest) (*slotsv1.CatalogueSyncResponse, error) {
+	return &slotsv1.CatalogueSyncResponse{Items: p.items}, nil
+}
+
+// registryResolver adapts the item registry to the synchronizer's
+// ItemResolver.
+type registryResolver struct{ r *itemregistry.Registry }
+
+func (p registryResolver) Resolve(ctx context.Context, provider string, item *slotsv1.CatalogueItem) error {
+	_, err := p.r.Resolve(ctx, provider, item)
+	return err
+}
+
+func summarize(entries []*corev1.LibraryEntry) []entrySummary {
+	out := make([]entrySummary, 0, len(entries))
+	for _, e := range entries {
+		sum := entrySummary{
+			Kind:               e.GetKind().String(),
+			ExternalIdentities: []identitySummary{},
+			Coverage:           map[string]rowSummary{},
+		}
+		for _, id := range e.GetExternalIdentities() {
+			sum.ExternalIdentities = append(sum.ExternalIdentities, identitySummary{
+				Namespace: id.GetNamespace(),
+				Value:     id.GetValue(),
+				Verdict:   id.GetVerdict().String(),
+			})
+		}
+		sort.Slice(sum.ExternalIdentities, func(i, j int) bool {
+			a, b := sum.ExternalIdentities[i], sum.ExternalIdentities[j]
+			if a.Namespace != b.Namespace {
+				return a.Namespace < b.Namespace
+			}
+			return a.Value < b.Value
+		})
+		for key, row := range e.GetCoverage() {
+			via := append([]string(nil), row.GetVia()...)
+			sort.Strings(via)
+			sum.Coverage[key] = rowSummary{Present: row.GetPresent(), Verdict: row.GetVerdict().String(), Via: via}
+		}
+		out = append(out, sum)
+	}
+	return out
+}
+
+func sortEntries(entries []entrySummary) {
+	sort.Slice(entries, func(i, j int) bool { return render([]entrySummary{entries[i]}) < render([]entrySummary{entries[j]}) })
+}
+
+func render(entries []entrySummary) string {
+	b, _ := json.Marshal(entries)
+	return string(b)
+}
+
 func runProviderCase(s suite, c fixture) error {
 	switch s.Kind {
 	case "handshake":

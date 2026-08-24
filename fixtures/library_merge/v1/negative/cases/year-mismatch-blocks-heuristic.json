@@ -1,0 +1,61 @@
+{
+  "name": "year-mismatch-blocks-heuristic",
+  "accounts": [
+    {
+      "id": "acct-a",
+      "provider": "providerA",
+      "items": [
+        {
+          "nativeId": "t1",
+          "kind": "ITEM_KIND_MOVIE",
+          "metadata": {
+            "title": "The Thing",
+            "year": 1982,
+            "directors": ["John Carpenter"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "acct-b",
+      "provider": "providerB",
+      "items": [
+        {
+          "nativeId": "t2",
+          "kind": "ITEM_KIND_MOVIE",
+          "metadata": {
+            "title": "The Thing",
+            "year": 2011,
+            "directors": ["John Carpenter"]
+          }
+        }
+      ]
+    }
+  ],
+  "expected_library": {
+    "entries": [
+      {
+        "kind": "ENTRY_KIND_MOVIE",
+        "external_identities": [],
+        "coverage": {
+          "providerA:t1": {
+            "present": true,
+            "verdict": "COVERAGE_VERDICT_PRESENCE_ONLY",
+            "via": ["acct-a:providerA:host"]
+          }
+        }
+      },
+      {
+        "kind": "ENTRY_KIND_MOVIE",
+        "external_identities": [],
+        "coverage": {
+          "providerB:t2": {
+            "present": true,
+            "verdict": "COVERAGE_VERDICT_PRESENCE_ONLY",
+            "via": ["acct-b:providerB:host"]
+          }
+        }
+      }
+    ]
+  }
+}

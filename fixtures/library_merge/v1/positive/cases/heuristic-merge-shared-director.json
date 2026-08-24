@@ -1,0 +1,56 @@
+{
+  "name": "heuristic-merge-shared-director",
+  "accounts": [
+    {
+      "id": "acct-a",
+      "provider": "providerA",
+      "items": [
+        {
+          "nativeId": "ar1",
+          "kind": "ITEM_KIND_MOVIE",
+          "metadata": {
+            "title": "Arrival",
+            "year": 2016,
+            "directors": ["Denis Villeneuve"],
+            "cast": ["Amy Adams"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "acct-b",
+      "provider": "providerB",
+      "items": [
+        {
+          "nativeId": "ar7",
+          "kind": "ITEM_KIND_MOVIE",
+          "metadata": {
+            "title": "Arrival",
+            "year": 2016,
+            "directors": ["Denis Villeneuve"]
+          }
+        }
+      ]
+    }
+  ],
+  "expected_library": {
+    "entries": [
+      {
+        "kind": "ENTRY_KIND_MOVIE",
+        "external_identities": [],
+        "coverage": {
+          "providerA:ar1": {
+            "present": true,
+            "verdict": "COVERAGE_VERDICT_PRESENCE_ONLY",
+            "via": ["acct-a:providerA:host"]
+          },
+          "providerB:ar7": {
+            "present": true,
+            "verdict": "COVERAGE_VERDICT_PRESENCE_ONLY",
+            "via": ["acct-b:providerB:host"]
+          }
+        }
+      }
+    ]
+  }
+}

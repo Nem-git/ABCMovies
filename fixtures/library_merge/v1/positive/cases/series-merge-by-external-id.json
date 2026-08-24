@@ -1,0 +1,55 @@
+{
+  "name": "series-merge-by-external-id",
+  "accounts": [
+    {
+      "id": "acct-a",
+      "provider": "providerA",
+      "items": [
+        {
+          "nativeId": "bb1",
+          "kind": "ITEM_KIND_SERIES",
+          "externalIds": [{ "namespace": "imdb", "value": "tt0903747" }],
+          "metadata": { "title": "Breaking Bad", "year": 2008 }
+        }
+      ]
+    },
+    {
+      "id": "acct-b",
+      "provider": "providerB",
+      "items": [
+        {
+          "nativeId": "bb9",
+          "kind": "ITEM_KIND_SERIES",
+          "externalIds": [{ "namespace": "imdb", "value": "tt0903747" }],
+          "metadata": { "title": "Breaking Bad", "year": 2008 }
+        }
+      ]
+    }
+  ],
+  "expected_library": {
+    "entries": [
+      {
+        "kind": "ENTRY_KIND_SERIES",
+        "external_identities": [
+          {
+            "namespace": "imdb",
+            "value": "tt0903747",
+            "verdict": "IDENTITY_VERDICT_CORROBORATED"
+          }
+        ],
+        "coverage": {
+          "providerA:bb1": {
+            "present": true,
+            "verdict": "COVERAGE_VERDICT_CORROBORATED",
+            "via": ["acct-a:providerA:host"]
+          },
+          "providerB:bb9": {
+            "present": true,
+            "verdict": "COVERAGE_VERDICT_CORROBORATED",
+            "via": ["acct-b:providerB:host"]
+          }
+        }
+      }
+    ]
+  }
+}
