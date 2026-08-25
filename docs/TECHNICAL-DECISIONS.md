@@ -89,7 +89,7 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 - **Decision:** GitHub Actions. The worked example that CI-CD.md §7 used to carry is recorded here so CI-CD.md stays vendor-neutral; the pipeline stages and gates are vendor-neutral and the platform is interchangeable.
 - **Stage mapping:**
   - **lint, typecheck/build** — a job per stage on a fresh runner from the pinned toolchain (the same Containerfile as ENVIRONMENT.md §3). The lint job also runs the secret-leak scan (`make secret-scan`) — the "CI secret-leak gate" THREAT-MODEL.md T12 and CI-CD.md §4 promise.
-  - **schema checks** — a dedicated job running the schema lint and breaking-change tooling; fail on breaking change without a version bump.
+  - **schema checks** — a dedicated job running the schema lint; breaking-change detection is disabled until the first release (§1.24).
   - **unit + round-trip** — a job running the fast hermetic suites.
   - **fixtures** — the load-bearing job: runs the fixture suites for every built-in adapter; a required check on every PR.
   - **integration** — the cross-layer job, including the vault/secrets suite (never skippable).
@@ -109,7 +109,7 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 
 ### 1.10 Contract schema format — **Protobuf, compiled by buf**
 
-- **Decision:** the contracts (§2.1 of PLAN.md) are encoded as Protobuf schemas; the `.proto` definitions are the single source of truth. Codegen and schema checks run through the **buf** toolchain: `buf generate` (invoking the pinned per-language plugins below), `buf lint`, `buf breaking` (against the last approved state — satisfies the schema gate in CI-CD.md §3), and `buf format`.
+- **Decision:** the contracts (§2.1 of PLAN.md) are encoded as Protobuf schemas; the `.proto` definitions are the single source of truth. Codegen and schema checks run through the **buf** toolchain: `buf generate` (invoking the pinned per-language plugins below), `buf lint`, `buf breaking` (against the last approved state — satisfies the schema gate in CI-CD.md §3 when enabled; disabled until first release, §1.24), and `buf format`.
 - **Rationale:** unknown-field preservation makes the additive-versioning rule (§3.4 of PLAN.md) native; first-class support in the core language (§1.1); buf carries its own compiler, so no system `protoc` binary is pinned or required, and lint + breaking-change detection ship with the same pinned tool. Per-language plugins (`protoc-gen-go`, `protoc-gen-go-grpc`) are invoked by buf as local executables pinned via the core manifest's tool mechanism (§1.4).
 - **Consequence:** the reference documents (PLAN.md, IMPLEMENTATION.md, TESTING.md, CI-CD.md, ENVIRONMENT.md) speak of "schemas" generically; the concrete encoding is recorded here.
 
@@ -164,9 +164,9 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 - **Rationale:** 128-bit random values give collision-free, unforgeable identifiers without coordination. PLAN.md records the identifier *scheme* (opaque, immutable, never derived from content); this entry pins the *size*.
 - **Consequence:** the size is frozen once the schemas ship (§2.3 of PLAN.md); changing it later would break already-stored data, so treat it like the other pinned values here.
 
-### 1.18 Schema lint and breaking config — **buf, no exceptions**
+### 1.18 Schema lint and breaking config — **buf**
 
-- **Decision:** `buf lint` runs the **STANDARD** rule set and `buf breaking` runs the **FILE** rule set, with no disabled rules. The proto directory tree mirrors package paths (`abcmovies.<kind>.v1`, §1.3), so the lint rule that demands a file's directory match its package name passes by construction.
+- **Decision:** `buf lint` runs the **STANDARD** rule set, with no disabled rules; `buf breaking` runs the **FILE** rule set but is disabled until first release (§1.24). The proto directory tree mirrors package paths (`abcmovies.<kind>.v1`, §1.3), so the lint rule that demands a file's directory match its package name passes by construction.
 - **Rationale:** a schema gate without exceptions (CI-CD.md §3) needs lint config that a contributor cannot silently widen; mirroring directories to packages removes the one rule that would otherwise need a carve-out.
 - **Consequence:** the proto files' package name and their directory path are locked together; moving either one is a schema change (IMPLEMENTATION.md §8.1).
 
@@ -190,6 +190,7 @@ Each decision records the choice, the rationale, and the constraint it satisfies
   - every request names its target `account_id` from day one — adding it later would be wire-additive but behavior-breaking, since old adapters would answer any account with their configured default;
   - pages use **opaque continuation tokens**, so an adapter maps them onto whatever its provider offers (Jellyfin's offset pagination stays behind the adapter);
   - TV seasons and episodes are outside contract v1; adding them later is additive;
+  - an item's content metadata travels inside an embedded `TitleMetadata` (`metadata`), including title and year — they are matching evidence like any other field, and which fields drive a merge is decided by the core's matching engine, never by the schema (§1.24 records the removal of the former top-level copies);
   - items removed upstream are not deleted from the cache in M1; deletion reconciliation arrives with the identity work (M2).
 - **Rationale:** the catalogue index is the browse surface of a library-class provider (§3.2 of PLAN.md); naming it once here keeps adapters, fixtures, and the registry consistent.
 - **Consequence:** adapters declare `meta` + `browse` v1 and nothing more until further suites ship; the provider fixture suite (`fixtures/provider/v1/`) is the conformance gate for all of the above.
@@ -208,6 +209,27 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 - **Rationale:** exactly one policy exists today (§1.22's sync cadence). Typing every future key up front turns adapter evolution into contract ceremony and accumulates fields whose validity depends on which capability a slot speaks; the map ties each key to whoever declares it.
 - **Consequence:** well-known key names live beside their adapters (wiring + decision entries), never in a shared registry; the core must never branch on key names — the moment it wants to is the moment to revisit this entry and promote the key instead.
 
+### 1.24 Pre-release contract-evolution policy — **breaking allowed, gate off**
+
+- **Decision:** until the first release ships (SCOPE.md), built-in slot contracts may evolve **breaking-ly without a version bump**: every consumer is in-repo and is updated atomically in the same change, so version-bump ceremony (new suite, new handshake, per-break log entries) buys nothing while no external consumers exist. The `buf breaking` stage is disabled for this period — commented out of the Makefile's lint recipe rather than scoped per package. The exemption ends at first release: before any contract is published, the gate returns and PLAN.md's versioning rule applies without exception.
+- **First use:** the whole-catalogue sync item (`CatalogueItem`) dropped its top-level `title`/`year` fields; all content metadata — including those two matching-evidence values — now travels inside an embedded `TitleMetadata` (`metadata`). Which fields drive a merge is decided by the core's matching engine, never by the schema.
+- **First use:** `CoverageRow.via` became **repeated**: one coverage claim can be observed by several linked accounts of one provider slot, and last-writer-wins attribution silently lost that fact. Each element keeps the documented `account:provider:host` form; derivations sort elements so rebuilds are deterministic.
+- **Rationale:** single-operator pre-release project; the load-bearing freeze exists to protect external consumers that do not yet exist.
+- **Consequence:** load-bearing (`core/v1`) and API (`api/v1`) schemas lose automated drift detection too, not just slot contracts. Compensating controls: fixture suites and round-trip tests catch shape changes from below, review discipline catches them from above (AGENTS.md protected-file process). A re-enabled gate must be paired with a published baseline tag.
+
+### 1.25 Provider namespace — **the slot instance id**
+
+- **Decision:** everything keyed by "provider" — source-cache keys, provider-item-registry mappings (`(provider, nativeId) → {entryId, proof}`), coverage keys, availability- and merge-conflict-event payloads — uses the **slot instance id** (`SlotEntry.id`, e.g. `home-jellyfin`), never the adapter name. An adapter name cannot disambiguate two deployed instances of one adapter (two separate Jellyfin servers numbering their items identically); the slot id scopes identity per deployment while accounts of one slot share it deliberately (same server ⇒ same items ⇒ shared identity work).
+- **Rationale:** PLAN.md §2.3's scoped provider item ID (`provider:nativeId`) needs `provider` to mean what the operator actually deployed; §5.3's coverage map keys its rows by providerId for the same reason.
+- **Consequence:** renaming a slot id in config re-keys identity state (fresh resolutions; old aliases stay resolvable but unused) — treat slot ids as stable identifiers. Recorded alongside the M2 identity work.
+
+### 1.26 Merge-conflict events — **emission proven now, delivery deferred to M6**
+
+- **Decision:** the provider item registry detects recycled native IDs and proof divergences and builds OWNER-audience merge-conflict envelopes whenever constructed with an owner id; the M2 milestone tests prove that end to end (M2 acceptance "merge-conflict events"). Production composition deliberately constructs the registry **without** an owner id, so a running instance emits none until the operator surface exists. There is no owner concept before sharing lands (M6), and an OWNER-audience event needs a concrete owner user id for tenancy-routed delivery — inventing owner semantics earlier would be a product decision taken silently in wiring code.
+- **The suppressed path is three gates**, named here so the deferral reads as one decision, not three oversights: (1) the empty owner id suppresses emission at the source; (2) the sync path cannot carry envelopes — the source-cache resolver seam returns only an error and the slot-wiring adapter discards the registry's returned events; (3) the event mux forwards availability payloads only. Enabling delivery therefore means owner semantics, a resolver-seam extension, and a mux routing rule together — not a one-liner.
+- **Rationale:** PLAN.md's safety half holds unconditionally — conflicting identities never merge silently, entries stay apart, and the registry keeps both mappings durably. Only the report waits; the event bus is ephemeral by design, so events emitted today could not be replayed later anyway.
+- **Consequence:** until M6, a divergence is observable only in stored state (both registry mappings), never via events or UI. M2 closes on its milestone tests proving emission capability; the delivery half rides with M6's account-scoped event routing and owner roles.
+
 ## 2. Open implementation items (recorded, not decided)
 
 These are deferred by design or pending follow-on choices:
@@ -215,6 +237,7 @@ These are deferred by design or pending follow-on choices:
 - **Subprocess slot supervision mechanics** — per-slot transport config (§3.1 of PLAN.md); decided when the first subprocess slot ships. v1 ships **no subprocess slots**: all built-in adapters are in-process (§1.1); the Jellyfin adapter is in-process Go making outbound HTTP calls.
 - **Store backends** — resolved for v1: SQLite (§1.16); non-SQLite backends remain possible per class at implementation time.
 - **Version-pin values** — resolved: initial set in §1.4, re-verified at M0 scaffolding.
+- **Merge-conflict event delivery** — deferred to M6 alongside owner semantics and account-scoped routing (§1.26); emission capability exists and is test-proven.
 
 ## 3. Relationship to the other documents
 

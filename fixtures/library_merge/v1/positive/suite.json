@@ -1,0 +1,7 @@
+{
+  "contract": "library_merge",
+  "version": "v1",
+  "kind": "positive",
+  "slot": "core",
+  "transport": "pipeline"
+}

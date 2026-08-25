@@ -1,0 +1,65 @@
+{
+  "name": "no-merge-without-corroboration",
+  "accounts": [
+    {
+      "id": "acct-a",
+      "provider": "providerA",
+      "items": [
+        {
+          "nativeId": "h1",
+          "kind": "ITEM_KIND_MOVIE",
+          "metadata": {
+            "title": "Heat",
+            "year": 1995,
+            "directors": ["Michael Mann"],
+            "cast": ["Al Pacino"],
+            "originalLanguage": "en"
+          }
+        }
+      ]
+    },
+    {
+      "id": "acct-b",
+      "provider": "providerB",
+      "items": [
+        {
+          "nativeId": "h2",
+          "kind": "ITEM_KIND_MOVIE",
+          "metadata": {
+            "title": "Heat",
+            "year": 1995,
+            "directors": ["Renny Harlin"],
+            "cast": ["Skeet Ulrich"],
+            "originalLanguage": "de"
+          }
+        }
+      ]
+    }
+  ],
+  "expected_library": {
+    "entries": [
+      {
+        "kind": "ENTRY_KIND_MOVIE",
+        "external_identities": [],
+        "coverage": {
+          "providerA:h1": {
+            "present": true,
+            "verdict": "COVERAGE_VERDICT_PRESENCE_ONLY",
+            "via": ["acct-a:providerA:host"]
+          }
+        }
+      },
+      {
+        "kind": "ENTRY_KIND_MOVIE",
+        "external_identities": [],
+        "coverage": {
+          "providerB:h2": {
+            "present": true,
+            "verdict": "COVERAGE_VERDICT_PRESENCE_ONLY",
+            "via": ["acct-b:providerB:host"]
+          }
+        }
+      }
+    ]
+  }
+}

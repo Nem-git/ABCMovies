@@ -1,0 +1,67 @@
+{
+  "name": "kind-mismatch-blocks-id-match",
+  "accounts": [
+    {
+      "id": "acct-a",
+      "provider": "providerA",
+      "items": [
+        {
+          "nativeId": "x1",
+          "kind": "ITEM_KIND_MOVIE",
+          "externalIds": [{ "namespace": "imdb", "value": "tt0114369" }],
+          "metadata": { "title": "Stargate", "year": 1994 }
+        }
+      ]
+    },
+    {
+      "id": "acct-b",
+      "provider": "providerB",
+      "items": [
+        {
+          "nativeId": "x2",
+          "kind": "ITEM_KIND_SERIES",
+          "externalIds": [{ "namespace": "imdb", "value": "tt0114369" }],
+          "metadata": { "title": "Stargate", "year": 1997 }
+        }
+      ]
+    }
+  ],
+  "expected_library": {
+    "entries": [
+      {
+        "kind": "ENTRY_KIND_MOVIE",
+        "external_identities": [
+          {
+            "namespace": "imdb",
+            "value": "tt0114369",
+            "verdict": "IDENTITY_VERDICT_CORROBORATED"
+          }
+        ],
+        "coverage": {
+          "providerA:x1": {
+            "present": true,
+            "verdict": "COVERAGE_VERDICT_CORROBORATED",
+            "via": ["acct-a:providerA:host"]
+          }
+        }
+      },
+      {
+        "kind": "ENTRY_KIND_SERIES",
+        "external_identities": [
+          {
+            "namespace": "imdb",
+            "value": "tt0114369",
+            "verdict": "IDENTITY_VERDICT_CORROBORATED"
+          }
+        ],
+        "coverage": {
+          "providerB:x2": {
+            "present": true,
+            "verdict": "COVERAGE_VERDICT_CORROBORATED",
+            "via": ["acct-b:providerB:host"]
+          }
+        }
+      }
+    ]
+  }
+}

@@ -6,7 +6,7 @@
     "coverage": {
       "providerA:123": {
         "present": true,
-        "via": "account:providerA:host"
+        "via": ["account:providerA:host"]
       }
     }
   },

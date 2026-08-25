@@ -1,0 +1,55 @@
+{
+  "name": "external-id-merge-across-providers",
+  "accounts": [
+    {
+      "id": "acct-a",
+      "provider": "providerA",
+      "items": [
+        {
+          "nativeId": "jf1",
+          "kind": "ITEM_KIND_MOVIE",
+          "externalIds": [{ "namespace": "imdb", "value": "tt0133093" }],
+          "metadata": { "title": "The Matrix", "year": 1999 }
+        }
+      ]
+    },
+    {
+      "id": "acct-b",
+      "provider": "providerB",
+      "items": [
+        {
+          "nativeId": "k9",
+          "kind": "ITEM_KIND_MOVIE",
+          "externalIds": [{ "namespace": "imdb", "value": "tt0133093" }],
+          "metadata": { "title": "Matrix", "year": 1999 }
+        }
+      ]
+    }
+  ],
+  "expected_library": {
+    "entries": [
+      {
+        "kind": "ENTRY_KIND_MOVIE",
+        "external_identities": [
+          {
+            "namespace": "imdb",
+            "value": "tt0133093",
+            "verdict": "IDENTITY_VERDICT_CORROBORATED"
+          }
+        ],
+        "coverage": {
+          "providerA:jf1": {
+            "present": true,
+            "verdict": "COVERAGE_VERDICT_CORROBORATED",
+            "via": ["acct-a:providerA:host"]
+          },
+          "providerB:k9": {
+            "present": true,
+            "verdict": "COVERAGE_VERDICT_CORROBORATED",
+            "via": ["acct-b:providerB:host"]
+          }
+        }
+      }
+    ]
+  }
+}

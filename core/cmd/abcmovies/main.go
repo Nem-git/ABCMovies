@@ -18,7 +18,6 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/registry"
 	"github.com/nem-git/abcmovies/core/internal/scheduler"
-	"github.com/nem-git/abcmovies/core/internal/slotwiring"
 
 	"github.com/nem-git/abcmovies/core/app"
 )
@@ -76,26 +75,20 @@ func main() {
 	}
 
 	sched := scheduler.New(0, logger)
-	jobs, err := slotwiring.SetupAll(ctx, cfg.Slots, slotwiring.Deps{
-		Ctx:         ctx,
-		Registry:    r,
-		SealedBlobs: app.NewSealedBlobs(stores.Vault),
-		SourceCache: stores.SourceCache,
-		Logger:      logger,
-	})
+
+	slots, err := app.ComposeSlots(ctx, cfg.Slots, r, stores.SourceCache, stores.Vault, logger)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "abcmovies: slots: %v\n", err)
+		fmt.Fprintf(os.Stderr, "abcmovies: %v\n", err)
 		os.Exit(1)
 	}
-	for _, j := range jobs {
+	defer slots.Bus.Close()
+
+	for _, j := range slots.Jobs {
 		sched.Register(j)
 	}
 	go sched.Run(ctx)
 
-	bus := apiserver.NewInMemoryBus()
-	defer bus.Close()
-
-	srv := apiserver.NewServer(bus, stores, composite, session)
+	srv := apiserver.NewServer(slots.Bus, stores, composite, session)
 	gs := grpc.NewServer(
 		grpc.UnaryInterceptor(apiserver.AuthUnaryInterceptor(session)),
 		grpc.StreamInterceptor(apiserver.AuthStreamInterceptor(session)),

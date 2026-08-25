@@ -1,0 +1,15 @@
+{
+  "name": "item-without-metadata",
+  "type": "CatalogueSyncResponse",
+  "message": {
+    "items": [
+      {
+        "native_id": "jellyfin-7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d",
+        "kind": "ITEM_KIND_MOVIE"
+      }
+    ]
+  },
+  "expected": {
+    "valid": false
+  }
+}

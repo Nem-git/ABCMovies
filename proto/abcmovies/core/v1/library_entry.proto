@@ -67,9 +67,11 @@ message CoverageRow {
   repeated SeasonRange seasons = 2;
   // Identity confidence for this row. Required on every row.
   CoverageVerdict verdict = 3;
-  // Provenance: which reachable account observed it, `account:provider:host`.
-  // Required on present rows (PLAN.md §5.3).
-  string via = 4;
+  // Provenance: every reachable account that currently observes this item,
+  // one element per observing account in the documented
+  // `account:provider:host` form. Required non-empty on present rows
+  // (PLAN.md §5.3).
+  repeated string via = 4;
   // When the row was last verified.
   google.protobuf.Timestamp last_verified = 5;
 }

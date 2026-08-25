@@ -1,0 +1,16 @@
+{
+  "name": "item-metadata-missing-title",
+  "type": "CatalogueSyncResponse",
+  "message": {
+    "items": [
+      {
+        "native_id": "jellyfin-8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e",
+        "kind": "ITEM_KIND_SERIES",
+        "metadata": { "year": 2008 }
+      }
+    ]
+  },
+  "expected": {
+    "valid": false
+  }
+}

@@ -19,7 +19,9 @@ func ValidateCatalogueSyncRequest(req *slotsv1.CatalogueSyncRequest) error {
 	return nil
 }
 
-// ValidateCatalogueItem checks one provider-native catalogue item.
+// ValidateCatalogueItem checks one provider-native catalogue item. The
+// identity-relevant minimum is enforced here; full TitleMetadata validation
+// applies at cache ingest, not on the sync wire.
 func ValidateCatalogueItem(item *slotsv1.CatalogueItem) error {
 	if item == nil {
 		return fmt.Errorf("catalogue item: nil")
@@ -29,6 +31,12 @@ func ValidateCatalogueItem(item *slotsv1.CatalogueItem) error {
 	}
 	if item.GetKind() == slotsv1.ItemKind_ITEM_KIND_UNSPECIFIED {
 		return fmt.Errorf("catalogue item %q: kind is required", item.GetNativeId())
+	}
+	if item.GetMetadata() == nil {
+		return fmt.Errorf("catalogue item %q: metadata is required", item.GetNativeId())
+	}
+	if item.GetMetadata().GetTitle() == "" {
+		return fmt.Errorf("catalogue item %q: metadata.title is required", item.GetNativeId())
 	}
 	for i, id := range item.GetExternalIds() {
 		if id == nil {

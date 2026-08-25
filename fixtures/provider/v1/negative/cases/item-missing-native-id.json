@@ -5,7 +5,7 @@
     "items": [
       {
         "kind": "ITEM_KIND_MOVIE",
-        "title": "No Native Key"
+        "metadata": { "title": "No Native Key" }
       }
     ]
   },
