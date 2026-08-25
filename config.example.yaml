@@ -83,3 +83,9 @@ stores:
   source-cache:
     backend: local-file
     # path: data/source-cache.db  # default
+  # The global per-title metadata cache (docs/PLAN.md §2.4, §5.2) — enriched
+  # records plus their external-ID aliases. Durable is recommended; losing it
+  # only costs re-fetching from catalogue slots.
+  metadata-cache:
+    backend: local-file
+    # path: data/metadata-cache.db  # default

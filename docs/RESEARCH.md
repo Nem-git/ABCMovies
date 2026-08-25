@@ -71,6 +71,33 @@ Evidence behind the `core/app` bootstrap seam recorded in TECHNICAL-DECISIONS.md
 - The `golang-standards/project-layout` README itself notes `pkg/` is convention only and "`internal` ... is enforced by Go" — the compiler mechanism is the stronger gate.
 - Consequence observed in-repo: with consumers inside the same module (frontends), a root-level `pkg/` either cannot import `core/internal/*` at all, or (after moving internals to a root `internal/`) would let frontends bypass the seam entirely. Drawing the boundary at `core/` with the facade beside the internals gives compiler enforcement of the narrow surface.
 
+### 2.4 TMDB API baseline (desk spike)
+
+Evidence behind TECHNICAL-DECISIONS.md §1.27; **not** a decision. Desk research against TMDB's
+published developer docs (no live calls); live verification rides with the adapter's fixture work.
+
+- **Auth:** v3 API key or v4 API Read Access Token as `Authorization: Bearer …`. Bearer mode
+  preferred; free tier, no account-link flow (unlike provider slots).
+- **Lookup:** `/3/search/movie` and `/3/search/tv` (`query` required; optional `year` /
+  `first_air_date_year` hints) answer `{page, results[], total_pages, total_results}`. Result rows
+  are summary-shaped: `id`, `title` (movies) or `name` (series), `release_date` /
+  `first_air_date`, `genre_ids[]`, `poster_path`.
+- **Identity bridge:** `/3/find/{external_id}?external_source=imdb_id|tvdb_id|wikidata_id|…`
+  answers `movie_results[]`/`tv_results[]` with the same summary shape plus TMDB `id`. IMDb
+  resolves both movies and series; TVDB resolves series only.
+- **Details:** `/3/movie/{id}` and `/3/tv/{id}` accept `append_to_response` (≤20 sub-endpoints) so
+  details + `external_ids` (`imdb_id`, `wikidata_id`) + `credits` (cast, crew→directors; series
+  creators via `created_by`) + content ratings arrive in one request. Movies carry `runtime`;
+  series carry episode runtimes and season counts.
+- **Images:** poster/backdrop paths are relative; full URL =
+  `https://image.tmdb.org/t/p/<size><path>` (e.g. `w500`). Canonical base URL comes from
+  `/configuration`.
+- **Rate limits:** soft ~40 req/s; exceeding returns HTTP 429 with `Retry-After` which clients
+  must honor.
+- **Attribution (contractual):** "This product uses the TMDB API but is not endorsed or certified
+  by TMDB." plus logo rules — a frontend obligation (M5), recorded here because accepting the
+  API's terms happens at adoption.
+
 ## 3. How findings become decisions
 
 1. A spike completes and its findings are written here.

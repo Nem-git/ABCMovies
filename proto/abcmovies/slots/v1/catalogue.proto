@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package abcmovies.slots.v1;
+
+import "abcmovies/core/v1/library_entry.proto";
+import "abcmovies/slots/v1/provider.proto";
+
+// The catalogue slot's enrichment contract (docs/PLAN.md §3.1, §5.2): a
+// catalogue answers "what does the world know about this title?" — globally
+// authoritative metadata keyed by its own external IDs. It is the preferred
+// metadata source; providers contribute fallback fields per account.
+//
+// Refs travel in `namespace:value` form (e.g. "tmdb:603", "imdb:tt0133093").
+// GetMetadata accepts any namespace the catalogue can resolve, not only its
+// native one; the mapping from foreign IDs to native records is adapter
+// work behind this contract, never core work.
+
+// TitleCandidate is one lookup hit: enough to disambiguate cheaply and to
+// address a later GetMetadata. Resolution never happens here — the core
+// scores candidates against the entry's own evidence and enriches only when
+// exactly one survives (PLAN.md §5.3).
+message TitleCandidate {
+  // Canonical external ID for this candidate ("tmdb:603"). Required.
+  string ref = 1;
+  ItemKind kind = 2;
+  // Display title as the catalogue renders it (possibly localized).
+  string title = 3;
+  // Title as originally released — lets the matcher catch localization
+  // mismatches between provider and catalogue.
+  string original_title = 4;
+  uint32 year = 5;
+  // Identity assertions the catalogue makes about this candidate, if any.
+  // An ID that also appears on the library entry ends disambiguation
+  // immediately — no deeper fetch needed.
+  repeated ExternalId external_ids = 6;
+}
+
+message LookupTitleRequest {
+  // Free-text query: whatever title form the entry carries (display,
+  // original, translated). Adapters map this onto their native search,
+  // including alternate-title matching. This is the fallback path — entries
+  // with usable external IDs resolve through GetMetadata directly.
+  string query = 1;
+  // Optional narrowing; UNSPECIFIED means any kind.
+  ItemKind kind = 2;
+  // Optional release-year hint; 0 means any year.
+  uint32 year = 3;
+}
+
+message LookupTitleResponse {
+  repeated TitleCandidate candidates = 1;
+}
+
+message GetMetadataRequest {
+  // Any external ID the catalogue can resolve ("tmdb:603",
+  // "imdb:tt0133093"). Unknown namespaces are an error, never empty metadata.
+  string ref = 1;
+}
+
+message GetMetadataResponse {
+  abcmovies.core.v1.TitleMetadata metadata = 1;
+  // All external IDs the catalogue asserts for this title, including the
+  // canonical one — identity assertions, not guesses.
+  repeated ExternalId external_ids = 2;
+}
+
+// CatalogueService is the enrichment surface of a catalogue slot. Capabilities:
+// "lookup-title" version 1, "get-metadata" version 1 (PLAN.md §2.5, §3.4);
+// a slot declares only capabilities whose fixture suite it has passed.
+service CatalogueService {
+  rpc LookupTitle(LookupTitleRequest) returns (LookupTitleResponse);
+  rpc GetMetadata(GetMetadataRequest) returns (GetMetadataResponse);
+}
