@@ -22,11 +22,24 @@ func init() {
 
 // registryResolver adapts the item registry to the synchronizer's
 // ItemResolver: every synced item resolves behind the run's success boundary.
-type registryResolver struct{ r *itemregistry.Registry }
+// Any status other than unchanged means identity work happened — a mapping
+// was created, attached or its proof evolved — which is exactly the T2
+// trigger: the affected entry becomes an enrichment candidate
+// (TECHNICAL-DECISIONS.md §1.28). Unchanged mappings enqueue nothing.
+type registryResolver struct {
+	r      *itemregistry.Registry
+	notify func(entryID string)
+}
 
 func (a registryResolver) Resolve(ctx context.Context, provider string, item *slotsv1.CatalogueItem) error {
-	_, err := a.r.Resolve(ctx, provider, item)
-	return err
+	out, err := a.r.Resolve(ctx, provider, item)
+	if err != nil {
+		return err
+	}
+	if a.notify != nil && out.Status != itemregistry.StatusUnchanged {
+		a.notify(out.EntryID)
+	}
+	return nil
 }
 
 // providerNamespace is the string that scopes everything this slot instance
@@ -79,7 +92,7 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library
 		}
 		opts := []sourcecache.Option{
 			sourcecache.WithEntryLookup(deps.ItemRegistry),
-			sourcecache.WithItemResolver(registryResolver{deps.ItemRegistry}),
+			sourcecache.WithItemResolver(registryResolver{r: deps.ItemRegistry, notify: deps.Enqueue}),
 		}
 		if deps.EventSink != nil {
 			opts = append(opts, sourcecache.WithEventsSink(deps.EventSink))

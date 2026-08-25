@@ -76,7 +76,7 @@ func main() {
 
 	sched := scheduler.New(0, logger)
 
-	slots, err := app.ComposeSlots(ctx, cfg.Slots, r, stores.SourceCache, stores.Vault, logger)
+	slots, err := app.ComposeSlots(ctx, cfg.Slots, cfg.Enrichment, r, stores.SourceCache, stores.MetadataCache, stores.Vault, logger)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "abcmovies: %v\n", err)
 		os.Exit(1)

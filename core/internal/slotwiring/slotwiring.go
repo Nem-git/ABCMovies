@@ -43,6 +43,11 @@ type Deps struct {
 	// EventSink receives availability events emitted by source-cache syncs;
 	// nil drops them.
 	EventSink sourcecache.EventSink
+	// Enqueue hands entry IDs to the enrichment queue (T2 trigger,
+	// TECHNICAL-DECISIONS.md §1.28): after identity work produced or
+	// changed a mapping, its entry becomes an enrichment candidate. Nil
+	// disables the trigger (no catalogue slots configured).
+	Enqueue func(entryID string)
 }
 
 // providerFactory admits one slot instance and returns its recurring jobs

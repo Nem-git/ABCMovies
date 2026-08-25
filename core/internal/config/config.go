@@ -95,6 +95,16 @@ type Config struct {
 		MetadataCache StoreConfig `yaml:"metadata-cache"`
 	} `yaml:"stores"`
 	Slots SlotsConfig `yaml:"slots"`
+	// Enrichment tunes the background metadata pipeline. Absent keys fall
+	// back to the defaults the enrichment package declares.
+	Enrichment EnrichmentConfig `yaml:"enrichment"`
+}
+
+// EnrichmentConfig carries the enrichment pipeline's operator knobs.
+type EnrichmentConfig struct {
+	// DrainCadence overrides how often the drain worker checks the queue;
+	// empty means the package default (TECHNICAL-DECISIONS.md §1.29).
+	DrainCadence string `yaml:"drain-cadence"`
 }
 
 // Stores holds the instantiated store backends for each storage class

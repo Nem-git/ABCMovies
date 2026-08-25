@@ -9,6 +9,7 @@ import (
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
+	"github.com/nem-git/abcmovies/core/internal/metadatacache"
 	"github.com/nem-git/abcmovies/core/internal/sourcecache"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
@@ -288,5 +289,51 @@ func TestSameAdapterTwoSlotsDoNotCollide(t *testing.T) {
 	canonA, ok, err := fx.reg.Canonical(ctx, idA)
 	if err != nil || !ok || canonA.Title != "The Matrix" {
 		t.Fatalf("slotA canonical = %+v ok=%v err=%v", canonA, ok, err)
+	}
+}
+
+// TestEnrichmentSeamsFillRefAndMarkMisses pins the T1 trigger: entries whose
+// claims resolve in the metadata cache get metadata_ref filled during the
+// rebuild; entries with no resolvable claim are marked for the background
+// drain exactly once per rebuild (TECHNICAL-DECISIONS.md §1.28).
+func TestEnrichmentSeamsFillRefAndMarkMisses(t *testing.T) {
+	ctx := context.Background()
+	fx := newFixture(t, true)
+	fx.syncAll(t)
+
+	meta, err := metadatacache.New(store.NewInMemory(), slog.Default())
+	if err != nil {
+		t.Fatalf("metadata cache: %v", err)
+	}
+	if err := meta.PutRecord(ctx, "tmdb:603", &corev1.TitleMetadata{Title: "The Matrix", Year: 1999}); err != nil {
+		t.Fatalf("seed record: %v", err)
+	}
+	if err := meta.LinkAlias(ctx, "imdb:tt0133093", "tmdb:603"); err != nil {
+		t.Fatalf("seed alias: %v", err)
+	}
+
+	var marked []string
+	svc, err := NewService([]Reach{{fx.acct1, "acct-1"}, {fx.acct2, "acct-2"}},
+		fx.reg, fx.cache, slog.Default(), WithEnrichment(meta, func(id string) { marked = append(marked, id) }))
+	if err != nil {
+		t.Fatalf("service: %v", err)
+	}
+
+	lib, err := svc.Library(ctx, "enrich-user")
+	if err != nil {
+		t.Fatalf("library: %v", err)
+	}
+
+	matrix := find(t, lib, "jellyfin:jf1")
+	if matrix.GetMetadataRef() != "tmdb:603" {
+		t.Fatalf("matrix metadata_ref = %q, want tmdb:603", matrix.GetMetadataRef())
+	}
+
+	up := find(t, lib, "jellyfin:jf5")
+	if up.GetMetadataRef() != "" {
+		t.Fatalf("up metadata_ref = %q, want empty", up.GetMetadataRef())
+	}
+	if len(marked) != 1 || marked[0] != up.GetId() {
+		t.Fatalf("marked = %v, want exactly [%s]", marked, up.GetId())
 	}
 }
