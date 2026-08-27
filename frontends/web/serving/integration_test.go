@@ -393,3 +393,78 @@ func TestWebClient_AuthEnforced(t *testing.T) {
 		t.Fatalf("GetJob with valid token error = %v, want NotFound", err)
 	}
 }
+
+// debugStateEndpoints lists the four read-only observability routes that the
+// web layer serves on top of the gRPC core (TECHNICAL-DECISIONS.md §1.2).
+var debugStateEndpoints = []string{
+	"/debug/metadata",
+	"/debug/registry",
+	"/debug/sourcecache",
+	"/debug/enrichment",
+}
+
+// TestDebugState_Unauthorized proves the four state endpoints enforce the
+// same bearer-token authentication rule as the debug job/capabilities routes
+// and every protected RPC method.
+func TestDebugState_Unauthorized(t *testing.T) {
+	_, _, ts := newWebStack(t)
+	ctx := t.Context()
+	for _, ep := range debugStateEndpoints {
+		for _, tc := range []struct {
+			name  string
+			token string
+		}{
+			{"missing", ""},
+			{"unknown", "definitely-not-a-valid-token"},
+		} {
+			t.Run(ep+" "+tc.name, func(t *testing.T) {
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+ep, nil)
+				if err != nil {
+					t.Fatalf("new request: %v", err)
+				}
+				if tc.token != "" {
+					req.Header.Set("Authorization", "Bearer "+tc.token)
+				}
+				res, err := ts.Client().Do(req)
+				if err != nil {
+					t.Fatalf("GET %s: %v", ep, err)
+				}
+				_ = res.Body.Close()
+				if res.StatusCode != http.StatusUnauthorized {
+					t.Fatalf("GET %s status = %d, want 401", ep, res.StatusCode)
+				}
+			})
+		}
+	}
+}
+
+// TestDebugState_Authenticated proves each state endpoint answers a
+// logged-in session with well-formed JSON describing the (default, empty)
+// composed state — a healthy, slot-free instance.
+func TestDebugState_Authenticated(t *testing.T) {
+	_, client, ts := newWebStack(t)
+	ctx := t.Context()
+	token := signUpAndLogin(t, ctx, client)
+
+	for _, ep := range debugStateEndpoints {
+		t.Run(ep, func(t *testing.T) {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+ep, nil)
+			if err != nil {
+				t.Fatalf("new request: %v", err)
+			}
+			req.Header.Set("Authorization", "Bearer "+token)
+			res, err := ts.Client().Do(req)
+			if err != nil {
+				t.Fatalf("GET %s: %v", ep, err)
+			}
+			defer func() { _ = res.Body.Close() }()
+			if res.StatusCode != http.StatusOK {
+				t.Fatalf("GET %s status = %d, want 200", ep, res.StatusCode)
+			}
+			var v any
+			if err := json.NewDecoder(res.Body).Decode(&v); err != nil {
+				t.Fatalf("GET %s returned non-JSON: %v", ep, err)
+			}
+		})
+	}
+}

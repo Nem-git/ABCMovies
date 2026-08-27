@@ -441,3 +441,40 @@ type failingResolver struct{}
 func (failingResolver) Resolve(_ context.Context, _ string, item *slotsv1.CatalogueItem) error {
 	return fmt.Errorf("identity service unavailable")
 }
+
+// TestListAccountsEnumeratesSynchronizedAccounts proves the read-only
+// enumeration returns each distinct account that has any cached material
+// under this provider, with no duplicates across item rows and manifests.
+func TestListAccountsEnumeratesSynchronizedAccounts(t *testing.T) {
+	ctx := context.Background()
+	f := &fakeProvider{pages: []*slotsv1.CatalogueSyncResponse{
+		{Items: []*slotsv1.CatalogueItem{movie("1"), movie("2")}},
+	}}
+	s, _ := newSync(t, f)
+
+	if got, err := s.ListAccounts(ctx); err != nil || len(got) != 0 {
+		t.Fatalf("accounts before any sync = %v err=%v, want none", got, err)
+	}
+
+	if _, err := s.SyncAccount(ctx, "primary"); err != nil {
+		t.Fatalf("SyncAccount primary: %v", err)
+	}
+	if _, err := s.SyncAccount(ctx, "secondary"); err != nil {
+		t.Fatalf("SyncAccount secondary: %v", err)
+	}
+
+	accounts, err := s.ListAccounts(ctx)
+	if err != nil {
+		t.Fatalf("ListAccounts: %v", err)
+	}
+	set := map[string]bool{}
+	for _, a := range accounts {
+		if set[a] {
+			t.Fatalf("duplicate account %q in %v", a, accounts)
+		}
+		set[a] = true
+	}
+	if len(set) != 2 || !set["primary"] || !set["secondary"] {
+		t.Fatalf("accounts = %v, want primary and secondary, exactly once", accounts)
+	}
+}

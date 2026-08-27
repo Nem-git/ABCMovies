@@ -132,3 +132,40 @@ func TestNoCandidatesAbstains(t *testing.T) {
 		t.Fatalf("empty candidate list adopted %d", picked)
 	}
 }
+
+// TestOriginalTitleCatchesLocalization pins the alternate-title widening:
+// an entry stored under its localized title still agrees with the catalogue
+// candidate whose original-language form matches (TECHNICAL-DECISIONS.md
+// §1.29). The gate still requires a corroborating signal to merge.
+func TestOriginalTitleCatchesLocalization(t *testing.T) {
+	entry := Item{
+		Kind: slotsv1.ItemKind_ITEM_KIND_MOVIE,
+		Metadata: &corev1.TitleMetadata{
+			Title:     "La vita è bella",
+			Year:      1997,
+			Directors: []string{"Roberto Benigni"},
+		},
+	}
+	candidate := Item{
+		Kind:      slotsv1.ItemKind_ITEM_KIND_MOVIE,
+		AltTitles: []string{"La vita è bella"},
+		Metadata: &corev1.TitleMetadata{
+			Title:     "Life Is Beautiful",
+			Year:      1997,
+			Directors: []string{"Roberto Benigni"},
+		},
+	}
+	if got := Screen(entry, []Item{candidate}); len(got) != 1 {
+		t.Fatalf("localized candidate screened out: %v", got)
+	}
+	v := Decide(entry, candidate)
+	if !v.Merge {
+		t.Fatalf("matching director + alt-title agreement should merge: %+v", v)
+	}
+
+	// Without any agreeing title pair the same data stays separate.
+	candidate.AltTitles = nil
+	if got := Screen(entry, []Item{candidate}); len(got) != 0 {
+		t.Fatalf("candidate without title agreement survived screening")
+	}
+}

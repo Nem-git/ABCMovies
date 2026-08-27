@@ -84,6 +84,15 @@ func NewService(reaches []Reach, reg *itemregistry.Registry, cache store.Store, 
 
 const userPrefix = "lib/u/"
 
+// Reaches returns a copy of the reachable account list this service derives
+// from. Exposed for the observability surface (which linked accounts feed the
+// library).
+func (s *Service) Reaches() []Reach {
+	out := make([]Reach, len(s.reaches))
+	copy(out, s.reaches)
+	return out
+}
+
 func (s *Service) userKey(userID string) string {
 	return userPrefix + url.PathEscape(userID)
 }

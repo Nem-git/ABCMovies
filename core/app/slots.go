@@ -68,6 +68,15 @@ type SlotRuntime struct {
 	// Queue is the enrichment backlog; entries land here from the T1/T2
 	// triggers and leave through the drain worker.
 	Queue *enrichment.InMemoryQueue
+	// Meta is the metadata cache enriched records land in; exposed for the
+	// observability surface.
+	Meta *metadatacache.Cache
+	// Engine is the enrichment pipeline the worker drains the queue through.
+	Engine *enrichment.Engine
+	// Catalogues are the enabled catalogue slots the engine consults; exposed
+	// for the observability surface so the operator sees which providers a
+	// record could have been enriched from.
+	Catalogues []enrichment.Catalogue
 	// Jobs are the slots' recurring refresh jobs; register them with a
 	// scheduler and run it. The enrichment drain job is included.
 	Jobs []scheduler.Job
@@ -156,5 +165,8 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 		return nil, fmt.Errorf("library: %w", err)
 	}
 	rt.Library, rt.ItemRegistry, rt.Jobs = libSvc, itemReg, jobs
+	rt.Meta = meta
+	rt.Engine = engine
+	rt.Catalogues = cats
 	return rt, nil
 }

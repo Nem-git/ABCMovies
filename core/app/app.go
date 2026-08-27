@@ -45,6 +45,14 @@ type Stack struct {
 	stores   config.Stores
 	registry *registry.InProcessRegistry
 	bus      *apiserver.InMemoryBus
+
+	// configPath is retained so BuildSlots can re-load the caller's slot
+	// configuration over the same stack.
+	configPath string
+
+	// slots holds the composed provider-slot layer when BuildSlots has been
+	// called; nil until then.
+	slots *SlotRuntime
 }
 
 // Build composes the full core. configPath selects the instance config:
@@ -92,12 +100,13 @@ func Build(configPath string, logger *slog.Logger) (*Stack, error) {
 	srv := apiserver.NewServer(bus, stores, composite, session)
 
 	return &Stack{
-		service:  srv,
-		session:  &sessionSeam{session: session},
-		bind:     cfg.Core.API.Bind,
-		stores:   stores,
-		registry: r,
-		bus:      bus,
+		service:    srv,
+		session:    &sessionSeam{session: session},
+		bind:       cfg.Core.API.Bind,
+		stores:     stores,
+		registry:   r,
+		bus:        bus,
+		configPath: configPath,
 	}, nil
 }
 
@@ -121,6 +130,10 @@ func (s *Stack) EnqueueJob(ctx context.Context, job *corev1.Job) error {
 // Auth returns the session seam for authenticating requests terminated by
 // the embedder's own transport.
 func (s *Stack) Auth() Session { return s.session }
+
+// Slots returns the composed provider-slot layer, or nil when BuildSlots has
+// not been called (a bare core). See BuildSlots.
+func (s *Stack) Slots() *SlotRuntime { return s.slots }
 
 // SlotCapability is one admitted slot's declared contract name and version.
 type SlotCapability struct {
@@ -183,8 +196,32 @@ func NewSealedBlobs(vault interface {
 	return SealedBlobs{vault: vault}
 }
 
+// BuildSlots composes the provider-slot layer over this stack's stores and
+// cache config, making the composed slots available through Slots(). It is a
+// no-op once slots are already composed. The stack's config path is re-loaded
+// so the caller's slot configuration (catalogue, enrichment cadence) applies.
+func (s *Stack) BuildSlots(ctx context.Context, logger *slog.Logger) (*SlotRuntime, error) {
+	if s.slots != nil {
+		return s.slots, nil
+	}
+	cfg, err := config.Load(s.configPath)
+	if err != nil {
+		return nil, err
+	}
+	rt, err := ComposeSlots(ctx, cfg.Slots, cfg.Enrichment,
+		s.registry, s.stores.SourceCache, s.stores.MetadataCache, s.stores.Vault, logger)
+	if err != nil {
+		return nil, err
+	}
+	s.slots = rt
+	return rt, nil
+}
+
 // Close releases every resource the composed stack holds.
 func (s *Stack) Close() {
+	if s.slots != nil {
+		s.slots.Bus.Close()
+	}
 	s.bus.Close()
 	s.registry.Close()
 	_ = closeStores(s.stores)

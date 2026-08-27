@@ -161,6 +161,44 @@ func TestMalformedExternalIDsRejected(t *testing.T) {
 	}
 }
 
+func TestListRecordsAndAliases(t *testing.T) {
+	ctx := context.Background()
+	for _, c := range backends(t) {
+		if err := c.PutRecord(ctx, "tmdb:603", sampleRecord()); err != nil {
+			t.Fatalf("PutRecord 603: %v", err)
+		}
+		if err := c.PutRecord(ctx, "tmdb:604", sampleRecord()); err != nil {
+			t.Fatalf("PutRecord 604: %v", err)
+		}
+		if err := c.LinkAlias(ctx, "imdb:tt0133093", "tmdb:603"); err != nil {
+			t.Fatalf("LinkAlias: %v", err)
+		}
+
+		records, err := c.ListRecords(ctx)
+		if err != nil {
+			t.Fatalf("ListRecords: %v", err)
+		}
+		if len(records) != 2 {
+			t.Fatalf("ListRecords = %v, want 2 records", records)
+		}
+		set := map[string]bool{}
+		for _, r := range records {
+			set[r] = true
+		}
+		if !set["tmdb:603"] || !set["tmdb:604"] {
+			t.Fatalf("ListRecords missing expected refs: %v", records)
+		}
+
+		aliases, err := c.ListAliases(ctx)
+		if err != nil {
+			t.Fatalf("ListAliases: %v", err)
+		}
+		if len(aliases) != 1 || aliases["imdb:tt0133093"] != "tmdb:603" {
+			t.Fatalf("ListAliases = %v, want one alias to tmdb:603", aliases)
+		}
+	}
+}
+
 func TestSQLiteDurabilityAcrossReopen(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "metadata-cache.db")

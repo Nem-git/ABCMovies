@@ -61,6 +61,12 @@ type Item struct {
 	Kind        slotsv1.ItemKind
 	ExternalIDs []*slotsv1.ExternalId
 	Metadata    *corev1.TitleMetadata
+	// AltTitles are additional title forms the item asserts — e.g. a
+	// catalogue candidate's original-language title standing in when the
+	// display title is localized differently on the other side
+	// (TECHNICAL-DECISIONS.md §1.29). They participate only in title
+	// agreement; they can never create a merge by themselves.
+	AltTitles []string
 }
 
 // Decide applies the merge rule to two provider items. Kinds must always
@@ -80,7 +86,7 @@ func Decide(a, b Item) Verdict {
 	if corroborationMatch(a.ExternalIDs, b.ExternalIDs) {
 		return Verdict{Merge: true, Corroborated: true}
 	}
-	if !titlesMatch(a.Metadata, b.Metadata) {
+	if !titlesAgree(a, b) {
 		return Verdict{}
 	}
 	// Year gates movies only: compared exactly, unknown years fail. Series
@@ -121,14 +127,41 @@ func sameKind(a, b slotsv1.ItemKind) bool {
 	return a == b
 }
 
-// titlesMatch compares normalized titles exactly. Missing or empty titles
-// never match.
-func titlesMatch(a, b *corev1.TitleMetadata) bool {
-	if a == nil || b == nil {
-		return false
+// titlesAgree reports whether any title form asserted on one side matches
+// any title form on the other. The primary titles are compared first;
+// alternates exist for localization variants — an entry carrying a
+// localized display title must still agree with the catalogue's
+// original-language form (TECHNICAL-DECISIONS.md §1.29). Empty titles never
+// match.
+func titlesAgree(a, b Item) bool {
+	pa, pb := a.Metadata.GetTitle(), b.Metadata.GetTitle()
+	if titleEq(pa, pb) {
+		return true
 	}
-	na, nb := NormalizeTitle(a.GetTitle()), NormalizeTitle(b.GetTitle())
-	return na != "" && nb != "" && na == nb
+	for _, at := range a.AltTitles {
+		if titleEq(at, pb) {
+			return true
+		}
+	}
+	for _, bt := range b.AltTitles {
+		if titleEq(pa, bt) {
+			return true
+		}
+	}
+	for _, at := range a.AltTitles {
+		for _, bt := range b.AltTitles {
+			if titleEq(at, bt) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// titleEq compares one title pair under normalization.
+func titleEq(x, y string) bool {
+	nx, ny := NormalizeTitle(x), NormalizeTitle(y)
+	return nx != "" && ny != "" && nx == ny
 }
 
 // yearsMatch requires both years known (non-zero) and equal.

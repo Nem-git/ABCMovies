@@ -23,7 +23,7 @@ func Screen(entry Item, candidates []Item) []int {
 		if !sameKind(entry.Kind, c.Kind) {
 			continue
 		}
-		if !titlesMatch(entry.Metadata, c.Metadata) {
+		if !titlesAgree(entry, c) {
 			continue
 		}
 		// Year gates movies only, compared exactly, unknown failing closed

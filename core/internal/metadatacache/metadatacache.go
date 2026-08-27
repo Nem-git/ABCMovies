@@ -130,6 +130,40 @@ func (c *Cache) LinkAlias(ctx context.Context, alias, ref string) error {
 	return nil
 }
 
+// ListRecords returns the canonical refs of every record stored in the
+// cache. It is a read-only enumeration surface (for the observability and
+// operator views), not part of the resolution path.
+func (c *Cache) ListRecords(ctx context.Context) ([]string, error) {
+	keys, err := c.st.List(ctx, recordPrefix)
+	if err != nil {
+		return nil, fmt.Errorf("metadatacache: list records: %w", err)
+	}
+	refs := make([]string, 0, len(keys))
+	for _, key := range keys {
+		refs = append(refs, strings.TrimPrefix(key, recordPrefix))
+	}
+	return refs, nil
+}
+
+// ListAliases returns the aliases stored in the cache, each mapped to the
+// canonical record ref it resolves to. The returned map is a point-in-time
+// snapshot; alias rows are a lookup index, not identity.
+func (c *Cache) ListAliases(ctx context.Context) (map[string]string, error) {
+	keys, err := c.st.List(ctx, aliasPrefix)
+	if err != nil {
+		return nil, fmt.Errorf("metadatacache: list aliases: %w", err)
+	}
+	aliases := make(map[string]string, len(keys))
+	for _, key := range keys {
+		blob, err := c.st.Get(ctx, key)
+		if err != nil {
+			continue // raced away; nothing to report
+		}
+		aliases[strings.TrimPrefix(key, aliasPrefix)] = string(blob)
+	}
+	return aliases, nil
+}
+
 // DeleteRecord removes the record under ref and every alias pointing at it
 // (PLAN.md §5.3: heuristic-resolved IDs are purgeable). Deleting an absent
 // record is a no-op.

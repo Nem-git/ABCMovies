@@ -62,3 +62,12 @@ func (q *InMemoryQueue) Len() int {
 	defer q.mu.Unlock()
 	return len(q.pending)
 }
+
+// Pending returns a snapshot of the entry IDs currently awaiting enrichment,
+// in FIFO order. It is a read-only observability surface; Enqueue preserves
+// the worker discipline.
+func (q *InMemoryQueue) Pending() []string {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return append([]string(nil), q.pending...)
+}

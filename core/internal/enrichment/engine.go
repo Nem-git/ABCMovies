@@ -197,15 +197,20 @@ func (e *Engine) Enrich(ctx context.Context, entryID string) error {
 // candidateItem adapts a lookup summary to identity evidence. When the
 // display title differs but the original title matches the entry, the
 // original title stands in — that is exactly the localization case the
-// field exists for (contract comment on TitleCandidate.original_title).
+// field exists for (contract comment on TitleCandidate.original_title;
+// matching semantics in TECHNICAL-DECISIONS.md §1.29).
 func candidateItem(c *slotsv1.TitleCandidate) identity.Item {
 	title := c.GetTitle()
-	md := &corev1.TitleMetadata{Title: title, Year: c.GetYear()}
-	return identity.Item{
+	alt := c.GetOriginalTitle()
+	item := identity.Item{
 		Kind:        c.GetKind(),
 		ExternalIDs: claimedIDs(c),
-		Metadata:    md,
+		Metadata:    &corev1.TitleMetadata{Title: title, Year: c.GetYear()},
 	}
+	if alt != "" && alt != title {
+		item.AltTitles = []string{alt}
+	}
+	return item
 }
 
 // claimedIDs renders a candidate's own assertions, including its canonical

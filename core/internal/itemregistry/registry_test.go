@@ -335,3 +335,117 @@ func TestCanonicalExposesClaimsWithProvenance(t *testing.T) {
 		t.Fatalf("suppliers = %v, want both providers recorded", claim.Suppliers)
 	}
 }
+
+func TestListEntriesAndMappings(t *testing.T) {
+	r := newTestRegistry(t)
+	ctx := context.Background()
+
+	a, err := r.Resolve(ctx, "jellyfin", movie("a1", "The Matrix", 1999, dir("Wachowskis"), &slotsv1.ExternalId{Namespace: "imdb", Value: "tt0133093"}))
+	if err != nil || a.Status != StatusCreated {
+		t.Fatalf("a: %+v err=%v", a, err)
+	}
+	b, err := r.Resolve(ctx, "jellyfin", movie("b2", "Heat", 1995, nil, &slotsv1.ExternalId{Namespace: "tmdb", Value: "949"}))
+	if err != nil || b.Status != StatusCreated {
+		t.Fatalf("b: %+v err=%v", b, err)
+	}
+	// A corroborating provider attaches onto a and contributes a second
+	// supplier for the imdb claim.
+	if _, err := r.Resolve(ctx, "tmdb", movie("t1", "The Matrix", 1999, nil, &slotsv1.ExternalId{Namespace: "imdb", Value: "tt0133093"})); err != nil {
+		t.Fatalf("t1: %v", err)
+	}
+
+	entries, err := r.ListEntries(ctx)
+	if err != nil {
+		t.Fatalf("ListEntries: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("ListEntries = %d, want 2", len(entries))
+	}
+	byID := map[string]Entry{}
+	for _, e := range entries {
+		byID[e.ID] = e
+	}
+	if e := byID[a.EntryID]; e.Title != "The Matrix" || e.Kind != slotsv1.ItemKind_ITEM_KIND_MOVIE {
+		t.Fatalf("entry a = %+v", e)
+	} else if len(e.Claims) != 1 || e.Claims[0].Namespace != "imdb" || len(e.Claims[0].Suppliers) != 2 {
+		t.Fatalf("entry a claims = %+v, want corroborated imdb claim", e.Claims)
+	} else if len(e.Directors) != 1 || e.Directors[0] != "Wachowskis" {
+		t.Fatalf("entry a directors = %v", e.Directors)
+	}
+	if e := byID[b.EntryID]; e.Title != "Heat" {
+		t.Fatalf("entry b = %+v", e)
+	}
+
+	mappings, err := r.ListMappings(ctx)
+	if err != nil {
+		t.Fatalf("ListMappings: %v", err)
+	}
+	if len(mappings) != 3 {
+		t.Fatalf("ListMappings = %d, want 3", len(mappings))
+	}
+	found := map[string]Mapping{}
+	for _, m := range mappings {
+		found[m.Provider+"\x00"+m.NativeID] = m
+	}
+	m := found["jellyfin\x00a1"]
+	if m.EntryID != a.EntryID || m.Generation != 1 || m.Proof.Title != "The Matrix" {
+		t.Fatalf("mapping a1 = %+v", m)
+	}
+	if m := found["tmdb\x00t1"]; m.EntryID != a.EntryID {
+		t.Fatalf("tmdb mapping should attach to %s, got %s", a.EntryID, m.EntryID)
+	}
+}
+
+func TestConflictsPersistAcrossBackends(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name  string
+		store func(*testing.T) store.Store
+	}{
+		{"in-memory", func(*testing.T) store.Store { return store.NewInMemory() }},
+		{"sqlite", func(t *testing.T) store.Store {
+			st, err := store.NewSQLite(ctx, filepath.Join(t.TempDir(), "identity.db"))
+			if err != nil {
+				t.Fatalf("NewSQLite: %v", err)
+			}
+			t.Cleanup(func() { _ = st.Close() })
+			return st
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r, err := New(tc.store(t), "owner-1")
+			if err != nil {
+				t.Fatalf("New: %v", err)
+			}
+			first, err := r.Resolve(ctx, "streamco", movie("id7", "Old Feature", 1984, nil, &slotsv1.ExternalId{Namespace: "imdb", Value: "tt0087000"}))
+			if err != nil || first.Status != StatusCreated {
+				t.Fatalf("first: %+v err=%v", first, err)
+			}
+			if got, err := r.Conflicts(ctx); err != nil || len(got) != 0 {
+				t.Fatalf("conflicts before recycle = %v err=%v, want none", got, err)
+			}
+			out, err := r.Resolve(ctx, "streamco", movie("id7", "Totally Different Show", 2021, nil, &slotsv1.ExternalId{Namespace: "imdb", Value: "tt13999999"}))
+			if err != nil {
+				t.Fatalf("recycle: %v", err)
+			}
+			if !out.Recycled {
+				t.Fatalf("expected recycle, got %+v", out)
+			}
+
+			conflicts, err := r.Conflicts(ctx)
+			if err != nil {
+				t.Fatalf("Conflicts: %v", err)
+			}
+			if len(conflicts) != 1 {
+				t.Fatalf("Conflicts = %d, want exactly 1", len(conflicts))
+			}
+			c := conflicts[0]
+			if c.Provider != "streamco" || c.NativeID != "id7" || c.EntryID != first.EntryID || c.Reason == "" {
+				t.Fatalf("conflict = %+v", c)
+			}
+			if c.RecordedAt.IsZero() {
+				t.Fatal("conflict missing recorded-at timestamp")
+			}
+		})
+	}
+}
