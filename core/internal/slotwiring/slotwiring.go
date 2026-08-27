@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/nem-git/abcmovies/core/internal/config"
+	"github.com/nem-git/abcmovies/core/internal/enrichment"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/registry"
@@ -66,6 +67,60 @@ func RegisterProvider(adapter string, f providerFactory) {
 	providers[adapter] = f
 }
 
+// catalogueFactory admits one catalogue slot instance and hands back the
+// engine-facing client pair. Catalogues run no jobs of their own — they are
+// pulled by the enrichment drain, not pushed by a cadence.
+type catalogueFactory func(entry config.SlotEntry, deps Deps) (enrichment.Catalogue, error)
+
+var catalogs = map[string]catalogueFactory{}
+
+// RegisterCatalogue wires a catalogue adapter implementation to its config
+// name. Called from each adapter's wiring file via init().
+func RegisterCatalogue(adapter string, f catalogueFactory) {
+	if _, dup := catalogs[adapter]; dup {
+		panic(fmt.Sprintf("slotwiring: catalogue adapter %q registered twice", adapter))
+	}
+	catalogs[adapter] = f
+}
+
+// namespaceClaimer is implemented by catalogue adapters that can resolve
+// foreign identity namespaces; it powers the no-overlap rule below.
+type namespaceClaimer interface{ Namespaces() []string }
+
+// SetupCatalogues admits every enabled catalogue entry. Two enabled slots
+// may never claim the same identity namespace — with overlap,
+// GetMetadata(ref) would silently depend on wiring order instead of data
+// (TECHNICAL-DECISIONS.md §1.29), so startup fails loudly instead.
+func SetupCatalogues(entries []config.SlotEntry, deps Deps) ([]enrichment.Catalogue, error) {
+	logger := deps.Logger
+	claimed := map[string]string{} // namespace -> slot id
+	var out []enrichment.Catalogue
+	for _, entry := range entries {
+		if !entry.Enabled {
+			logger.Info("slot disabled by config; skipping", "slot", entry.ID, "adapter", entry.Adapter)
+			continue
+		}
+		f, ok := catalogs[entry.Adapter]
+		if !ok {
+			return nil, fmt.Errorf("slot %q: unknown catalogue adapter %q (registered: %v)", entry.ID, entry.Adapter, keys(catalogs))
+		}
+		cat, err := f(entry, deps)
+		if err != nil {
+			return nil, fmt.Errorf("slot %q (adapter %q): %w", entry.ID, entry.Adapter, err)
+		}
+		if claimer, ok := cat.Client.(namespaceClaimer); ok {
+			for _, ns := range claimer.Namespaces() {
+				if owner, dup := claimed[ns]; dup {
+					return nil, fmt.Errorf("slots %q and %q both claim identity namespace %q", owner, entry.ID, ns)
+				}
+				claimed[ns] = entry.ID
+			}
+		}
+		out = append(out, cat)
+	}
+	return out, nil
+}
+
 // SetupProviders admits every enabled provider entry and returns the jobs
 // implementing their refresh cadence plus the reaches their accounts expose.
 // An unknown adapter or a failing handshake aborts startup loudly — a
@@ -101,11 +156,11 @@ func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []l
 	return jobs, reaches, nil
 }
 
-// SetupAll walks every slot kind from config. Provider wiring is fully
-// implemented; the remaining kinds are stubs that fail loudly if an operator
-// ever declares one before its milestone lands — silent ignoring would make
-// a typo look like a working deployment.
-func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]scheduler.Job, []library.Reach, error) {
+// SetupAll walks every slot kind from config. Provider and catalogue wiring
+// are implemented; the remaining kinds are stubs that fail loudly if an
+// operator ever declares one before its milestone lands — silent ignoring
+// would make a typo look like a working deployment.
+func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]scheduler.Job, []library.Reach, []enrichment.Catalogue, error) {
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -115,23 +170,27 @@ func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]sched
 
 	pJobs, reaches, err := SetupProviders(slots.Providers, deps)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+
+	cats, err := SetupCatalogues(slots.Catalogue, deps)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
 	for _, kind := range []struct {
 		name    string
 		entries []config.SlotEntry
 	}{
-		{"catalogue", slots.Catalogue},
 		{"sink", slots.Sinks},
 		{"subtitle-source", slots.SubtitleSources},
 		{"drm", slots.Drm},
 	} {
 		if len(kind.entries) > 0 {
-			return nil, nil, fmt.Errorf("%s slots are not implemented yet; remove the %q entries or wait for their milestone", kind.name, kind.name+"s")
+			return nil, nil, nil, fmt.Errorf("%s slots are not implemented yet; remove the %q entries or wait for their milestone", kind.name, kind.name+"s")
 		}
 	}
-	return pJobs, reaches, nil
+	return pJobs, reaches, cats, nil
 }
 
 // DeclaredCadence resolves a sync cadence by precedence: explicit operator

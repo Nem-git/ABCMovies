@@ -123,7 +123,7 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 	rt := &SlotRuntime{Bus: apiserver.NewInMemoryBus(), Queue: queue}
 	mux := &eventMux{bus: rt.Bus, log: logger}
 
-	jobs, reaches, err := slotwiring.SetupAll(ctx, slots, slotwiring.Deps{
+	jobs, reaches, cats, err := slotwiring.SetupAll(ctx, slots, slotwiring.Deps{
 		Ctx:          ctx,
 		Registry:     reg,
 		SealedBlobs:  NewSealedBlobs(vault),
@@ -138,10 +138,9 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 		return nil, fmt.Errorf("slots: %w", err)
 	}
 
-	// The enrichment pipeline drains whatever the T1/T2 triggers collect.
-	// Catalogue slots arrive with their milestone; until then the queue
-	// simply stays empty.
-	engine := enrichment.NewEngine(registryEvidence{r: itemReg}, meta, nil, logger)
+	// The enrichment pipeline drains whatever the T1/T2 triggers collect;
+	// with no catalogue slots enabled the queue simply stays empty.
+	engine := enrichment.NewEngine(registryEvidence{r: itemReg}, meta, cats, logger)
 	drainCadence, err := enrichment.DrainCadence(enrich.DrainCadence)
 	if err != nil {
 		rt.Bus.Close()

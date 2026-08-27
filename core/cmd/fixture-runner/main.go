@@ -197,6 +197,8 @@ func runCase(s suite, c fixture) error {
 		return runLibraryMergeCase(s, c)
 	case "provider":
 		return runProviderCase(s, c)
+	case "catalogue":
+		return runCatalogueCase(s, c)
 	case "api":
 		return runAPICase(s, c)
 	default:
@@ -466,6 +468,60 @@ func validateProviderMessage(msgType string, msg json.RawMessage) (bool, error) 
 		return err == nil, err
 	default:
 		return false, fmt.Errorf("unknown provider message type %q", msgType)
+	}
+}
+
+func runCatalogueCase(s suite, c fixture) error {
+	switch s.Kind {
+	case "positive", "negative":
+		if c.Expected.Valid == nil {
+			return fmt.Errorf("expected.valid is required for catalogue schema suites")
+		}
+		valid, err := validateCatalogueMessage(c.Type, c.Message)
+		if valid != *c.Expected.Valid {
+			if *c.Expected.Valid {
+				return fmt.Errorf("expected valid:true, got invalid: %v", err)
+			}
+			return fmt.Errorf("expected valid:false, but the message validated cleanly")
+		}
+		return nil
+	default:
+		return fmt.Errorf("kind %q is not supported for catalogue suites", s.Kind)
+	}
+}
+
+func validateCatalogueMessage(msgType string, msg json.RawMessage) (bool, error) {
+	switch msgType {
+	case "LookupTitleRequest":
+		var m slotsv1.LookupTitleRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateLookupTitleRequest(&m)
+		return err == nil, err
+	case "LookupTitleResponse":
+		var m slotsv1.LookupTitleResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateLookupTitleResponse(&m)
+		return err == nil, err
+	case "GetMetadataRequest":
+		var m slotsv1.GetMetadataRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateGetMetadataRequest(&m)
+		return err == nil, err
+	case "GetMetadataResponse":
+		var m slotsv1.GetMetadataResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateGetMetadataResponse(&m)
+		return err == nil, err
+	default:
+		return false, fmt.Errorf("unknown catalogue message type %q", msgType)
 	}
 }
 

@@ -1,0 +1,14 @@
+{
+  "name": "get-metadata-response-missing-title",
+  "type": "GetMetadataResponse",
+  "message": {
+    "metadata": {
+      "title": "",
+      "year": 2010
+    },
+    "external_ids": []
+  },
+  "expected": {
+    "valid": false
+  }
+}

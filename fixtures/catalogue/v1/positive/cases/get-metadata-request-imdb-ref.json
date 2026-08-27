@@ -1,0 +1,10 @@
+{
+  "name": "get-metadata-request-imdb-ref",
+  "type": "GetMetadataRequest",
+  "message": {
+    "ref": "imdb:tt1375666"
+  },
+  "expected": {
+    "valid": true
+  }
+}

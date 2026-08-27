@@ -1,0 +1,10 @@
+{
+  "name": "lookup-title-request-empty-query",
+  "type": "LookupTitleRequest",
+  "message": {
+    "query": ""
+  },
+  "expected": {
+    "valid": false
+  }
+}

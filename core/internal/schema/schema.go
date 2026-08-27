@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 )
 
 // ValidateLibraryEntry checks a LibraryEntry (PLAN.md §2.3, §5.3).
@@ -335,6 +336,76 @@ func ValidateTitleMetadata(tm *corev1.TitleMetadata) error {
 	}
 	if tm.GetMovie() == nil && tm.GetSeries() == nil {
 		return fmt.Errorf("title metadata: kind_specific (movie or series) is required")
+	}
+	return nil
+}
+
+// ValidateLookupTitleRequest checks the catalogue text-lookup request
+// (catalogue.proto): query MUST be non-empty and kind MAY be unspecified.
+func ValidateLookupTitleRequest(m *slotsv1.LookupTitleRequest) error {
+	if m == nil {
+		return fmt.Errorf("lookup title request: nil")
+	}
+	if m.GetQuery() == "" {
+		return fmt.Errorf("lookup title request: query is required")
+	}
+	return nil
+}
+
+// ValidateLookupTitleResponse checks a catalogue text-lookup response
+// (catalogue.proto): every candidate MUST carry a non-empty ref and title.
+func ValidateLookupTitleResponse(m *slotsv1.LookupTitleResponse) error {
+	if m == nil {
+		return fmt.Errorf("lookup title response: nil")
+	}
+	for i, c := range m.GetCandidates() {
+		if c.GetRef() == "" {
+			return fmt.Errorf("lookup title response: candidate %d: ref is required", i)
+		}
+		if c.GetTitle() == "" {
+			return fmt.Errorf("lookup title response: candidate %d: title is required", i)
+		}
+	}
+	return nil
+}
+
+// ValidateGetMetadataRequest checks the catalogue details request
+// (catalogue.proto): ref MUST be non-empty and in namespace:value form.
+func ValidateGetMetadataRequest(m *slotsv1.GetMetadataRequest) error {
+	if m == nil {
+		return fmt.Errorf("get metadata request: nil")
+	}
+	ref := m.GetRef()
+	if ref == "" {
+		return fmt.Errorf("get metadata request: ref is required")
+	}
+	ns, val, ok := strings.Cut(ref, ":")
+	if !ok || ns == "" || val == "" {
+		return fmt.Errorf("get metadata request: ref must be namespace:value, got %q", ref)
+	}
+	return nil
+}
+
+// ValidateGetMetadataResponse checks a catalogue details response
+// (catalogue.proto): metadata MUST be present and every external ID MUST
+// carry both a non-empty namespace and value.
+func ValidateGetMetadataResponse(m *slotsv1.GetMetadataResponse) error {
+	if m == nil {
+		return fmt.Errorf("get metadata response: nil")
+	}
+	if m.GetMetadata() == nil {
+		return fmt.Errorf("get metadata response: metadata is required")
+	}
+	if m.GetMetadata().GetTitle() == "" {
+		return fmt.Errorf("get metadata response: metadata.title is required")
+	}
+	for i, id := range m.GetExternalIds() {
+		if id.GetNamespace() == "" {
+			return fmt.Errorf("get metadata response: external_id %d: namespace is required", i)
+		}
+		if id.GetValue() == "" {
+			return fmt.Errorf("get metadata response: external_id %d: value is required", i)
+		}
 	}
 	return nil
 }

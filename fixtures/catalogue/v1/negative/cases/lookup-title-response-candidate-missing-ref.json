@@ -1,0 +1,16 @@
+{
+  "name": "lookup-title-response-candidate-missing-ref",
+  "type": "LookupTitleResponse",
+  "message": {
+    "candidates": [
+      {
+        "ref": "",
+        "kind": "ITEM_KIND_MOVIE",
+        "title": "Something"
+      }
+    ]
+  },
+  "expected": {
+    "valid": false
+  }
+}

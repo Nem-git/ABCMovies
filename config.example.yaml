@@ -34,6 +34,14 @@ slots:
   # instance of an existing adapter is pure configuration; kinds whose
   # milestones have not landed must stay empty lists (or be omitted).
   providers: []
+  # Catalogue slots feed background enrichment (docs/TECHNICAL-DECISIONS.md
+  # §1.27). The credential is read from the environment named by token-env —
+  # never from this file:
+  # catalogue:
+  #   - id: tmdb-main
+  #     adapter: tmdb
+  #     enabled: true
+  #     token-env: TMDB_TOKEN
   catalogue: []
   sinks: []
   subtitle-sources: []
@@ -89,3 +97,8 @@ stores:
   metadata-cache:
     backend: local-file
     # path: data/metadata-cache.db  # default
+
+# Enrichment pipeline tuning (docs/TECHNICAL-DECISIONS.md §1.28, §1.29).
+# Absent keys fall back to the documented defaults.
+# enrichment:
+#   drain-cadence: 15m  # default; how often the worker checks the queue

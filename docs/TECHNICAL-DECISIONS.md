@@ -247,6 +247,13 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 - **Config surface:** catalogue slots are enabled by listing them under `slots.catalogue`; the drain cadence overrides through the existing declared-cadence precedence chain. No speculative knobs beyond enablement + cadence. The queue itself is in-memory state rebuilt from marked misses, so a crashed worker loses nothing durable.
 - **Rationale:** matches the converged pattern across Jellyfin's priority queue, Emby's scheduled tasks, Plex's maintenance window, and Radarr's non-disableable refresh task — background, paced, never in the request path.
 
+### 1.29 Enrichment execution details — **merge rules, drain cadence, catalogue wiring**
+
+- **Merge-engine tie-break rules** (realizing PLAN.md §5.2 field-level merge): absent fields claim nothing and clear nothing; a slot refreshes only the fields it owns; the catalogue tier takes over a provider's owned fields without fighting over them; between two non-owned fields in the same tier the first-at-tier-keeps — two catalogues never clash because they live in one. The provenance owner is always stamped as `kind:slot-id` (e.g. `catalogue:tmdb`, `provider:local-proxy`).
+- **Alt-title matching:** an `Item` may carry alternate title forms (`AltTitles`). The gate (`titlesAgree`) checks primary titles first and then alternates across both sides. This catches localized display titles that differ from a catalogue's original-language form without widening merge safety — a title match still never merges on its own; corroborating evidence is always required.
+- **Drain cadence:** the background worker defaults to 15 minutes (`enrichment.drain-cadence`). The operator overrides via `config.yaml`; invalid values abort startup loudly. There is no adapter-declared or per-slot drain cadence; the drain is core-side, not catalogue-side.
+- **Duplicate-namespace guard:** two enabled catalogue slots may never claim the same identity namespace. Startup fails immediately with a named conflict. This prevents `GetMetadata` from depending silently on wiring order when two adapters could both resolve the same IDs.
+
 ## 2. Open implementation items (recorded, not decided)
 
 These are deferred by design or pending follow-on choices:

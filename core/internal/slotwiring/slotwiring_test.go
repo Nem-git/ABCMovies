@@ -104,11 +104,24 @@ func TestDisabledEntriesAreSkipped(t *testing.T) {
 func TestUnimplementedKindsRejected(t *testing.T) {
 	t.Parallel()
 	slots := config.SlotsConfig{}
-	slots.Catalogue = []config.SlotEntry{{ID: "trakt", Adapter: "trakt", Enabled: true}}
+	slots.Sinks = []config.SlotEntry{{ID: "sink-a", Adapter: "trakt-sink", Enabled: true}}
 
-	if _, _, err := SetupAll(context.Background(), slots, Deps{}); err == nil ||
+	if _, _, _, err := SetupAll(context.Background(), slots, Deps{}); err == nil ||
 		!strings.Contains(err.Error(), "not implemented yet") {
 		t.Fatalf("want not-implemented-yet error, got %v", err)
+	}
+}
+
+// TestUnknownCatalogueAdapterRejected pins loud failure for a typo'd
+// catalogue adapter name.
+func TestUnknownCatalogueAdapterRejected(t *testing.T) {
+	t.Parallel()
+	slots := config.SlotsConfig{}
+	slots.Catalogue = []config.SlotEntry{{ID: "trakt", Adapter: "trakt", Enabled: true}}
+
+	if _, _, _, err := SetupAll(context.Background(), slots, Deps{}); err == nil ||
+		!strings.Contains(err.Error(), "unknown catalogue adapter") {
+		t.Fatalf("want unknown-catalogue-adapter error, got %v", err)
 	}
 }
 

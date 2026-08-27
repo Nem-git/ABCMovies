@@ -1,0 +1,10 @@
+{
+  "name": "get-metadata-request-empty-ref",
+  "type": "GetMetadataRequest",
+  "message": {
+    "ref": ""
+  },
+  "expected": {
+    "valid": false
+  }
+}

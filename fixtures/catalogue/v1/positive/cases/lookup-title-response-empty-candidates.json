@@ -1,0 +1,10 @@
+{
+  "name": "lookup-title-response-empty-candidates",
+  "type": "LookupTitleResponse",
+  "message": {
+    "candidates": []
+  },
+  "expected": {
+    "valid": true
+  }
+}

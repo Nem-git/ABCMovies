@@ -1,0 +1,13 @@
+{
+  "name": "get-metadata-response-external-id-empty-value",
+  "type": "GetMetadataResponse",
+  "message": {
+    "metadata": {
+      "title": "Inception"
+    },
+    "external_ids": [{ "namespace": "imdb", "value": "" }]
+  },
+  "expected": {
+    "valid": false
+  }
+}
