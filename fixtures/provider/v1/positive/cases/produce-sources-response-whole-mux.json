@@ -1,0 +1,53 @@
+{
+  "name": "produce-sources-response-whole-mux",
+  "type": "ProduceSourcesResponse",
+  "message": {
+    "source": {
+      "type": "MEDIA_SOURCE_TYPE_STATIC",
+      "seekable": "SEEKABLE_FULL",
+      "addressable": "ADDRESSABLE_WHOLE_MUX",
+      "tracks": [
+        {
+          "id": "container",
+          "video": {
+            "codec": "hevc",
+            "bitrate": 8000000,
+            "width": 3840,
+            "height": 2160,
+            "frame_rate": 24.0,
+            "range": "VIDEO_RANGE_HDR10"
+          },
+          "delivery": {
+            "locations": ["https://example.invalid/mux.mkv"]
+          }
+        },
+        {
+          "id": "audio-en",
+          "audio": {
+            "codec": "eac3",
+            "bitrate": 640000,
+            "language": "en",
+            "channel_layout": "5.1",
+            "role": "AUDIO_ROLE_MAIN"
+          },
+          "delivery": {
+            "carried_in": "container"
+          }
+        },
+        {
+          "id": "sub-en",
+          "subtitle": {
+            "format": "srt",
+            "language": "en"
+          },
+          "delivery": {
+            "carried_in": "container"
+          }
+        }
+      ]
+    }
+  },
+  "expected": {
+    "valid": true
+  }
+}

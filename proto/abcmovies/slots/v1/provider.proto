@@ -3,6 +3,7 @@ syntax = "proto3";
 package abcmovies.slots.v1;
 
 import "abcmovies/core/v1/library_entry.proto";
+import "abcmovies/core/v1/media_source.proto";
 
 // The provider slot's whole-catalogue sync contract (docs/PLAN.md §3.1, §5.4):
 // a library-class provider answers "what's in this account's library?" with a
@@ -75,9 +76,31 @@ message CatalogueSyncResponse {
   string next_page_token = 2;
 }
 
-// ProviderService is the sync surface of a provider slot. A slot declares
-// only capabilities whose fixture suite it has passed (PLAN.md §2.5, §3.4);
-// whole-catalogue sync is declared as capability "browse" version 1.
+// ProduceSourcesRequest asks for one provider's version of a title as a
+// playable manifest (PLAN.md §3.2, §6.2). The account whose session resolves
+// the source is identified by account_id; the item by its provider-native id
+// (a CatalogueItem.native_id). Selection of which tracks to deliver stays
+// engine-side, downstream of this capability.
+message ProduceSourcesRequest {
+  // The linked streaming-provider account whose session resolves the source.
+  string account_id = 1;
+  // The provider-native id of the item.
+  string native_id = 2;
+}
+
+// ProduceSourcesResponse carries the manifest for the requested item (PLAN.md
+// §6.2). A track set that describes what is playable for this provider's
+// version of the title.
+message ProduceSourcesResponse {
+  // The manifest. Required.
+  abcmovies.core.v1.MediaSource source = 1;
+}
+
+// ProviderService is the sync and source surface of a provider slot. A slot
+// declares only capabilities whose fixture suite it has passed (PLAN.md §2.5,
+// §3.4); whole-catalogue sync is declared as capability "browse" version 1 and
+// produce-sources as capability "produce-sources" version 1 (§1.21).
 service ProviderService {
   rpc CatalogueSync(CatalogueSyncRequest) returns (CatalogueSyncResponse);
+  rpc ProduceSources(ProduceSourcesRequest) returns (ProduceSourcesResponse);
 }

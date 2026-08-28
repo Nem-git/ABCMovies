@@ -87,6 +87,28 @@ func (a *coreServiceAdapter) Login(
 	return connect.NewResponse(resp), nil
 }
 
+func (a *coreServiceAdapter) StartDelivery(
+	ctx context.Context,
+	req *connect.Request[apiv1.StartDeliveryRequest],
+) (*connect.Response[apiv1.StartDeliveryResponse], error) {
+	resp, err := a.srv.StartDelivery(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (a *coreServiceAdapter) Heartbeat(
+	ctx context.Context,
+	req *connect.Request[apiv1.HeartbeatRequest],
+) (*connect.Response[apiv1.HeartbeatResponse], error) {
+	resp, err := a.srv.Heartbeat(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
 func (a *coreServiceAdapter) Subscribe(
 	ctx context.Context,
 	req *connect.Request[apiv1.SubscribeRequest],

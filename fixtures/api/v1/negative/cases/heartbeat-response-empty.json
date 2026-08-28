@@ -1,0 +1,8 @@
+{
+  "name": "heartbeat-response-empty",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {},
+  "type": "HeartbeatResponse"
+}

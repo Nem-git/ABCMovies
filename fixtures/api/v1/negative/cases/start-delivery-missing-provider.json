@@ -1,0 +1,14 @@
+{
+  "name": "start-delivery-missing-provider",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {
+    "goal": "DELIVERY_GOAL_PLAY",
+    "accountId": "acc-1",
+    "memberUserId": "user-1",
+    "nativeId": "item-42",
+    "sink": "device"
+  },
+  "type": "StartDeliveryRequest"
+}

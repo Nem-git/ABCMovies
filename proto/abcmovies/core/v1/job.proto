@@ -89,9 +89,13 @@ message DeliveryContext {
   string manifest_ref = 7;
   // Source-native resume markers, keyed by track id (PLAN.md §6.5).
   map<string, string> track_markers = 8;
-  // The selected download target (PLAN.md §6.3).
+  // The selected target. For download it is the recipe's video target; for
+  // play it selects a sink-compatibility remux/transcode target (PLAN.md
+  // §6.3); part of the resume key (§6.5).
   string selected_target = 9;
-  // The target container (PLAN.md §6.3).
+  // The target container. For download compose wraps the recipe in it; for
+  // play it is a remux container when the sink cannot consume the native one
+  // (PLAN.md §6.3); part of the resume key (§6.5).
   string container = 10;
 }
 

@@ -9,6 +9,7 @@ import (
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	"github.com/nem-git/abcmovies/core/internal/auth"
 	"github.com/nem-git/abcmovies/core/internal/config"
+	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/schema"
 	"github.com/nem-git/abcmovies/core/internal/store"
 	"google.golang.org/grpc/codes"
@@ -17,19 +18,34 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// DeliveryManager is the delivery-engine surface the API layer calls
+// (PLAN.md §6, §9.1). Exposing an interface keeps the apiserver decoupled
+// from the engine's internals and lets the handlers be tested with a stub.
+type DeliveryManager interface {
+	Start(ctx context.Context, req delivery.StartRequest) (*delivery.Session, error)
+	Heartbeat(id string) error
+}
+
 // Server implements the CoreService (PLAN.md §8).
 type Server struct {
 	apiv1.UnimplementedCoreServiceServer
-	bus     Bus
-	stores  config.Stores
-	auth    *auth.CompositeAuthenticator
-	session auth.Session
-	seq     atomic.Int64
+	bus      Bus
+	stores   config.Stores
+	auth     *auth.CompositeAuthenticator
+	session  auth.Session
+	delivery DeliveryManager
+	seq      atomic.Int64
 }
 
 // NewServer returns a CoreService backed by the given bus, stores, and auth.
-func NewServer(bus Bus, stores config.Stores, authenticator *auth.CompositeAuthenticator, session auth.Session) *Server {
-	return &Server{bus: bus, stores: stores, auth: authenticator, session: session}
+// An optional DeliveryManager may be supplied; when absent the delivery RPCs
+// return Unavailable.
+func NewServer(bus Bus, stores config.Stores, authenticator *auth.CompositeAuthenticator, session auth.Session, dm ...DeliveryManager) *Server {
+	var d DeliveryManager
+	if len(dm) > 0 {
+		d = dm[0]
+	}
+	return &Server{bus: bus, stores: stores, auth: authenticator, session: session, delivery: d}
 }
 
 // GetJob returns a job's current state from the jobs store (PLAN.md §9.1).
@@ -49,6 +65,89 @@ func (s *Server) GetJob(ctx context.Context, req *apiv1.GetJobRequest) (*apiv1.G
 		return nil, status.Error(codes.Internal, "corrupted job data")
 	}
 	return &apiv1.GetJobResponse{Job: &job}, nil
+}
+
+// StartDelivery begins a play or download session and returns its job
+// (PLAN.md §6, §9.1). Start is a plain "create" — each call makes a new
+// session (TECHNICAL-DECISIONS.md §1.30).
+func (s *Server) StartDelivery(ctx context.Context, req *apiv1.StartDeliveryRequest) (*apiv1.StartDeliveryResponse, error) {
+	if err := schema.ValidateStartDeliveryRequest(req); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	if s.delivery == nil {
+		return nil, status.Error(codes.Unavailable, "delivery engine not configured")
+	}
+	goal, err := deliveryGoal(req.GetGoal())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	sess, err := s.delivery.Start(ctx, delivery.StartRequest{
+		Goal:           goal,
+		MemberUserID:   req.GetMemberUserId(),
+		Provider:       req.GetProvider(),
+		AccountID:      req.GetAccountId(),
+		NativeID:       req.GetNativeId(),
+		Sink:           req.GetSink(),
+		SelectedTarget: req.GetSelectedTarget(),
+		Container:      req.GetContainer(),
+	})
+	if err != nil {
+		return nil, status.Error(codes.Code(delivery.Code(err)), err.Error())
+	}
+	s.persistDeliveryJob(ctx, sess.Job())
+	return &apiv1.StartDeliveryResponse{Job: sess.Job()}, nil
+}
+
+// Heartbeat keeps a play session alive (PLAN.md §9.1).
+func (s *Server) Heartbeat(ctx context.Context, req *apiv1.HeartbeatRequest) (*apiv1.HeartbeatResponse, error) {
+	if err := schema.ValidateHeartbeatRequest(req); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	if s.delivery == nil {
+		return nil, status.Error(codes.Unavailable, "delivery engine not configured")
+	}
+	if err := s.delivery.Heartbeat(req.GetSessionId()); err != nil {
+		return nil, status.Error(codes.Code(delivery.Code(err)), err.Error())
+	}
+	return &apiv1.HeartbeatResponse{SessionId: req.GetSessionId()}, nil
+}
+
+// deliveryGoal maps the API goal enum to the engine's goal.
+func deliveryGoal(g apiv1.DeliveryGoal) (delivery.Goal, error) {
+	switch g {
+	case apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY:
+		return delivery.GoalPlay, nil
+	case apiv1.DeliveryGoal_DELIVERY_GOAL_DOWNLOAD:
+		return delivery.GoalDownload, nil
+	default:
+		return "", status.Error(codes.InvalidArgument, "unknown delivery goal")
+	}
+}
+
+// persistDeliveryJob writes the job and announces its status event, mirroring
+// CreateJob so GetJob and Subscribe stay current (PLAN.md §9.1, §9.2).
+func (s *Server) persistDeliveryJob(ctx context.Context, job *corev1.Job) {
+	if job == nil {
+		return
+	}
+	raw, err := proto.Marshal(job)
+	if err != nil {
+		return
+	}
+	_ = s.stores.Jobs.Put(ctx, "job:"+job.GetId(), raw)
+	s.bus.Publish(&corev1.EventEnvelope{
+		Id:       fmt.Sprintf("evt-delivery-%s", job.GetId()),
+		Type:     corev1.EventType_EVENT_TYPE_JOB_STATUS,
+		Audience: corev1.EventAudience_EVENT_AUDIENCE_USER,
+		UserId:   job.GetOwnerUserId(),
+		Payload: &corev1.EventEnvelope_JobStatus{
+			JobStatus: &corev1.JobStatusEvent{
+				JobId:  job.GetId(),
+				Status: job.GetStatus(),
+			},
+		},
+		EmittedAt: timestamppb.Now(),
+	})
 }
 
 // CreateJob persists a job in the jobs store. This is an internal method for

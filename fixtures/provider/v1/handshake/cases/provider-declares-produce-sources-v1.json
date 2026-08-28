@@ -1,0 +1,16 @@
+{
+  "name": "provider-declares-produce-sources-v1",
+  "declaration": [
+    { "name": "meta", "version": 1 },
+    { "name": "browse", "version": 1 },
+    { "name": "produce-sources", "version": 1 }
+  ],
+  "expected": {
+    "admitted": true,
+    "capabilities": [
+      { "name": "meta", "version": 1 },
+      { "name": "browse", "version": 1 },
+      { "name": "produce-sources", "version": 1 }
+    ]
+  }
+}

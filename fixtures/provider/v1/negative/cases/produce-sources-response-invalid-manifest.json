@@ -1,0 +1,24 @@
+{
+  "name": "produce-sources-response-invalid-manifest",
+  "type": "ProduceSourcesResponse",
+  "message": {
+    "source": {
+      "seekable": "SEEKABLE_FULL",
+      "addressable": "ADDRESSABLE_PER_TRACK",
+      "tracks": [
+        {
+          "id": "v1080",
+          "video": {
+            "codec": "h264"
+          },
+          "delivery": {
+            "locations": ["https://example.invalid/v1080"]
+          }
+        }
+      ]
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}

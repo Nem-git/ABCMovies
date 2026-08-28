@@ -1,0 +1,8 @@
+{
+  "name": "produce-sources-response-missing-source",
+  "type": "ProduceSourcesResponse",
+  "message": {},
+  "expected": {
+    "valid": false
+  }
+}
