@@ -1,0 +1,14 @@
+{
+  "name": "start-delivery-missing-native",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {
+    "goal": "DELIVERY_GOAL_PLAY",
+    "provider": "jellyfin",
+    "accountId": "acc-1",
+    "memberUserId": "user-1",
+    "sink": "device"
+  },
+  "type": "StartDeliveryRequest"
+}

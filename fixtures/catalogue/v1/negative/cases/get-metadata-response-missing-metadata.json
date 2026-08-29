@@ -1,0 +1,11 @@
+{
+  "name": "get-metadata-response-missing-metadata",
+  "type": "GetMetadataResponse",
+  "message": {
+    "metadata": null,
+    "external_ids": []
+  },
+  "expected": {
+    "valid": false
+  }
+}

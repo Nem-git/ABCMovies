@@ -10,8 +10,75 @@ import (
 	"sync/atomic"
 	"testing"
 
+	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 )
+
+func TestProduceSourcesBuildsWholeMuxManifest(t *testing.T) {
+	f := newFake(t, nil)
+	slot := newTestSlot(t, f)
+	ctx := context.Background()
+
+	resp, err := slot.ProduceSources(ctx, &slotsv1.ProduceSourcesRequest{
+		AccountId: "primary",
+		NativeId:  "item-1",
+	})
+	if err != nil {
+		t.Fatalf("ProduceSources: %v", err)
+	}
+	src := resp.GetSource()
+	if src == nil {
+		t.Fatal("ProduceSources returned no source")
+	}
+	if src.GetType() != corev1.MediaSourceType_MEDIA_SOURCE_TYPE_STATIC {
+		t.Fatalf("type = %v, want STATIC", src.GetType())
+	}
+	if src.GetAddressable() != corev1.Addressable_ADDRESSABLE_WHOLE_MUX {
+		t.Fatalf("addressable = %v, want WHOLE_MUX", src.GetAddressable())
+	}
+	if len(src.GetTracks()) == 0 {
+		t.Fatal("no tracks in manifest")
+	}
+	if v := src.GetTracks()[0].GetVideo(); v == nil || v.GetCodec() != "hevc" || v.GetWidth() != 3840 {
+		t.Fatalf("container track video = %+v, want hevc 3840p", v)
+	}
+	// The muxed container is the fetch unit: the video track carries the direct
+	// stream URL and audio/subtitle tracks reference it (WHOLE_MUX, §6.2).
+	if len(src.GetTracks()[0].GetDelivery().GetLocations()) == 0 {
+		t.Fatal("container track has no direct stream location")
+	}
+	sawAudio, sawSub := false, false
+	for _, tr := range src.GetTracks() {
+		if tr.GetAudio() != nil {
+			sawAudio = true
+			if tr.GetDelivery().GetCarriedIn() != "container" {
+				t.Fatalf("audio track carried_in = %q, want container", tr.GetDelivery().GetCarriedIn())
+			}
+		}
+		if tr.GetSubtitle() != nil {
+			sawSub = true
+			if tr.GetDelivery().GetCarriedIn() != "container" {
+				t.Fatalf("subtitle track carried_in = %q, want container", tr.GetDelivery().GetCarriedIn())
+			}
+		}
+	}
+	if !sawAudio || !sawSub {
+		t.Fatalf("manifest missing audio (saw=%v) or subtitle (saw=%v)", sawAudio, sawSub)
+	}
+}
+
+func TestProduceSourcesRequiresAccountAndItem(t *testing.T) {
+	f := newFake(t, nil)
+	slot := newTestSlot(t, f)
+	ctx := context.Background()
+
+	if _, err := slot.ProduceSources(ctx, &slotsv1.ProduceSourcesRequest{AccountId: "primary"}); err == nil {
+		t.Fatal("ProduceSources with no native_id succeeded")
+	}
+	if _, err := slot.ProduceSources(ctx, &slotsv1.ProduceSourcesRequest{NativeId: "item-1"}); err == nil {
+		t.Fatal("ProduceSources with no account_id succeeded")
+	}
+}
 
 // fakeJellyfin is a minimal in-process Jellyfin: it authenticates one user and
 // serves a fixed item index with offset pagination, counting requests.
@@ -71,6 +138,23 @@ func newFake(t *testing.T, items []mediaItem) *fakeJellyfin {
 			"StartIndex":       offset,
 		})
 	})
+	mux.HandleFunc("POST /Items/{itemId}/PlaybackInfo", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"MediaSources": []map[string]any{{
+				"Id":        "src-1",
+				"Container": "mkv",
+				"MediaStreams": []map[string]any{
+					{"Type": "Video", "Codec": "hevc", "Width": 3840, "Height": 2160, "BitRate": 8000000},
+					{"Type": "Audio", "Codec": "eac3", "Language": "eng", "Channels": 6, "ChannelLayout": "5.1"},
+					{"Type": "Subtitle", "Codec": "srt", "Language": "eng", "IsForced": false},
+				},
+			}},
+		})
+	})
 	f.server = httptest.NewServer(mux)
 	t.Cleanup(f.server.Close)
 	return f
@@ -110,8 +194,8 @@ func TestCapabilityQueryDeclaresBrowseV1(t *testing.T) {
 	for _, c := range resp.GetCapabilities() {
 		got[c.GetName()] = c.GetVersion()
 	}
-	if got["meta"] != 1 || got["browse"] != 1 {
-		t.Fatalf("capabilities = %v, want meta v1 + browse v1", got)
+	if got["meta"] != 1 || got["browse"] != 1 || got["produce-sources"] != 1 {
+		t.Fatalf("capabilities = %v, want meta v1 + browse v1 + produce-sources v1", got)
 	}
 }
 

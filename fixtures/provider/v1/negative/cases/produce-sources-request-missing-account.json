@@ -1,0 +1,10 @@
+{
+  "name": "produce-sources-request-missing-account",
+  "type": "ProduceSourcesRequest",
+  "message": {
+    "native_id": "item_9f8e7d6c5b4a39281706"
+  },
+  "expected": {
+    "valid": false
+  }
+}

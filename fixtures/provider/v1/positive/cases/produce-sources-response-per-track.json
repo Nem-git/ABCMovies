@@ -1,0 +1,45 @@
+{
+  "name": "produce-sources-response-per-track",
+  "type": "ProduceSourcesResponse",
+  "message": {
+    "source": {
+      "type": "MEDIA_SOURCE_TYPE_STATIC",
+      "seekable": "SEEKABLE_FULL",
+      "addressable": "ADDRESSABLE_PER_TRACK",
+      "tracks": [
+        {
+          "id": "v1080",
+          "video": {
+            "codec": "h264",
+            "bitrate": 5800000,
+            "width": 1920,
+            "height": 1080,
+            "frame_rate": 23.976,
+            "range": "VIDEO_RANGE_SDR"
+          },
+          "delivery": {
+            "locations": ["https://example.invalid/v1080"],
+            "expiry": "2026-01-01T00:00:00Z"
+          }
+        },
+        {
+          "id": "a-en51",
+          "audio": {
+            "codec": "aac",
+            "bitrate": 384000,
+            "language": "en",
+            "channel_layout": "5.1",
+            "role": "AUDIO_ROLE_MAIN"
+          },
+          "delivery": {
+            "locations": ["https://example.invalid/a-en51"],
+            "expiry": "2026-01-01T00:00:00Z"
+          }
+        }
+      ]
+    }
+  },
+  "expected": {
+    "valid": true
+  }
+}

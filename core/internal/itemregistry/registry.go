@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
@@ -121,6 +122,20 @@ type idClaim struct {
 
 func (c idClaim) key() string { return c.Namespace + "\x00" + c.Value }
 
+// conflictRecord is one persisted recycled-ID divergence (PLAN.md §5.3): a
+// provider item whose mapping moved to a different entry because its proof
+// stopped matching. Records are durable and queried by the operator surface
+// (and the web observability view); the ephemeral envelope on the event bus
+// is a separate, emission-only concern.
+type conflictRecord struct {
+	ID         string    `json:"id"`
+	Provider   string    `json:"provider"`
+	NativeID   string    `json:"nativeId"`
+	EntryID    string    `json:"entryId"` // the entry the mapping moved off of
+	Reason     string    `json:"reason"`
+	RecordedAt time.Time `json:"recordedAt"`
+}
+
 // IdentityClaim is the public view of one accumulated identity assertion.
 type IdentityClaim struct {
 	// Namespace and value of the claim, e.g. imdb / tt0133093.
@@ -138,6 +153,136 @@ type Canonical struct {
 	Title  string
 	Year   uint32
 	Claims []IdentityClaim
+}
+
+// Entry is a read-only snapshot of one canonical library entry's accumulated
+// identity material. It is the enumeration view (registry entries), distinct
+// from the point-lookup Canonical.
+type Entry struct {
+	ID               string
+	Kind             slotsv1.ItemKind
+	Title            string
+	Year             uint32
+	Directors        []string
+	Cast             []string
+	OriginalLanguage string
+	RuntimeMinutes   uint32
+	Claims           []IdentityClaim
+}
+
+// Mapping is a read-only snapshot of one (provider, nativeId) mapping,
+// including the identity proof that fixed it (PLAN.md §5.3).
+type Mapping struct {
+	Provider   string
+	NativeID   string
+	EntryID    string
+	Generation uint64
+	Proof      identity.Proof
+}
+
+// Conflict is a read-only view of one recycled-ID divergence.
+type Conflict struct {
+	ID         string
+	Provider   string
+	NativeID   string
+	EntryID    string
+	Reason     string
+	RecordedAt time.Time
+}
+
+// ListEntries returns a read-only snapshot of every canonical entry in the
+// registry. It is an enumeration surface for the operator and observability
+// views; point queries should use Canonical.
+func (r *Registry) ListEntries(ctx context.Context) ([]Entry, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	keys, err := r.st.List(ctx, entryPrefix)
+	if err != nil {
+		return nil, fmt.Errorf("itemregistry: list entries: %w", err)
+	}
+	out := make([]Entry, 0, len(keys))
+	for _, key := range keys {
+		id := strings.TrimPrefix(key, entryPrefix)
+		rec, err := r.getEntry(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if rec == nil {
+			continue // dangling key; treat as absent
+		}
+		e := Entry{
+			ID: rec.ID, Kind: rec.Kind, Title: rec.Title, Year: rec.Year,
+			Directors:        append([]string(nil), rec.Directors...),
+			Cast:             append([]string(nil), rec.Cast...),
+			OriginalLanguage: rec.OriginalLanguage, RuntimeMinutes: rec.RuntimeMinutes,
+		}
+		for _, c := range rec.Claims {
+			suppliers := append([]string(nil), c.Suppliers...)
+			sort.Strings(suppliers)
+			e.Claims = append(e.Claims, IdentityClaim{Namespace: c.Namespace, Value: c.Value, Suppliers: suppliers})
+		}
+		out = append(out, e)
+	}
+	return out, nil
+}
+
+// ListMappings returns a read-only snapshot of every provider-native mapping
+// currently in the registry, with its identity proof. Superseded mappings are
+// not included here; they live under the alias table.
+func (r *Registry) ListMappings(ctx context.Context) ([]Mapping, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	keys, err := r.st.List(ctx, mappingPrefix)
+	if err != nil {
+		return nil, fmt.Errorf("itemregistry: list mappings: %w", err)
+	}
+	out := make([]Mapping, 0, len(keys))
+	for _, key := range keys {
+		// Key shape: reg/m/<provider>/<nativeID>
+		rest := strings.TrimPrefix(key, mappingPrefix)
+		provider, nativeID, ok := strings.Cut(rest, "/")
+		if !ok {
+			continue
+		}
+		rec, err := r.loadMapping(ctx, provider, nativeID)
+		if err != nil {
+			return nil, err
+		}
+		if rec == nil {
+			continue
+		}
+		out = append(out, Mapping{
+			Provider: provider, NativeID: nativeID,
+			EntryID: rec.EntryID, Generation: rec.Generation,
+			Proof: rec.Proof,
+		})
+	}
+	return out, nil
+}
+
+// Conflicts returns a read-only snapshot of every persisted recycled-ID
+// divergence, newest first. Empty when the registry has never seen one.
+func (r *Registry) Conflicts(ctx context.Context) ([]Conflict, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	keys, err := r.st.List(ctx, conflictPrefix)
+	if err != nil {
+		return nil, fmt.Errorf("itemregistry: list conflicts: %w", err)
+	}
+	out := make([]Conflict, 0, len(keys))
+	for _, key := range keys {
+		blob, err := r.st.Get(ctx, key)
+		if err != nil {
+			continue // raced away
+		}
+		var rec conflictRecord
+		if err := json.Unmarshal(blob, &rec); err != nil {
+			continue // corrupt record; skip rather than fail the view
+		}
+		out = append(out, Conflict(rec))
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].RecordedAt.After(out[j].RecordedAt) })
+	return out, nil
 }
 
 // Canonical returns the entry's canonical identity material. The second
@@ -268,6 +413,9 @@ func (r *Registry) Resolve(ctx context.Context, provider string, item *slotsv1.C
 			out.Status = StatusUpdated
 		} else {
 			out.Recycled, out.SupersededEntryID = true, cur.EntryID
+			if err := r.recordConflict(ctx, cur, provider, nativeID); err != nil {
+				return nil, err
+			}
 			if r.ownerID != "" {
 				out.Events = append(out.Events, conflictEvent(provider, nativeID, cur.EntryID, r.ownerID))
 			}
@@ -471,7 +619,15 @@ func aliasKey(provider, nativeID string, generation uint64) string {
 	return fmt.Sprintf("reg/a/%s/%s/%016x", esc(provider), esc(nativeID), generation)
 }
 
-func entryKey(id string) string { return "reg/e/" + id }
+func entryKey(id string) string { return entryPrefix + id }
+
+func conflictKey(id string) string { return conflictPrefix + id }
+
+const (
+	entryPrefix    = "reg/e/"
+	mappingPrefix  = "reg/m/"
+	conflictPrefix = "reg/conflict/"
+)
 
 func titleIndexPrefix(normTitle string, kind slotsv1.ItemKind) string {
 	return "reg/it/" + esc(normTitle) + "/" + strconv.Itoa(int(kind)) + "/"
@@ -575,6 +731,36 @@ func appendUniqueIDs(order []string, seen map[string]bool, keys []string) []stri
 		}
 	}
 	return order
+}
+
+// recordConflict persists one recycled-ID divergence so the operator and
+// observability surfaces can list it. Unlike the envelope, persistence is not
+// gated on an owner id — a conflict is durable state about identity that the
+// operator surface must be able to review regardless of event emission.
+func (r *Registry) recordConflict(ctx context.Context, cur *mappingRecord, provider, nativeID string) error {
+	rec := conflictRecord{
+		ID:         newConflictID(),
+		Provider:   provider,
+		NativeID:   nativeID,
+		EntryID:    cur.EntryID,
+		Reason:     "provider item changed identity under a known id; entries kept apart pending corroboration",
+		RecordedAt: time.Now(),
+	}
+	blob, err := json.Marshal(rec)
+	if err != nil {
+		return fmt.Errorf("itemregistry: encode conflict: %w", err)
+	}
+	if err := r.st.Put(ctx, conflictKey(rec.ID), blob); err != nil {
+		return fmt.Errorf("itemregistry: persist conflict: %w", err)
+	}
+	return nil
+}
+
+// newConflictID mints a short id for a persisted conflict record.
+func newConflictID() string {
+	var b [8]byte
+	_, _ = rand.Read(b[:])
+	return hex.EncodeToString(b[:])
 }
 
 func conflictEvent(provider, providerID, entryID, ownerID string) *corev1.EventEnvelope {

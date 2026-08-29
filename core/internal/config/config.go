@@ -38,12 +38,23 @@ type AccountConfig struct {
 // the implementation registered for it. Adding an instance of an existing
 // adapter is a pure config change.
 type SlotEntry struct {
-	Adapter     string          `yaml:"adapter"`
-	ID          string          `yaml:"id"`
-	Transport   string          `yaml:"transport"`
-	Enabled     bool            `yaml:"enabled"`
-	SyncCadence string          `yaml:"sync-cadence"`
-	Accounts    []AccountConfig `yaml:"accounts"`
+	Adapter     string `yaml:"adapter"`
+	ID          string `yaml:"id"`
+	Transport   string `yaml:"transport"`
+	Enabled     bool   `yaml:"enabled"`
+	SyncCadence string `yaml:"sync-cadence"`
+	// TokenEnv names the environment variable carrying a slot-level API
+	// secret (e.g. the TMDB bearer token); the value never lives in config
+	// (TECHNICAL-DECISIONS §1.27). Optional; only adapters that authenticate
+	// instance-wide read it.
+	TokenEnv string          `yaml:"token-env"`
+	Accounts []AccountConfig `yaml:"accounts"`
+	// Options is the per-adapter configuration bag. Each adapter reads only
+	// the keys it declares; the shared SlotEntry stays free of adapter-specific
+	// fields, so an adapter never sees another adapter's knobs (PLAN.md §6.4:
+	// sinks are pluggable slots). Values are strings; an adapter parses them.
+	// E.g. the disk sink reads Options["path"].
+	Options map[string]string `yaml:"options"`
 }
 
 // SlotsConfig mirrors PLAN.md §3.1's taxonomy: the built-in reference slot,
@@ -79,28 +90,40 @@ type Config struct {
 		DEKCache string `yaml:"dek-cache"`
 	} `yaml:"auth"`
 	Stores struct {
-		Caches       StoreConfig `yaml:"caches"`
-		Vault        StoreConfig `yaml:"vault"`
-		VaultKey     string      `yaml:"vault-key"`
-		WatchHistory StoreConfig `yaml:"watch-history"`
-		Jobs         StoreConfig `yaml:"jobs"`
-		Sessions     StoreConfig `yaml:"sessions"`
-		Users        StoreConfig `yaml:"users"`
-		SourceCache  StoreConfig `yaml:"source-cache"`
+		Caches        StoreConfig `yaml:"caches"`
+		Vault         StoreConfig `yaml:"vault"`
+		VaultKey      string      `yaml:"vault-key"`
+		WatchHistory  StoreConfig `yaml:"watch-history"`
+		Jobs          StoreConfig `yaml:"jobs"`
+		Sessions      StoreConfig `yaml:"sessions"`
+		Users         StoreConfig `yaml:"users"`
+		SourceCache   StoreConfig `yaml:"source-cache"`
+		MetadataCache StoreConfig `yaml:"metadata-cache"`
 	} `yaml:"stores"`
 	Slots SlotsConfig `yaml:"slots"`
+	// Enrichment tunes the background metadata pipeline. Absent keys fall
+	// back to the defaults the enrichment package declares.
+	Enrichment EnrichmentConfig `yaml:"enrichment"`
+}
+
+// EnrichmentConfig carries the enrichment pipeline's operator knobs.
+type EnrichmentConfig struct {
+	// DrainCadence overrides how often the drain worker checks the queue;
+	// empty means the package default (TECHNICAL-DECISIONS.md §1.29).
+	DrainCadence string `yaml:"drain-cadence"`
 }
 
 // Stores holds the instantiated store backends for each storage class
 // (PLAN.md §2.4).
 type Stores struct {
-	Cache        store.Store
-	Vault        store.Store
-	WatchHistory store.Store
-	Jobs         store.Store
-	Sessions     store.Store
-	Users        store.Store
-	SourceCache  store.Store
+	Cache         store.Store
+	Vault         store.Store
+	WatchHistory  store.Store
+	Jobs          store.Store
+	Sessions      store.Store
+	Users         store.Store
+	SourceCache   store.Store
+	MetadataCache store.Store
 }
 
 func Default() *Config {
@@ -120,6 +143,10 @@ func Default() *Config {
 	// config recommends local-file for instances that want restart-fast
 	// catalogues instead of a rebuild-from-provider.
 	c.Stores.SourceCache = StoreConfig{Backend: "in-memory"}
+	// Same tradeoff as the source cache: enrichment (M3) rebuilds the
+	// metadata cache from catalogue slots, so dev loses nothing by staying
+	// in-memory.
+	c.Stores.MetadataCache = StoreConfig{Backend: "in-memory"}
 	// The built-in reference slot is part of every instance; kind lists start
 	// empty and grow through operator config.
 	c.Slots.Builtin.Enabled = true
@@ -226,6 +253,11 @@ func BuildStores(ctx context.Context, cfg *Config, logger *slog.Logger) (Stores,
 		return s, fmt.Errorf("stores.source-cache: %w", err)
 	}
 
+	s.MetadataCache, err = buildStore(ctx, cfg.Stores.MetadataCache, "data/metadata-cache.db")
+	if err != nil {
+		return s, fmt.Errorf("stores.metadata-cache: %w", err)
+	}
+
 	// Vault requires an AEAD cipher.
 	switch cfg.Stores.Vault.Backend {
 	case "in-memory":
@@ -254,7 +286,7 @@ func BuildStores(ctx context.Context, cfg *Config, logger *slog.Logger) (Stores,
 // all stores get closed regardless.
 func CloseStores(s Stores) error {
 	var firstErr error
-	for _, c := range []store.Store{s.Cache, s.Vault, s.WatchHistory, s.Jobs, s.Sessions, s.Users, s.SourceCache} {
+	for _, c := range []store.Store{s.Cache, s.Vault, s.WatchHistory, s.Jobs, s.Sessions, s.Users, s.SourceCache, s.MetadataCache} {
 		if err := c.Close(); err != nil && firstErr == nil {
 			firstErr = err
 		}

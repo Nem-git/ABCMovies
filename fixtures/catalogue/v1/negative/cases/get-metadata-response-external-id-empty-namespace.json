@@ -1,0 +1,13 @@
+{
+  "name": "get-metadata-response-external-id-empty-namespace",
+  "type": "GetMetadataResponse",
+  "message": {
+    "metadata": {
+      "title": "Inception"
+    },
+    "external_ids": [{ "namespace": "", "value": "tt1375666" }]
+  },
+  "expected": {
+    "valid": false
+  }
+}

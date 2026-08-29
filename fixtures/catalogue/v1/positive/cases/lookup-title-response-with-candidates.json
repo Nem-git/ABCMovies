@@ -1,0 +1,19 @@
+{
+  "name": "lookup-title-response-with-candidates",
+  "type": "LookupTitleResponse",
+  "message": {
+    "candidates": [
+      {
+        "ref": "tmdb:27205",
+        "kind": "ITEM_KIND_MOVIE",
+        "title": "Inception",
+        "original_title": "Inception",
+        "year": 2010,
+        "external_ids": [{ "namespace": "imdb", "value": "tt1375666" }]
+      }
+    ]
+  },
+  "expected": {
+    "valid": true
+  }
+}

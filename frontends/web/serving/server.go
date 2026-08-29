@@ -1,6 +1,7 @@
 package serving
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -27,6 +28,14 @@ func New(configPath string, logger *slog.Logger) (*Server, error) {
 		return nil, err
 	}
 
+	// Compose the provider-slot layer so the debug/state views can render
+	// the live enrichment and registry surfaces. With no slots configured
+	// this leaves a healthy, empty composed state.
+	if _, err := stack.BuildSlots(context.Background(), logger); err != nil {
+		stack.Close()
+		return nil, err
+	}
+
 	mux := http.NewServeMux()
 	path, handler := apiv1connect.NewCoreServiceHandler(
 		&coreServiceAdapter{srv: stack.Service()},
@@ -35,6 +44,10 @@ func New(configPath string, logger *slog.Logger) (*Server, error) {
 	mux.Handle(path, handler)
 	mux.Handle("POST /debug/job", debugJobHandler{stack: stack})
 	mux.Handle("GET /debug/capabilities", debugCapabilitiesHandler{stack: stack})
+	mux.Handle("GET /debug/metadata", debugMetadataHandler{stack: stack})
+	mux.Handle("GET /debug/registry", debugRegistryHandler{stack: stack})
+	mux.Handle("GET /debug/sourcecache", debugSourceCacheHandler{stack: stack})
+	mux.Handle("GET /debug/enrichment", debugEnrichmentHandler{stack: stack})
 	mux.Handle("/", staticHandler())
 
 	return &Server{mux: mux, stack: stack}, nil

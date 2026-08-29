@@ -68,3 +68,32 @@ func ValidateCatalogueSyncResponse(resp *slotsv1.CatalogueSyncResponse) error {
 	}
 	return nil
 }
+
+// ValidateProduceSourcesRequest checks a ProduceSourcesRequest. Both the
+// account whose session resolves the source and the item's provider-native id
+// are required (PLAN.md §6.2).
+func ValidateProduceSourcesRequest(req *slotsv1.ProduceSourcesRequest) error {
+	if req == nil {
+		return fmt.Errorf("produce sources request: nil")
+	}
+	if req.GetAccountId() == "" {
+		return fmt.Errorf("produce sources request: account_id is required")
+	}
+	if req.GetNativeId() == "" {
+		return fmt.Errorf("produce sources request: native_id is required")
+	}
+	return nil
+}
+
+// ValidateProduceSourcesResponse checks a manifest. The manifest itself is
+// validated against the MediaSource contract (PLAN.md §6.2); a missing
+// manifest is rejected, never downgraded.
+func ValidateProduceSourcesResponse(resp *slotsv1.ProduceSourcesResponse) error {
+	if resp == nil {
+		return fmt.Errorf("produce sources response: nil")
+	}
+	if resp.GetSource() == nil {
+		return fmt.Errorf("produce sources response: source is required")
+	}
+	return ValidateMediaSource(resp.GetSource())
+}

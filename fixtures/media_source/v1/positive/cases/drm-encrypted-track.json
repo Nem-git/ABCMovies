@@ -1,0 +1,45 @@
+{
+  "name": "drm-encrypted-track",
+  "message": {
+    "type": "MEDIA_SOURCE_TYPE_STATIC",
+    "seekable": "SEEKABLE_FULL",
+    "addressable": "ADDRESSABLE_PER_TRACK",
+    "tracks": [
+      {
+        "id": "video-1080",
+        "video": {
+          "codec": "h264",
+          "bitrate": 5800000,
+          "width": 1920,
+          "height": 1080,
+          "frame_rate": 23.976,
+          "range": "VIDEO_RANGE_SDR"
+        },
+        "delivery": {
+          "locations": ["https://cdn.example/1080/seg.m3u8"],
+          "drm": {
+            "system": "com.widevine.alpha",
+            "license_url": "https://licenses.example/widevine",
+            "init_data": "CAESEFpkZGVYbmlz"
+          }
+        }
+      },
+      {
+        "id": "audio-en-51",
+        "audio": {
+          "codec": "aac",
+          "bitrate": 192000,
+          "language": "en",
+          "channel_layout": "5.1",
+          "role": "AUDIO_ROLE_MAIN"
+        },
+        "delivery": {
+          "locations": ["https://cdn.example/en51/seg.m3u8"]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "valid": true
+  }
+}

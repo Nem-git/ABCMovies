@@ -1,0 +1,10 @@
+{
+  "name": "get-metadata-request-native-ref",
+  "type": "GetMetadataRequest",
+  "message": {
+    "ref": "tmdb:27205"
+  },
+  "expected": {
+    "valid": true
+  }
+}

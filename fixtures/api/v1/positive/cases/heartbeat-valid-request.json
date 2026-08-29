@@ -1,0 +1,8 @@
+{
+  "name": "heartbeat-valid-request",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": { "sessionId": "del-1" },
+  "type": "HeartbeatRequest"
+}

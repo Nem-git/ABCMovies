@@ -30,7 +30,7 @@ Implementation-specific choices (core language, API transport, tooling) live in 
 
 ## Status
 
-Planning is complete (Phase 0–3: decisions, scope, research scaffolding, threat model, ops). The project has not started implementation; work begins at milestone M0 (walking skeleton) per IMPLEMENTATION.md §2.
+Planning is complete (Phase 0–3: decisions, scope, research scaffolding, threat model, ops). The project is built milestone-by-milestone per the roadmap in IMPLEMENTATION.md §3; each milestone ends with its fixtures and the CI gate green. The current milestone is the first entry in that table whose acceptance tests (`core/tests/mN`) are not yet green on this branch.
 
 ## License
 

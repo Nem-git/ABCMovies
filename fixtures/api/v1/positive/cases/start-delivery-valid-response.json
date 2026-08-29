@@ -1,0 +1,22 @@
+{
+  "name": "start-delivery-valid-response",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {
+    "job": {
+      "id": "del-1",
+      "kind": "JOB_KIND_DELIVERY",
+      "ownerUserId": "user-1",
+      "idempotencyKey": "req-abc-123",
+      "status": "JOB_STATUS_RUNNING",
+      "delivery": {
+        "provider": "jellyfin",
+        "accountId": "acc-1",
+        "memberUserId": "user-1",
+        "sink": "device"
+      }
+    }
+  },
+  "type": "StartDeliveryResponse"
+}

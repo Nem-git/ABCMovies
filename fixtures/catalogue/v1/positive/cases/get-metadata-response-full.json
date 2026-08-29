@@ -1,0 +1,26 @@
+{
+  "name": "get-metadata-response-full",
+  "type": "GetMetadataResponse",
+  "message": {
+    "metadata": {
+      "title": "Inception",
+      "year": 2010,
+      "description": "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O.",
+      "poster_url": "https://image.tmdb.org/t/p/w500/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg",
+      "rating": 8.4,
+      "content_rating": "PG-13",
+      "genres": ["Science Fiction", "Action"],
+      "original_language": "en",
+      "movie": {
+        "runtime_minutes": 148
+      }
+    },
+    "external_ids": [
+      { "namespace": "tmdb", "value": "27205" },
+      { "namespace": "imdb", "value": "tt1375666" }
+    ]
+  },
+  "expected": {
+    "valid": true
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "lookup-title-request-with-kind-and-year",
+  "type": "LookupTitleRequest",
+  "message": {
+    "query": "Inception",
+    "kind": "ITEM_KIND_MOVIE",
+    "year": 2010
+  },
+  "expected": {
+    "valid": true
+  }
+}

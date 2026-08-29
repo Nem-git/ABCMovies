@@ -12,8 +12,8 @@
 # The fixture stage is the conformance gate (CI-CD.md §2) and must be marked as
 # a required status check on main in the repository settings.
 #
-# The integration stage carries the vault/secrets suite (TESTING.md §6); today
-# it is the composed check recipe, and the vault suite will land inside it.
+# The integration stage carries the vault/secrets suite (TESTING.md §6) as the
+# composed check recipe — it is the full gate and is never skipped.
 
 name: CI
 
@@ -30,10 +30,11 @@ permissions:
   contents: read
 
 env:
+  # GOTOOLCHAIN auto pulls the exact toolchain pinned in go.mod.
   GOTOOLCHAIN: auto
-  # The milestone whose acceptance criteria gate the next image tag
-  # (CI-CD.md §5; IMPLEMENTATION.md §3). Bump this when the milestone ships.
-  MILESTONE: m2
+  # The milestone whose acceptance criteria gate the next image tag lives once
+  # at the repo root (MILESTONE) and is read in the image stage below — never
+  # edited in this file (CI-CD.md §5). `make milestone` validates its shape.
 
 jobs:
   lint:
@@ -203,7 +204,18 @@ jobs:
         id: img
         run: |
           owner="${GITHUB_REPOSITORY%%/*}"
-          echo "ref=ghcr.io/${owner,,}/abcmovies:${MILESTONE}" >> "$GITHUB_OUTPUT"
+          milestone="$(cat MILESTONE)"
+          # The tag must be the milestone whose acceptance tree shipped on main.
+          # The highest core/tests/mN on the branch is "what is released"; a
+          # mismatch means MILESTONE was not bumped — fail loudly rather than
+          # mis-tag the image (CI-CD.md §5).
+          latest="$(ls -d core/tests/m* 2>/dev/null | sort -V | tail -1)"
+          latest="${latest##*/}"
+          if [ "$milestone" != "$latest" ]; then
+            echo "MILESTONE=$milestone but the latest shipped acceptance tree is $latest; bump the root MILESTONE file to $latest" >&2
+            exit 1
+          fi
+          echo "ref=ghcr.io/${owner,,}/abcmovies:${milestone}" >> "$GITHUB_OUTPUT"
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v4
       - name: Log in to GHCR

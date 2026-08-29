@@ -103,18 +103,25 @@ func TestComposeSlotsEmptyConfig(t *testing.T) {
 	reg := registry.NewInProcess()
 	defer reg.Close()
 
-	rt, err := ComposeSlots(context.Background(), config.SlotsConfig{}, reg,
-		store.NewInMemory(), store.NewInMemory(), slog.Default())
+	rt, err := ComposeSlots(context.Background(), config.SlotsConfig{}, config.EnrichmentConfig{}, reg,
+		store.NewInMemory(), store.NewInMemory(), store.NewInMemory(), slog.Default())
 	if err != nil {
 		t.Fatalf("compose: %v", err)
 	}
 	defer rt.Bus.Close()
 
-	if rt.Library == nil || rt.ItemRegistry == nil || rt.Bus == nil {
+	if rt.Library == nil || rt.ItemRegistry == nil || rt.Bus == nil || rt.Queue == nil {
 		t.Fatal("composed runtime has nil components")
 	}
-	if len(rt.Jobs) != 0 {
-		t.Fatalf("empty config produced jobs: %v", rt.Jobs)
+	// The enrichment drain always runs; with no slots configured its queue
+	// simply stays empty (TECHNICAL-DECISIONS.md §1.28).
+	if len(rt.Jobs) != 1 || rt.Jobs[0].Name != "enrichment-drain" {
+		t.Fatalf("empty config jobs = %v, want only the enrichment drain", rt.Jobs)
+	}
+	// Enrichment is off by default: no configured catalogue slot means the
+	// engine has nothing to consult (TECHNICAL-DECISIONS.md §1.25).
+	if len(rt.Catalogues) != 0 {
+		t.Fatalf("empty config enabled %d catalogue slots, want 0", len(rt.Catalogues))
 	}
 	entries, err := rt.Library.Library(context.Background(), "someone")
 	if err != nil || len(entries) != 0 {

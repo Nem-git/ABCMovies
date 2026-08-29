@@ -69,3 +69,62 @@ func ValidateLoginRequest(r *apiv1.LoginRequest) error {
 	}
 	return nil
 }
+
+// ValidateStartDeliveryRequest checks a StartDeliveryRequest (PLAN.md §6).
+func ValidateStartDeliveryRequest(r *apiv1.StartDeliveryRequest) error {
+	if r == nil {
+		return fmt.Errorf("start_delivery_request: nil")
+	}
+	if r.GetGoal() == apiv1.DeliveryGoal_DELIVERY_GOAL_UNSPECIFIED {
+		return fmt.Errorf("start_delivery_request: goal is required")
+	}
+	if r.GetProvider() == "" {
+		return fmt.Errorf("start_delivery_request: provider is required")
+	}
+	if r.GetAccountId() == "" {
+		return fmt.Errorf("start_delivery_request: account_id is required")
+	}
+	if r.GetMemberUserId() == "" {
+		return fmt.Errorf("start_delivery_request: member_user_id is required")
+	}
+	if r.GetNativeId() == "" {
+		return fmt.Errorf("start_delivery_request: native_id is required")
+	}
+	if r.GetSink() == "" {
+		return fmt.Errorf("start_delivery_request: sink is required")
+	}
+	return nil
+}
+
+// ValidateStartDeliveryResponse checks a StartDeliveryResponse.
+func ValidateStartDeliveryResponse(r *apiv1.StartDeliveryResponse) error {
+	if r == nil {
+		return fmt.Errorf("start_delivery_response: nil")
+	}
+	if r.GetJob() == nil {
+		return fmt.Errorf("start_delivery_response: job is required")
+	}
+	return ValidateJob(r.GetJob())
+}
+
+// ValidateHeartbeatRequest checks a HeartbeatRequest (PLAN.md §9.1).
+func ValidateHeartbeatRequest(r *apiv1.HeartbeatRequest) error {
+	if r == nil {
+		return fmt.Errorf("heartbeat_request: nil")
+	}
+	if r.GetSessionId() == "" {
+		return fmt.Errorf("heartbeat_request: session_id is required")
+	}
+	return nil
+}
+
+// ValidateHeartbeatResponse checks a HeartbeatResponse.
+func ValidateHeartbeatResponse(r *apiv1.HeartbeatResponse) error {
+	if r == nil {
+		return fmt.Errorf("heartbeat_response: nil")
+	}
+	if r.GetSessionId() == "" {
+		return fmt.Errorf("heartbeat_response: session_id is required")
+	}
+	return nil
+}

@@ -152,6 +152,18 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 - **Rationale:** the arr/TRaSH convention is the de-facto standard for self-hosted media libraries (Sonarr/Radarr), so deliverables land in tools' expected format with zero further renaming.
 - **Consequence:** the template is data, not code — configurable without a code change; the default is frozen for v1 and any change to the *default* is a PLAN.md §11 change.
 
+### 1.31 Delivery pipeline model — **typed step-chain**
+
+- **Decision:** a delivery pipeline is an ordered **step-chain** (a step DAG) — passthrough, decrypt, remux, transcode, compose, record — each with a **typed** `StepParams` discriminated union. The engine records the chain on the session at Start and refuses any non-executable step loudly. v1 executes only passthrough, remux (container-copy plus stream selection), and compose.
+- **Rationale:** "real sequencing, honest decline" — a chain the engine cannot honour must fail loudly (§2.5 of PLAN.md), not degrade; typing each step's params makes a mis-wired step a plan-time failure rather than a runtime surprise.
+- **Consequence:** transcode, record, DRM decrypt, and per-track compose to a container are **not implemented in v1** and are declined with a logged intent; the decline path is the seam these land behind later. Multi-quality (multi-rendition) fan-out of one session is explicitly out of v1 scope — it is logged, not emitted.
+
+### 1.32 Slot sink config namespacing — **`options` map**
+
+- **Decision:** a slot's sink configuration is a namespaced `options: map[string]string`; the disk sink reads `options.path`. The flat `Path` and dead `Retention` fields are removed from the sink entry.
+- **Rationale:** a flat per-field sink config stops scaling once a sink has several knobs; a namespaced map keeps one slot's schema additive without touching the shared slot shape.
+- **Consequence:** this is a **breaking config-schema change** (approved pre-release, §1.24 / §3.4 of PLAN.md): existing `path:` entries must move to `options.path`. `config.example.yaml` documents the new shape.
+
 ### 1.16 Store backends — **SQLite, one file per store class**
 
 - **Decision:** every store (§2.4 of PLAN.md) uses **SQLite**, with **one database file per store class**. The in-memory session→account index is engine-internal, not a store.
@@ -229,6 +241,36 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 - **The suppressed path is three gates**, named here so the deferral reads as one decision, not three oversights: (1) the empty owner id suppresses emission at the source; (2) the sync path cannot carry envelopes — the source-cache resolver seam returns only an error and the slot-wiring adapter discards the registry's returned events; (3) the event mux forwards availability payloads only. Enabling delivery therefore means owner semantics, a resolver-seam extension, and a mux routing rule together — not a one-liner.
 - **Rationale:** PLAN.md's safety half holds unconditionally — conflicting identities never merge silently, entries stay apart, and the registry keeps both mappings durably. Only the report waits; the event bus is ephemeral by design, so events emitted today could not be replayed later anyway.
 - **Consequence:** until M6, a divergence is observable only in stored state (both registry mappings), never via events or UI. M2 closes on its milestone tests proving emission capability; the delivery half rides with M6's account-scoped event routing and owner roles.
+
+### 1.27 First catalogue provider — **TMDB**
+
+- **Decision:** M3's catalogue enrichment adopts TMDB as the first real catalogue adapter (the built-in reference slot stays the offline conformance baseline). Free API, bearer-token auth, movie+series coverage, and IMDb cross-links in both directions (inline `imdb_id` out, `/find` in) make it the lowest-friction fit for PLAN.md §5.2's catalogue-preferred rule.
+- **Endpoint mapping (evidence: RESEARCH.md §2.4):** `LookupTitle` → `/search/movie|tv`; `GetMetadata` accepts *any* `namespace:value` external ID — unknown-to-TMDB namespaces resolve via `/find` (IMDb), known ones pass through; details fetched once with `append_to_response=external_ids,credits,content-ratings` (single round trip, no N+1). Records key on `tmdb:{id}`; `imdb:`/`wikidata:` IDs become aliases linked in the metadata cache.
+- **Concrete values:** posters stored as full URLs at size `w500`; client pacing defaults to well under the soft limit (serial worker, ~5 req/s ceiling, back off on `429` per `Retry-After`); language fixed to `en-US` for v1.
+- **Credential delivery (interim):** the bearer token is a slot-level instance secret delivered like provider passwords: `SlotEntry` gains an optional `token-env` naming the environment variable read at composition time (test name documented in `.env.example`). Values never live in config files. This migrates behind an operator surface when one exists.
+- **Consequence:** fixtures exercise the catalogue contract against a canned adapter, never the live API; live behavior is verified once, manually, when the adapter lands.
+
+### 1.28 Enrichment execution model — **triggers enqueue, one paced worker drains**
+
+- **Decision:** all enrichment runs through one background work queue behind a narrow Go seam — producer side `Enqueue(entryID)` (idempotent: an entry already pending is coalesced, not duplicated), consumer side drained by a single paced worker registered as a scheduler job. The seam mirrors the event-bus pattern: small interface, in-memory implementation first, injected at composition time — no config knob until a second backend exists. Producers never enrich inline: T1 marks entries whose `metadata_ref` derivation missed during derived-library rebuilds and enqueues them; T2 enqueues entries whose sync introduced new identity evidence. Future trigger kinds (operator-initiated refresh, staleness sweeps) plug in as additional producers without touching engine or queue (IMPLEMENTATION.md §4.1 growth rule).
+- **Queue backends:** in-memory first, same posture as the event bus. The interface keeps heavier transports open — durable SQLite, Kafka, or whatever scale demands — as pure implementation swaps: producers, engine, and worker never learn which backend runs. Durability stays optional by design: T1 re-marks misses on every rebuild and T2 re-enqueues on every sync, so a lost queue self-heals regardless of backend.
+- **Resolution protocol per entry:** external IDs first — `GetMetadata` resolves any identity assertion through the catalogue contract regardless of namespace; text `LookupTitle` is the fallback for entries without usable IDs. Returned candidates are scored against the entry's own full evidence by the matching engine — summaries first, details fetched only for genuine near-ties — and the corroboration gate enriches on exactly one survivor.
+- **Ambiguity abstains:** ties after full scoring leave the entry un-enriched, logged, with no marker persisted — never guess stays absolute (PLAN.md §5.3). v1 deliberately skips review-marker state; `GetMetadata(ref)` already leaves room for a manual-pick surface later without contract change.
+- **Config surface:** catalogue slots are enabled by listing them under `slots.catalogue`; the drain cadence overrides through the existing declared-cadence precedence chain. No speculative knobs beyond enablement + cadence. The queue itself is in-memory state rebuilt from marked misses, so a crashed worker loses nothing durable.
+- **Rationale:** matches the converged pattern across Jellyfin's priority queue, Emby's scheduled tasks, Plex's maintenance window, and Radarr's non-disableable refresh task — background, paced, never in the request path.
+
+### 1.29 Enrichment execution details — **merge rules, drain cadence, catalogue wiring**
+
+- **Merge-engine tie-break rules** (realizing PLAN.md §5.2 field-level merge): absent fields claim nothing and clear nothing; a slot refreshes only the fields it owns; the catalogue tier takes over a provider's owned fields without fighting over them; between two non-owned fields in the same tier the first-at-tier-keeps — two catalogues never clash because they live in one. The provenance owner is always stamped as `kind:slot-id` (e.g. `catalogue:tmdb`, `provider:local-proxy`).
+- **Alt-title matching:** an `Item` may carry alternate title forms (`AltTitles`). The gate (`titlesAgree`) checks primary titles first and then alternates across both sides. This catches localized display titles that differ from a catalogue's original-language form without widening merge safety — a title match still never merges on its own; corroborating evidence is always required.
+- **Drain cadence:** the background worker defaults to 15 minutes (`enrichment.drain-cadence`). The operator overrides via `config.yaml`; invalid values abort startup loudly. There is no adapter-declared or per-slot drain cadence; the drain is core-side, not catalogue-side.
+- **Duplicate-namespace guard:** two enabled catalogue slots may never claim the same identity namespace. Startup fails immediately with a named conflict. This prevents `GetMetadata` from depending silently on wiring order when two adapters could both resolve the same IDs.
+
+### 1.30 Delivery idempotency deferred — **server-generated later, none at M4**
+
+- **Decision:** M4's delivery engine ships **without** a client-supplied idempotency key. `StartDelivery` is a plain, non-idempotent "create": each retried start makes a new session. A future idempotency key, if wanted, is **generated by the core**, never handed to or minted by a frontend — frontends stay as simple as possible and never touch keys.
+- **Rationale:** PLAN.md §9.1's idempotency textual ("session start takes an idempotency key; retries are safe; double-start is impossible") guards the concrete risk of a **double-start on a one-stream account** — a real, likely bug. That risk is already bounded structurally by the per-account concurrent-session cap the engine enforces at Start (§1.14), which counts *active* sessions and rejects over-capacity starts. Idempotency would be a retry-refinement *on top of* that cap, not the guard itself, so deferring it loses no safety. The cost of deferral is honest and cheap: a client retry of `StartDelivery` yields a fresh session and must rely on (a) the cap, or (b) its own tracking of the returned session id — standard "create" semantics, not create-once. `Job.idempotency_key` stays a frozen load-bearing field (§2.3); M4 simply never sets it.
+- **Consequence:** the M4 API request carries no key; the session id doubles as the internal idempotency identity. If idempotency later returns, it is a server-generated value mapped from the resolved (provider, account, nativeId, goal) and requires no API change for clients.
 
 ## 2. Open implementation items (recorded, not decided)
 

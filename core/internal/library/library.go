@@ -25,6 +25,7 @@ import (
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
+	"github.com/nem-git/abcmovies/core/internal/metadatacache"
 	"github.com/nem-git/abcmovies/core/internal/sourcecache"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
@@ -43,21 +44,54 @@ type Service struct {
 	reg     *itemregistry.Registry
 	cache   store.Store
 	logger  *slog.Logger
+
+	// Enrichment seams (nil until WithEnrichment): resolve asserted IDs to
+	// cached records while deriving, and hand unresolvable entries to the
+	// background drain (TECHNICAL-DECISIONS.md §1.28).
+	meta *metadatacache.Cache
+	mark func(entryID string)
+}
+
+// MetaResolver is the slice of the metadata cache the derivation needs.
+type MetaResolver = *metadatacache.Cache
+
+type Option func(*Service)
+
+// WithEnrichment wires the enrichment trigger. During every rebuild each
+// entry's asserted external IDs are resolved through the cache: a hit fills
+// LibraryEntry.metadata_ref, an all-miss marks the entry for the background
+// worker via mark. Both seams are optional; without them the derivation
+// behaves exactly as before enrichment existed.
+func WithEnrichment(resolver MetaResolver, mark func(entryID string)) Option {
+	return func(s *Service) { s.meta = resolver; s.mark = mark }
 }
 
 // NewService builds the library service. reg resolves provider items to
 // entries; reaches lists every linked account's synchronizer.
-func NewService(reaches []Reach, reg *itemregistry.Registry, cache store.Store, logger *slog.Logger) (*Service, error) {
+func NewService(reaches []Reach, reg *itemregistry.Registry, cache store.Store, logger *slog.Logger, opts ...Option) (*Service, error) {
 	if reg == nil || cache == nil {
 		return nil, fmt.Errorf("library: registry and cache are required")
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Service{reaches: reaches, reg: reg, cache: cache, logger: logger}, nil
+	s := &Service{reaches: reaches, reg: reg, cache: cache, logger: logger}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s, nil
 }
 
 const userPrefix = "lib/u/"
+
+// Reaches returns a copy of the reachable account list this service derives
+// from. Exposed for the observability surface (which linked accounts feed the
+// library).
+func (s *Service) Reaches() []Reach {
+	out := make([]Reach, len(s.reaches))
+	copy(out, s.reaches)
+	return out
+}
 
 func (s *Service) userKey(userID string) string {
 	return userPrefix + url.PathEscape(userID)
@@ -138,12 +172,14 @@ func (s *Service) RebuildUser(ctx context.Context, userID string) error {
 						Id:       entryID,
 						Kind:     entryKind(canon.Kind),
 						Coverage: map[string]*corev1.CoverageRow{},
-						// metadata_ref stays empty until enrichment (M3)
-						// provides the external-ID-to-record lookup it names.
+						// metadata_ref is filled below from the metadata
+						// cache; it names the canonical record this entry's
+						// display data comes from.
 					},
 					claimKeys: map[string]bool{},
 					observers: map[string][]string{},
 				}
+				var metaRef string
 				for _, c := range canon.Claims {
 					// Every claim on an entry came from a provider-supplied
 					// assertion, which is exactly the corroborated case the
@@ -155,7 +191,19 @@ func (s *Service) RebuildUser(ctx context.Context, userID string) error {
 						Provenance: strings.Join(c.Suppliers, ","),
 					})
 					b.claimKeys[c.Namespace+"\x00"+c.Value] = true
+					if metaRef == "" && s.meta != nil {
+						ref, ok, err := s.meta.Resolve(ctx, c.Namespace+":"+c.Value)
+						if err != nil {
+							// Enrichment is best-effort display data; a
+							// cache hiccup must not fail the derivation.
+							s.logger.Warn("library: metadata resolve failed",
+								"entry", entryID, "claim", c.Namespace+":"+c.Value, "error", err)
+						} else if ok {
+							metaRef = ref
+						}
+					}
 				}
+				b.entry.MetadataRef = metaRef
 				entries[entryID] = b
 				order = append(order, entryID)
 			}
@@ -209,6 +257,17 @@ func (s *Service) RebuildUser(ctx context.Context, userID string) error {
 	}
 	if err := s.cache.Put(ctx, s.userKey(userID), blob); err != nil {
 		return fmt.Errorf("library: write cache: %w", err)
+	}
+	// T1 trigger (TECHNICAL-DECISIONS.md §1.28): every entry whose claims
+	// resolved to no cached record is handed to the background drain. The
+	// queue coalesces repeats, so re-marking on each rebuild is the
+	// self-healing mechanism, not a leak.
+	if s.mark != nil {
+		for _, id := range order {
+			if entries[id].entry.GetMetadataRef() == "" {
+				s.mark(id)
+			}
+		}
 	}
 	s.logger.Info("library derived", "user", userID, "entries", len(out))
 	return nil

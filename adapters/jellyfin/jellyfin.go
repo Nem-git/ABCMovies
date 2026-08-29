@@ -104,15 +104,17 @@ func New(accounts []Account, opts ...Option) (*Slot, error) {
 }
 
 // CapabilityQuery answers the meta-contract: the slot speaks the meta-contract
-// and declares its whole-catalogue sync surface as capability "browse" v1
-// (PLAN.md §3.2: nothing is assumed, everything is asked). The refresh cadence
-// is declared here too (PLAN.md §5.4 scheduler rules): operators may override
-// it per instance in config, but the provider states its own polite default.
+// and declares its whole-catalogue sync surface as capability "browse" v1 plus
+// its produce-sources surface as capability "produce-sources" v1 (PLAN.md
+// §3.2: nothing is assumed, everything is asked). The refresh cadence is
+// declared here too (PLAN.md §5.4 scheduler rules): operators may override it
+// per instance in config, but the provider states its own polite default.
 func (s *Slot) CapabilityQuery(_ context.Context, _ *corev1.CapabilityQueryRequest) (*corev1.CapabilityQueryResponse, error) {
 	return &corev1.CapabilityQueryResponse{
 		Capabilities: []*corev1.Capability{
 			{Name: "meta", Version: 1},
 			{Name: "browse", Version: 1},
+			{Name: "produce-sources", Version: 1},
 		},
 		Policy: map[string]string{
 			"browse.sync-cadence": declaredCadence.String(),
@@ -375,4 +377,166 @@ func encodePage(offset int, page *itemsPage) *slotsv1.CatalogueSyncResponse {
 		out.NextPageToken = fmt.Sprintf("offset=%d", end)
 	}
 	return out
+}
+
+// ProduceSources serves the produce-sources capability (PLAN.md §3.2, §6.2):
+// it returns the manifest for one item, resolved through the account's live
+// session. Jellyfin has no pre-built manifest; we call PlaybackInfo and map
+// the first media source's streams onto a WHOLE_MUX manifest — the source is
+// a muxed container fetched as a unit, with a video container track carrying
+// its audio and subtitle streams (§6.2). Selection stays engine-side.
+func (s *Slot) ProduceSources(ctx context.Context, req *slotsv1.ProduceSourcesRequest) (*slotsv1.ProduceSourcesResponse, error) {
+	if req.GetAccountId() == "" || req.GetNativeId() == "" {
+		return nil, fmt.Errorf("jellyfin: produce-sources requires account_id and native_id")
+	}
+	pb, err := s.playbackInfo(ctx, req.GetAccountId(), req.GetNativeId())
+	if err == errUnauthorized {
+		s.invalidate(ctx, req.GetAccountId())
+		pb, err = s.playbackInfo(ctx, req.GetAccountId(), req.GetNativeId())
+	}
+	if err != nil {
+		return nil, err
+	}
+	src, err := sourceFromPlayback(pb)
+	if err != nil {
+		return nil, err
+	}
+	return &slotsv1.ProduceSourcesResponse{Source: src}, nil
+}
+
+// playbackInfoResult is the subset of Jellyfin's PlaybackInfo response we
+// consume to build a manifest: the first media source's container and streams,
+// plus a direct stream URL for the source.
+type playbackInfoResult struct {
+	Container string
+	StreamURL string
+	Streams   []playbackStream
+}
+
+// playbackStream mirrors one item of a media source's MediaStreams array.
+type playbackStream struct {
+	Type          string `json:"Type"` // Video, Audio, Subtitle
+	Codec         string `json:"Codec"`
+	Width         int    `json:"Width"`
+	Height        int    `json:"Height"`
+	BitRate       int    `json:"BitRate"`
+	Language      string `json:"Language"`
+	Channels      int    `json:"Channels"`
+	ChannelLayout string `json:"ChannelLayout"`
+	IsForced      bool   `json:"IsForced"`
+}
+
+// playbackInfo calls Jellyfin's PlaybackInfo for one item and returns the
+// first media source with a direct stream URL.
+func (s *Slot) playbackInfo(ctx context.Context, accountID, itemID string) (*playbackInfoResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sess, err := s.ensureSessionLocked(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	body := fmt.Sprintf(`{"UserId":%q,"DeviceId":%q,"StartTimeTicks":0}`, sess.userID, s.opts.deviceID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		fmt.Sprintf("%s/Items/%s/PlaybackInfo", strings.TrimRight(sess.account.URL, "/"), itemID),
+		strings.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization",
+		fmt.Sprintf(`MediaBrowser Token=%q, Client="ABCMovies", Device="abcmovies-core", DeviceId=%q, Version="0.0.1"`,
+			sess.token, s.opts.deviceID))
+
+	resp, err := s.opts.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _, _ = io.Copy(io.Discard, resp.Body); _ = resp.Body.Close() }()
+	switch resp.StatusCode {
+	case http.StatusOK:
+		// fall through to decode
+	case http.StatusUnauthorized:
+		return nil, errUnauthorized
+	default:
+		return nil, fmt.Errorf("jellyfin: /PlaybackInfo: unexpected status %d", resp.StatusCode)
+	}
+
+	var out struct {
+		MediaSources []struct {
+			Id        string           `json:"Id"`
+			Container string           `json:"Container"`
+			Streams   []playbackStream `json:"MediaStreams"`
+		} `json:"MediaSources"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	if len(out.MediaSources) == 0 {
+		return nil, fmt.Errorf("jellyfin: playback info returned no media sources")
+	}
+	src := out.MediaSources[0]
+	streamURL := fmt.Sprintf("%s/Videos/%s/stream?Static=true&MediaSourceId=%s&DeviceId=%s&api_key=%s",
+		strings.TrimRight(sess.account.URL, "/"), itemID, src.Id, s.opts.deviceID, sess.token)
+	return &playbackInfoResult{
+		Container: src.Container,
+		StreamURL: streamURL,
+		Streams:   src.Streams,
+	}, nil
+}
+
+// sourceFromPlayback maps a Jellyfin media source onto a WHOLE_MUX manifest:
+// the muxed container is the fetch unit, carried by a video container track,
+// with audio and subtitle tracks referencing it (PLAN.md §6.2).
+func sourceFromPlayback(pb *playbackInfoResult) (*corev1.MediaSource, error) {
+	if pb == nil {
+		return nil, fmt.Errorf("jellyfin: nil playback info")
+	}
+	carrierID := "container"
+	tracks := []*corev1.Track{
+		{Id: carrierID, Delivery: &corev1.TrackDelivery{Locations: []string{pb.StreamURL}}},
+	}
+	for i, st := range pb.Streams {
+		switch st.Type {
+		case "Video":
+			tracks[0].Media = &corev1.Track_Video{Video: &corev1.VideoTrack{
+				Codec:  st.Codec,
+				Width:  uint32(st.Width),
+				Height: uint32(st.Height),
+				Range:  corev1.VideoRange_VIDEO_RANGE_SDR,
+			}}
+			if st.BitRate > 0 {
+				tracks[0].GetVideo().Bitrate = uint32(st.BitRate)
+			}
+		case "Audio":
+			lang := st.Language
+			if lang == "" {
+				lang = "und"
+			}
+			tracks = append(tracks, &corev1.Track{
+				Id:       fmt.Sprintf("audio-%d", i),
+				Media:    &corev1.Track_Audio{Audio: &corev1.AudioTrack{Codec: st.Codec, Language: lang, ChannelLayout: st.ChannelLayout, Role: corev1.AudioRole_AUDIO_ROLE_MAIN}},
+				Delivery: &corev1.TrackDelivery{CarriedIn: carrierID},
+			})
+		case "Subtitle":
+			lang := st.Language
+			if lang == "" {
+				lang = "und"
+			}
+			tracks = append(tracks, &corev1.Track{
+				Id:       fmt.Sprintf("subtitle-%d", i),
+				Media:    &corev1.Track_Subtitle{Subtitle: &corev1.SubtitleTrack{Format: st.Codec, Language: lang, Role: corev1.SubtitleRole_SUBTITLE_ROLE_SUBTITLE, Forced: st.IsForced}},
+				Delivery: &corev1.TrackDelivery{CarriedIn: carrierID},
+			})
+		default:
+			// Unknown stream types are ignored, not failed: Jellyfin may
+			// carry auxiliary streams (data, attachments) we do not model.
+		}
+	}
+	return &corev1.MediaSource{
+		Type:        corev1.MediaSourceType_MEDIA_SOURCE_TYPE_STATIC,
+		Seekable:    corev1.Seekable_SEEKABLE_FULL,
+		Addressable: corev1.Addressable_ADDRESSABLE_WHOLE_MUX,
+		Tracks:      tracks,
+	}, nil
 }

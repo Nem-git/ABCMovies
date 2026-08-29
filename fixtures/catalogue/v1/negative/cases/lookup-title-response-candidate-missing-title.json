@@ -1,0 +1,16 @@
+{
+  "name": "lookup-title-response-candidate-missing-title",
+  "type": "LookupTitleResponse",
+  "message": {
+    "candidates": [
+      {
+        "ref": "tmdb:123",
+        "kind": "ITEM_KIND_MOVIE",
+        "title": ""
+      }
+    ]
+  },
+  "expected": {
+    "valid": false
+  }
+}

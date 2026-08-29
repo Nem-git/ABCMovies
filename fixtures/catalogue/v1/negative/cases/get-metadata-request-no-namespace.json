@@ -1,0 +1,10 @@
+{
+  "name": "get-metadata-request-no-namespace",
+  "type": "GetMetadataRequest",
+  "message": {
+    "ref": "27205"
+  },
+  "expected": {
+    "valid": false
+  }
+}

@@ -15,8 +15,12 @@ import { EventType } from './gen/abcmovies/core/v1/event_pb.js';
 import {
   eventCard,
   eventTypeLabel,
+  enrichmentPanel,
   jobCard,
   jobStatusLabel,
+  metadataPanel,
+  registryPanel,
+  sourceCachePanel,
 } from './render.js';
 
 const $ = (id) => document.getElementById(id);
@@ -56,7 +60,15 @@ function updateSessionUI() {
   chip.textContent = loggedIn ? `logged in as ${username}` : 'anonymous';
   chip.className = `chip ${loggedIn ? 'in' : 'out'}`;
   $('logout').classList.toggle('hidden', !loggedIn);
-  for (const id of ['getJob', 'subscribeToggle', 'probeJob']) {
+  for (const id of [
+    'getJob',
+    'subscribeToggle',
+    'probeJob',
+    'refreshMetadata',
+    'refreshRegistry',
+    'refreshSourceCache',
+    'refreshEnrichment',
+  ]) {
     $(id).disabled = !loggedIn;
   }
 }
@@ -179,6 +191,39 @@ $('probeJob').addEventListener('click', async () => {
     log(`probe failed: ${describe(err)}`);
   }
 });
+
+// --- State (debug/observability views) ---
+
+// loadState fetches one of the /debug/* read-only JSON endpoints and renders
+// it into the named panel. These routes require the same bearer token as the
+// RPC surface; a 401 simply logs and leaves the panel as-is.
+async function loadState(endpoint, panelId, renderer) {
+  const panel = $(panelId);
+  try {
+    const res = await fetch(endpoint, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    panel.innerHTML = '';
+    panel.append(renderer(data));
+  } catch (err) {
+    log(`${endpoint} failed: ${describe(err)}`);
+  }
+}
+
+$('refreshMetadata').addEventListener('click', () =>
+  loadState('/debug/metadata', 'metadataPanel', metadataPanel),
+);
+$('refreshRegistry').addEventListener('click', () =>
+  loadState('/debug/registry', 'registryPanel', registryPanel),
+);
+$('refreshSourceCache').addEventListener('click', () =>
+  loadState('/debug/sourcecache', 'sourceCachePanel', sourceCachePanel),
+);
+$('refreshEnrichment').addEventListener('click', () =>
+  loadState('/debug/enrichment', 'enrichmentPanel', enrichmentPanel),
+);
 
 // --- Events ---
 

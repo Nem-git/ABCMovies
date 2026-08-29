@@ -131,6 +131,32 @@ func (s *Synchronizer) manifestKey(accountID string) string {
 // Provider returns the capability namespace this synchronizer caches for.
 func (s *Synchronizer) Provider() string { return s.provider }
 
+// ListAccounts returns the unique account IDs that have any cached material
+// under this provider (item rows or a manifest). Empty when none yet. It is a
+// read-only enumeration surface for the observability and operator views.
+func (s *Synchronizer) ListAccounts(ctx context.Context) ([]string, error) {
+	prefix := s.provider + "/"
+	keys, err := s.cache.List(ctx, prefix)
+	if err != nil {
+		return nil, fmt.Errorf("sourcecache: list accounts: %w", err)
+	}
+	seen := map[string]struct{}{}
+	var accounts []string
+	for _, key := range keys {
+		rest := strings.TrimPrefix(key, prefix)
+		acc, _, ok := strings.Cut(rest, "/")
+		if !ok || acc == "" {
+			continue
+		}
+		if _, dup := seen[acc]; dup {
+			continue
+		}
+		seen[acc] = struct{}{}
+		accounts = append(accounts, acc)
+	}
+	return accounts, nil
+}
+
 // Manifest returns the stored completion marker for an account, or false when
 // no complete sync has landed yet.
 func (s *Synchronizer) Manifest(ctx context.Context, accountID string) (manifest, bool, error) {

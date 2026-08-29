@@ -1,0 +1,10 @@
+{
+  "name": "lookup-title-request-minimal",
+  "type": "LookupTitleRequest",
+  "message": {
+    "query": "Breaking Bad"
+  },
+  "expected": {
+    "valid": true
+  }
+}

@@ -11,7 +11,7 @@ MISESHIMS := $(HOME)/.local/share/mise/shims
 export PATH := $(GOBIN):$(GOPATHBIN):$(MISESHIMS):$(PATH)
 export GOBIN GOMODCACHE GOCACHE
 
-.PHONY: deps proto web-build fmt secret-scan lint build test-unit fixtures vuln check run run-web
+.PHONY: deps proto web-build fmt secret-scan lint build test-unit tidy-check milestone fixtures vuln check run run-web
 
 deps:
 	mkdir -p $(GOBIN)
@@ -32,7 +32,7 @@ web-build:
 
 fmt:
 	$(BUF) format -w proto
-	$(GOLANGCI) fmt ./core/... ./frontends/web/...
+	$(GOLANGCI) fmt ./core/... ./adapters/... ./frontends/web/...
 	npx --no-install prettier . --write
 
 # Scans the committed tree (not git history): `gitleaks detect` alone would
@@ -50,25 +50,42 @@ lint: web-build
 	# (TECHNICAL-DECISIONS.md §1.24): contracts may evolve breaking-ly while
 	# every consumer is in-repo. Re-enable before any contract is published.
 	# $(BUF) breaking --against '.git#ref=refs/remotes/origin/main'
-	$(GOLANGCI) run ./core/... ./frontends/web/...
+	$(GOLANGCI) run ./core/... ./adapters/... ./frontends/web/...
 	npx --no-install prettier . --check
 	npx --no-install markdownlint-cli2
 	$(MAKE) secret-scan
 
 build: web-build
-	$(GO) build ./core/... ./frontends/web/...
+	$(GO) build ./core/... ./adapters/... ./frontends/web/...
 
 test-unit: web-build
-	$(GO) test -race ./core/... ./frontends/web/...
+	$(GO) test -race ./core/... ./adapters/... ./frontends/web/...
 
 vuln: web-build
-	$(GO) tool govulncheck ./core/... ./frontends/web/...
+	$(GO) tool govulncheck ./core/... ./adapters/... ./frontends/web/...
+
+# Fails when `go mod tidy` would change anything. `-diff` prints the change
+# and exits non-zero without writing, so the check never mutates the tree; a
+# drift here means go.mod/go.sum were committed by hand and the module is not
+# the source of truth for its own dependency graph.
+tidy-check:
+	$(GO) mod tidy -diff
+
+# The milestone whose acceptance criteria gate the next image tag (CI-CD.md
+# §5). The value lives exactly once, at the repo root; CI re-reads the same
+# file at release time. It must look like m<N> and be backed by a matching
+# core/tests/m<N> acceptance tree, so a bump cannot point at thin air.
+milestone:
+	@m=$$(cat MILESTONE); \
+	case "$$m" in m[0-9]*) ;; *) echo "MILESTONE must be of shape m<N>, got '$$m'" >&2; exit 1;; esac; \
+	test -d core/tests/$$m || { echo "no core/tests/$$m acceptance tree for MILESTONE=$$m" >&2; exit 1; }; \
+	echo "milestone=$$m"
 
 fixtures: proto web-build
 	$(GO) build -o $(GOBIN)/fixture-runner ./core/cmd/fixture-runner
 	$(GOBIN)/fixture-runner fixtures
 
-check: deps proto lint build test-unit fixtures vuln
+check: deps proto lint tidy-check milestone build test-unit fixtures vuln
 
 run:
 	$(GO) run ./core/cmd/abcmovies

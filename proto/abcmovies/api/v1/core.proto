@@ -21,6 +21,15 @@ service CoreService {
 
   // Auth: authenticate and receive a session token (PLAN.md §7.6).
   rpc Login(LoginRequest) returns (LoginResponse);
+
+  // Delivery: begin a play or download session and receive the delivery job
+  // (PLAN.md §6, §9.1). Start is a plain "create" — each call makes a new
+  // session; event idempotency is deferred (TECHNICAL-DECISIONS.md §1.30).
+  rpc StartDelivery(StartDeliveryRequest) returns (StartDeliveryResponse);
+
+  // Delivery: report a play session is still alive (PLAN.md §9.1). A paused
+  // session still heartbeats, so it is not killed.
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
 }
 
 message GetJobRequest {
@@ -92,4 +101,59 @@ message PasswordLogin {
 message LoginResponse {
   // An opaque bearer token for API authentication (TECHNICAL-DECISIONS §1.12).
   string token = 1;
+}
+
+// --- Delivery messages (PLAN.md §6, §9.1) ---
+
+// The delivery goal: play delivers the whole menu for the player to choose
+// from; download delivers a recipe into a container (PLAN.md §6.1, §6.3).
+enum DeliveryGoal {
+  DELIVERY_GOAL_UNSPECIFIED = 0;
+  DELIVERY_GOAL_PLAY = 1;
+  DELIVERY_GOAL_DOWNLOAD = 2;
+}
+
+message StartDeliveryRequest {
+  // What to deliver and why.
+  DeliveryGoal goal = 1;
+
+  // The provider slot that resolves the manifest (PLAN.md §3.2). Required.
+  string provider = 2;
+
+  // The account whose session is used. Required.
+  string account_id = 3;
+
+  // The user the delivery is attributed to. Required.
+  string member_user_id = 4;
+
+  // The provider-native item to deliver. Required.
+  string native_id = 5;
+
+  // The sink this delivery drives (PLAN.md §6.4). Required.
+  string sink = 6;
+
+  // The selected target. For download it is the recipe's video target; for
+  // play it selects a sink-compatibility remux/transcode target (PLAN.md
+  // §6.3). Optional: the engine defaults it by the pipeline precedence chain.
+  string selected_target = 7;
+
+  // The target container. For download compose it wraps the recipe; for play
+  // it is a remux container when the sink cannot consume the native one
+  // (PLAN.md §6.3, §6.5). Optional.
+  string container = 8;
+}
+
+message StartDeliveryResponse {
+  // The delivery job; its id is the delivery session id (PLAN.md §9.1).
+  abcmovies.core.v1.Job job = 1;
+}
+
+message HeartbeatRequest {
+  // The delivery session id to keep alive. Required.
+  string session_id = 1;
+}
+
+message HeartbeatResponse {
+  // Echoes the session id, confirming it is alive (PLAN.md §9.1).
+  string session_id = 1;
 }

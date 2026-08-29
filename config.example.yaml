@@ -34,8 +34,26 @@ slots:
   # instance of an existing adapter is pure configuration; kinds whose
   # milestones have not landed must stay empty lists (or be omitted).
   providers: []
+  # Catalogue slots feed background enrichment (docs/TECHNICAL-DECISIONS.md
+  # §1.27). The credential is read from the environment named by token-env —
+  # never from this file:
+  # catalogue:
+  #   - id: tmdb-main
+  #     adapter: tmdb
+  #     enabled: true
+  #     token-env: TMDB_TOKEN
   catalogue: []
+  # Sinks are where delivery sessions put bytes (docs/PLAN.md §6.4): the
+  # instance-local disk (must name a path) or the user's device (built-in).
+  # The device sink needs no entry here — its config is the frontend's.
+  # Each sink carries its own knobs under `options`.
   sinks: []
+  #   # Example disk sink — copy into `sinks:` and enable.
+  #   - id: disk
+  #     adapter: disk
+  #     enabled: true
+  #     options:
+  #       path: /srv/abcmovies/downloads
   subtitle-sources: []
   drm: []
 
@@ -83,3 +101,14 @@ stores:
   source-cache:
     backend: local-file
     # path: data/source-cache.db  # default
+  # The global per-title metadata cache (docs/PLAN.md §2.4, §5.2) — enriched
+  # records plus their external-ID aliases. Durable is recommended; losing it
+  # only costs re-fetching from catalogue slots.
+  metadata-cache:
+    backend: local-file
+    # path: data/metadata-cache.db  # default
+
+# Enrichment pipeline tuning (docs/TECHNICAL-DECISIONS.md §1.28, §1.29).
+# Absent keys fall back to the documented defaults.
+# enrichment:
+#   drain-cadence: 15m  # default; how often the worker checks the queue

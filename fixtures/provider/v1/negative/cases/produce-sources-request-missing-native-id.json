@@ -1,0 +1,10 @@
+{
+  "name": "produce-sources-request-missing-native-id",
+  "type": "ProduceSourcesRequest",
+  "message": {
+    "account_id": "acc_93fa6c2e1d7b4f8a9e0c5d6b7a8f9e01"
+  },
+  "expected": {
+    "valid": false
+  }
+}

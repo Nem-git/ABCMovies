@@ -5,8 +5,10 @@ import (
 	"fmt"
 
 	"github.com/nem-git/abcmovies/adapters/jellyfin"
+	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/config"
+	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/scheduler"
@@ -22,11 +24,24 @@ func init() {
 
 // registryResolver adapts the item registry to the synchronizer's
 // ItemResolver: every synced item resolves behind the run's success boundary.
-type registryResolver struct{ r *itemregistry.Registry }
+// Any status other than unchanged means identity work happened — a mapping
+// was created, attached or its proof evolved — which is exactly the T2
+// trigger: the affected entry becomes an enrichment candidate
+// (TECHNICAL-DECISIONS.md §1.28). Unchanged mappings enqueue nothing.
+type registryResolver struct {
+	r      *itemregistry.Registry
+	notify func(entryID string)
+}
 
 func (a registryResolver) Resolve(ctx context.Context, provider string, item *slotsv1.CatalogueItem) error {
-	_, err := a.r.Resolve(ctx, provider, item)
-	return err
+	out, err := a.r.Resolve(ctx, provider, item)
+	if err != nil {
+		return err
+	}
+	if a.notify != nil && out.Status != itemregistry.StatusUnchanged {
+		a.notify(out.EntryID)
+	}
+	return nil
 }
 
 // providerNamespace is the string that scopes everything this slot instance
@@ -38,13 +53,14 @@ func providerNamespace(entry config.SlotEntry) string {
 }
 
 // wireJellyfin admits one Jellyfin slot instance under its configured id,
-// wires vault-backed session storage, and schedules each account's catalogue
-// sync at the resolved cadence (config override > declared > default).
-func wireJellyfin(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library.Reach, error) {
+// wires vault-backed session storage, schedules each account's catalogue
+// sync at the resolved cadence (config override > declared > default), and
+// hands back the slot's produce-sources resolver for the delivery engine.
+func wireJellyfin(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library.Reach, delivery.Resolver, error) {
 	accounts := make([]jellyfin.Account, 0, len(entry.Accounts))
 	for _, a := range entry.Accounts {
 		if a.ID == "" {
-			return nil, nil, fmt.Errorf("account entry missing id")
+			return nil, nil, nil, fmt.Errorf("account entry missing id")
 		}
 		accounts = append(accounts, jellyfin.Account{
 			ID:          a.ID,
@@ -56,18 +72,18 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library
 
 	slot, err := jellyfin.New(accounts, jellyfin.WithSessionVault(deps.SealedBlobs))
 	if err != nil {
-		return nil, nil, fmt.Errorf("build: %w", err)
+		return nil, nil, nil, fmt.Errorf("build: %w", err)
 	}
 	caps, err := deps.Registry.Admit(entry.ID, slot)
 	if err != nil {
-		return nil, nil, fmt.Errorf("handshake: %w", err)
+		return nil, nil, nil, fmt.Errorf("handshake: %w", err)
 	}
 	logAdmitted(deps.Logger, entry.ID, caps)
 
 	policy, _ := deps.Registry.Policy(entry.ID)
 	cadence, err := DeclaredCadence(entry.SyncCadence, policy, jellyfinCadenceKey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cadence: %w", err)
+		return nil, nil, nil, fmt.Errorf("cadence: %w", err)
 	}
 
 	jobs := make([]scheduler.Job, 0, len(accounts))
@@ -75,18 +91,18 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library
 	namespace := providerNamespace(entry)
 	for _, acc := range accounts {
 		if deps.ItemRegistry == nil {
-			return nil, nil, fmt.Errorf("slot %q: identity work requires an item registry; none was wired", entry.ID)
+			return nil, nil, nil, fmt.Errorf("slot %q: identity work requires an item registry; none was wired", entry.ID)
 		}
 		opts := []sourcecache.Option{
 			sourcecache.WithEntryLookup(deps.ItemRegistry),
-			sourcecache.WithItemResolver(registryResolver{deps.ItemRegistry}),
+			sourcecache.WithItemResolver(registryResolver{r: deps.ItemRegistry, notify: deps.Enqueue}),
 		}
 		if deps.EventSink != nil {
 			opts = append(opts, sourcecache.WithEventsSink(deps.EventSink))
 		}
 		syncer, err := sourcecache.New(namespace, slot, deps.SourceCache, deps.Logger, opts...)
 		if err != nil {
-			return nil, nil, fmt.Errorf("source cache: %w", err)
+			return nil, nil, nil, fmt.Errorf("source cache: %w", err)
 		}
 		accountID := acc.ID
 		reaches = append(reaches, library.Reach{Sync: syncer, AccountID: accountID})
@@ -103,5 +119,23 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library
 			},
 		})
 	}
-	return jobs, reaches, nil
+	return jobs, reaches, jellyfinResolver{slot: slot}, nil
+}
+
+// jellyfinResolver adapts the Jellyfin slot's ProduceSources to the delivery
+// engine's Resolver surface. The provider identity is assigned by the caller
+// (the slot id, §1.25); here we only bridge account + native id to the adapter.
+type jellyfinResolver struct {
+	slot *jellyfin.Slot
+}
+
+func (r jellyfinResolver) ProduceSources(ctx context.Context, provider, accountID, nativeID string) (*corev1.MediaSource, error) {
+	resp, err := r.slot.ProduceSources(ctx, &slotsv1.ProduceSourcesRequest{
+		AccountId: accountID,
+		NativeId:  nativeID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.GetSource(), nil
 }

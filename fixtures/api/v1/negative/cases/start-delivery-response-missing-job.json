@@ -1,0 +1,8 @@
+{
+  "name": "start-delivery-response-missing-job",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {},
+  "type": "StartDeliveryResponse"
+}

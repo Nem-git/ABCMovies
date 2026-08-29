@@ -118,9 +118,13 @@ approval" means the user has said yes to the concrete proposal, not a vague
 
 ## 7. Milestones and process
 
-- Work within the current milestone (`IMPLEMENTATION.md` §3; M0 is next).
-  A feature outside the current milestone is a discussion, not a change
-  (`CONTRIBUTING.md`).
+- Work within the current milestone. The milestone table
+  (`IMPLEMENTATION.md` §3) is the roadmap; the current milestone is the first
+  entry whose acceptance tests (`core/tests/mN`) are not yet green on this
+  branch — never read from a literal in this file. The root `MILESTONE` file
+  is the released-milestone marker the CI image tag is derived from
+  (`make milestone` validates it). A feature outside the current milestone is
+  a discussion, not a change (`CONTRIBUTING.md`).
 - Growth is declared, not modified (`IMPLEMENTATION.md` §4.1): a new slot or
   frontend never touches the core; a core change to add a slot is a design
   violation to review.

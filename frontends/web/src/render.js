@@ -250,3 +250,165 @@ export function eventCard(ev) {
   );
   return card;
 }
+
+// --- State panels (debug/observability views) ---
+//
+// These render the JSON served by the frontend's own /debug/* read-only
+// endpoints. The data is a plain-Go projection (no generated protobuf), so
+// it is styled with the same row/badge helpers but has no schema to import.
+
+const kindLabel = (k) => (typeof k === 'number' ? `kind ${k}` : String(k));
+
+function cap(n) {
+  const s = String(n);
+  return s.length > 120 ? s.slice(0, 117) + '…' : s;
+}
+
+function claimsList(claims = []) {
+  if (claims.length === 0) return null;
+  const list = el('ul', { class: 'kv' });
+  for (const c of claims) {
+    list.append(
+      el('li', {
+        text: `${c.Namespace}:${c.Value} (${(c.Suppliers ?? []).join(', ') || 'no suppliers'})`,
+      }),
+    );
+  }
+  return list;
+}
+
+export function metadataPanel(data) {
+  const body = el('div', {});
+  const records = data?.records ?? [];
+  const aliases = data?.aliases ?? {};
+  body.append(row('records', `${records.length}`));
+  body.append(
+    listRow(
+      'refs',
+      records.map((r, i) => [`record ${i + 1}`, cap(r)]),
+    ),
+  );
+  const aliasKeys = Object.keys(aliases);
+  body.append(
+    listRow(
+      'aliases',
+      aliasKeys.map((k) => [cap(k), cap(aliases[k])]),
+    ),
+  );
+  if (records.length === 0 && aliasKeys.length === 0) {
+    body.append(el('div', { class: 'empty', text: 'no metadata cached yet' }));
+  }
+  return body;
+}
+
+export function registryPanel(data) {
+  const body = el('div', {});
+  const entries = data?.entries ?? [];
+  const mappings = data?.mappings ?? [];
+  const conflicts = data?.conflicts ?? [];
+
+  body.append(
+    el('div', { class: 'sub-title', text: `entries (${entries.length})` }),
+  );
+  if (entries.length === 0) {
+    body.append(el('div', { class: 'empty', text: 'no entries underway' }));
+  }
+  for (const e of entries) {
+    const head = el('div', { class: 'row' }, el('code', { text: cap(e.ID) }));
+    head.append(
+      el('span', {
+        text: `${e.Title} (${e.Year}) — ${e.Kind}`,
+        class: 'label',
+      }),
+    );
+    body.append(head);
+    body.append(claimsList(e.Claims));
+  }
+
+  body.append(
+    el('div', { class: 'sub-title', text: `mappings (${mappings.length})` }),
+  );
+  if (mappings.length === 0) {
+    body.append(
+      el('div', { class: 'empty', text: 'no provider mappings yet' }),
+    );
+  }
+  const mList = el('ul', { class: 'kv' });
+  for (const m of mappings) {
+    mList.append(
+      el('li', {
+        text: `${m.Provider}/${m.NativeID} → ${cap(m.EntryID)} (gen ${m.Generation})`,
+      }),
+    );
+  }
+  if (mappings.length) body.append(mList);
+
+  body.append(
+    el('div', { class: 'sub-title', text: `conflicts (${conflicts.length})` }),
+  );
+  if (conflicts.length === 0) {
+    body.append(
+      el('div', { class: 'empty', text: 'no merge conflicts recorded' }),
+    );
+  }
+  const cList = el('ul', { class: 'kv' });
+  for (const c of conflicts) {
+    cList.append(
+      el('li', {
+        text: `${c.Provider}/${c.NativeID} left ${cap(c.EntryID)} — ${c.Reason}`,
+      }),
+    );
+  }
+  if (conflicts.length) body.append(cList);
+  return body;
+}
+
+export function sourceCachePanel(data) {
+  const body = el('div', {});
+  const accounts = data?.accounts ?? [];
+  if (accounts.length === 0) {
+    body.append(
+      el('div', { class: 'empty', text: 'no provider accounts linked' }),
+    );
+  }
+  const list = el('ul', { class: 'kv' });
+  for (const a of accounts) {
+    list.append(
+      el('li', {
+        text: `${a.provider}/${a.accountId} — ${a.items} items cached`,
+      }),
+    );
+  }
+  if (accounts.length) body.append(list);
+  body.append(row('linked accounts', `${accounts.length}`));
+  return body;
+}
+
+export function enrichmentPanel(data) {
+  const body = el('div', {});
+  const pending = data?.pending ?? [];
+  const catalogues = data?.catalogues ?? [];
+  body.append(row('pending items', `${pending.length}`));
+  body.append(
+    listRow(
+      'pending',
+      pending.map((p, i) => [`queue ${i + 1}`, cap(p)]),
+    ),
+  );
+  body.append(
+    listRow(
+      'catalogue slots',
+      catalogues.map((c, i) => [`slot ${i + 1}`, cap(c)]),
+    ),
+  );
+  body.append(row('cached records', data?.recordCount ?? 0));
+  if (pending.length === 0 && catalogues.length === 0) {
+    body.append(
+      el('div', {
+        class: 'empty',
+        text: 'queue idle; no catalogue slots enabled',
+      }),
+    );
+  }
+  return body;
+}
