@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/nem-git/abcmovies/core/internal/config"
+	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/enrichment"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/library"
@@ -53,8 +54,9 @@ type Deps struct {
 
 // providerFactory admits one slot instance and returns its recurring jobs
 // plus the reaches (synchronizer + account pairs) it makes available for
-// derived libraries.
-type providerFactory func(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library.Reach, error)
+// derived libraries, and — when the adapter can produce media sources — the
+// delivery resolver the engine routes produce-sources through (PLAN.md §6.2).
+type providerFactory func(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library.Reach, delivery.Resolver, error)
 
 var providers = map[string]providerFactory{}
 
@@ -121,11 +123,16 @@ func SetupCatalogues(entries []config.SlotEntry, deps Deps) ([]enrichment.Catalo
 	return out, nil
 }
 
+// Resolvers maps a provider slot id to its produce-sources delivery resolver,
+// so the delivery engine can route a provider/account/native_id to the right
+// adapter (identity is the slot instance id, TECHNICAL-DECISIONS.md §1.25).
+type Resolvers map[string]delivery.Resolver
+
 // SetupProviders admits every enabled provider entry and returns the jobs
 // implementing their refresh cadence plus the reaches their accounts expose.
 // An unknown adapter or a failing handshake aborts startup loudly — a
 // half-wired instance is worse than a down one.
-func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []library.Reach, error) {
+func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []library.Reach, Resolvers, error) {
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -137,6 +144,7 @@ func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []l
 
 	var jobs []scheduler.Job
 	var reaches []library.Reach
+	resolvers := Resolvers{}
 	for _, entry := range entries {
 		if !entry.Enabled {
 			logger.Info("slot disabled by config; skipping", "slot", entry.ID, "adapter", entry.Adapter)
@@ -144,23 +152,27 @@ func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []l
 		}
 		f, ok := providers[entry.Adapter]
 		if !ok {
-			return nil, nil, fmt.Errorf("slot %q: unknown provider adapter %q (registered: %v)", entry.ID, entry.Adapter, keys(providers))
+			return nil, nil, nil, fmt.Errorf("slot %q: unknown provider adapter %q (registered: %v)", entry.ID, entry.Adapter, keys(providers))
 		}
-		entryJobs, entryReaches, err := f(entry, deps)
+		entryJobs, entryReaches, res, err := f(entry, deps)
 		if err != nil {
-			return nil, nil, fmt.Errorf("slot %q (adapter %q): %w", entry.ID, entry.Adapter, err)
+			return nil, nil, nil, fmt.Errorf("slot %q (adapter %q): %w", entry.ID, entry.Adapter, err)
 		}
 		jobs = append(jobs, entryJobs...)
 		reaches = append(reaches, entryReaches...)
+		if res != nil {
+			resolvers[entry.ID] = res
+		}
 	}
-	return jobs, reaches, nil
+	return jobs, reaches, resolvers, nil
 }
 
 // SetupAll walks every slot kind from config. Provider and catalogue wiring
-// are implemented; the remaining kinds are stubs that fail loudly if an
+// are implemented, as are sinks (their factory resolves the configured disk
+// and device entries); the remaining kinds are stubs that fail loudly if an
 // operator ever declares one before its milestone lands — silent ignoring
 // would make a typo look like a working deployment.
-func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]scheduler.Job, []library.Reach, []enrichment.Catalogue, error) {
+func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]scheduler.Job, []library.Reach, []enrichment.Catalogue, Resolvers, error) {
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -168,29 +180,31 @@ func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]sched
 	deps.Ctx = ctx
 	deps.Logger = logger
 
-	pJobs, reaches, err := SetupProviders(slots.Providers, deps)
+	pJobs, reaches, resolvers, err := SetupProviders(slots.Providers, deps)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	cats, err := SetupCatalogues(slots.Catalogue, deps)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
+
+	// Sinks are wired through SetupSinks (they need a delivery relay), so
+	// SetupAll deliberately does not build the sink factory here.
 
 	for _, kind := range []struct {
 		name    string
 		entries []config.SlotEntry
 	}{
-		{"sink", slots.Sinks},
 		{"subtitle-source", slots.SubtitleSources},
 		{"drm", slots.Drm},
 	} {
 		if len(kind.entries) > 0 {
-			return nil, nil, nil, fmt.Errorf("%s slots are not implemented yet; remove the %q entries or wait for their milestone", kind.name, kind.name+"s")
+			return nil, nil, nil, nil, fmt.Errorf("%s slots are not implemented yet; remove the %q entries or wait for their milestone", kind.name, kind.name+"s")
 		}
 	}
-	return pJobs, reaches, cats, nil
+	return pJobs, reaches, cats, resolvers, nil
 }
 
 // DeclaredCadence resolves a sync cadence by precedence: explicit operator

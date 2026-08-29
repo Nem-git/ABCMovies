@@ -21,7 +21,9 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/auth"
 	"github.com/nem-git/abcmovies/core/internal/builtin"
 	"github.com/nem-git/abcmovies/core/internal/config"
+	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/registry"
+	"google.golang.org/grpc"
 )
 
 // Session is the authentication surface a serving layer uses: validate a
@@ -40,7 +42,11 @@ type Session interface {
 type Stack struct {
 	service apiv1.CoreServiceServer
 	session Session
-	bind    string
+	// internalSession is the raw auth.Session the gRPC interceptors need. It
+	// stays inside app: embedders use Auth() or AuthInterceptors() and never
+	// see this type.
+	internalSession auth.Session
+	bind            string
 
 	stores   config.Stores
 	registry *registry.InProcessRegistry
@@ -53,6 +59,9 @@ type Stack struct {
 	// slots holds the composed provider-slot layer when BuildSlots has been
 	// called; nil until then.
 	slots *SlotRuntime
+	// delivery is the composed delivery engine, armed onto the API service
+	// once BuildSlots has run; nil until then.
+	delivery *delivery.Engine
 }
 
 // Build composes the full core. configPath selects the instance config:
@@ -100,13 +109,14 @@ func Build(configPath string, logger *slog.Logger) (*Stack, error) {
 	srv := apiserver.NewServer(bus, stores, composite, session)
 
 	return &Stack{
-		service:    srv,
-		session:    &sessionSeam{session: session},
-		bind:       cfg.Core.API.Bind,
-		stores:     stores,
-		registry:   r,
-		bus:        bus,
-		configPath: configPath,
+		service:         srv,
+		session:         &sessionSeam{session: session},
+		internalSession: session,
+		bind:            cfg.Core.API.Bind,
+		stores:          stores,
+		registry:        r,
+		bus:             bus,
+		configPath:      configPath,
 	}, nil
 }
 
@@ -130,6 +140,18 @@ func (s *Stack) EnqueueJob(ctx context.Context, job *corev1.Job) error {
 // Auth returns the session seam for authenticating requests terminated by
 // the embedder's own transport.
 func (s *Stack) Auth() Session { return s.session }
+
+// AuthInterceptors returns the gRPC interceptors that authenticate inbound
+// requests against the core's session store, for terminations that serve the
+// API service over gRPC (core/cmd/abcmovies). The internal session type stays
+// inside app — embedders never see it; they either use Auth() for their own
+// transport or these ready-built interceptors for gRPC.
+func (s *Stack) AuthInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
+	if s.internalSession == nil {
+		return nil, nil
+	}
+	return apiserver.AuthUnaryInterceptor(s.internalSession), apiserver.AuthStreamInterceptor(s.internalSession)
+}
 
 // Slots returns the composed provider-slot layer, or nil when BuildSlots has
 // not been called (a bare core). See BuildSlots.
@@ -213,12 +235,19 @@ func (s *Stack) BuildSlots(ctx context.Context, logger *slog.Logger) (*SlotRunti
 	if err != nil {
 		return nil, err
 	}
+	if err := s.armDelivery(rt, logger); err != nil {
+		rt.Bus.Close()
+		return nil, err
+	}
 	s.slots = rt
 	return rt, nil
 }
 
 // Close releases every resource the composed stack holds.
 func (s *Stack) Close() {
+	if s.delivery != nil {
+		s.delivery.Close()
+	}
 	if s.slots != nil {
 		s.slots.Bus.Close()
 	}

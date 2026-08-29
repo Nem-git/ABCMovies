@@ -152,6 +152,18 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 - **Rationale:** the arr/TRaSH convention is the de-facto standard for self-hosted media libraries (Sonarr/Radarr), so deliverables land in tools' expected format with zero further renaming.
 - **Consequence:** the template is data, not code — configurable without a code change; the default is frozen for v1 and any change to the *default* is a PLAN.md §11 change.
 
+### 1.31 Delivery pipeline model — **typed step-chain**
+
+- **Decision:** a delivery pipeline is an ordered **step-chain** (a step DAG) — passthrough, decrypt, remux, transcode, compose, record — each with a **typed** `StepParams` discriminated union. The engine records the chain on the session at Start and refuses any non-executable step loudly. v1 executes only passthrough, remux (container-copy plus stream selection), and compose.
+- **Rationale:** "real sequencing, honest decline" — a chain the engine cannot honour must fail loudly (§2.5 of PLAN.md), not degrade; typing each step's params makes a mis-wired step a plan-time failure rather than a runtime surprise.
+- **Consequence:** transcode, record, DRM decrypt, and per-track compose to a container are **not implemented in v1** and are declined with a logged intent; the decline path is the seam these land behind later. Multi-quality (multi-rendition) fan-out of one session is explicitly out of v1 scope — it is logged, not emitted.
+
+### 1.32 Slot sink config namespacing — **`options` map**
+
+- **Decision:** a slot's sink configuration is a namespaced `options: map[string]string`; the disk sink reads `options.path`. The flat `Path` and dead `Retention` fields are removed from the sink entry.
+- **Rationale:** a flat per-field sink config stops scaling once a sink has several knobs; a namespaced map keeps one slot's schema additive without touching the shared slot shape.
+- **Consequence:** this is a **breaking config-schema change** (approved pre-release, §1.24 / §3.4 of PLAN.md): existing `path:` entries must move to `options.path`. `config.example.yaml` documents the new shape.
+
 ### 1.16 Store backends — **SQLite, one file per store class**
 
 - **Decision:** every store (§2.4 of PLAN.md) uses **SQLite**, with **one database file per store class**. The in-memory session→account index is engine-internal, not a store.

@@ -43,7 +43,17 @@ slots:
   #     enabled: true
   #     token-env: TMDB_TOKEN
   catalogue: []
+  # Sinks are where delivery sessions put bytes (docs/PLAN.md §6.4): the
+  # instance-local disk (must name a path) or the user's device (built-in).
+  # The device sink needs no entry here — its config is the frontend's.
+  # Each sink carries its own knobs under `options`.
   sinks: []
+  #   # Example disk sink — copy into `sinks:` and enable.
+  #   - id: disk
+  #     adapter: disk
+  #     enabled: true
+  #     options:
+  #       path: /srv/abcmovies/downloads
   subtitle-sources: []
   drm: []
 

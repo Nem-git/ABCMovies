@@ -33,6 +33,30 @@ func staticSource() *corev1.MediaSource {
 	}
 }
 
+// wholeMuxSource is the realistic download source shape: a muxed container
+// fetched as a unit (§6.2). Container "mkv" carries the video and audio.
+func wholeMuxSource() *corev1.MediaSource {
+	return &corev1.MediaSource{
+		Type:        corev1.MediaSourceType_MEDIA_SOURCE_TYPE_STATIC,
+		Seekable:    corev1.Seekable_SEEKABLE_FULL,
+		Addressable: corev1.Addressable_ADDRESSABLE_WHOLE_MUX,
+		Tracks: []*corev1.Track{
+			{
+				Id: "c1",
+				Media: &corev1.Track_Video{
+					Video: &corev1.VideoTrack{Codec: "h264"},
+				},
+				Delivery: &corev1.TrackDelivery{Locations: []string{"https://cdn/x.mkv"}},
+			},
+			{
+				Id:       "a1",
+				Media:    &corev1.Track_Audio{Audio: &corev1.AudioTrack{Codec: "aac"}},
+				Delivery: &corev1.TrackDelivery{CarriedIn: "c1"},
+			},
+		},
+	}
+}
+
 // recordingSink records deliveries and finalize/abort calls.
 type recordingSink struct {
 	delivered []string
@@ -224,11 +248,12 @@ func TestPlayHeartbeatTimeoutEvicts(t *testing.T) {
 
 func TestTTLExpiryEvicts(t *testing.T) {
 	now := time.Now()
-	e, _, _ := newTestEngine(Options{
+	e, res, _ := newTestEngine(Options{
 		SessionTTL: 10 * time.Minute,
 		Now:        func() time.Time { return now },
 		RecordJob:  func(_ *corev1.Job) {},
 	})
+	res.source = wholeMuxSource()
 	defer e.Close()
 	s, _ := e.Start(context.Background(), StartRequest{
 		Goal: GoalDownload, MemberUserID: "u",
@@ -247,11 +272,12 @@ func TestTTLExpiryEvicts(t *testing.T) {
 
 func TestProgressKeepsDownloadAlive(t *testing.T) {
 	now := time.Now()
-	e, _, _ := newTestEngine(Options{
+	e, res, _ := newTestEngine(Options{
 		SessionTTL: 10 * time.Minute,
 		Now:        func() time.Time { return now },
 		RecordJob:  func(_ *corev1.Job) {},
 	})
+	res.source = wholeMuxSource()
 	defer e.Close()
 	s, _ := e.Start(context.Background(), StartRequest{
 		Goal: GoalDownload, MemberUserID: "u",
@@ -269,11 +295,12 @@ func TestProgressKeepsDownloadAlive(t *testing.T) {
 
 func TestRevokeAccountEndsSessions(t *testing.T) {
 	var recorded []*corev1.Job
-	e, _, fac := newTestEngine(Options{
+	e, res, fac := newTestEngine(Options{
 		SessionTTL: 24 * time.Hour,
 		Now:        time.Now,
 		RecordJob:  func(j *corev1.Job) { recorded = append(recorded, j) },
 	})
+	res.source = wholeMuxSource()
 	defer e.Close()
 	req := func() StartRequest {
 		return StartRequest{

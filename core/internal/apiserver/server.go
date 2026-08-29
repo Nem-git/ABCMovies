@@ -48,6 +48,16 @@ func NewServer(bus Bus, stores config.Stores, authenticator *auth.CompositeAuthe
 	return &Server{bus: bus, stores: stores, auth: authenticator, session: session, delivery: d}
 }
 
+// SetDelivery arms the delivery engine after construction — used when the
+// engine is composed lazily (after slots are wired) rather than at NewServer
+// time. Until SetDelivery is called the delivery RPCs return Unavailable.
+func (s *Server) SetDelivery(dm DeliveryManager) {
+	s.delivery = dm
+}
+
+// Delivery returns the currently armed delivery engine, or nil.
+func (s *Server) Delivery() DeliveryManager { return s.delivery }
+
 // GetJob returns a job's current state from the jobs store (PLAN.md §9.1).
 func (s *Server) GetJob(ctx context.Context, req *apiv1.GetJobRequest) (*apiv1.GetJobResponse, error) {
 	if err := schema.ValidateGetJobRequest(req); err != nil {

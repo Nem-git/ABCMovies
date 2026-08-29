@@ -14,6 +14,7 @@ import (
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/config"
+	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/enrichment"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/library"
@@ -80,6 +81,15 @@ type SlotRuntime struct {
 	// Jobs are the slots' recurring refresh jobs; register them with a
 	// scheduler and run it. The enrichment drain job is included.
 	Jobs []scheduler.Job
+
+	// Delivery pieces, set when the delivery engine is composed: Resolvers
+	// maps a provider slot id to its produce-sources resolver; Sinks is the
+	// composite sink factory built from the configured sinks; Relay grants
+	// session-scoped media access (PLAN.md §3.6). The engine itself is built
+	// and armed by Stack.BuildSlots, which owns the jobs store and lifecycle.
+	Resolvers slotwiring.Resolvers
+	Sinks     delivery.SinkFactory
+	Relay     *delivery.Relay
 }
 
 // registryEvidence adapts the item registry to the enrichment engine's
@@ -132,7 +142,8 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 	rt := &SlotRuntime{Bus: apiserver.NewInMemoryBus(), Queue: queue}
 	mux := &eventMux{bus: rt.Bus, log: logger}
 
-	jobs, reaches, cats, err := slotwiring.SetupAll(ctx, slots, slotwiring.Deps{
+	rt.Relay = delivery.NewRelay()
+	jobs, reaches, cats, resolvers, err := slotwiring.SetupAll(ctx, slots, slotwiring.Deps{
 		Ctx:          ctx,
 		Registry:     reg,
 		SealedBlobs:  NewSealedBlobs(vault),
@@ -146,6 +157,14 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 		rt.Bus.Close()
 		return nil, fmt.Errorf("slots: %w", err)
 	}
+	rt.Resolvers = resolvers
+
+	srvs, err := slotwiring.SetupSinks(slots.Sinks, rt.Relay)
+	if err != nil {
+		rt.Bus.Close()
+		return nil, fmt.Errorf("sinks: %w", err)
+	}
+	rt.Sinks = srvs
 
 	// The enrichment pipeline drains whatever the T1/T2 triggers collect;
 	// with no catalogue slots enabled the queue simply stays empty.

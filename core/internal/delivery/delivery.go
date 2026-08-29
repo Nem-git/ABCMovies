@@ -65,6 +65,11 @@ type Session struct {
 	Status  Status
 	Error   string
 
+	// Plan is the pipeline-selection result for this session (PLAN.md §6.3):
+	// which pipeline runs and the container the deliverable is named as. It
+	// is set once at Start, before any sink work, so it seeds the resume key.
+	Plan Plan
+
 	Sink Sink
 
 	createdAt     time.Time
@@ -111,6 +116,9 @@ type Options struct {
 	SessionTTL        time.Duration
 	HeartbeatInterval time.Duration
 	HeartbeatGrace    time.Duration
+	// ConcurrentStreams caps active sessions per account (PLAN.md §9.1,
+	// TECHNICAL-DECISIONS.md §1.14, §1.30). Zero means the default (3).
+	ConcurrentStreams int
 	SourceResolver    Resolver
 	SinkFactory       SinkFactory
 	RecordJob         func(*corev1.Job)
@@ -128,6 +136,7 @@ type Engine struct {
 	ttl      time.Duration
 	interval time.Duration
 	grace    time.Duration
+	cap      int
 
 	resolver  Resolver
 	sinkMaker SinkFactory
@@ -150,6 +159,7 @@ func New(opts Options) *Engine {
 		ttl:       opts.SessionTTL,
 		interval:  opts.HeartbeatInterval,
 		grace:     opts.HeartbeatGrace,
+		cap:       opts.ConcurrentStreams,
 		resolver:  opts.SourceResolver,
 		sinkMaker: opts.SinkFactory,
 		recordJob: opts.RecordJob,
@@ -161,11 +171,18 @@ func New(opts Options) *Engine {
 	if e.now == nil {
 		e.now = time.Now
 	}
+	if e.cap == 0 {
+		e.cap = defaultConcurrentStreams
+	}
 	if e.logger == nil {
 		e.logger = slog.Default()
 	}
 	return e
 }
+
+// defaultConcurrentStreams is the v1 baseline from TECHNICAL-DECISIONS.md
+// §1.14 (policy default `concurrentStreams: 3`).
+const defaultConcurrentStreams = 3
 
 // StartRequest names what to deliver and why (PLAN.md §6). Start is a plain
 // "create": each Start makes a new session; a retried start is a new create,
@@ -208,11 +225,36 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 		return nil, errInvalid("provider returned an invalid manifest: %v", err)
 	}
 
+	plan, err := SelectPipeline(req.Goal, src, req.Container)
+	if err != nil {
+		return nil, errInvalid("cannot satisfy delivery: %v", err)
+	}
+	// Walk the selected chain and refuse — loudly, with the full plan logged —
+	// any step this v1 engine cannot genuinely execute. A step needing a real
+	// transcoder or decryptor is declined, never downgraded to a passthrough
+	// (PLAN.md §2.5).
+	if err := ValidatePlan(plan); err != nil {
+		e.logger.Error("delivery step not executable; refusing (not downgrading)",
+			"goal", req.Goal,
+			"provider", req.Provider,
+			"account", req.AccountID,
+			"member", req.MemberUserID,
+			"chain", Lineage(plan),
+			"reason", err.Error(),
+		)
+		return nil, errInvalid("cannot satisfy delivery: %v", err)
+	}
+	key := accountKey{req.Provider, req.AccountID, req.MemberUserID}
+	if n := e.countActive(key); n >= e.cap {
+		return nil, errQuota("account %s/%s is at its concurrent-stream cap (%d)", req.Provider, req.AccountID, e.cap)
+	}
+
 	now := e.now()
 	sess := &Session{
 		ID:            e.newSessionID(),
 		Goal:          req.Goal,
 		Status:        StatusQueued,
+		Plan:          plan,
 		createdAt:     now,
 		lastHeartbeat: now,
 		lastProgress:  now,
@@ -234,7 +276,6 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 		sess.Sink = sink
 	}
 
-	key := accountKey{req.Provider, req.AccountID, req.MemberUserID}
 	e.mu.Lock()
 	e.sessions[sess.ID] = sess
 	if e.byAccount[key] == nil {
@@ -246,6 +287,19 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 	sess.Status = StatusRunning
 	e.recordJob(sess.toJob())
 	return sess, nil
+}
+
+// countActive returns the number of live sessions for an account key.
+func (e *Engine) countActive(key accountKey) int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	n := 0
+	for id := range e.byAccount[key] {
+		if s, ok := e.sessions[id]; ok && s.isActive() {
+			n++
+		}
+	}
+	return n
 }
 
 func (e *Engine) newSessionID() string {
@@ -513,6 +567,7 @@ func (e *deliveryError) Error() string { return e.msg }
 const (
 	codeInvalid  = 3
 	codeNotFound = 5
+	codeQuota    = 8
 )
 
 func errInvalid(format string, a ...any) error {
@@ -521,6 +576,10 @@ func errInvalid(format string, a ...any) error {
 
 func errNotFound(format string, a ...any) error {
 	return &deliveryError{code: codeNotFound, msg: fmt.Sprintf(format, a...)}
+}
+
+func errQuota(format string, a ...any) error {
+	return &deliveryError{code: codeQuota, msg: fmt.Sprintf(format, a...)}
 }
 
 // Code returns the gRPC-style status code for a delivery error.

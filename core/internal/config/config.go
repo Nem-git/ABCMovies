@@ -49,6 +49,12 @@ type SlotEntry struct {
 	// instance-wide read it.
 	TokenEnv string          `yaml:"token-env"`
 	Accounts []AccountConfig `yaml:"accounts"`
+	// Options is the per-adapter configuration bag. Each adapter reads only
+	// the keys it declares; the shared SlotEntry stays free of adapter-specific
+	// fields, so an adapter never sees another adapter's knobs (PLAN.md §6.4:
+	// sinks are pluggable slots). Values are strings; an adapter parses them.
+	// E.g. the disk sink reads Options["path"].
+	Options map[string]string `yaml:"options"`
 }
 
 // SlotsConfig mirrors PLAN.md §3.1's taxonomy: the built-in reference slot,
