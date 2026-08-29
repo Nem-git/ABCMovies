@@ -24,22 +24,22 @@ import (
 )
 
 const (
-	defaultBase     = "https://api.themoviedb.org/3"
-	defaultPace     = 200 * time.Millisecond // ~5 req/s ceiling (§1.27)
-	language        = "en-US"
-	imageBase       = "https://image.tmdb.org/t/p/"
-	posterSize       = "w500"
-	maxCandidates   = 5
-	maxCast          = 5
-	maxBackoff       = 30 * time.Second
+	defaultBase   = "https://api.themoviedb.org/3"
+	defaultPace   = 200 * time.Millisecond // ~5 req/s ceiling (§1.27)
+	language      = "en-US"
+	imageBase     = "https://image.tmdb.org/t/p/"
+	posterSize    = "w500"
+	maxCandidates = 5
+	maxCast       = 5
+	maxBackoff    = 30 * time.Second
 )
 
 // Slot is one TMDB catalogue instance.
 type Slot struct {
 	token string // v3 API key or v4 read-access bearer token
 	base  string
-	hc     *http.Client
-	pace <-chan time.Time
+	hc    *http.Client
+	pace  <-chan time.Time
 }
 
 // Option customizes the slot at construction.
@@ -83,8 +83,8 @@ func New(tokenEnv string, opts ...Option) (*Slot, error) {
 	s := &Slot{
 		token: token,
 		base:  defaultBase,
-		hc:     &http.Client{Timeout: 30 * time.Second},
-		pace: ticker(defaultPace),
+		hc:    &http.Client{Timeout: 30 * time.Second},
+		pace:  ticker(defaultPace),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -156,12 +156,12 @@ type searchResult struct {
 	ID            int    `json:"id"`
 	MediaType     string `json:"media_type,omitempty"`
 	Title         string `json:"title,omitempty"`
-	Name           string `json:"name,omitempty"`
+	Name          string `json:"name,omitempty"`
 	OriginalTitle string `json:"original_title,omitempty"`
 	OriginalName  string `json:"original_name,omitempty"`
 	ReleaseDate   string `json:"release_date,omitempty"`
-	FirstAirDate string `json:"first_air_date,omitempty"`
-	IMDbID         string `json:"imdb_id,omitempty"`
+	FirstAirDate  string `json:"first_air_date,omitempty"`
+	IMDbID        string `json:"imdb_id,omitempty"`
 }
 
 // resultKind resolves a hit's kind: single-media searches imply it from
@@ -191,8 +191,8 @@ func (r searchResult) candidate(searched string) (*slotsv1.TitleCandidate, bool)
 	orig := firstNonEmpty(r.OriginalTitle, r.OriginalName)
 	c := &slotsv1.TitleCandidate{
 		Ref:           "tmdb:" + strconv.Itoa(r.ID),
-		Kind:        kind,
-		Title:        title,
+		Kind:          kind,
+		Title:         title,
 		OriginalTitle: orig,
 		Year:          yearOf(firstNonEmpty(r.ReleaseDate, r.FirstAirDate)),
 	}
@@ -302,18 +302,18 @@ func (s *Slot) findBy(ctx context.Context, val, source string, id, media *string
 }
 
 type detail struct {
-	ID              int    `json:"id"`
-	Title             string `json:"title,omitempty"`
-	Name               string `json:"name,omitempty"`
-	OriginalTitle string `json:"original_title,omitempty"`
-	OriginalName  string `json:"original_name,omitempty"`
-	Overview        string `json:"overview,omitempty"`
-	ReleaseDate     string `json:"release_date,omitempty"`
-	FirstAirDate  string `json:"first_air_date,omitempty"`
-	VoteAverage     float64 `json:"vote_average"`
-	PosterPath      string `json:"poster_path,omitempty"`
+	ID               int     `json:"id"`
+	Title            string  `json:"title,omitempty"`
+	Name             string  `json:"name,omitempty"`
+	OriginalTitle    string  `json:"original_title,omitempty"`
+	OriginalName     string  `json:"original_name,omitempty"`
+	Overview         string  `json:"overview,omitempty"`
+	ReleaseDate      string  `json:"release_date,omitempty"`
+	FirstAirDate     string  `json:"first_air_date,omitempty"`
+	VoteAverage      float64 `json:"vote_average"`
+	PosterPath       string  `json:"poster_path,omitempty"`
 	OriginalLanguage string  `json:"original_language,omitempty"`
-	Runtime            int     `json:"runtime,omitempty"`
+	Runtime          int     `json:"runtime,omitempty"`
 	NumberOfSeasons  int     `json:"number_of_seasons,omitempty"`
 	NumberOfEpisodes int     `json:"number_of_episodes,omitempty"`
 
@@ -323,20 +323,20 @@ type detail struct {
 			Order int    `json:"order"`
 		} `json:"cast"`
 		Crew []struct {
-			Name   string `json:"name"`
-			Job    string `json:"job"`
+			Name string `json:"name"`
+			Job  string `json:"job"`
 		} `json:"crew"`
 	} `json:"credits"`
 
 	ExternalIDs struct {
-		IMDbID      string  `json:"imdb_id"`
-		WikidataID  string  `json:"wikidata_id"`
-		TVDBID      json.RawMessage `json:"tvdb_id"`
+		IMDbID     string          `json:"imdb_id"`
+		WikidataID string          `json:"wikidata_id"`
+		TVDBID     json.RawMessage `json:"tvdb_id"`
 	} `json:"external_ids"`
 
 	ReleaseDates struct {
 		Results []struct {
-			Country       string `json:"iso_3166_1"`
+			Country      string `json:"iso_3166_1"`
 			ReleaseDates []struct {
 				Certification string `json:"certification"`
 			} `json:"release_dates"`
@@ -354,10 +354,10 @@ type detail struct {
 func (d *detail) response(media string) *slotsv1.GetMetadataResponse {
 	md := &corev1.TitleMetadata{
 		Title:            firstNonEmpty(d.Title, d.Name),
-		Year:            yearOf(firstNonEmpty(d.ReleaseDate, d.FirstAirDate)),
-		Description:    d.Overview,
-		Rating:          float32(d.VoteAverage),
-		PosterUrl:      posterURL(d.PosterPath),
+		Year:             yearOf(firstNonEmpty(d.ReleaseDate, d.FirstAirDate)),
+		Description:      d.Overview,
+		Rating:           float32(d.VoteAverage),
+		PosterUrl:        posterURL(d.PosterPath),
 		OriginalLanguage: d.OriginalLanguage,
 	}
 	if media == "movie" {

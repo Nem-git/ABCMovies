@@ -224,6 +224,19 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 	if err := ValidateManifest(src); err != nil {
 		return nil, errInvalid("provider returned an invalid manifest: %v", err)
 	}
+	// The contract permits DRM (§6.2), but v1 has no key/license path (§6.6):
+	// an encrypted track is refused loudly, never silently delivered without
+	// license handling (PLAN.md §2.5 — reject, never downgrade).
+	if err := RejectUnsupportedDRM(src); err != nil {
+		e.logger.Error("delivery refused: manifest carries a DRM-encrypted track",
+			"goal", req.Goal,
+			"provider", req.Provider,
+			"account", req.AccountID,
+			"member", req.MemberUserID,
+			"reason", err.Error(),
+		)
+		return nil, errInvalid("%v", err)
+	}
 
 	plan, err := SelectPipeline(req.Goal, src, req.Container)
 	if err != nil {
@@ -553,6 +566,21 @@ func ValidateManifest(ms *corev1.MediaSource) error {
 	}
 	if len(ms.GetTracks()) == 0 {
 		return fmt.Errorf("manifest: at least one track is required")
+	}
+	return nil
+}
+
+// RejectUnsupportedDRM refuses a manifest that carries a DRM-encrypted track.
+// The MediaSource contract permits DRM (media_source.proto §TrackDrm), but a
+// v1 engine has no key or license handling (PLAN.md §6.6), so the only honest
+// outcome is refusal — never a silent skip that streams an encrypted track
+// unlicensed (PLAN.md §2.5). The schema keeps accepting the field; it is this
+// layer that declines delivery.
+func RejectUnsupportedDRM(ms *corev1.MediaSource) error {
+	for _, tr := range ms.GetTracks() {
+		if d := tr.GetDelivery(); d != nil && d.GetDrm() != nil {
+			return fmt.Errorf("track %q is DRM-encrypted; DRM delivery is not supported in v1 (requires §6.6 key/license handling)", tr.GetId())
+		}
 	}
 	return nil
 }

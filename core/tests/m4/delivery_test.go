@@ -23,6 +23,8 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/slotwiring"
 	"github.com/nem-git/abcmovies/core/internal/store"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // fakeResolver is a canned produce-sources surface: it hands back a fixed
@@ -72,6 +74,26 @@ func perTrackSource(providerURL string) *corev1.MediaSource {
 			},
 		},
 	}
+}
+
+// drmPerTrackSource is a schema-valid PER_TRACK manifest whose video track is
+// DRM-encrypted. The contract allows the field; v1 must refuse it.
+func drmPerTrackSource(providerURL string) *corev1.MediaSource {
+	ms := perTrackSource(providerURL)
+	ms.Tracks[0].Delivery.Drm = &corev1.TrackDrm{System: "org.w3.clearkey", LicenseUrl: "https://license.example/"}
+	return ms
+}
+
+// countingFactory wraps a sink factory and counts NewSink calls, so a test can
+// prove a refusal produced no sink at all.
+type countingFactory struct {
+	delivery.SinkFactory
+	calls int
+}
+
+func (c *countingFactory) NewSink(ctx context.Context, s *delivery.Session, tracks []*corev1.Track) (delivery.Sink, error) {
+	c.calls++
+	return c.SinkFactory.NewSink(ctx, s, tracks)
 }
 
 // buildServer wires the delivery engine over the given resolver and sink
@@ -243,5 +265,39 @@ func TestM4PassthroughPlayToDeviceEndToEnd(t *testing.T) {
 	v1tok, _ := device.RelayToken("v1")
 	if _, _, err := relay.Open(v1tok); err == nil {
 		t.Error("relay still served a ticket after the session finalized")
+	}
+}
+
+// TestM4DRMRefusedNotSilentlyDelivered proves the SCOPE consequence: a
+// DRM-encrypted manifest is refused with an honest error, and no session, job,
+// or sink is ever produced. The engine declines the whole delivery rather than
+// pass an encrypted track through unlicensed (PLAN.md §2.5 — reject, never
+// downgrade).
+func TestM4DRMRefusedNotSilentlyDelivered(t *testing.T) {
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("encrypted-track-bytes"))
+	}))
+	defer provider.Close()
+
+	factory := &countingFactory{SinkFactory: &delivery.DeviceSinkFactory{Relay: delivery.NewRelay()}}
+	srv, eng := buildServer(&fakeResolver{drmPerTrackSource(provider.URL)}, factory)
+	defer eng.Close()
+
+	_, err := srv.StartDelivery(context.Background(), &apiv1.StartDeliveryRequest{
+		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:     "jellyfin",
+		AccountId:    "acc1",
+		MemberUserId: "u1",
+		NativeId:     "item1",
+		Sink:         "device",
+	})
+	if status.Code(err) != codes.InvalidArgument || !strings.Contains(err.Error(), "DRM-encrypted") {
+		t.Fatalf("want a loud InvalidArgument DRM refusal, got code=%v err=%v", status.Code(err), err)
+	}
+	if eng.LiveSessions() != 0 {
+		t.Fatalf("refusal must create no session, LiveSessions = %d", eng.LiveSessions())
+	}
+	if factory.calls != 0 {
+		t.Fatalf("refusal reached the sink factory %d times, want 0", factory.calls)
 	}
 }

@@ -514,8 +514,8 @@ func sourceFromPlayback(pb *playbackInfoResult) (*corev1.MediaSource, error) {
 				lang = "und"
 			}
 			tracks = append(tracks, &corev1.Track{
-				Id:      fmt.Sprintf("audio-%d", i),
-				Media:   &corev1.Track_Audio{Audio: &corev1.AudioTrack{Codec: st.Codec, Language: lang, ChannelLayout: st.ChannelLayout, Role: corev1.AudioRole_AUDIO_ROLE_MAIN}},
+				Id:       fmt.Sprintf("audio-%d", i),
+				Media:    &corev1.Track_Audio{Audio: &corev1.AudioTrack{Codec: st.Codec, Language: lang, ChannelLayout: st.ChannelLayout, Role: corev1.AudioRole_AUDIO_ROLE_MAIN}},
 				Delivery: &corev1.TrackDelivery{CarriedIn: carrierID},
 			})
 		case "Subtitle":
@@ -524,8 +524,8 @@ func sourceFromPlayback(pb *playbackInfoResult) (*corev1.MediaSource, error) {
 				lang = "und"
 			}
 			tracks = append(tracks, &corev1.Track{
-				Id:    fmt.Sprintf("subtitle-%d", i),
-				Media: &corev1.Track_Subtitle{Subtitle: &corev1.SubtitleTrack{Format: st.Codec, Language: lang, Role: corev1.SubtitleRole_SUBTITLE_ROLE_SUBTITLE, Forced: st.IsForced}},
+				Id:       fmt.Sprintf("subtitle-%d", i),
+				Media:    &corev1.Track_Subtitle{Subtitle: &corev1.SubtitleTrack{Format: st.Codec, Language: lang, Role: corev1.SubtitleRole_SUBTITLE_ROLE_SUBTITLE, Forced: st.IsForced}},
 				Delivery: &corev1.TrackDelivery{CarriedIn: carrierID},
 			})
 		default:

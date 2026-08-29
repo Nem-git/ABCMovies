@@ -242,3 +242,18 @@ func TestMissingEntrySkipsQuietly(t *testing.T) {
 		t.Fatalf("vanished entry errored: %v", err)
 	}
 }
+
+// TestEnrichOffByDefaultNoCatalogues pins the M3 acceptance that enrichment
+// is off until operators enable a catalogue slot (TECHNICAL-DECISIONS §1.25):
+// an engine built with zero catalogues resolves nothing and writes nothing,
+// even when the entry carries external IDs and the cache is cold.
+func TestEnrichOffByDefaultNoCatalogues(t *testing.T) {
+	st := newFakeStore()
+	e := NewEngine(fakeSource{ev: entryEvidenceWith(xid("imdb", "tt0084787")), ok: true}, st, nil, nil)
+	if err := e.Enrich(context.Background(), "le_1"); err != nil {
+		t.Fatalf("Enrich with no catalogues must be a no-op, not an error: %v", err)
+	}
+	if len(st.records) != 0 || len(st.aliases) != 0 {
+		t.Fatalf("off-by-default engine wrote state: %+v %+v", st.records, st.aliases)
+	}
+}

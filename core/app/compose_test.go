@@ -118,6 +118,11 @@ func TestComposeSlotsEmptyConfig(t *testing.T) {
 	if len(rt.Jobs) != 1 || rt.Jobs[0].Name != "enrichment-drain" {
 		t.Fatalf("empty config jobs = %v, want only the enrichment drain", rt.Jobs)
 	}
+	// Enrichment is off by default: no configured catalogue slot means the
+	// engine has nothing to consult (TECHNICAL-DECISIONS.md §1.25).
+	if len(rt.Catalogues) != 0 {
+		t.Fatalf("empty config enabled %d catalogue slots, want 0", len(rt.Catalogues))
+	}
 	entries, err := rt.Library.Library(context.Background(), "someone")
 	if err != nil || len(entries) != 0 {
 		t.Fatalf("fresh library = (%v, %v), want empty without error", entries, err)

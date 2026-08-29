@@ -183,6 +183,59 @@ func TestStartRejectsInvalidManifest(t *testing.T) {
 	}
 }
 
+// drmSource is a schema-valid PER_TRACK manifest whose video track is
+// DRM-encrypted — the contract allows it, the engine must not deliver it.
+func drmSource() *corev1.MediaSource {
+	src := staticSource()
+	src.Tracks[0].Delivery = &corev1.TrackDelivery{
+		Drm: &corev1.TrackDrm{System: "org.w3.clearkey", LicenseUrl: "https://license.example/"},
+	}
+	return src
+}
+
+func TestRejectUnsupportedDRM(t *testing.T) {
+	if err := RejectUnsupportedDRM(nil); err != nil {
+		t.Fatalf("nil manifest refused: %v", err)
+	}
+	if err := RejectUnsupportedDRM(staticSource()); err != nil {
+		t.Fatalf("clean manifest refused: %v", err)
+	}
+	err := RejectUnsupportedDRM(drmSource())
+	if err == nil {
+		t.Fatal("DRM-encrypted manifest accepted, want refusal")
+	}
+	if !strings.Contains(err.Error(), `track "v1"`) || !strings.Contains(err.Error(), "not supported in v1") {
+		t.Fatalf("refusal must name the offending track and v1's missing license path, got %q", err.Error())
+	}
+}
+
+func TestStartRefusesDRMTrackLoudly(t *testing.T) {
+	for _, goal := range []Goal{GoalPlay, GoalDownload} {
+		var recorded []*corev1.Job
+		e := New(Options{
+			SessionTTL:     time.Hour,
+			Now:            time.Now,
+			RecordJob:      func(j *corev1.Job) { recorded = append(recorded, j) },
+			SourceResolver: &fakeResolver{source: drmSource()},
+			SinkFactory:    &DeviceSinkFactory{Relay: NewRelay()},
+		})
+		_, err := e.Start(context.Background(), StartRequest{
+			Goal: goal, MemberUserID: "u",
+			Provider: "jellyfin", AccountID: "a", NativeID: "item1", Sink: "device",
+		})
+		if err == nil || !strings.Contains(err.Error(), "DRM-encrypted") {
+			t.Fatalf("%s: expected DRM refusal, got %v", goal, err)
+		}
+		if len(recorded) != 0 {
+			t.Fatalf("%s: a refused session must not announce a job, got %d", goal, len(recorded))
+		}
+		if e.LiveSessions() != 0 {
+			t.Fatalf("%s: LiveSessions = %d, want 0", goal, e.LiveSessions())
+		}
+		e.Close()
+	}
+}
+
 func TestHeartbeatBoundaries(t *testing.T) {
 	now := time.Now()
 	e, _, _ := newTestEngine(Options{
