@@ -109,6 +109,61 @@ func (a *coreServiceAdapter) Heartbeat(
 	return connect.NewResponse(resp), nil
 }
 
+func (a *coreServiceAdapter) GetLibrary(
+	ctx context.Context,
+	req *connect.Request[apiv1.GetLibraryRequest],
+) (*connect.Response[apiv1.GetLibraryResponse], error) {
+	resp, err := a.srv.GetLibrary(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (a *coreServiceAdapter) LinkAccount(
+	ctx context.Context,
+	req *connect.Request[apiv1.LinkAccountRequest],
+) (*connect.Response[apiv1.LinkAccountResponse], error) {
+	resp, err := a.srv.LinkAccount(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (a *coreServiceAdapter) ListAccounts(
+	ctx context.Context,
+	req *connect.Request[apiv1.ListAccountsRequest],
+) (*connect.Response[apiv1.ListAccountsResponse], error) {
+	resp, err := a.srv.ListAccounts(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (a *coreServiceAdapter) RemoveAccount(
+	ctx context.Context,
+	req *connect.Request[apiv1.RemoveAccountRequest],
+) (*connect.Response[apiv1.RemoveAccountResponse], error) {
+	resp, err := a.srv.RemoveAccount(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (a *coreServiceAdapter) GetPlayInfo(
+	ctx context.Context,
+	req *connect.Request[apiv1.GetPlayInfoRequest],
+) (*connect.Response[apiv1.GetPlayInfoResponse], error) {
+	resp, err := a.srv.GetPlayInfo(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
 func (a *coreServiceAdapter) Subscribe(
 	ctx context.Context,
 	req *connect.Request[apiv1.SubscribeRequest],

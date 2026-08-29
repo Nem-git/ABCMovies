@@ -4,6 +4,8 @@ package abcmovies.api.v1;
 
 import "abcmovies/core/v1/event.proto";
 import "abcmovies/core/v1/job.proto";
+import "abcmovies/core/v1/library_entry.proto";
+import "abcmovies/core/v1/media_source.proto";
 
 // The inbound API service surface (docs/TECHNICAL-DECISIONS §1.3, PLAN.md §8).
 // Clients reach in; the core never reaches out. Two communication styles:
@@ -22,6 +24,24 @@ service CoreService {
   // Auth: authenticate and receive a session token (PLAN.md §7.6).
   rpc Login(LoginRequest) returns (LoginResponse);
 
+  // Library: the caller's derived library, one page at a time (PLAN.md §5,
+  // §8). The optional query narrows the page to matching titles; an empty
+  // query returns the whole library.
+  rpc GetLibrary(GetLibraryRequest) returns (GetLibraryResponse);
+
+  // Accounts: link a provider account by submitting credentials. The core
+  // validates them by probing the provider before storing anything — it never
+  // vaults material it has not confirmed works (PLAN.md §3.5).
+  rpc LinkAccount(LinkAccountRequest) returns (LinkAccountResponse);
+
+  // Accounts: list the accounts the caller can deliver from — the accounts
+  // the caller linked plus the operator-declared ones (PLAN.md §7.5).
+  rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
+
+  // Accounts: remove a linked account, revoking its session (PLAN.md §7.5).
+  // Operator-declared accounts cannot be removed through the API.
+  rpc RemoveAccount(RemoveAccountRequest) returns (RemoveAccountResponse);
+
   // Delivery: begin a play or download session and receive the delivery job
   // (PLAN.md §6, §9.1). Start is a plain "create" — each call makes a new
   // session; event idempotency is deferred (TECHNICAL-DECISIONS.md §1.30).
@@ -30,6 +50,12 @@ service CoreService {
   // Delivery: report a play session is still alive (PLAN.md §9.1). A paused
   // session still heartbeats, so it is not killed.
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+  // Delivery: the play menu for a session — every delivered track and its
+  // relay pull URL (PLAN.md §6.1). The engine emits delivery-play-menu-ready
+  // once the menu is staged; this RPC is the recovery query for subscribers
+  // that missed the event or loaded late (PLAN.md §9.2).
+  rpc GetPlayInfo(GetPlayInfoRequest) returns (GetPlayInfoResponse);
 }
 
 message GetJobRequest {
@@ -103,6 +129,103 @@ message LoginResponse {
   string token = 1;
 }
 
+// --- Library messages (PLAN.md §5, §8.1) ---
+
+message GetLibraryRequest {
+  // Continuation token for the next page; empty for the first page.
+  string page_token = 1;
+  // Optional filter: narrows the library to matching titles. Empty returns
+  // the whole library. Matching is over the derived library's titles; see
+  // TECHNICAL-DECISIONS.md for the search surface decision.
+  string query = 2;
+}
+
+// LibraryItem pairs one library entry with the display metadata cached for it.
+message LibraryItem {
+  // The merged, canonical entry (PLAN.md §2.3, §5.3).
+  abcmovies.core.v1.LibraryEntry entry = 1;
+  // The cached display record (title, poster, description, ...) for the
+  // entry's metadata_ref; absent when no metadata is cached yet (PLAN.md
+  // §5.2). The frontend renders from this when present and falls back to the
+  // entry alone otherwise.
+  abcmovies.core.v1.TitleMetadata metadata = 2;
+}
+
+message GetLibraryResponse {
+  // This page of the library.
+  repeated LibraryItem items = 1;
+  // Continuation token for the next page; empty when this is the last page.
+  string next_page_token = 2;
+}
+
+// --- Account messages (PLAN.md §7.5) ---
+
+message LinkAccountRequest {
+  // The provider slot to link against (PLAN.md §3.2). Required.
+  string provider = 1;
+  // The provider's base URL. Required.
+  string base_url = 2;
+
+  // The authentication method and its parameters (PLAN.md §3.5). The closed
+  // common set carries a discriminator so a generic frontend renders an
+  // appropriate input; password is the first member.
+  oneof auth_method {
+    AccountPassword password = 3;
+  }
+}
+
+// Password credentials for a linked account. The core authenticates against
+// the provider before storing anything and keeps an authenticated session,
+// not the password itself (PLAN.md §3.5).
+message AccountPassword {
+  // The account's username on the provider.
+  string username = 1;
+  // The account's password, sent once for the validating probe.
+  bytes password = 2;
+}
+
+message LinkAccountResponse {
+  // The linked account id, stable for the account's lifetime.
+  string account_id = 1;
+}
+
+message ListAccountsRequest {}
+
+// AccountStatus is the core's current view of an account's liveness.
+enum AccountStatus {
+  ACCOUNT_STATUS_UNSPECIFIED = 0;
+  // The account's session is usable.
+  ACCOUNT_STATUS_LINKED = 1;
+  // The account's session has expired and needs re-linking (PLAN.md §7.5).
+  ACCOUNT_STATUS_EXPIRED = 2;
+}
+
+// Account is one account the caller can deliver from.
+message Account {
+  // The account id.
+  string account_id = 1;
+  // The provider slot.
+  string provider = 2;
+  // The provider base URL.
+  string base_url = 3;
+  // True when the caller linked this account; operator-declared accounts are
+  // read-only through the API.
+  bool caller_linked = 4;
+  // The account's session status.
+  AccountStatus status = 5;
+}
+
+message ListAccountsResponse {
+  repeated Account accounts = 1;
+}
+
+message RemoveAccountRequest {
+  // The account to remove; must be caller-linked. Required.
+  string account_id = 1;
+}
+
+message RemoveAccountResponse {}
+
 // --- Delivery messages (PLAN.md §6, §9.1) ---
 
 // The delivery goal: play delivers the whole menu for the player to choose
@@ -156,4 +279,37 @@ message HeartbeatRequest {
 message HeartbeatResponse {
   // Echoes the session id, confirming it is alive (PLAN.md §9.1).
   string session_id = 1;
+}
+
+// --- Play menu messages (PLAN.md §6.1) ---
+
+message GetPlayInfoRequest {
+  // The delivery session to inspect. Required. A session's id is its
+  // delivery job id (PLAN.md §9.1).
+  string session_id = 1;
+}
+
+// PlayTrack is one delivered track with the relay URL that serves its bytes.
+// The engine attaches the provider's auth when the relay is pulled, so the
+// caller only ever sees the relay URL (PLAN.md §3.6).
+message PlayTrack {
+  // Stable track id within the session's menu.
+  string track_id = 1;
+  // The track's media properties, exactly one matching its media type.
+  oneof media {
+    abcmovies.core.v1.VideoTrack video = 2;
+    abcmovies.core.v1.AudioTrack audio = 3;
+    abcmovies.core.v1.SubtitleTrack subtitle = 4;
+  }
+  // The relay URL serving this track's bytes, under the stable /media/relay/
+  // prefix; the frontend prepends its own origin (PLAN.md §3.6).
+  string relay_url = 5;
+}
+
+message GetPlayInfoResponse {
+  // The session's play menu. Empty until the menu is staged; the
+  // delivery-play-menu-ready event announces when it is.
+  repeated PlayTrack tracks = 1;
+  // The source container, when known (e.g. "mkv", "mp4"). Empty otherwise.
+  string container = 2;
 }
