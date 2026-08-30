@@ -8,6 +8,7 @@ import (
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/accounts"
+	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
@@ -182,4 +183,28 @@ func (r jellyfinResolver) ProduceSources(ctx context.Context, provider, accountI
 		return nil, err
 	}
 	return resp.GetSource(), nil
+}
+
+// jellyfinProber validates a linked-account credential against any Jellyfin
+// server through the adapter's exported probe (PLAN.md §3.5). The probe is
+// server-agnostic: it authenticates the driver directly, so one prober serves
+// every Jellyfin slot regardless of how the operator sliced their servers.
+type jellyfinProber struct{}
+
+func (jellyfinProber) Probe(ctx context.Context, baseURL, username string, password []byte) ([]byte, error) {
+	return jellyfin.ProbeCredentials(ctx, baseURL, username, password)
+}
+
+// ProberForAdapter returns the credential prober registered for an adapter,
+// or nil when the adapter does not validate a linked account's credentials by
+// itself (PLAN.md §3.5: the core never vaults material it has not confirmed
+// works; adapters without a prober cannot be linked). The key is the adapter
+// name — the same value a LinkAccountRequest carries as its provider.
+func ProberForAdapter(adapter string) apiserver.CredentialProber {
+	switch adapter {
+	case "jellyfin":
+		return jellyfinProber{}
+	default:
+		return nil
+	}
 }

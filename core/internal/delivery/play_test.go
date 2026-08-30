@@ -40,6 +40,106 @@ func playSource(providerURL string) *corev1.MediaSource {
 	}
 }
 
+// TestPlayStartStagesMenuAndAnnouncesReady proves a play Start delivers every
+// location-bearing track to the sink and announces the staged menu through the
+// MenuReady hook before the job is recorded — so a subscriber waiting on the
+// delivery-play-menu-ready event always finds a complete menu (PLAN.md §6.2).
+func TestPlayStartStagesMenuAndAnnouncesReady(t *testing.T) {
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/v1") {
+			_, _ = w.Write([]byte("video-bytes"))
+			return
+		}
+		_, _ = w.Write([]byte("audio-bytes"))
+	}))
+	defer provider.Close()
+
+	relay := NewRelay()
+	now := time.Now()
+	var announced *Session
+	e := New(Options{
+		SessionTTL:        24 * time.Hour,
+		ConcurrentStreams: 3,
+		Now:               func() time.Time { return now },
+		RecordJob:         func(*corev1.Job) {},
+		SourceResolver:    &fakeResolver{source: playSource(provider.URL)},
+		SinkFactory:       &DeviceSinkFactory{Relay: relay},
+		MenuReady:         func(s *Session) { announced = s },
+	})
+	defer e.Close()
+
+	sess, err := e.Start(context.Background(), StartRequest{
+		Goal: GoalPlay, MemberUserID: "u1",
+		Provider: "jellyfin", AccountID: "acc1", NativeID: "item1", Sink: "device",
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	device, ok := sess.Sink.(*DeviceSink)
+	if !ok {
+		t.Fatalf("sink is %T, want *DeviceSink", sess.Sink)
+	}
+	for _, id := range []string{"v1", "a1"} {
+		tok, ok := device.RelayToken(id)
+		if !ok {
+			t.Fatalf("no relay token staged for %s", id)
+		}
+		res, err := relay.Open(tok)
+		if err != nil {
+			t.Fatalf("open staged token %s: %v", id, err)
+		}
+		_, _ = io.Copy(io.Discard, res.Body)
+		_ = res.Body.Close()
+	}
+	if len(sess.Menu) != 2 {
+		t.Errorf("menu has %d tracks, want 2", len(sess.Menu))
+	}
+	if announced != sess {
+		t.Errorf("MenuReady announced %v, want the started session", announced)
+	}
+}
+
+// TestPlayStartSKipsLocationlessTracks proves staging only ever grants tokens
+// for tracks that actually carry a location: carried-in audio/subtitle tracks
+// are delivered *with* their carrier, never as their own relay grant.
+func TestPlayStartSkipsLocationlessTracks(t *testing.T) {
+	relay := NewRelay()
+	e := New(Options{
+		SessionTTL:        24 * time.Hour,
+		ConcurrentStreams: 3,
+		RecordJob:         func(*corev1.Job) {},
+		SourceResolver: &fakeResolver{source: &corev1.MediaSource{
+			Type:        corev1.MediaSourceType_MEDIA_SOURCE_TYPE_STATIC,
+			Seekable:    corev1.Seekable_SEEKABLE_FULL,
+			Addressable: corev1.Addressable_ADDRESSABLE_WHOLE_MUX,
+			Tracks: []*corev1.Track{
+				{Id: "container", Media: &corev1.Track_Video{}, Delivery: &corev1.TrackDelivery{Locations: []string{"http://x/stream"}}},
+				{Id: "audio-1", Media: &corev1.Track_Audio{}, Delivery: &corev1.TrackDelivery{CarriedIn: "container"}},
+			},
+		}},
+		SinkFactory: &DeviceSinkFactory{Relay: relay},
+	})
+	defer e.Close()
+
+	sess, err := e.Start(context.Background(), StartRequest{
+		Goal: GoalPlay, MemberUserID: "u1",
+		Provider: "jellyfin", AccountID: "acc1", NativeID: "item1", Sink: "device",
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	device, ok := sess.Sink.(*DeviceSink)
+	if !ok {
+		t.Fatalf("sink is %T, want *DeviceSink", sess.Sink)
+	}
+	if tok, ok := device.RelayToken("container"); !ok || tok == "" {
+		t.Error("container track should have a staged token")
+	}
+	if _, ok := device.RelayToken("audio-1"); ok {
+		t.Error("carried-in track must not get its own relay token")
+	}
+}
+
 // TestPlayEndToEndPassthroughRelay proves one passthrough play session
 // end-to-end: the engine resolves a per-track manifest, the device sink stages
 // relay tickets per track, and a minimal built-in consumer pulls each track's
@@ -107,12 +207,12 @@ func TestPlayEndToEndPassthroughRelay(t *testing.T) {
 
 		// A consumer pulls only through the token; it never sees the
 		// auth_context (the token is opaque).
-		body, _, err := relay.Open(tok)
+		res, err := relay.Open(tok)
 		if err != nil {
 			t.Fatalf("relay.Open %s: %v", trackID, err)
 		}
-		data, _ := io.ReadAll(body)
-		_ = body.Close()
+		data, _ := io.ReadAll(res.Body)
+		_ = res.Body.Close()
 		want := map[string]string{"v1": "video-bytes", "a1": "audio-bytes"}[trackID]
 		if string(data) != want {
 			t.Errorf("track %s relayed %q, want %q", trackID, data, want)
@@ -121,16 +221,16 @@ func TestPlayEndToEndPassthroughRelay(t *testing.T) {
 
 	// The provider never saw an unauthenticated pull from these tokens.
 	v1tok, _ := device.RelayToken("v1")
-	body, _, err := relay.Open(v1tok)
+	res, err := relay.Open(v1tok)
 	if err != nil {
 		t.Fatalf("re-open: %v", err)
 	}
-	_ = body.Close()
+	_ = res.Body.Close()
 	if err := e.Complete(sess.ID); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 	// After finalize, the relay no longer serves the session's tokens.
-	if _, _, err := relay.Open(v1tok); err == nil {
+	if _, err := relay.Open(v1tok); err == nil {
 		t.Error("relay still served a token after the session finalized")
 	}
 }
@@ -138,21 +238,21 @@ func TestPlayEndToEndPassthroughRelay(t *testing.T) {
 func TestRelayRejectsExpiredAndUnknown(t *testing.T) {
 	relay := NewRelay()
 	relay.now = func() time.Time { return time.Now() }
-	tok, _ := relay.Grant("s1", "v1", func(ctx context.Context) (io.ReadCloser, error) {
-		return io.NopCloser(strings.NewReader("x")), nil
+	tok, _ := relay.Grant("s1", "v1", func(ctx context.Context, _ string) (FetchResult, error) {
+		return FetchResult{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader("x"))}, nil
 	}, time.Second)
-	if _, _, err := relay.Open(tok); err != nil {
+	if _, err := relay.Open(tok); err != nil {
 		t.Fatalf("fresh token should open: %v", err)
 	}
-	if _, _, err := relay.Open("bogus"); err == nil {
+	if _, err := relay.Open("bogus"); err == nil {
 		t.Error("unknown token should fail")
 	}
 	relay.now = func() time.Time { return time.Now().Add(2 * time.Second) }
-	if _, _, err := relay.Open(tok); err == nil {
+	if _, err := relay.Open(tok); err == nil {
 		t.Error("expired token should fail")
 	}
 	relay.Revoke("s1")
-	if _, _, err := relay.Open(tok); err == nil {
+	if _, err := relay.Open(tok); err == nil {
 		t.Error("token should fail after revoke")
 	}
 }

@@ -388,6 +388,21 @@ func (s *Service) RebuildUser(ctx context.Context, userID string) error {
 	return nil
 }
 
+// Metadata resolves a cached display record by its reference id (PLAN.md
+// §5.2), for surfaces that render an entry's cover/poster/title cache.
+// ok=false when no record is cached (or no cache is wired); a miss is not an
+// error — the frontend falls back to the entry alone.
+func (s *Service) Metadata(ctx context.Context, ref string) (*corev1.TitleMetadata, bool, error) {
+	if s.meta == nil || ref == "" {
+		return nil, false, nil
+	}
+	rec, ok, err := s.meta.GetRecord(ctx, ref)
+	if err != nil {
+		return nil, false, err
+	}
+	return rec, ok, nil
+}
+
 // InvalidateAccount drops every cached user library after one account's
 // availability changed. Until member scoping exists every user reaches every
 // linked account, so the precise recipient set is "everyone"; the next read

@@ -96,6 +96,21 @@ func (c *countingFactory) NewSink(ctx context.Context, s *delivery.Session, trac
 	return c.SinkFactory.NewSink(ctx, s, tracks)
 }
 
+// engineManager adapts the engine to the API service's DeliveryManager
+// seam. M4 predates the play-menu surface; a menu request on this milestone
+// is booked as unknown.
+type engineManager struct{ eng *delivery.Engine }
+
+func (m engineManager) Start(ctx context.Context, req delivery.StartRequest) (*delivery.Session, error) {
+	return m.eng.Start(ctx, req)
+}
+
+func (m engineManager) Heartbeat(id string) error { return m.eng.Heartbeat(id) }
+
+func (m engineManager) PlayMenu(string) (*apiserver.PlayMenu, error) {
+	return nil, apiserver.ErrPlayMenuNotFound
+}
+
 // buildServer wires the delivery engine over the given resolver and sink
 // factory and returns an armed CoreService together with the engine its
 // harness drives.
@@ -109,7 +124,7 @@ func buildServer(resolver delivery.Resolver, sinks delivery.SinkFactory) (*apise
 	})
 	bus := apiserver.NewInMemoryBus()
 	srv := apiserver.NewServer(bus, config.Stores{Jobs: store.NewInMemory()}, nil, nil)
-	srv.SetDelivery(eng)
+	srv.SetDelivery(engineManager{eng: eng})
 	return srv, eng
 }
 
@@ -247,12 +262,12 @@ func TestM4PassthroughPlayToDeviceEndToEnd(t *testing.T) {
 		if !ok {
 			t.Fatalf("no relay ticket staged for %s", tr.GetId())
 		}
-		body, _, err := relay.Open(tok)
+		res, err := relay.Open(tok)
 		if err != nil {
 			t.Fatalf("relay.Open %s: %v", tr.GetId(), err)
 		}
-		data, _ := io.ReadAll(body)
-		_ = body.Close()
+		data, _ := io.ReadAll(res.Body)
+		_ = res.Body.Close()
 		if string(data) != want[tr.GetId()] {
 			t.Errorf("track %s relayed %q, want %q", tr.GetId(), data, want[tr.GetId()])
 		}
@@ -263,7 +278,8 @@ func TestM4PassthroughPlayToDeviceEndToEnd(t *testing.T) {
 	}
 	// After finalize the session's relay tickets are revoked.
 	v1tok, _ := device.RelayToken("v1")
-	if _, _, err := relay.Open(v1tok); err == nil {
+	if res, err := relay.Open(v1tok); err == nil {
+		_ = res.Body.Close()
 		t.Error("relay still served a ticket after the session finalized")
 	}
 }

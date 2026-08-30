@@ -438,3 +438,46 @@ func TestNewRejectsIncompleteAccounts(t *testing.T) {
 		t.Fatal("duplicate account id accepted")
 	}
 }
+
+// TestProbeCredentials validates credentials against a live fake server and
+// returns the vaultable session blob (the authResult wiring restores). It is
+// the proof-before-vault seam for linked accounts (PLAN.md §3.5): the probe
+// needs no slot installed and produces a blob the slot accepts verbatim.
+func TestProbeCredentials(t *testing.T) {
+	f := newFake(t, nil)
+	blob, err := ProbeCredentials(context.Background(), f.server.URL, "bob", []byte("sekret"), WithHTTPClient(f.server.Client()))
+	if err != nil {
+		t.Fatalf("ProbeCredentials: %v", err)
+	}
+	var auth authResult
+	if err := json.Unmarshal(blob, &auth); err != nil {
+		t.Fatalf("blob is not an authResult: %v", err)
+	}
+	if auth.AccessToken == "" || auth.User.ID == "" {
+		t.Fatalf("incomplete probed session: %+v", auth)
+	}
+	if f.logins.Load() != 1 {
+		t.Fatalf("logins = %d, want exactly one probe", f.logins.Load())
+	}
+	// A rejected credential is an error, and nothing was vaulted.
+	if _, err := ProbeCredentials(context.Background(), f.server.URL, "bob", []byte("wrong"), WithHTTPClient(f.server.Client())); err == nil {
+		t.Fatal("wrong credentials should fail the probe")
+	}
+	// The returned blob restores through the same path a slot's session vault
+	// uses: the probe and the slot speak one authResult format.
+	mv := &memVault{blobs: map[string][]byte{}}
+	_ = mv.Save(context.Background(), "linked-1", blob)
+	slot, err := New([]Account{{ID: "linked-1", URL: f.server.URL, Username: "bob"}},
+		WithHTTPClient(f.server.Client()),
+		WithSessionVault(mv))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	produced, err := slot.ProduceSources(context.Background(), &slotsv1.ProduceSourcesRequest{AccountId: "linked-1", NativeId: "item-1"})
+	if err != nil {
+		t.Fatalf("vault-first ProduceSources with probed blob: %v", err)
+	}
+	if len(produced.GetSource().GetTracks()) != 3 {
+		t.Fatalf("whole-mux manifest has %d tracks, want 3", len(produced.GetSource().GetTracks()))
+	}
+}

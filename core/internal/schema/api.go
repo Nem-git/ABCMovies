@@ -128,3 +128,68 @@ func ValidateHeartbeatResponse(r *apiv1.HeartbeatResponse) error {
 	}
 	return nil
 }
+
+// ValidateGetLibraryRequest checks a GetLibraryRequest (PLAN.md §5, §8).
+func ValidateGetLibraryRequest(r *apiv1.GetLibraryRequest) error {
+	if r == nil {
+		return fmt.Errorf("get_library_request: nil")
+	}
+	return nil
+}
+
+// ValidateLinkAccountRequest checks a LinkAccountRequest (PLAN.md §3.5, §7.5).
+func ValidateLinkAccountRequest(r *apiv1.LinkAccountRequest) error {
+	if r == nil {
+		return fmt.Errorf("link_account_request: nil")
+	}
+	if r.GetProvider() == "" {
+		return fmt.Errorf("link_account_request: provider is required")
+	}
+	if r.GetBaseUrl() == "" {
+		return fmt.Errorf("link_account_request: base_url is required")
+	}
+	pw := r.GetPassword()
+	if pw == nil {
+		return fmt.Errorf("link_account_request: password auth method is required")
+	}
+	if pw.GetUsername() == "" {
+		return fmt.Errorf("link_account_request: username is required")
+	}
+	if len(pw.GetPassword()) == 0 {
+		return fmt.Errorf("link_account_request: password is required")
+	}
+	if r.GetVisibility() == apiv1.AccountVisibility_ACCOUNT_VISIBILITY_SHARED && len(r.GetSharedWith()) == 0 {
+		return fmt.Errorf("link_account_request: shared visibility requires shared_with users")
+	}
+	return nil
+}
+
+// ValidateListAccountsRequest checks a ListAccountsRequest (PLAN.md §7.5).
+func ValidateListAccountsRequest(r *apiv1.ListAccountsRequest) error {
+	if r == nil {
+		return fmt.Errorf("list_accounts_request: nil")
+	}
+	return nil
+}
+
+// ValidateRemoveAccountRequest checks a RemoveAccountRequest (PLAN.md §7.5).
+func ValidateRemoveAccountRequest(r *apiv1.RemoveAccountRequest) error {
+	if r == nil {
+		return fmt.Errorf("remove_account_request: nil")
+	}
+	if r.GetAccountId() == "" {
+		return fmt.Errorf("remove_account_request: account_id is required")
+	}
+	return nil
+}
+
+// ValidateGetPlayInfoRequest checks a GetPlayInfoRequest (PLAN.md §6.1).
+func ValidateGetPlayInfoRequest(r *apiv1.GetPlayInfoRequest) error {
+	if r == nil {
+		return fmt.Errorf("get_play_info_request: nil")
+	}
+	if r.GetSessionId() == "" {
+		return fmt.Errorf("get_play_info_request: session_id is required")
+	}
+	return nil
+}

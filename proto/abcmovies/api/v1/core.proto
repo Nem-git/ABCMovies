@@ -172,6 +172,18 @@ message LinkAccountRequest {
   oneof auth_method {
     AccountPassword password = 3;
   }
+
+  // How the linked account is shared (PLAN.md §5.1). Private by default: the
+  // account feeds only its owner's library until they choose otherwise.
+  AccountVisibility visibility = 4;
+
+  // The host users this account is shared with. Required when visibility is
+  // SHARED, ignored otherwise.
+  repeated string shared_with = 5;
+
+  // The owner's cap on concurrent streams from this account (PLAN.md §3.9).
+  // Zero means unlimited. The delivery engine enforces it.
+  uint32 max_concurrent_streams = 6;
 }
 
 // Password credentials for a linked account. The core authenticates against
@@ -200,6 +212,19 @@ enum AccountStatus {
   ACCOUNT_STATUS_EXPIRED = 2;
 }
 
+// AccountVisibility is how an account is shared across host users (PLAN.md
+// §5.1). Operator-declared accounts are host-provided and always PUBLIC;
+// linked accounts start PRIVATE and the owner may widen them.
+enum AccountVisibility {
+  ACCOUNT_VISIBILITY_UNSPECIFIED = 0;
+  // Only the owner can derive and deliver from this account.
+  ACCOUNT_VISIBILITY_PRIVATE = 1;
+  // The owner and the named shared_with users can.
+  ACCOUNT_VISIBILITY_SHARED = 2;
+  // Every host user can derive and deliver from this account.
+  ACCOUNT_VISIBILITY_PUBLIC = 3;
+}
+
 // Account is one account the caller can deliver from.
 message Account {
   // The account id.
@@ -213,6 +238,13 @@ message Account {
   bool caller_linked = 4;
   // The account's session status.
   AccountStatus status = 5;
+  // How the account is shared. Operator-declared accounts are PUBLIC.
+  AccountVisibility visibility = 6;
+  // The users an account is shared with; only populated for SHARED accounts.
+  repeated string shared_with = 7;
+  // The host user who linked this account; empty for operator-declared
+  // accounts.
+  string owner_user_id = 8;
 }
 
 message ListAccountsResponse {

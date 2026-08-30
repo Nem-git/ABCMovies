@@ -70,6 +70,12 @@ type Session struct {
 	// is set once at Start, before any sink work, so it seeds the resume key.
 	Plan Plan
 
+	// Menu is the staged play menu for a play session, set once at Start
+	// (PLAN.md §6.1): the manifest tracks that were delivered to the sink and
+	// are ready to pull. It is nil for downloads. GetPlayInfo recovers the
+	// menu from here — the payload keyed by the session id (PLAN.md §6.2).
+	Menu []*corev1.Track
+
 	Sink Sink
 
 	createdAt     time.Time
@@ -122,8 +128,13 @@ type Options struct {
 	SourceResolver    Resolver
 	SinkFactory       SinkFactory
 	RecordJob         func(*corev1.Job)
-	Now               func() time.Time
-	Logger            *slog.Logger
+	// MenuReady announces that a play session's menu is fully staged, once
+	// Start has delivered every track to the sink. The app publishes the
+	// delivery-play-menu-ready event through it (PLAN.md §6.2); nil mutes the
+	// announcement.
+	MenuReady func(*Session)
+	Now       func() time.Time
+	Logger    *slog.Logger
 }
 
 // Engine owns the delivery sessions and the session→account index.
@@ -141,6 +152,7 @@ type Engine struct {
 	resolver  Resolver
 	sinkMaker SinkFactory
 	recordJob func(*corev1.Job)
+	menuReady func(*Session)
 	now       func() time.Time
 	logger    *slog.Logger
 
@@ -163,6 +175,7 @@ func New(opts Options) *Engine {
 		resolver:  opts.SourceResolver,
 		sinkMaker: opts.SinkFactory,
 		recordJob: opts.RecordJob,
+		menuReady: opts.MenuReady,
 		now:       opts.Now,
 		logger:    opts.Logger,
 		stopCh:    make(chan struct{}),
@@ -298,6 +311,29 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 	e.mu.Unlock()
 
 	sess.Status = StatusRunning
+
+	// A play session stages its menu before it is announced: every manifest
+	// track with a location is delivered to the sink right away, so the
+	// delivery-play-menu-ready event — and any GetPlayInfo recovery — always
+	// finds a complete menu, and a start that cannot stage fails loudly here
+	// rather than surface an empty player (PLAN.md §6.1, §6.2). Delivery-only
+	// tracks (carried-in audio/subtitle) have no location and stage nothing;
+	// the player reads them off the carrier track they name.
+	if req.Goal == GoalPlay && sess.Sink != nil && len(src.GetTracks()) > 0 {
+		sess.Menu = src.GetTracks()
+		for _, tr := range src.GetTracks() {
+			if len(tr.GetDelivery().GetLocations()) == 0 {
+				continue
+			}
+			if _, err := sess.Sink.Deliver(ctx, sess, tr, nil); err != nil {
+				return nil, fmt.Errorf("stage play menu: %w", err)
+			}
+		}
+		if e.menuReady != nil {
+			e.menuReady(sess)
+		}
+	}
+
 	e.recordJob(sess.toJob())
 	return sess, nil
 }

@@ -91,6 +91,13 @@ type SlotRuntime struct {
 	Resolvers slotwiring.Resolvers
 	Sinks     delivery.SinkFactory
 	Relay     *delivery.Relay
+
+	// Probers map provider adapters — the adapter name a LinkAccountRequest
+	// carries as its provider — to credential probers, so the API validates
+	// linked-account credentials before anything is vaulted (PLAN.md §3.5:
+	// nothing is vaulted that the probe rejected). Empty when no provider
+	// adapter arms a prober.
+	Probers map[string]apiserver.CredentialProber
 }
 
 // registryEvidence adapts the item registry to the enrichment engine's
@@ -160,6 +167,15 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 		return nil, fmt.Errorf("slots: %w", err)
 	}
 	rt.Resolvers = resolvers
+	rt.Probers = map[string]apiserver.CredentialProber{}
+	for _, e := range slots.Providers {
+		if !e.Enabled {
+			continue
+		}
+		if p := slotwiring.ProberForAdapter(e.Adapter); p != nil {
+			rt.Probers[e.Adapter] = p
+		}
+	}
 
 	srvs, err := slotwiring.SetupSinks(slots.Sinks, rt.Relay)
 	if err != nil {

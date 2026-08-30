@@ -7,6 +7,7 @@ import (
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/auth"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
@@ -24,6 +25,7 @@ import (
 type DeliveryManager interface {
 	Start(ctx context.Context, req delivery.StartRequest) (*delivery.Session, error)
 	Heartbeat(id string) error
+	PlayMenu(sessionID string) (*PlayMenu, error)
 }
 
 // Server implements the CoreService (PLAN.md §8).
@@ -35,6 +37,16 @@ type Server struct {
 	session  auth.Session
 	delivery DeliveryManager
 	seq      atomic.Int64
+
+	// library gates every read of the merged catalog and the delivery
+	// authorization (PLAN.md §5.1); nil until armed, when absent the library
+	// RPCs return Unavailable. accounts persists linked-account records and
+	// their vaulted sessions; it is always available over the vault. probers
+	// validate candidate linked-account credentials per provider (PLAN.md
+	// §3.5: nothing is vaulted that was not probed); armed by wiring.
+	library  LibrarySeam
+	accounts *accounts.Store
+	probers  map[string]CredentialProber
 }
 
 // NewServer returns a CoreService backed by the given bus, stores, and auth.
@@ -45,7 +57,19 @@ func NewServer(bus Bus, stores config.Stores, authenticator *auth.CompositeAuthe
 	if len(dm) > 0 {
 		d = dm[0]
 	}
-	return &Server{bus: bus, stores: stores, auth: authenticator, session: session, delivery: d}
+	return &Server{
+		bus:      bus,
+		stores:   stores,
+		auth:     authenticator,
+		session:  session,
+		delivery: d,
+		// The accounts store is owned here, over the same vault the wiring's
+		// session-vault recovery reads, so a link made through the API is
+		// picked up by slot provisioning exactly as an operator-configured
+		// account would be (PLAN.md §3.5).
+		accounts: accounts.NewStore(stores.Vault, nil),
+		probers:  map[string]CredentialProber{},
+	}
 }
 
 // SetDelivery arms the delivery engine after construction — used when the

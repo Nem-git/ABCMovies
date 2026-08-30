@@ -20,6 +20,8 @@ type stubDelivery struct {
 	startErr   error
 	heartbeats []string
 	heartErr   error
+	playmenu   *apiserver.PlayMenu
+	menuErr    error
 }
 
 func (s *stubDelivery) Start(ctx context.Context, req delivery.StartRequest) (*delivery.Session, error) {
@@ -29,6 +31,10 @@ func (s *stubDelivery) Start(ctx context.Context, req delivery.StartRequest) (*d
 func (s *stubDelivery) Heartbeat(id string) error {
 	s.heartbeats = append(s.heartbeats, id)
 	return s.heartErr
+}
+
+func (s *stubDelivery) PlayMenu(sessionID string) (*apiserver.PlayMenu, error) {
+	return s.playmenu, s.menuErr
 }
 
 func runningSession() *delivery.Session {

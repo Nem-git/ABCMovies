@@ -94,26 +94,30 @@ func (d *DeviceSink) Abort(_ context.Context, _ *Session) {
 	d.relay.Revoke(d.sessionID)
 }
 
-// fetchFrom returns a closure that pulls bytes from a provider stream URL,
+// fetchFrom returns a fetch that pulls bytes from a provider stream URL,
 // attaching the engine-side auth_context as an Authorization header and
-// honouring the request context. The closure is what Open invokes on demand.
-func fetchFrom(location, authContext string) func(context.Context) (io.ReadCloser, error) {
-	return func(ctx context.Context) (io.ReadCloser, error) {
+// forwarding any request Range so providers that support it answer a partial
+// (206) response. The provider's status and headers ride back in the result.
+func fetchFrom(location, authContext string) FetchFunc {
+	return func(ctx context.Context, rangeHeader string) (FetchResult, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, location, nil)
 		if err != nil {
-			return nil, err
+			return FetchResult{}, err
 		}
 		if authContext != "" {
 			req.Header.Set("Authorization", authContext)
 		}
+		if rangeHeader != "" {
+			req.Header.Set("Range", rangeHeader)
+		}
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			return nil, err
+			return FetchResult{}, err
 		}
-		if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
 			_ = resp.Body.Close()
-			return nil, fmt.Errorf("device sink: provider returned %s", resp.Status)
+			return FetchResult{}, fmt.Errorf("device sink: provider returned %s", resp.Status)
 		}
-		return resp.Body, nil
+		return FetchResult{StatusCode: resp.StatusCode, Header: resp.Header.Clone(), Body: resp.Body}, nil
 	}
 }

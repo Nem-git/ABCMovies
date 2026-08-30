@@ -14,6 +14,7 @@ import (
 	"crypto/cipher"
 	"fmt"
 	"log/slog"
+	"net/http"
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
@@ -156,6 +157,30 @@ func (s *Stack) AuthInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServ
 // Slots returns the composed provider-slot layer, or nil when BuildSlots has
 // not been called (a bare core). See BuildSlots.
 func (s *Stack) Slots() *SlotRuntime { return s.slots }
+
+// Relay returns the composed media relay for serving /media/relay/ pulls
+// (PLAN.md §3.6), or nil before BuildSlots. Only the built-in device sink
+// grants tickets into it, and only its delivery sessions.
+func (s *Stack) Relay() *delivery.Relay {
+	if s.slots == nil {
+		return nil
+	}
+	return s.slots.Relay
+}
+
+// RelayHandler returns an HTTP handler serving staged delivery pulls under
+// /media/relay/ (PLAN.md §3.6), or nil before BuildSlots. It gives an
+// embedder an HTTP transport without reaching into core internals: the
+// handler is unauthenticated beyond the relay token itself — the token is
+// minted per session per track by the engine and dies with the session,
+// which is the whole authorization story (§3.6).
+func (s *Stack) RelayHandler() http.Handler {
+	r := s.Relay()
+	if r == nil {
+		return nil
+	}
+	return &delivery.RelayHandler{Relay: r}
+}
 
 // SlotCapability is one admitted slot's declared contract name and version.
 type SlotCapability struct {

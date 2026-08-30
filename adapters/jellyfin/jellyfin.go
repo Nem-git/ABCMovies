@@ -164,6 +164,30 @@ func (s *Slot) Authenticate(ctx context.Context) error {
 	return nil
 }
 
+// ProbeCredentials validates a username/password pair directly against a
+// Jellyfin server and returns the vaultable session blob — the same
+// authResult JSON the slot restores from the vault. The core calls it before
+// vaulting a linked account's credentials (PLAN.md §3.5: never vault material
+// that has not been proven to work; the probe is the proof). It builds a
+// minimal client with the same device identity the slot uses, so the returned
+// token is valid for slot use after wiring restores it, and it needs no slot
+// installed — link can be validated before any operator account exists. The
+// password is used once, in the probe request; nothing here stores it.
+func ProbeCredentials(ctx context.Context, baseURL, username string, password []byte, opts ...Option) ([]byte, error) {
+	if baseURL == "" || username == "" || len(password) == 0 {
+		return nil, fmt.Errorf("jellyfin: probe requires base_url, username, and password")
+	}
+	slot, err := New([]Account{{ID: "probe", URL: baseURL, Username: username}}, opts...)
+	if err != nil {
+		return nil, err
+	}
+	auth, err := slot.authenticate(ctx, baseURL, username, string(password))
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(auth)
+}
+
 // ensureSessionLocked returns a live session, restoring it from the vault
 // when available. A vault-first account (no password env) whose vault holds
 // nothing usable has no way to proceed: that is a NoSessionError, the signal
