@@ -619,6 +619,69 @@ func validateAPIMessage(msgType string, msg json.RawMessage) (bool, error) {
 		}
 		err := schema.ValidateHeartbeatResponse(&m)
 		return err == nil, err
+	case "GetLibraryRequest":
+		var m apiv1.GetLibraryRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateGetLibraryRequest(&m)
+		return err == nil, err
+	case "GetLibraryResponse":
+		var m apiv1.GetLibraryResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateGetLibraryResponse(&m)
+		return err == nil, err
+	case "LinkAccountRequest":
+		var m apiv1.LinkAccountRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateLinkAccountRequest(&m)
+		return err == nil, err
+	case "LinkAccountResponse":
+		var m apiv1.LinkAccountResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateLinkAccountResponse(&m)
+		return err == nil, err
+	case "ListAccountsRequest":
+		var m apiv1.ListAccountsRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateListAccountsRequest(&m)
+		return err == nil, err
+	case "ListAccountsResponse":
+		var m apiv1.ListAccountsResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateListAccountsResponse(&m)
+		return err == nil, err
+	case "RemoveAccountRequest":
+		var m apiv1.RemoveAccountRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateRemoveAccountRequest(&m)
+		return err == nil, err
+	case "GetPlayInfoRequest":
+		var m apiv1.GetPlayInfoRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateGetPlayInfoRequest(&m)
+		return err == nil, err
+	case "GetPlayInfoResponse":
+		var m apiv1.GetPlayInfoResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateGetPlayInfoResponse(&m)
+		return err == nil, err
 	default:
 		return false, fmt.Errorf("unknown API message type %q", msgType)
 	}

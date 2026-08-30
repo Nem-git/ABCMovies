@@ -193,3 +193,73 @@ func ValidateGetPlayInfoRequest(r *apiv1.GetPlayInfoRequest) error {
 	}
 	return nil
 }
+
+// ValidateGetLibraryResponse checks a GetLibraryResponse (PLAN.md §5, §8).
+func ValidateGetLibraryResponse(r *apiv1.GetLibraryResponse) error {
+	if r == nil {
+		return fmt.Errorf("get_library_response: nil")
+	}
+	for i, item := range r.GetItems() {
+		if item == nil {
+			return fmt.Errorf("get_library_response: item %d is nil", i)
+		}
+		if err := ValidateLibraryEntry(item.GetEntry()); err != nil {
+			return err
+		}
+		if m := item.GetMetadata(); m != nil {
+			if err := ValidateTitleMetadata(m); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// ValidateLinkAccountResponse checks a LinkAccountResponse (PLAN.md §7.5).
+func ValidateLinkAccountResponse(r *apiv1.LinkAccountResponse) error {
+	if r == nil {
+		return fmt.Errorf("link_account_response: nil")
+	}
+	if r.GetAccountId() == "" {
+		return fmt.Errorf("link_account_response: account_id is required")
+	}
+	return nil
+}
+
+// ValidateListAccountsResponse checks a ListAccountsResponse (PLAN.md §7.5).
+func ValidateListAccountsResponse(r *apiv1.ListAccountsResponse) error {
+	if r == nil {
+		return fmt.Errorf("list_accounts_response: nil")
+	}
+	for i, acct := range r.GetAccounts() {
+		if acct == nil {
+			return fmt.Errorf("list_accounts_response: account %d is nil", i)
+		}
+		if acct.GetAccountId() == "" {
+			return fmt.Errorf("list_accounts_response: account %d: account_id is required", i)
+		}
+		if acct.GetProvider() == "" {
+			return fmt.Errorf("list_accounts_response: account %d: provider is required", i)
+		}
+	}
+	return nil
+}
+
+// ValidateGetPlayInfoResponse checks a GetPlayInfoResponse (PLAN.md §6.1).
+func ValidateGetPlayInfoResponse(r *apiv1.GetPlayInfoResponse) error {
+	if r == nil {
+		return fmt.Errorf("play_info_response: nil")
+	}
+	for i, t := range r.GetTracks() {
+		if t == nil {
+			return fmt.Errorf("play_info_response: track %d is nil", i)
+		}
+		if t.GetTrackId() == "" {
+			return fmt.Errorf("play_info_response: track %d: track_id is required", i)
+		}
+		if t.GetRelayUrl() == "" {
+			return fmt.Errorf("play_info_response: track %d: relay_url is required", i)
+		}
+	}
+	return nil
+}

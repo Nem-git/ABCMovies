@@ -1,0 +1,23 @@
+{
+  "name": "get-play-info-response-valid",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {
+    "tracks": [
+      {
+        "trackId": "v1",
+        "video": {
+          "codec": "hevc",
+          "bitrate": 20000000,
+          "width": 3840,
+          "height": 2160,
+          "frameRate": 23.976
+        },
+        "relayUrl": "/media/relay/eyJzZXNz"
+      }
+    ],
+    "container": "mkv"
+  },
+  "type": "GetPlayInfoResponse"
+}

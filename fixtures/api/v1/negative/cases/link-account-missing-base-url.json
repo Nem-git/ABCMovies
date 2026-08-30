@@ -1,0 +1,14 @@
+{
+  "name": "link-account-missing-base-url",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {
+    "provider": "jellyfin",
+    "password": {
+      "username": "bob",
+      "password": "c2VjcmV0"
+    }
+  },
+  "type": "LinkAccountRequest"
+}

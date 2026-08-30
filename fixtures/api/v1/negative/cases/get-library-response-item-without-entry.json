@@ -1,0 +1,17 @@
+{
+  "name": "get-library-response-item-without-entry",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {
+    "items": [
+      {
+        "metadata": {
+          "title": "Blade Runner",
+          "movie": {}
+        }
+      }
+    ]
+  },
+  "type": "GetLibraryResponse"
+}

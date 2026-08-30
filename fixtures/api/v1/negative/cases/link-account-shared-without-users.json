@@ -1,0 +1,16 @@
+{
+  "name": "link-account-shared-without-users",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {
+    "provider": "jellyfin",
+    "baseUrl": "http://jf.local:8096",
+    "password": {
+      "username": "bob",
+      "password": "c2VjcmV0"
+    },
+    "visibility": "ACCOUNT_VISIBILITY_SHARED"
+  },
+  "type": "LinkAccountRequest"
+}

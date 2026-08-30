@@ -112,10 +112,11 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 		SinkFactory:       rt.Sinks,
 		RecordJob:         func(j *corev1.Job) { s.persistDeliveryJob(rt, j) },
 		// MenuReady announces a staged play menu once, at Start (PLAN.md
-		// §6.2): a subscriber that misses the notification recovers by
+		// §6.2). The notification goes to both the slot runtime bus and the
+		// API bus (/events): a subscriber that misses it recovers by
 		// GetPlayInfo, per the bus's at-most-once contract (§9.2).
 		MenuReady: func(sess *delivery.Session) {
-			rt.Bus.Publish(&corev1.EventEnvelope{
+			env := &corev1.EventEnvelope{
 				Id:       fmt.Sprintf("evt-menu-%s", sess.ID),
 				Type:     corev1.EventType_EVENT_TYPE_DELIVERY_PLAY_MENU_READY,
 				Audience: corev1.EventAudience_EVENT_AUDIENCE_USER,
@@ -124,7 +125,9 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 					PlayMenuReady: &corev1.PlayMenuReadyEvent{JobId: sess.ID},
 				},
 				EmittedAt: timestamppb.Now(),
-			})
+			}
+			rt.Bus.Publish(env)
+			s.bus.Publish(env)
 		},
 		Logger: logger,
 	})

@@ -1,0 +1,17 @@
+{
+  "name": "link-account-valid-shared",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {
+    "provider": "jellyfin",
+    "baseUrl": "http://jf.local:8096",
+    "password": {
+      "username": "carol",
+      "password": "c2VjcmV0"
+    },
+    "visibility": "ACCOUNT_VISIBILITY_SHARED",
+    "sharedWith": ["alice", "carol"]
+  },
+  "type": "LinkAccountRequest"
+}
