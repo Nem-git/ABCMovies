@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"testing"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/metadatacache"
 	"github.com/nem-git/abcmovies/core/internal/sourcecache"
@@ -113,7 +115,10 @@ func newFixture(t *testing.T, withResolver bool) *fixture {
 	fx.acct1 = mk(fx.f1)
 	fx.acct2 = mk(fx.f2)
 
-	svc, err := NewService([]Reach{{fx.acct1, "acct-1"}, {fx.acct2, "acct-2"}}, reg, cache, slog.Default())
+	svc, err := NewService([]Reach{
+		{Sync: fx.acct1, AccountID: "acct-1", Visibility: accounts.VisibilityPublic},
+		{Sync: fx.acct2, AccountID: "acct-2", Visibility: accounts.VisibilityPublic},
+	}, reg, cache, slog.Default())
 	if err != nil {
 		t.Fatalf("service: %v", err)
 	}
@@ -250,6 +255,101 @@ func TestSharedItemAcrossTwoAccountsRecordsBothObservers(t *testing.T) {
 	}
 }
 
+// TestVisibilityScopesDerivedLibraries pins the per-account sharing gate
+// (PLAN.md §5.1): a private account's items are derived only into its owner's
+// library, a shared account reaches its named members, and a host-provided
+// (public) account reaches everyone. The same gate must govern both the
+// derivation and the delivery authorization helper.
+func TestVisibilityScopesDerivedLibraries(t *testing.T) {
+	ctx := context.Background()
+	cache := store.NewInMemory()
+	reg, err := itemregistry.New(cache, "")
+	if err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+	sink := &bridgeSink{}
+
+	mkAccount := func(namespace, accountID, title string) *sourcecache.Synchronizer {
+		f := &fakeProvider{pages: []*slotsv1.CatalogueSyncResponse{{Items: []*slotsv1.CatalogueItem{
+			movie("m1", title, 2024),
+		}}}}
+		s, err := sourcecache.New(namespace, f, cache, slog.Default(),
+			sourcecache.WithEntryLookup(reg), sourcecache.WithItemResolver(resolveVia{reg}), sourcecache.WithEventsSink(sink))
+		if err != nil {
+			t.Fatalf("sourcecache: %v", err)
+		}
+		if _, err := s.SyncAccount(ctx, accountID); err != nil {
+			t.Fatalf("sync %s: %v", accountID, err)
+		}
+		return s
+	}
+
+	host := mkAccount("host-srv", "acct-host", "Host Film")
+	priv := mkAccount("priv-srv", "acct-priv", "Private Film")
+	shared := mkAccount("shared-srv", "acct-shared", "Shared Film")
+
+	svc, err := NewService([]Reach{
+		{Sync: host, AccountID: "acct-host", Visibility: accounts.VisibilityPublic},
+		{Sync: priv, AccountID: "acct-priv", Owner: "alice", Visibility: accounts.VisibilityPrivate},
+		{Sync: shared, AccountID: "acct-shared", Owner: "alice", Visibility: accounts.VisibilityShared, Members: []string{"bob"}},
+	}, reg, cache, slog.Default())
+	if err != nil {
+		t.Fatalf("service: %v", err)
+	}
+	sink.svc = svc
+
+	coverageKeys := func(userID string) []string {
+		entries, err := svc.Library(ctx, userID)
+		if err != nil {
+			t.Fatalf("Library(%q): %v", userID, err)
+		}
+		keys := make([]string, 0)
+		for _, e := range entries {
+			for k := range e.GetCoverage() {
+				keys = append(keys, k)
+			}
+		}
+		sort.Strings(keys)
+		return keys
+	}
+
+	want := func(userID string, keys ...string) {
+		t.Helper()
+		sort.Strings(keys)
+		got := coverageKeys(userID)
+		if fmt.Sprint(got) != fmt.Sprint(keys) {
+			t.Fatalf("library(%q) coverage = %v, want %v", userID, got, keys)
+		}
+	}
+	want("alice", "host-srv:m1", "priv-srv:m1", "shared-srv:m1")
+	want("bob", "host-srv:m1", "shared-srv:m1")
+	want("carol", "host-srv:m1")
+
+	for _, tc := range []struct {
+		account, user string
+		want          bool
+	}{
+		{"acct-priv", "alice", true},
+		{"acct-priv", "bob", false},
+		{"acct-priv", "carol", false},
+		{"acct-host", "carol", true},
+		{"acct-host", "alice", true},
+		{"acct-shared", "alice", true},
+		{"acct-shared", "bob", true},
+		{"acct-shared", "carol", false},
+		{"acct-never-linked", "alice", false},
+	} {
+		if _, ok := svc.ReachAuthorized(tc.account, tc.user); ok != tc.want {
+			t.Fatalf("ReachAuthorized(%q, %q) = %v, want %v", tc.account, tc.user, ok, tc.want)
+		}
+	}
+	// ReachesForUser routes through the same gate: a stranger can derive only
+	// the host-provided account.
+	if got := len(svc.ReachesForUser("carol")); got != 1 {
+		t.Fatalf("ReachesForUser(carol) = %d reaches, want 1", got)
+	}
+}
+
 func TestSameAdapterTwoSlotsDoNotCollide(t *testing.T) {
 	fx := newFixture(t, true)
 	fx.syncAll(t)
@@ -313,8 +413,10 @@ func TestEnrichmentSeamsFillRefAndMarkMisses(t *testing.T) {
 	}
 
 	var marked []string
-	svc, err := NewService([]Reach{{fx.acct1, "acct-1"}, {fx.acct2, "acct-2"}},
-		fx.reg, fx.cache, slog.Default(), WithEnrichment(meta, func(id string) { marked = append(marked, id) }))
+	svc, err := NewService([]Reach{
+		{Sync: fx.acct1, AccountID: "acct-1", Visibility: accounts.VisibilityPublic},
+		{Sync: fx.acct2, AccountID: "acct-2", Visibility: accounts.VisibilityPublic},
+	}, fx.reg, fx.cache, slog.Default(), WithEnrichment(meta, func(id string) { marked = append(marked, id) }))
 	if err != nil {
 		t.Fatalf("service: %v", err)
 	}

@@ -15,6 +15,7 @@ import (
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/builtin"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/library"
@@ -322,7 +323,9 @@ func runLibraryMergeCase(s suite, c fixture) error {
 		if _, err := syncer.SyncAccount(ctx, acct.ID); err != nil {
 			return fmt.Errorf("sync %q: %w", acct.ID, err)
 		}
-		reaches = append(reaches, library.Reach{Sync: syncer, AccountID: acct.ID})
+		// Fixture accounts stand in for host-provided (operator-declared)
+		// slots: public by §2.2, deriving into every user's library.
+		reaches = append(reaches, library.Reach{Sync: syncer, AccountID: acct.ID, Visibility: accounts.VisibilityPublic})
 	}
 
 	svc, err := library.NewService(reaches, reg, st, slog.Default())

@@ -13,11 +13,16 @@ package slotwiring
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"sort"
+	"strings"
 	"time"
 
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/enrichment"
@@ -31,14 +36,19 @@ import (
 
 // Deps is everything an adapter's factory may need from the composition.
 type Deps struct {
-	Ctx         context.Context
-	Registry    *registry.InProcessRegistry
-	SealedBlobs interface {
-		Save(ctx context.Context, key string, blob []byte) error
-		Load(ctx context.Context, key string) ([]byte, error)
-	}
-	SourceCache store.Store
-	Logger      *slog.Logger
+	Ctx      context.Context
+	Registry *registry.InProcessRegistry
+	// Accounts is the instance's linked-account store (PLAN.md §3.5). It
+	// doubles as the session vault provider slots persist validated sessions
+	// through, so a linked account never needs a password env at boot.
+	Accounts *accounts.Store
+	// LinkedBySlot holds the linked-account routing result computed before
+	// the provider factories run: enabled slot id -> the linked accounts that
+	// attach to it. Factories for adapters without linked accounts see an
+	// empty (or absent) slice.
+	LinkedBySlot map[string][]accounts.Record
+	SourceCache  store.Store
+	Logger       *slog.Logger
 	// ItemRegistry is the instance-wide provider item registry (identity is
 	// global state, not per-slot). Provider factories require it.
 	ItemRegistry *itemregistry.Registry
@@ -123,6 +133,86 @@ func SetupCatalogues(entries []config.SlotEntry, deps Deps) ([]enrichment.Catalo
 	return out, nil
 }
 
+// RouteLinkedAccounts assigns each linked provider account to exactly one
+// enabled slot instance of the matching adapter — or, when no configured slot
+// serves its server, hands the record back as a provisioning seed (the
+// account becomes its own user-owned server slot; PLAN.md §3.5 sharing
+// decision). The rule is deterministic:
+//
+//   - no enabled slot of that adapter -> provisioned: the caller wires the
+//     account as a user-owned server under ServerNamespace;
+//   - exactly one enabled slot -> attached there;
+//   - several enabled slots -> attached to the unique one that declares an
+//     operator account with the same server base-url; no match or several
+//     matches is a wiring error, never a silent pick.
+//
+// Routing is per server: the slot id is the identity namespace (§1.25), so an
+// item seen through a linked account must join the same namespace as the
+// operator-declared accounts of the same Jellyfin server — otherwise the same
+// film from two accounts of one server would split into two identities.
+func RouteLinkedAccounts(entries []config.SlotEntry, records []accounts.Record) (bySlot map[string][]accounts.Record, provisioned []accounts.Record, err error) {
+	bySlot = map[string][]accounts.Record{}
+	for _, rec := range records {
+		var candidates []config.SlotEntry
+		for _, e := range entries {
+			if e.Enabled && e.Adapter == rec.Provider {
+				candidates = append(candidates, e)
+			}
+		}
+		switch len(candidates) {
+		case 0:
+			provisioned = append(provisioned, rec)
+		case 1:
+			bySlot[candidates[0].ID] = append(bySlot[candidates[0].ID], rec)
+		default:
+			var matching []string
+			for _, e := range candidates {
+				for _, a := range e.Accounts {
+					if a.URL == rec.BaseURL {
+						matching = append(matching, e.ID)
+						break
+					}
+				}
+			}
+			switch len(matching) {
+			case 1:
+				bySlot[matching[0]] = append(bySlot[matching[0]], rec)
+			case 0:
+				return nil, nil, fmt.Errorf(
+					"linked %s account %q (base-url %q) matches no enabled slot's server: %d %s slots are enabled, declare the server or disable the extras",
+					rec.Provider, rec.ID, rec.BaseURL, len(candidates), rec.Provider)
+			default:
+				return nil, nil, fmt.Errorf(
+					"linked %s account %q (base-url %q) is ambiguous: slots %v all declare that server",
+					rec.Provider, rec.ID, rec.BaseURL, matching)
+			}
+		}
+	}
+	return bySlot, provisioned, nil
+}
+
+// ServerNamespace derives the deterministic identity namespace for a
+// user-owned server (PLAN.md §1.25): the canonical server identity, never the
+// account or its owner. Every account of one server — and every user who
+// links it — lands in the same namespace, so the same film seen through any
+// of them merges into one entry. It is stable across reboots and doubles as
+// the slot id a provisioned user-owned server is wired under.
+func ServerNamespace(rec accounts.Record) string {
+	h := sha256.Sum256([]byte(rec.Provider + "\x00" + canonicalServer(rec.BaseURL)))
+	return "srv_" + hex.EncodeToString(h[:8])
+}
+
+// canonicalServer normalizes a base URL enough to be a stable namespace
+// identity: scheme, lowercased host, and path with its trailing slash trimmed.
+// Unparsable input degrades to the trimmed, lowercased string itself.
+func canonicalServer(base string) string {
+	u, err := url.Parse(base)
+	if err != nil {
+		return strings.ToLower(strings.TrimRight(base, "/"))
+	}
+	return u.Scheme + "://" + strings.ToLower(u.Host) + strings.TrimRight(u.Path, "/")
+}
+
 // Resolvers maps a provider slot id to its produce-sources delivery resolver,
 // so the delivery engine can route a provider/account/native_id to the right
 // adapter (identity is the slot instance id, TECHNICAL-DECISIONS.md §1.25).
@@ -140,6 +230,43 @@ func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []l
 	deps.Logger = logger
 	if deps.Ctx == nil {
 		deps.Ctx = context.Background()
+	}
+
+	// Route the linked accounts to their slots before any factory runs: the
+	// assignment is a global decision (several slots of one adapter), while a
+	// factory only ever sees its own entry — so the result travels on Deps.
+	// A link whose server no configured slot serves is the request to provision
+	// a user-owned server: it is wired as its own synthetic slot keyed by the
+	// server's derived namespace (PLAN.md §3.5).
+	if deps.Accounts != nil {
+		linked, err := deps.Accounts.List(deps.Ctx)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("linked accounts: %w", err)
+		}
+		bySlot, provisioned, err := RouteLinkedAccounts(entries, linked)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		deps.LinkedBySlot = bySlot
+		for _, rec := range provisioned {
+			if _, ok := providers[rec.Provider]; !ok {
+				logger.Warn("linked account's provider adapter is not registered; it stays stored but feeds no library",
+					"account", rec.ID, "provider", rec.Provider)
+				continue
+			}
+			ns := ServerNamespace(rec)
+			deps.LinkedBySlot[ns] = append(deps.LinkedBySlot[ns], rec)
+			// The synthetic entry carries no operator accounts: the linked
+			// record IS the slot's single vault-first account.
+			entries = append(entries, config.SlotEntry{
+				Adapter:   rec.Provider,
+				ID:        ns,
+				Enabled:   true,
+				Transport: "in-process",
+			})
+			logger.Info("linked account provisions a user-owned server slot",
+				"account", rec.ID, "owner", rec.OwnerUserID, "server", ns, "base_url", rec.BaseURL)
+		}
 	}
 
 	var jobs []scheduler.Job

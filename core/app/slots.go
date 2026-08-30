@@ -12,6 +12,7 @@ import (
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
@@ -143,10 +144,11 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 	mux := &eventMux{bus: rt.Bus, log: logger}
 
 	rt.Relay = delivery.NewRelay()
+	linked := accounts.NewStore(vault, logger)
 	jobs, reaches, cats, resolvers, err := slotwiring.SetupAll(ctx, slots, slotwiring.Deps{
 		Ctx:          ctx,
 		Registry:     reg,
-		SealedBlobs:  NewSealedBlobs(vault),
+		Accounts:     linked,
 		SourceCache:  sourceCache,
 		Logger:       logger,
 		ItemRegistry: itemReg,

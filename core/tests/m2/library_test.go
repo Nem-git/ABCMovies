@@ -13,6 +13,7 @@ import (
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/sourcecache"
@@ -106,8 +107,8 @@ func newStack(t *testing.T) *stack {
 	syncB := mk("slot-b", stk.provB)
 	stk.syncA, stk.syncB = syncA, syncB
 	svc, err := library.NewService([]library.Reach{
-		{Sync: syncA, AccountID: "acct-a"},
-		{Sync: syncB, AccountID: "acct-b"},
+		{Sync: syncA, AccountID: "acct-a", Visibility: accounts.VisibilityPublic},
+		{Sync: syncB, AccountID: "acct-b", Visibility: accounts.VisibilityPublic},
 	}, reg, st, slog.Default())
 	if err != nil {
 		t.Fatalf("library service: %v", err)

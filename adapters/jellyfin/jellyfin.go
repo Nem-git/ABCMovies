@@ -26,10 +26,16 @@ const pageSize = 500
 
 // Account is one operator-declared streaming-provider account (IMPLEMENTATION.md §3).
 type Account struct {
-	ID          string // the account_id callers pass to CatalogueSync
-	URL         string // base URL of the Jellyfin server
-	Username    string // login name
-	PasswordEnv string // environment variable holding the password
+	ID       string // the account_id callers pass to CatalogueSync
+	URL      string // base URL of the Jellyfin server
+	Username string // login name
+	// PasswordEnv names the environment variable holding the password, and is
+	// optional: an operator-declared account logs in through it, while a
+	// linked account (PLAN.md §3.5) arrives with its validated session already
+	// in the vault and never needs the password here. When it is empty the
+	// session must come from the vault, or the account is treated as needing
+	// a re-link.
+	PasswordEnv string
 }
 
 // Option customizes the slot's HTTP behaviour (tests inject their server).
@@ -78,15 +84,33 @@ type session struct {
 	userID  string
 }
 
-// New builds a slot serving the given operator-declared accounts.
+// NoSessionError marks an account that has no live session and no way to
+// obtain one itself: its vault holds nothing usable and it is not backed by a
+// password env (a linked account whose session died, PLAN.md §3.5/§7.5). The
+// only recovery is a user re-link, so the failure is typed rather than folded
+// into a generic login error — the re-auth flow keys off this.
+type NoSessionError struct {
+	AccountID string
+	Username  string
+	BaseURL   string
+}
+
+func (e NoSessionError) Error() string {
+	return fmt.Sprintf("jellyfin: account %q (%s@%s) has no vaulted session and no password-env; re-link required",
+		e.AccountID, e.Username, e.BaseURL)
+}
+
+// New builds a slot serving the given operator-declared accounts. Empty
+// PasswordEnv is allowed: such an account is vault-first — its session must
+// already be in the vault (a validated link), never re-logged-in from here.
 func New(accounts []Account, opts ...Option) (*Slot, error) {
 	if len(accounts) == 0 {
 		return nil, fmt.Errorf("jellyfin: at least one account must be declared")
 	}
 	byID := make(map[string]*session, len(accounts))
 	for _, a := range accounts {
-		if a.ID == "" || a.URL == "" || a.Username == "" || a.PasswordEnv == "" {
-			return nil, fmt.Errorf("jellyfin: account %q: id, url, username, and password-env are required", a.ID)
+		if a.ID == "" || a.URL == "" || a.Username == "" {
+			return nil, fmt.Errorf("jellyfin: account %q: id, url, and username are required", a.ID)
 		}
 		if _, dup := byID[a.ID]; dup {
 			return nil, fmt.Errorf("jellyfin: duplicate account id %q", a.ID)
@@ -141,8 +165,10 @@ func (s *Slot) Authenticate(ctx context.Context) error {
 }
 
 // ensureSessionLocked returns a live session, restoring it from the vault
-// when available and logging in (then vaulting the result) when not. Callers
-// must hold s.mu.
+// when available. A vault-first account (no password env) whose vault holds
+// nothing usable has no way to proceed: that is a NoSessionError, the signal
+// that a user re-link is required. An account backed by a password env falls
+// back to logging in (then vaulting the result). Callers must hold s.mu.
 func (s *Slot) ensureSessionLocked(ctx context.Context, accountID string) (*session, error) {
 	sess, ok := s.accounts[accountID]
 	if !ok {
@@ -158,6 +184,13 @@ func (s *Slot) ensureSessionLocked(ctx context.Context, accountID string) (*sess
 		}
 	}
 	if sess.token == "" {
+		if sess.account.PasswordEnv == "" {
+			return nil, NoSessionError{
+				AccountID: sess.account.ID,
+				Username:  sess.account.Username,
+				BaseURL:   sess.account.URL,
+			}
+		}
 		password := os.Getenv(sess.account.PasswordEnv)
 		auth, err := s.authenticate(ctx, sess.account.URL, sess.account.Username, password)
 		if err != nil {

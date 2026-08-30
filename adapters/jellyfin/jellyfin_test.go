@@ -209,6 +209,96 @@ func TestAuthenticateFailsFastOnBadCredentials(t *testing.T) {
 	}
 }
 
+// memVault is a test-local SessionVault; the real vault lives in core and is
+// off-limits to this package (Go internal).
+type memVault struct {
+	blobs map[string][]byte
+}
+
+func (m *memVault) Save(_ context.Context, accountID string, blob []byte) error {
+	m.blobs[accountID] = blob
+	return nil
+}
+
+func (m *memVault) Load(_ context.Context, accountID string) ([]byte, error) {
+	blob, ok := m.blobs[accountID]
+	if !ok {
+		return nil, nil
+	}
+	return blob, nil
+}
+
+// TestVaultFirstLinkedAccountRestoresSession pins PLAN.md §3.5's custody
+// model for linked accounts: the validated session arrives in the vault at
+// link time, so an account with no password-env must be usable from the
+// vaulted blob alone — no re-login against the provider at boot.
+func TestVaultFirstLinkedAccountRestoresSession(t *testing.T) {
+	f := newFake(t, nil)
+	vault := &memVault{blobs: map[string][]byte{}}
+	blob, _ := json.Marshal(authResult{
+		AccessToken: "vaulted-token",
+		User: struct {
+			ID string `json:"Id"`
+		}{ID: "u-1"},
+	})
+	if err := vault.Save(context.Background(), "lnk_abc", blob); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+
+	slot, err := New([]Account{{
+		ID:       "lnk_abc",
+		URL:      f.server.URL,
+		Username: "bob",
+	}}, WithHTTPClient(f.server.Client()), WithSessionVault(vault))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if err := slot.Authenticate(context.Background()); err != nil {
+		t.Fatalf("Authenticate with vaulted session: %v", err)
+	}
+	if got := f.logins.Load(); got != 0 {
+		t.Fatalf("provider login happened (%d), want vault restore only", got)
+	}
+}
+
+// TestVaultFirstAccountWithoutSessionNeedsRelink pins the typed failure a
+// linked account returns when its vaulted session is gone and it has no
+// password-env to re-login with: the re-auth flow keys off NoSessionError
+// (PLAN.md §7.5).
+func TestVaultFirstAccountWithoutSessionNeedsRelink(t *testing.T) {
+	f := newFake(t, nil)
+	slot, err := New([]Account{{
+		ID:       "lnk_abc",
+		URL:      f.server.URL,
+		Username: "bob",
+	}}, WithHTTPClient(f.server.Client()), WithSessionVault(&memVault{blobs: map[string][]byte{}}))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	err = slot.Authenticate(context.Background())
+	if _, ok := err.(NoSessionError); !ok {
+		t.Fatalf("Authenticate error = %v, want NoSessionError", err)
+	}
+}
+
+// TestNewAllowsVaultFirstAccount pins that an account without a password-env
+// is a valid declaration (it is a linked, vault-first account), as long as it
+// still names its server and username.
+func TestNewAllowsVaultFirstAccount(t *testing.T) {
+	f := newFake(t, nil)
+	slot, err := New([]Account{{
+		ID:       "lnk_abc",
+		URL:      f.server.URL,
+		Username: "bob",
+	}}, WithHTTPClient(f.server.Client()))
+	if err != nil {
+		t.Fatalf("New rejected a vault-first account: %v", err)
+	}
+	if slot == nil {
+		t.Fatal("New returned a nil slot")
+	}
+}
+
 func TestCatalogueSyncPaginatesWholeCatalogue(t *testing.T) {
 	items := make([]mediaItem, 0, pageSize+7)
 	for i := range pageSize + 7 {
@@ -328,11 +418,13 @@ func TestCatalogueSyncReauthenticatesOnceAfter401(t *testing.T) {
 
 func TestNewRejectsIncompleteAccounts(t *testing.T) {
 	_ = os.Unsetenv(testPasswordEnv)
+	// An empty PasswordEnv is NOT incomplete: it declares a vault-first
+	// (linked) account whose session must already be in the vault (§3.5), so
+	// only id/url/username are load-bearing here.
 	for _, a := range []Account{
 		{ID: "", URL: "http://x", Username: "u", PasswordEnv: "P"},
 		{ID: "a", URL: "", Username: "u", PasswordEnv: "P"},
 		{ID: "a", URL: "http://x", Username: "", PasswordEnv: "P"},
-		{ID: "a", URL: "http://x", Username: "u", PasswordEnv: ""},
 	} {
 		if _, err := New([]Account{a}); err == nil {
 			t.Fatalf("incomplete account %+v accepted", a)
