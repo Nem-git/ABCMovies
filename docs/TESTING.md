@@ -74,7 +74,7 @@ These are fast and are what `make test-unit` runs.
 
 ### 4.3 Integration / vertical-slice tests
 
-One request enters the API, crosses the core, touches one store, returns (IMPLEMENTATION.md §4.3). These are the milestone acceptance criteria made runnable: M1's "a real provider's catalogue lands in the account source cache," M4's "one passthrough play session and one remux download session end-to-end," M6's "revocation kills live sessions." They run against real transports (in-process and, where the milestone adds one, subprocess/network) but against **mocked provider bytes** — providers are never contacted in the test suite.
+One request enters the API, crosses the core, touches one store, returns (IMPLEMENTATION.md §4.3). These are the milestone acceptance criteria made runnable: M1's "a real provider's catalogue lands in the account source cache," M4's "one passthrough play session and one remux download session end-to-end," M5's "a browser renders accounts, library, and a played title over gRPC-Web," M6's "revocation kills live sessions." They run against real transports (in-process and, where the milestone adds one, subprocess/network) but against **mocked provider bytes** — providers are never contacted in the test suite. Frontend milestones verify through the frontend's own serving layer: the web suite boots the serving layer and drives the RPC surface over real gRPC-Web against a self-contained fake provider.
 
 ## 5. Storage class tests
 

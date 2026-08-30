@@ -272,6 +272,14 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 - **Rationale:** PLAN.md §9.1's idempotency textual ("session start takes an idempotency key; retries are safe; double-start is impossible") guards the concrete risk of a **double-start on a one-stream account** — a real, likely bug. That risk is already bounded structurally by the per-account concurrent-session cap the engine enforces at Start (§1.14), which counts *active* sessions and rejects over-capacity starts. Idempotency would be a retry-refinement *on top of* that cap, not the guard itself, so deferring it loses no safety. The cost of deferral is honest and cheap: a client retry of `StartDelivery` yields a fresh session and must rely on (a) the cap, or (b) its own tracking of the returned session id — standard "create" semantics, not create-once. `Job.idempotency_key` stays a frozen load-bearing field (§2.3); M4 simply never sets it.
 - **Consequence:** the M4 API request carries no key; the session id doubles as the internal idempotency identity. If idempotency later returns, it is a server-generated value mapped from the resolved (provider, account, nativeId, goal) and requires no API change for clients.
 
+### 1.20 Web client play + test path (M5)
+
+- **Decision:**
+  - The browser plays a linked title with **start-delivery + get-play-info**, then renders the slot's relay URL into a `<video>` element (passthrough, no remux); the `member_user_id` is bound at **signup** because the login response returns only the token. The bearer token stays **in-memory for the page lifetime** — no storage, revoked at logout.
+  - The web suite's M5 acceptance test (`frontends/web/serving`) boots the serving layer and drives the RPC surface over **real gRPC-Web** against a **self-contained fake Jellyfin** (auth / items / playback-info / stream). It declares an **operator account** in config — provisioned at boot (operator sync) — for the library + play path, and exercises the wire-link through list/remove; that mirrors production semantics (§3.5 of PLAN.md): a runtime link holds vault custody only and feeds no catalogue until the slot's next build. The fake's stream bytes are asserted byte-for-byte through the relay.
+- **Rationale:** the login-session API intentionally does not reveal a user id; signup is the only place the frontend can bind the id a delivery is attributed to. Provisioning-time (not runtime) account utilization keeps the test representative of real operator flow.
+- **Consequence:** a mid-flight runtime link is not immediately playable — the operator must provision/reload for it to feed the library. The test asserts this honestly rather than pre-seeding state that production would not have.
+
 ## 2. Open implementation items (recorded, not decided)
 
 These are deferred by design or pending follow-on choices:

@@ -613,5 +613,7 @@ Key decisions, pointing to where they are argued in the body:
 | Catalogue items carry all their content metadata inside an embedded TitleMetadata; which of those fields count as matching evidence is decided by the matching engine, never by the schema | §3.4, §5.3 |
 | Pipelines are ordered **step-chains** (a DAG of transform stages), not a single kind; the engine records a session's chain at start, and a step v1 cannot run is **declined loudly and logged** (decrypt / transcode / record), never downgraded to passthrough | §6.3, §2.5 |
 | Slot sink config is a namespaced `options` map (disk `path` lives under `options`); the flat `Path`/`Retention` sink fields are removed | §6.4, config |
+| A play session announces itself twice: a delivery-menu-ready event (menu painted) before the job-status event that records the session; a subscriber attached as the slot owner/relayer receives both, in that order | §6.5, §8.2, §9.1 |
+| A linked account becomes usable at the next provisioning of its slot, never mid-flight: at runtime, WireLink custody is vault-first only — no catalogue feed until the slot's next build | §3.5 |
 
 **Scope of this log.** This log records *product* decisions only. Implementation decisions (language, transport, tooling) are recorded in TECHNICAL-DECISIONS.md; scope and acceptance live in SCOPE.md; feasibility evidence lives in RESEARCH.md. This document deliberately stays agnostic about all three.
