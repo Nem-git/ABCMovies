@@ -1,6 +1,18 @@
 import { toJsonString } from '@bufbuild/protobuf';
 
 import {
+  AccountSchema,
+  AccountStatus,
+  AccountVisibility,
+  GetPlayInfoResponseSchema,
+  LibraryItemSchema,
+} from './gen/abcmovies/api/v1/core_pb.js';
+import {
+  CoverageVerdict,
+  EntryKind,
+  IdentityVerdict,
+} from './gen/abcmovies/core/v1/library_entry_pb.js';
+import {
   ActionType,
   JobKind,
   JobSchema,
@@ -26,6 +38,15 @@ export const actionTypeLabel = (v) => enumLabel(ActionType, 'ACTION_TYPE_', v);
 export const eventTypeLabel = (v) => enumLabel(EventType, 'EVENT_TYPE_', v);
 export const audienceLabel = (v) =>
   enumLabel(EventAudience, 'EVENT_AUDIENCE_', v);
+export const accountStatusLabel = (v) =>
+  enumLabel(AccountStatus, 'ACCOUNT_STATUS_', v);
+export const accountVisibilityLabel = (v) =>
+  enumLabel(AccountVisibility, 'ACCOUNT_VISIBILITY_', v);
+export const entryKindLabel = (v) => enumLabel(EntryKind, 'ENTRY_KIND_', v);
+export const coverageVerdictLabel = (v) =>
+  enumLabel(CoverageVerdict, 'COVERAGE_VERDICT_', v);
+export const identityVerdictLabel = (v) =>
+  enumLabel(IdentityVerdict, 'IDENTITY_VERDICT_', v);
 
 export function fmtTimestamp(ts) {
   if (!ts) return '';
@@ -53,6 +74,7 @@ function el(tag, attrs = {}, ...children) {
     if (v === undefined || v === null || v === false) continue;
     if (k === 'class') node.className = v;
     else if (k === 'text') node.textContent = v;
+    else if (k.startsWith('on')) node[k] = v;
     else node.setAttribute(k, v === true ? '' : String(v));
   }
   for (const child of children.flat()) {
@@ -208,6 +230,10 @@ function payloadRows(ev) {
         row('entry', p?.entryId),
         row('present', p ? String(p.present) : ''),
       ];
+    }
+    case EventType.DELIVERY_PLAY_MENU_READY: {
+      const p = ev.playMenuReady;
+      return [row('job', p?.jobId)];
     }
     default:
       return [row('payload', 'unknown event type')];
@@ -410,5 +436,215 @@ export function enrichmentPanel(data) {
       }),
     );
   }
+  return body;
+}
+
+// --- Accounts, library and play (M5: "first real frontend on the core API") ---
+
+export function accountCard(account, { onRemove } = {}) {
+  const card = el('div', { class: 'card' });
+  card.append(
+    el(
+      'div',
+      { class: 'card-head' },
+      badge(accountStatusLabel(account.status), `status-${account.status}`),
+      badge(accountVisibilityLabel(account.visibility), 'aud'),
+      account.callerLinked
+        ? badge('linked by you', 'kind')
+        : badge('operator', 'kind'),
+      el('code', { text: account.accountId }),
+    ),
+  );
+  const body = el('div', { class: 'card-body' });
+  for (const r of [
+    row('provider', account.provider),
+    row('server', account.baseUrl),
+    row('caller-linked', account.callerLinked ? 'yes' : 'no'),
+    row('owner', account.ownerUserId),
+    listRow('shared with', account.sharedWith ?? []),
+  ]) {
+    if (r) body.append(r);
+  }
+  card.append(body);
+  if (account.callerLinked && onRemove) {
+    card.append(
+      el(
+        'div',
+        { class: 'card-body' },
+        el('button', {
+          class: 'remove-account',
+          text: 'Remove account',
+          onclick: onRemove,
+        }),
+      ),
+    );
+  }
+  card.append(
+    el(
+      'details',
+      {},
+      el('summary', { text: 'raw JSON' }),
+      el('pre', { text: toJsonString(AccountSchema, account) }),
+    ),
+  );
+  return card;
+}
+
+export function libraryCard(item, { onPlay, payload } = {}) {
+  const entry = item.entry;
+  const md = item.metadata;
+  const identity = (entry.externalIdentities ?? [])[0];
+  const title =
+    md?.title ||
+    (identity ? `${identity.namespace}:${identity.value}` : entry.id);
+  const year = md?.year || '';
+  const subtitle = [year && `(${year})`, entryKindLabel(entry.kind)]
+    .filter(Boolean)
+    .join(' ');
+
+  const card = el('div', { class: 'card' });
+  card.append(
+    el(
+      'div',
+      { class: 'card-head' },
+      badge(entryKindLabel(entry.kind), 'kind'),
+      el('span', { class: 'title', text: title }),
+    ),
+  );
+  const body = el('div', { class: 'card-body' });
+  if (md?.posterUrl !== undefined)
+    body.append(el('img', { class: 'poster', src: md.posterUrl }));
+  if (subtitle) body.append(el('div', { class: 'meta', text: subtitle }));
+  if (md) {
+    for (const r of [
+      row('rating', md.rating ? String(md.rating) : ''),
+      row('content rating', md.contentRating),
+      row('original language', md.originalLanguage),
+      row('genres', (md.genres ?? []).join(', ')),
+      row('cast', (md.cast ?? []).join(', ')),
+      row('directors', (md.directors ?? []).join(', ')),
+      row('description', md.description),
+    ]) {
+      if (r) body.append(r);
+    }
+    const ks = md.kindSpecific?.value;
+    if (ks) {
+      if (md.kindSpecific.case === 'movie' && ks.runtimeMinutes)
+        body.append(row('runtime', `${ks.runtimeMinutes} min`));
+      if (md.kindSpecific.case === 'series')
+        body.append(
+          row(
+            'series',
+            `${ks.totalSeasons} seasons, ${ks.totalEpisodes} episodes`,
+          ),
+        );
+    }
+  }
+  const cov = mapEntries(entry.coverage ?? {});
+  if (cov.length) {
+    body.append(
+      subSection(
+        'provider coverage',
+        ...cov.map(([key, c]) =>
+          el(
+            'div',
+            { class: 'row' },
+            el('span', { class: 'label', text: key }),
+            el('span', {
+              text: `present=${c.present} verdict=${coverageVerdictLabel(c.verdict)}`,
+            }),
+          ),
+        ),
+      ),
+    );
+  }
+  const exts = entry.externalIdentities ?? [];
+  if (exts.length) {
+    body.append(
+      listRow(
+        'external identities',
+        exts.map((e, i) => [
+          `${e.namespace}:${e.value}`,
+          identityVerdictLabel(e.verdict),
+        ]),
+      ),
+    );
+  }
+  if (entry.metadataRef) body.append(row('metadata ref', entry.metadataRef));
+  if (payload)
+    body.append(
+      subSection('play source', row('provider:nativeId', payload.key)),
+    );
+  card.append(body);
+  if (onPlay) {
+    card.append(
+      el(
+        'div',
+        { class: 'card-body' },
+        el('button', {
+          class: 'play-item',
+          text: 'Play',
+          onclick: onPlay,
+          ...(payload
+            ? {}
+            : { disabled: true, title: 'no deliverable provider coverage' }),
+        }),
+      ),
+    );
+  }
+  card.append(
+    el(
+      'details',
+      {},
+      el('summary', { text: 'raw JSON' }),
+      el('pre', { text: toJsonString(LibraryItemSchema, item) }),
+    ),
+  );
+  return card;
+}
+
+export function playMenu(info, { onShow } = {}) {
+  const body = el('div', {});
+  const tracks = info.tracks ?? [];
+  if (tracks.length === 0) {
+    body.append(
+      el('div', {
+        class: 'empty',
+        text: 'menu not staged yet — waiting for the delivery event',
+      }),
+    );
+  }
+  for (const t of tracks) {
+    const kind = t.media?.case ?? 'unknown';
+    const props = t.media?.value ?? {};
+    const describe = {
+      video: `${props.codec} ${props.width}x${props.height} @${props.frameRate} ${props.bitrate} kb/s`,
+      audio: `${props.codec} ${props.language}${props.channels ? ` ${props.channels}ch` : ''}`,
+      subtitle: `${props.codec} ${props.language}`,
+    }[kind];
+    body.append(
+      el(
+        'div',
+        { class: 'track' },
+        el(
+          'div',
+          { class: 'row' },
+          el('span', { class: 'label', text: kind }),
+          el('code', { text: t.trackId }),
+        ),
+        row('properties', describe),
+        row('relay', t.relayUrl),
+      ),
+    );
+  }
+  if (info.container) body.append(row('container', info.container));
+  body.append(
+    el(
+      'details',
+      {},
+      el('summary', { text: 'raw JSON' }),
+      el('pre', { text: toJsonString(GetPlayInfoResponseSchema, info) }),
+    ),
+  );
   return body;
 }

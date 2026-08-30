@@ -203,6 +203,45 @@
         font-style: italic;
         padding: 0.5rem 0.25rem;
       }
+      .hint {
+        color: #888;
+        font-size: 0.8rem;
+      }
+      #accountList .card,
+      #libraryGrid .card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+      .card .title {
+        font-weight: 600;
+      }
+      .card .meta {
+        color: #555;
+        font-size: 0.85rem;
+      }
+      .card img.poster {
+        width: 100%;
+        max-height: 12rem;
+        object-fit: cover;
+        border-radius: 4px;
+      }
+      #libraryGrid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+        gap: 1rem;
+      }
+      .track {
+        border: 1px solid #bbb;
+        border-radius: 6px;
+        padding: 0.5rem 0.75rem;
+        margin-top: 0.4rem;
+        background: #fafafa;
+      }
+      #player video {
+        width: 100%;
+        background: #000;
+      }
     </style>
   </head>
   <body>
@@ -225,6 +264,63 @@
       <button id="login">Log in</button>
       <p id="recovery" class="hidden"></p>
       <button id="copyRecovery" class="hidden">Copy recovery key</button>
+    </section>
+
+    <section id="providerAccounts">
+      <h2>Provider accounts</h2>
+      <div class="controls">
+        <select id="linkProvider">
+          <option value="jellyfin">jellyfin</option>
+        </select>
+        <input id="linkServer" placeholder="server url" size="24" />
+        <input
+          id="linkUsername"
+          placeholder="username"
+          autocomplete="username"
+        />
+        <input
+          id="linkPassword"
+          type="password"
+          placeholder="password"
+          autocomplete="current-password"
+        />
+        <select id="linkVisibility" title="How the linked account is shared">
+          <option value="private">private</option>
+          <option value="shared">shared</option>
+          <option value="public">public</option>
+        </select>
+        <input
+          id="linkSharedWith"
+          placeholder="shared with (comma-separated users)"
+          size="22"
+          class="hidden"
+        />
+        <button id="linkAccount" disabled>Link account</button>
+        <button id="listAccounts" disabled>List accounts</button>
+      </div>
+      <p id="linkNote" class="hint hidden">
+        Accounts linked here are probed and stored in the vault; the slot
+        provisioning reads them at the next boot, so a freshly linked account
+        feeds the library after a server reload.
+      </p>
+      <div id="accountList"></div>
+    </section>
+
+    <section id="library">
+      <h2>Library</h2>
+      <div class="controls">
+        <input id="query" placeholder="search titles" size="22" />
+        <button id="browse" disabled>Browse library</button>
+        <button id="nextPage" class="hidden">Next page</button>
+      </div>
+      <div id="libraryGrid"></div>
+    </section>
+
+    <section id="player" class="hidden">
+      <h2>Player</h2>
+      <div id="playTrackList"></div>
+      <video id="playVideo" controls></video>
+      <p id="playerHint" class="hidden"></p>
     </section>
 
     <section id="jobs">
