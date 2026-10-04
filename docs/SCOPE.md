@@ -26,7 +26,8 @@ This document fixes **what v1 of the project is**: which milestones ship, what i
 | Lazy streaming-service providers | PLAN.md §5.4 | v1 providers are library-class only |
 | Sidecar custody | PLAN.md §7.4 | Server-held custody only in v1; relay-through-owner is v2 |
 | Egress routing | PLAN.md §7.3 | Off by default; not built in v1 |
-| Streaming-service pacing integration | PLAN.md §5.4, §7.2 | Pacing machinery is built (M6/M7); the lazy-provider consumer is v2 |
+| Streaming-service pacing integration | PLAN.md §5.4, §7.2 | Pacing groundwork ships in M6 (ForegroundGate); the shared-request pacing machinery (budget, aggregate governor, queue position) waits for M7; the lazy-provider consumer is v2 |
+| Time windows, per-member monthly quotas, bandwidth-capped admission as enforced outcomes | PLAN.md §7.2 | The keys validate and are recorded on every job in v1 (TECHNICAL-DECISIONS.md §1.34), but only `concurrentStreams` gates admission; the other enforced keys land with M7 (pacing) or remain a recorded open item |
 | Scoring profiles, session coalescing, entry-level correction, license-wrapper composition, direct-URL handoff, two-factor / identity-provider login | PLAN.md §6.3, §6.5, §5.3, §6.6, §7.6 | Already documented as future/deferred in IMPLEMENTATION.md §3 |
 | Guests (`guest:<deviceId>` library cache) | PLAN.md §2.2, §5.1 | No guest concept in v1; the guest device cache is v2 |
 | User slots (attribution, tenancy scope, transport restriction, revocability) | PLAN.md §4, §4.1 | v1 ships account sharing by use only (M6); user slots are v2 |
