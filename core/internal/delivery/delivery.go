@@ -30,6 +30,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/policy"
 )
 
 // Goal is the delivery goal — play or download (PLAN.md §6.1). The goal is a
@@ -119,15 +120,23 @@ type SinkFactory interface {
 
 // Options tunes the engine's liveness behaviour.
 type Options struct {
+	// SessionTTL is the play-session watchdog's idle ceiling (§1.14). Play
+	// sessions refresh liveness with heartbeats; downloads with progress.
 	SessionTTL        time.Duration
 	HeartbeatInterval time.Duration
 	HeartbeatGrace    time.Duration
-	// ConcurrentStreams caps active sessions per account (PLAN.md §9.1,
-	// TECHNICAL-DECISIONS.md §1.14, §1.30). Zero means the default (3).
-	ConcurrentStreams int
-	SourceResolver    Resolver
-	SinkFactory       SinkFactory
-	RecordJob         func(*corev1.Job)
+	// InstancePolicy is the operator's usage policy (PLAN.md §7.2): parsed and
+	// validated per policy-package rules. Nil resolves to the shipped defaults
+	// (concurrentStreams: 3, bandwidth: unlimited, encode: disabled).
+	InstancePolicy policy.Set
+	// AccountConstraints resolves one account's declared constraints: the
+	// policy override the owner set (applied here onto the instance policy)
+	// and the provider-declared concurrency cap. Nil admits the account with
+	// the instance policy only.
+	AccountConstraints func(ctx context.Context, provider, accountID string) (override policy.Set, cap policy.Set, err error)
+	SourceResolver     Resolver
+	SinkFactory        SinkFactory
+	RecordJob          func(*corev1.Job)
 	// MenuReady announces that a play session's menu is fully staged, once
 	// Start has delivered every track to the sink. The app publishes the
 	// delivery-play-menu-ready event through it (PLAN.md §6.2); nil mutes the
@@ -147,7 +156,6 @@ type Engine struct {
 	ttl      time.Duration
 	interval time.Duration
 	grace    time.Duration
-	cap      int
 
 	resolver  Resolver
 	sinkMaker SinkFactory
@@ -155,6 +163,9 @@ type Engine struct {
 	menuReady func(*Session)
 	now       func() time.Time
 	logger    *slog.Logger
+
+	instancePolicy    policy.Set
+	accountConstraints func(ctx context.Context, provider, accountID string) (override policy.Set, cap policy.Set, err error)
 
 	stopCh  chan struct{}
 	done    chan struct{}
@@ -171,7 +182,6 @@ func New(opts Options) *Engine {
 		ttl:       opts.SessionTTL,
 		interval:  opts.HeartbeatInterval,
 		grace:     opts.HeartbeatGrace,
-		cap:       opts.ConcurrentStreams,
 		resolver:  opts.SourceResolver,
 		sinkMaker: opts.SinkFactory,
 		recordJob: opts.RecordJob,
@@ -181,21 +191,19 @@ func New(opts Options) *Engine {
 		stopCh:    make(chan struct{}),
 		done:      make(chan struct{}),
 	}
+	e.instancePolicy = opts.InstancePolicy
+	if e.instancePolicy == nil {
+		e.instancePolicy = policy.Defaults()
+	}
+	e.accountConstraints = opts.AccountConstraints
 	if e.now == nil {
 		e.now = time.Now
-	}
-	if e.cap == 0 {
-		e.cap = defaultConcurrentStreams
 	}
 	if e.logger == nil {
 		e.logger = slog.Default()
 	}
 	return e
 }
-
-// defaultConcurrentStreams is the v1 baseline from TECHNICAL-DECISIONS.md
-// §1.14 (policy default `concurrentStreams: 3`).
-const defaultConcurrentStreams = 3
 
 // StartRequest names what to deliver and why (PLAN.md §6). Start is a plain
 // "create": each Start makes a new session; a retried start is a new create,
@@ -270,12 +278,18 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 		)
 		return nil, errInvalid("cannot satisfy delivery: %v", err)
 	}
-	key := accountKey{req.Provider, req.AccountID, req.MemberUserID}
-	if n := e.countActive(key); n >= e.cap {
-		return nil, errQuota("account %s/%s is at its concurrent-stream cap (%d)", req.Provider, req.AccountID, e.cap)
-	}
-
 	now := e.now()
+	override, capSet, err := e.resolveConstraints(ctx, req)
+	if err != nil {
+		return nil, errInvalid("account constraints: %v", err)
+	}
+	// The policy in effect for this account folds the operator's instance
+	// defaults with the account's override, and §7.2's min() rule folds in
+	// the provider-declared cap.
+	effectivePolicy := e.instancePolicy.With(override)
+	accountLimit := policy.EffectiveAccountLimit(effectivePolicy, capSet)
+	memberLimit, _ := e.instancePolicy.Streams()
+
 	sess := &Session{
 		ID:            e.newSessionID(),
 		Goal:          req.Goal,
@@ -291,6 +305,8 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 			Sink:           req.Sink,
 			SelectedTarget: req.SelectedTarget,
 			Container:      req.Container,
+			Policy:         &corev1.Policy{Limits: effectivePolicy},
+			ProviderCap:    &corev1.Policy{Limits: capSet},
 		},
 	}
 
@@ -302,7 +318,31 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 		sess.Sink = sink
 	}
 
+	// Counting and admission must be atomic: a check-then-act pair that isn't
+	// lets two concurrent starts both pass a limit that either would trip.
+	key := accountKey{req.Provider, req.AccountID, req.MemberUserID}
 	e.mu.Lock()
+	memberActive := 0
+	accountActive := 0
+	for _, s := range e.sessions {
+		if !s.isActive() {
+			continue
+		}
+		if s.Context.GetMemberUserId() == req.MemberUserID {
+			memberActive++
+		}
+		if s.Context.GetProvider() == req.Provider && s.Context.GetAccountId() == req.AccountID {
+			accountActive++
+		}
+	}
+	if memberActive >= memberLimit {
+		e.mu.Unlock()
+		return nil, errQuota("member %s is at its concurrent-stream cap (%d)", req.MemberUserID, memberLimit)
+	}
+	if accountActive >= accountLimit {
+		e.mu.Unlock()
+		return nil, errQuota("account %s/%s is at its concurrent-stream cap (%d)", req.Provider, req.AccountID, accountLimit)
+	}
 	e.sessions[sess.ID] = sess
 	if e.byAccount[key] == nil {
 		e.byAccount[key] = make(map[string]struct{})
@@ -338,17 +378,11 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 	return sess, nil
 }
 
-// countActive returns the number of live sessions for an account key.
-func (e *Engine) countActive(key accountKey) int {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	n := 0
-	for id := range e.byAccount[key] {
-		if s, ok := e.sessions[id]; ok && s.isActive() {
-			n++
-		}
+func (e *Engine) resolveConstraints(ctx context.Context, req StartRequest) (override policy.Set, cap policy.Set, err error) {
+	if e.accountConstraints == nil {
+		return nil, nil, nil
 	}
-	return n
+	return e.accountConstraints(ctx, req.Provider, req.AccountID)
 }
 
 func (e *Engine) newSessionID() string {

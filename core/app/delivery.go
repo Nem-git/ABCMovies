@@ -4,14 +4,17 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"time"
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
+	"github.com/nem-git/abcmovies/core/internal/policy"
 )
 
 // compositeResolver routes produce-sources to the provider adapter wired for
@@ -96,6 +99,18 @@ func planContainer(p delivery.Plan) string {
 	return ""
 }
 
+// declaredCap renders an account's persisted/declared concurrency ceiling
+// as a provider-cap policy set; a zero cap stays unbound (nil), since the
+// declaredCap renders an account's persisted or declared concurrency
+// ceiling as a provider-cap policy set; a zero cap stays unbound (nil),
+// since the instance policy still applies.
+func declaredCap(n uint32) policy.Set {
+	if n == 0 {
+		return nil
+	}
+	return policy.Set{policy.KeyConcurrentStreams: strconv.Itoa(int(n))}
+}
+
 // armDelivery builds the delivery engine over the composed resolver and sink
 // factory, starts its watchdog, and hands it — wrapped as managedDelivery — to
 // the API service so delivery RPCs start working. The connected-account
@@ -107,14 +122,44 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 	if !ok {
 		return nil
 	}
+	instancePolicy, err := policy.ParseInstance(s.cfg.Policy)
+	if err != nil {
+		return fmt.Errorf("delivery: policy already valid at load; this means memory corruption: %w", err)
+	}
+	accountStore := accounts.NewStore(s.stores.Vault, logger)
 	eng := delivery.New(delivery.Options{
 		SessionTTL:        24 * time.Hour,
 		HeartbeatInterval: 30 * time.Second,
 		HeartbeatGrace:    90 * time.Second,
-		ConcurrentStreams: 3,
-		SourceResolver:    compositeResolver{resolvers: rt.Resolvers},
-		SinkFactory:       rt.Sinks,
-		RecordJob:         func(j *corev1.Job) { s.persistDeliveryJob(rt, j) },
+		InstancePolicy:    instancePolicy,
+		AccountConstraints: func(ctx context.Context, provider, accountID string) (policy.Set, policy.Set, error) {
+			// Linked accounts: their record carries the owner-declared cap
+			// set at link time. No owner-side policy override exists until
+			// the member-management surface at M6.
+			if rec, err := accountStore.Get(ctx, accountID); err == nil {
+				return nil, declaredCap(rec.MaxConcurrentStreams), nil
+			}
+			// Operator-declared accounts: carried directly in the config.
+			for _, slot := range s.cfg.Slots.Providers {
+				for _, acct := range slot.Accounts {
+					if acct.ID != accountID {
+						continue
+					}
+					override, err := policy.ParseOverlay(acct.Policy)
+					if err != nil {
+						return nil, nil, fmt.Errorf("policy: %v", err)
+					}
+					return override, declaredCap(acct.MaxConcurrentStreams), nil
+				}
+			}
+			// Unknown account: nothing to resolve against — admit with the
+			// instance policy alone rather than inventing a cap. The
+			// produce-sources call will honestly identify the account.
+			return nil, nil, nil
+		},
+		SourceResolver: compositeResolver{resolvers: rt.Resolvers},
+		SinkFactory:    rt.Sinks,
+		RecordJob:      func(j *corev1.Job) { s.persistDeliveryJob(rt, j) },
 		// MenuReady announces a staged play menu once, at Start (PLAN.md
 		// §6.2). The notification goes to both the slot runtime bus and the
 		// API bus (/events): a subscriber that misses it recovers by

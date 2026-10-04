@@ -10,6 +10,7 @@ import (
 	"time"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/policy"
 )
 
 // playSource is a PER_TRACK manifest whose tracks live on a fake provider
@@ -59,7 +60,7 @@ func TestPlayStartStagesMenuAndAnnouncesReady(t *testing.T) {
 	var announced *Session
 	e := New(Options{
 		SessionTTL:        24 * time.Hour,
-		ConcurrentStreams: 3,
+		InstancePolicy: policy.Set{"concurrentStreams": "3"},
 		Now:               func() time.Time { return now },
 		RecordJob:         func(*corev1.Job) {},
 		SourceResolver:    &fakeResolver{source: playSource(provider.URL)},
@@ -106,7 +107,7 @@ func TestPlayStartSkipsLocationlessTracks(t *testing.T) {
 	relay := NewRelay()
 	e := New(Options{
 		SessionTTL:        24 * time.Hour,
-		ConcurrentStreams: 3,
+		InstancePolicy: policy.Set{"concurrentStreams": "3"},
 		RecordJob:         func(*corev1.Job) {},
 		SourceResolver: &fakeResolver{source: &corev1.MediaSource{
 			Type:        corev1.MediaSourceType_MEDIA_SOURCE_TYPE_STATIC,
@@ -165,7 +166,7 @@ func TestPlayEndToEndPassthroughRelay(t *testing.T) {
 	now := time.Now()
 	e := New(Options{
 		SessionTTL:        24 * time.Hour,
-		ConcurrentStreams: 3,
+		InstancePolicy: policy.Set{"concurrentStreams": "3"},
 		Now:               func() time.Time { return now },
 		RecordJob:         func(*corev1.Job) {},
 		SourceResolver:    &fakeResolver{source: playSource(provider.URL)},

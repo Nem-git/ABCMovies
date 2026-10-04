@@ -53,9 +53,9 @@ type Stack struct {
 	registry *registry.InProcessRegistry
 	bus      *apiserver.InMemoryBus
 
-	// configPath is retained so BuildSlots can re-load the caller's slot
-	// configuration over the same stack.
-	configPath string
+	// cfg is the loaded instance config, retained so BuildSlots and the
+	// delivery wiring compose exactly what Build loaded.
+	cfg *config.Config
 
 	// slots holds the composed provider-slot layer when BuildSlots has been
 	// called; nil until then.
@@ -117,7 +117,7 @@ func Build(configPath string, logger *slog.Logger) (*Stack, error) {
 		stores:          stores,
 		registry:        r,
 		bus:             bus,
-		configPath:      configPath,
+		cfg:             cfg,
 	}, nil
 }
 
@@ -251,9 +251,13 @@ func (s *Stack) BuildSlots(ctx context.Context, logger *slog.Logger) (*SlotRunti
 	if s.slots != nil {
 		return s.slots, nil
 	}
-	cfg, err := config.Load(s.configPath)
-	if err != nil {
-		return nil, err
+	cfg := s.cfg
+	if cfg == nil {
+		var err error
+		cfg, err = config.Load("")
+		if err != nil {
+			return nil, err
+		}
 	}
 	rt, err := ComposeSlots(ctx, cfg.Slots, cfg.Enrichment,
 		s.registry, s.stores.SourceCache, s.stores.MetadataCache, s.stores.Vault, logger)
