@@ -60,6 +60,10 @@ type Deps struct {
 	// changed a mapping, its entry becomes an enrichment candidate. Nil
 	// disables the trigger (no catalogue slots configured).
 	Enqueue func(entryID string)
+	// SyncGate defers provider visits while an account's foreground seats
+	// are spoken for (PLAN.md §7.2's shared pacing budget, the v1 cut).
+	// Each catalogue-sync round for one account runs through it.
+	SyncGate sourcecache.Gate
 }
 
 // providerFactory admits one slot instance and returns its recurring jobs

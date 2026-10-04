@@ -30,6 +30,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/auth"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
+	"github.com/nem-git/abcmovies/core/internal/policy"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/metadatacache"
@@ -385,7 +386,7 @@ func newM5Stack(t *testing.T, jf *fakeJellyfin) *m5Stack {
 	}
 	eng := delivery.New(delivery.Options{
 		SessionTTL:        time.Hour,
-		ConcurrentStreams: 3,
+		InstancePolicy: policy.Set{"concurrentStreams": "3"},
 		SourceResolver:    &namespaceResolver{bySlot: resolvers},
 		SinkFactory:       sinks,
 		// The API service's own persistDeliveryJob covers the store + event

@@ -21,6 +21,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
+	"github.com/nem-git/abcmovies/core/internal/policy"
 	"github.com/nem-git/abcmovies/core/internal/slotwiring"
 	"github.com/nem-git/abcmovies/core/internal/store"
 	"google.golang.org/grpc/codes"
@@ -121,7 +122,7 @@ func (m engineManager) RevokeAllOnAccount(accountID string) int {
 func buildServer(resolver delivery.Resolver, sinks delivery.SinkFactory) (*apiserver.Server, *delivery.Engine) {
 	eng := delivery.New(delivery.Options{
 		SessionTTL:        time.Hour,
-		ConcurrentStreams: 3,
+		InstancePolicy: policy.Set{"concurrentStreams": "3"},
 		SourceResolver:    resolver,
 		SinkFactory:       sinks,
 		RecordJob:         func(*corev1.Job) {},
