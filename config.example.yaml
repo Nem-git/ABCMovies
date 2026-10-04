@@ -72,6 +72,25 @@ slots:
   #         url: 'http://jellyfin.local:8096'
   #         username: your-jellyfin-user
   #         password-env: JELLYFIN_PASSWORD
+  #         # Optional: the account's declared upstream concurrency
+  #         # ceiling. The engine enforces min(instance policy, this cap)
+  #         # per account; absent leaves the account uncapped.
+  #         max-concurrent-streams: 3
+  #         # Optional per-account override of the instance policy — only
+  #         # the keys written here override; everything else inherits.
+  #         policy:
+  #           concurrentStreams: 2
+
+# Instance-wide usage policy (docs/PLAN.md §7.2, the enforcement vocabulary
+# from docs/TECHNICAL-DECISIONS.md §1.34): a limit-type => value map. Absent
+# keys inherit the shipped defaults; unknown keys or malformed values fail
+# startup loudly — never run silently unconfined. Enforced in v1:
+# concurrentStreams only; bandwidth/encode/pacing/* keys are validated,
+# recorded on every delivery job, and enforced by their own milestones.
+# policy:
+#   concurrentStreams: 3
+#   bandwidth: unlimited
+#   encode: disabled
 
 stores:
   # One backend per store class (docs/PLAN.md §2.4). Dev defaults are

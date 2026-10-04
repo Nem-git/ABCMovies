@@ -92,6 +92,78 @@ stores:
 	}
 }
 
+func TestLoad_InvalidInstancePolicyFails(t *testing.T) {
+	path := writeConfig(t, `
+core:
+  api:
+    bind: "127.0.0.1:8443"
+policy:
+  concurrentStream: "3"
+`)
+	if _, err := config.Load(path); err == nil {
+		t.Fatal("unknown policy key: want startup error")
+	}
+}
+
+func TestLoad_InvalidAccountPolicyFails(t *testing.T) {
+	path := writeConfig(t, `
+slots:
+  providers:
+    - id: primary
+      adapter: jellyfin
+      enabled: true
+      accounts:
+        - id: home
+          url: "http://jf.local"
+          username: bob
+          password-env: JF_PASSWORD
+          max-concurrent-streams: 2
+          policy:
+            traffic: "high"
+`)
+	if _, err := config.Load(path); err == nil {
+		t.Fatal("unknown account policy key: want startup error")
+	}
+}
+
+func TestLoad_ValidPolicyAppliesDefaultsUnderneath(t *testing.T) {
+	path := writeConfig(t, `
+policy:
+  concurrentStreams: "5"
+slots:
+  providers:
+    - id: primary
+      adapter: jellyfin
+      enabled: true
+      accounts:
+        - id: home
+          url: "http://jf.local"
+          username: bob
+          password-env: JF_PASSWORD
+          max-concurrent-streams: 2
+`)
+	c, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := c.Policy["concurrentStreams"]; got != "5" {
+		t.Fatalf("policy.concurrentStreams = %q, want 5", got)
+	}
+	alice := c.Slots.Providers[0].Accounts[0]
+	if alice.MaxConcurrentStreams != 2 {
+		t.Fatalf("max-concurrent-streams = %d, want 2", alice.MaxConcurrentStreams)
+	}
+}
+
+func writeConfig(t *testing.T, yaml string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(p, []byte(yaml), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	return p
+}
+
 func TestParseTokenTTL_Default(t *testing.T) {
 	got := config.ParseTokenTTL("")
 	want := 168 * time.Hour

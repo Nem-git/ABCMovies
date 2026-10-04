@@ -13,6 +13,7 @@ import (
 	"go.yaml.in/yaml/v4"
 
 	"github.com/nem-git/abcmovies/core/internal/auth"
+	"github.com/nem-git/abcmovies/core/internal/policy"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
@@ -31,6 +32,17 @@ type AccountConfig struct {
 	URL         string `yaml:"url"`
 	Username    string `yaml:"username"`
 	PasswordEnv string `yaml:"password-env"`
+	// MaxConcurrentStreams is the declared ceiling for this account: the
+	// operator's statement of what the upstream allows (PLAN.md §7.2). 0 or
+	// absent leaves the account uncapped — the instance default policy
+	// still applies to every member. Mirrors the linked-account record's
+	// MaxConcurrentStreams.
+	MaxConcurrentStreams uint32 `yaml:"max-concurrent-streams,omitempty"`
+	// Policy overrides instance defaults for this account only. Keys absent
+	// here inherit the instance policy; malformed values or unknown keys
+	// refuse startup, never silently ignore. Validated against the policy
+	// package's strict vocabulary.
+	Policy map[string]string `yaml:"policy,omitempty"`
 }
 
 // SlotEntry is one declared slot instance within a kind list. The kind comes
@@ -100,7 +112,12 @@ type Config struct {
 		SourceCache   StoreConfig `yaml:"source-cache"`
 		MetadataCache StoreConfig `yaml:"metadata-cache"`
 	} `yaml:"stores"`
-	Slots SlotsConfig `yaml:"slots"`
+	// Policy is the instance-wide usage policy — a limit-type → value map
+	// (PLAN.md §7.2). Absent keys inherit the shipped defaults; unknown
+	// keys and malformed values fail startup. The delivery engine stamps it
+	// on every job's recorded DeliveryContext.
+	Policy  map[string]string `yaml:"policy,omitempty"`
+	Slots   SlotsConfig       `yaml:"slots"`
 	// Enrichment tunes the background metadata pipeline. Absent keys fall
 	// back to the defaults the enrichment package declares.
 	Enrichment EnrichmentConfig `yaml:"enrichment"`
@@ -171,7 +188,30 @@ func Load(path string) (*Config, error) {
 	if err := validateSlots(c.Slots); err != nil {
 		return nil, fmt.Errorf("config: slots: %w", err)
 	}
+	if err := validatePolicies(c); err != nil {
+		return nil, err
+	}
 	return c, nil
+}
+
+// validatePolicies fails the load when the instance policy block or any
+// account policy block fails the strict policy-vocabulary check. Failing
+// here — at boot, once, with the offending key named — is what a mis-typed
+// limit must produce; never starting confined by nothing.
+func validatePolicies(c *Config) error {
+	if _, err := policy.ParseInstance(c.Policy); err != nil {
+		return err
+	}
+	for _, list := range [][]SlotEntry{c.Slots.Providers, c.Slots.Catalogue, c.Slots.Sinks} {
+		for _, e := range list {
+			for _, a := range e.Accounts {
+				if _, err := policy.ParseOverlay(a.Policy); err != nil {
+					return fmt.Errorf("account %q in slot %q: %w", a.ID, e.ID, err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // validateSlots enforces the invariants the slot taxonomy implies (PLAN.md
