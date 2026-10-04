@@ -11,7 +11,7 @@ MISESHIMS := $(HOME)/.local/share/mise/shims
 export PATH := $(GOBIN):$(GOPATHBIN):$(MISESHIMS):$(PATH)
 export GOBIN GOMODCACHE GOCACHE
 
-.PHONY: deps proto web-build fmt secret-scan lint build test-unit tidy-check milestone fixtures vuln check run run-web
+.PHONY: deps proto web-build fmt secret-scan lint build test-unit tidy-check milestone fixtures vuln check run run-web pin-check
 
 deps:
 	mkdir -p $(GOBIN)
@@ -43,7 +43,7 @@ secret-scan:
 	git archive HEAD | tar -x -C /tmp/abcmovies-secret-scan
 	$(GITLEAKS) detect --no-git --source /tmp/abcmovies-secret-scan --redact; status=$$?; rm -rf /tmp/abcmovies-secret-scan; exit $$status
 
-lint: web-build
+lint: web-build pin-check
 	$(BUF) lint
 	git diff --exit-code -- proto
 	# Breaking-change detection is disabled until the first release
@@ -70,6 +70,18 @@ vuln: web-build
 # the source of truth for its own dependency graph.
 tidy-check:
 	$(GO) mod tidy -diff
+
+# Fails when the two Go runtime pins disagree. go.mod's `toolchain` directive
+# is authoritative for builds (GOTOOLCHAIN=auto); the .tool-versions `go` line
+# is what mise provisions in the Containerfile and CI. A drift between them is
+# silent environment drift, so the gate rejects instead of picking one.
+pin-check:
+	@tool=$$(sed -n 's/^go //p' .tool-versions); \
+	mod=$$(sed -n 's/^toolchain go//p' go.mod); \
+	if [ -z "$$tool" ]; then echo "pin-check: no 'go' line in .tool-versions" >&2; exit 1; fi; \
+	if [ -z "$$mod" ]; then echo "pin-check: no 'toolchain' directive in go.mod" >&2; exit 1; fi; \
+	if [ "$$tool" != "$$mod" ]; then echo "pin-check: .tool-versions has 'go $$tool' but go.mod has 'toolchain go$$mod'" >&2; exit 1; fi; \
+	echo "pin-check: go $$tool agreed"
 
 # The milestone whose acceptance criteria gate the next image tag (CI-CD.md
 # §5). The value lives exactly once, at the repo root; CI re-reads the same
