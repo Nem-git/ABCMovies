@@ -13,10 +13,10 @@ import (
 func TestStartEnforcesConcurrentStreamsCap(t *testing.T) {
 	now := time.Now()
 	e, res, _ := newTestEngine(Options{
-		SessionTTL:        24 * time.Hour,
+		SessionTTL:     24 * time.Hour,
 		InstancePolicy: policy.Set{"concurrentStreams": "2"},
-		Now:               func() time.Time { return now },
-		RecordJob:         func(*corev1.Job) {},
+		Now:            func() time.Time { return now },
+		RecordJob:      func(*corev1.Job) {},
 	})
 	res.source = wholeMuxSource()
 	defer e.Close()
@@ -104,10 +104,10 @@ func TestStartHonorsProviderCapOverPolicy(t *testing.T) {
 func TestCompleteFreesCapSlot(t *testing.T) {
 	now := time.Now()
 	e, res, _ := newTestEngine(Options{
-		SessionTTL:        24 * time.Hour,
+		SessionTTL:     24 * time.Hour,
 		InstancePolicy: policy.Set{"concurrentStreams": "1"},
-		Now:               func() time.Time { return now },
-		RecordJob:         func(*corev1.Job) {},
+		Now:            func() time.Time { return now },
+		RecordJob:      func(*corev1.Job) {},
 	})
 	res.source = wholeMuxSource()
 	defer e.Close()

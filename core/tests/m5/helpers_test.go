@@ -30,10 +30,10 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/auth"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
-	"github.com/nem-git/abcmovies/core/internal/policy"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/metadatacache"
+	"github.com/nem-git/abcmovies/core/internal/policy"
 	"github.com/nem-git/abcmovies/core/internal/registry"
 	"github.com/nem-git/abcmovies/core/internal/slotwiring"
 	"github.com/nem-git/abcmovies/core/internal/store"
@@ -385,10 +385,10 @@ func newM5Stack(t *testing.T, jf *fakeJellyfin) *m5Stack {
 		t.Fatalf("SetupSinks: %v", err)
 	}
 	eng := delivery.New(delivery.Options{
-		SessionTTL:        time.Hour,
+		SessionTTL:     time.Hour,
 		InstancePolicy: policy.Set{"concurrentStreams": "3"},
-		SourceResolver:    &namespaceResolver{bySlot: resolvers},
-		SinkFactory:       sinks,
+		SourceResolver: &namespaceResolver{bySlot: resolvers},
+		SinkFactory:    sinks,
 		// The API service's own persistDeliveryJob covers the store + event
 		// in the handler; the engine's hook is a no-op here (M4 precedent).
 		RecordJob: func(*corev1.Job) {},

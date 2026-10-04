@@ -68,9 +68,9 @@ func TestEffectiveAccountLimitIsPolicyCappedByProviderCap(t *testing.T) {
 		override, cap map[string]string
 		want          int
 	}{
-		{nil, nil, 3},                                    // default vs none
-		{m(KeyConcurrentStreams, "4"), nil, 4},           // override lifts, no cap
-		{nil, m(KeyConcurrentStreams, "2"), 2},           // cap pulls down
+		{nil, nil, 3},                          // default vs none
+		{m(KeyConcurrentStreams, "4"), nil, 4}, // override lifts, no cap
+		{nil, m(KeyConcurrentStreams, "2"), 2}, // cap pulls down
 		{m(KeyConcurrentStreams, "5"), m(KeyConcurrentStreams, "2"), 2},
 		{m(KeyConcurrentStreams, "5"), m(KeyConcurrentStreams, "9"), 5},
 	} {

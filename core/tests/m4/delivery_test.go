@@ -121,11 +121,11 @@ func (m engineManager) RevokeAllOnAccount(accountID string) int {
 // harness drives.
 func buildServer(resolver delivery.Resolver, sinks delivery.SinkFactory) (*apiserver.Server, *delivery.Engine) {
 	eng := delivery.New(delivery.Options{
-		SessionTTL:        time.Hour,
+		SessionTTL:     time.Hour,
 		InstancePolicy: policy.Set{"concurrentStreams": "3"},
-		SourceResolver:    resolver,
-		SinkFactory:       sinks,
-		RecordJob:         func(*corev1.Job) {},
+		SourceResolver: resolver,
+		SinkFactory:    sinks,
+		RecordJob:      func(*corev1.Job) {},
 	})
 	bus := apiserver.NewInMemoryBus()
 	srv := apiserver.NewServer(bus, config.Stores{Jobs: store.NewInMemory()}, nil, nil)

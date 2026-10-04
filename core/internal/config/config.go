@@ -116,8 +116,8 @@ type Config struct {
 	// (PLAN.md §7.2). Absent keys inherit the shipped defaults; unknown
 	// keys and malformed values fail startup. The delivery engine stamps it
 	// on every job's recorded DeliveryContext.
-	Policy  map[string]string `yaml:"policy,omitempty"`
-	Slots   SlotsConfig       `yaml:"slots"`
+	Policy map[string]string `yaml:"policy,omitempty"`
+	Slots  SlotsConfig       `yaml:"slots"`
 	// Enrichment tunes the background metadata pipeline. Absent keys fall
 	// back to the defaults the enrichment package declares.
 	Enrichment EnrichmentConfig `yaml:"enrichment"`

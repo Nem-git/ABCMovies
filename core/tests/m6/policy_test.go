@@ -30,11 +30,11 @@ func muxSource() *corev1.MediaSource {
 
 func newPolicyEngine(instance policy.Set, constraints func(ctx context.Context, provider, accountID string) (policy.Set, policy.Set, error), record func(*corev1.Job)) *delivery.Engine {
 	e := delivery.New(delivery.Options{
-		SessionTTL:    24 * time.Hour,
-		InstancePolicy: instance,
+		SessionTTL:         24 * time.Hour,
+		InstancePolicy:     instance,
 		AccountConstraints: constraints,
-		SourceResolver: staticResolver{src: muxSource()},
-		RecordJob:     record,
+		SourceResolver:     staticResolver{src: muxSource()},
+		RecordJob:          record,
 	})
 	return e
 }

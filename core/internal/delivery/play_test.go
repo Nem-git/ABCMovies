@@ -59,13 +59,13 @@ func TestPlayStartStagesMenuAndAnnouncesReady(t *testing.T) {
 	now := time.Now()
 	var announced *Session
 	e := New(Options{
-		SessionTTL:        24 * time.Hour,
+		SessionTTL:     24 * time.Hour,
 		InstancePolicy: policy.Set{"concurrentStreams": "3"},
-		Now:               func() time.Time { return now },
-		RecordJob:         func(*corev1.Job) {},
-		SourceResolver:    &fakeResolver{source: playSource(provider.URL)},
-		SinkFactory:       &DeviceSinkFactory{Relay: relay},
-		MenuReady:         func(s *Session) { announced = s },
+		Now:            func() time.Time { return now },
+		RecordJob:      func(*corev1.Job) {},
+		SourceResolver: &fakeResolver{source: playSource(provider.URL)},
+		SinkFactory:    &DeviceSinkFactory{Relay: relay},
+		MenuReady:      func(s *Session) { announced = s },
 	})
 	defer e.Close()
 
@@ -106,9 +106,9 @@ func TestPlayStartStagesMenuAndAnnouncesReady(t *testing.T) {
 func TestPlayStartSkipsLocationlessTracks(t *testing.T) {
 	relay := NewRelay()
 	e := New(Options{
-		SessionTTL:        24 * time.Hour,
+		SessionTTL:     24 * time.Hour,
 		InstancePolicy: policy.Set{"concurrentStreams": "3"},
-		RecordJob:         func(*corev1.Job) {},
+		RecordJob:      func(*corev1.Job) {},
 		SourceResolver: &fakeResolver{source: &corev1.MediaSource{
 			Type:        corev1.MediaSourceType_MEDIA_SOURCE_TYPE_STATIC,
 			Seekable:    corev1.Seekable_SEEKABLE_FULL,
@@ -165,12 +165,12 @@ func TestPlayEndToEndPassthroughRelay(t *testing.T) {
 	relay := NewRelay()
 	now := time.Now()
 	e := New(Options{
-		SessionTTL:        24 * time.Hour,
+		SessionTTL:     24 * time.Hour,
 		InstancePolicy: policy.Set{"concurrentStreams": "3"},
-		Now:               func() time.Time { return now },
-		RecordJob:         func(*corev1.Job) {},
-		SourceResolver:    &fakeResolver{source: playSource(provider.URL)},
-		SinkFactory:       &DeviceSinkFactory{Relay: relay},
+		Now:            func() time.Time { return now },
+		RecordJob:      func(*corev1.Job) {},
+		SourceResolver: &fakeResolver{source: playSource(provider.URL)},
+		SinkFactory:    &DeviceSinkFactory{Relay: relay},
 	})
 	defer e.Close()
 
