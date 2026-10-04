@@ -37,6 +37,8 @@ func (s *stubDelivery) PlayMenu(sessionID string) (*apiserver.PlayMenu, error) {
 	return s.playmenu, s.menuErr
 }
 
+func (s *stubDelivery) RevokeAllOnAccount(accountID string) int { return 0 }
+
 func runningSession() *delivery.Session {
 	return &delivery.Session{
 		ID:     "del-1",

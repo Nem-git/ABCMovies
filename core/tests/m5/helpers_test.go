@@ -224,6 +224,9 @@ type m5Stack struct {
 	session auth.Session
 	relay   *delivery.Relay
 	eng     *delivery.Engine
+	// puts records every value Put into any store, so the milestone tests can
+	// prove what the stores never hold.
+	puts *mediaProbe
 	// ns is the identity namespace the seeded linked account provisions as
 	// (PLAN.md §1.25): the server identity, which delivery requests address.
 	ns string
@@ -247,6 +250,18 @@ func newM5Stack(t *testing.T, jf *fakeJellyfin) *m5Stack {
 		t.Fatalf("BuildStores: %v", err)
 	}
 	stores.WatchHistory = store.NewUserBlobStore(stores.WatchHistory)
+
+	// Every store the stack persists through is wrapped in a recorder, so a
+	// milestone test can assert what never reached a backing byte column
+	// (PLAN.md §2.4: caches hold metadata and keys only, never media).
+	media := newMediaProbe()
+	storeDefs := []*store.Store{
+		&stores.Cache, &stores.Vault, &stores.WatchHistory, &stores.Jobs,
+		&stores.Sessions, &stores.Users, &stores.SourceCache, &stores.MetadataCache,
+	}
+	for _, d := range storeDefs {
+		*d = media.wrap(*d)
+	}
 
 	users, tokens, deks, err := config.BuildAuth(stores.Users, stores.Sessions, c.Auth.DEKCache, nil)
 	if err != nil {
@@ -403,6 +418,7 @@ func newM5Stack(t *testing.T, jf *fakeJellyfin) *m5Stack {
 		session:    session,
 		relay:      relay,
 		eng:        eng,
+		puts:       media,
 		ns:         ns,
 		baseURL:    strings.TrimRight(jf.URL(), "/"),
 		alice:      alice,
@@ -442,6 +458,10 @@ func (m m5Delivery) Start(ctx context.Context, req delivery.StartRequest) (*deli
 }
 
 func (m m5Delivery) Heartbeat(id string) error { return m.eng.Heartbeat(id) }
+
+func (m m5Delivery) RevokeAllOnAccount(accountID string) int {
+	return m.eng.RevokeAllOnAccount(accountID)
+}
 
 func (m m5Delivery) PlayMenu(sessionID string) (*apiserver.PlayMenu, error) {
 	sess, ok := m.eng.Get(sessionID)

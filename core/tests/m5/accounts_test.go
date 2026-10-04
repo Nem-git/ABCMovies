@@ -7,6 +7,7 @@ import (
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -193,5 +194,54 @@ func TestM5RemoveAccountPublishesRevoked(t *testing.T) {
 	_, err = client.RemoveAccount(bobCtx, &apiv1.RemoveAccountRequest{AccountId: link.GetAccountId()})
 	if status.Code(err) != codes.NotFound {
 		t.Fatalf("second RemoveAccount: got %v, want NotFound", status.Code(err))
+	}
+}
+
+// TestM5RemoveAccountEndsLiveSessions proves account removal cuts in-flight
+// deliveries: a play session started through the account is on the engine's
+// revoked list the moment the owner unlinks it, so the relay's next pull is
+// cut off and the job records the failure (PLAN.md T7).
+func TestM5RemoveAccountEndsLiveSessions(t *testing.T) {
+	jf := fakeJellyfinServer(t)
+	stack := newM5Stack(t, jf)
+	client := apiv1.NewCoreServiceClient(startWireServer(t, stack))
+	aliceCtx := authedCtx(t.Context(), stack.aliceToken)
+
+	play, err := client.StartDelivery(aliceCtx, &apiv1.StartDeliveryRequest{
+		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:     stack.ns,
+		AccountId:    "lnk_alice_home",
+		MemberUserId: stack.alice.UserID,
+		NativeId:     "movie-gondwana",
+		Sink:         "device",
+	})
+	if err != nil {
+		t.Fatalf("StartDelivery: %v", err)
+	}
+	sessID := play.GetJob().GetId()
+	assertRunning := func() {
+		sess, ok := stack.eng.Get(sessID)
+		if !ok {
+			t.Fatalf("session %s not found pre-removal", sessID)
+		}
+		if sess.Status != delivery.StatusRunning {
+			t.Fatalf("pre-removal session status = %q, want running", sess.Status)
+		}
+	}
+	assertRunning()
+
+	if _, err := client.RemoveAccount(aliceCtx, &apiv1.RemoveAccountRequest{AccountId: "lnk_alice_home"}); err != nil {
+		t.Fatalf("RemoveAccount: %v", err)
+	}
+
+	sess, ok := stack.eng.Get(sessID)
+	if !ok {
+		t.Fatal("session not found after removal")
+	}
+	if sess.Status != delivery.StatusRevoked {
+		t.Fatalf("post-removal session status = %q, want revoked", sess.Status)
+	}
+	if sess.Error != "account revoked" {
+		t.Errorf("session error = %q, want 'account revoked'", sess.Error)
 	}
 }

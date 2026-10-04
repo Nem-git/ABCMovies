@@ -164,6 +164,13 @@ func (s *Server) RemoveAccount(ctx context.Context, req *apiv1.RemoveAccountRequ
 	if s.library != nil {
 		s.library.RemoveReach(rec.ID)
 	}
+	// Every session routed through this account must die with it: the engine
+	// marks them revoked (and aborts their sinks) before we announce the
+	// account's removal, so the notification never lags the cut-off
+	// (PLAN.md T7/§7.5).
+	if s.delivery != nil {
+		s.delivery.RevokeAllOnAccount(rec.ID)
+	}
 	s.emitAccountEvent(uid, rec.ID, rec.Provider, corev1.EventType_EVENT_TYPE_ACCOUNT_SESSION_REVOKED)
 	return &apiv1.RemoveAccountResponse{}, nil
 }

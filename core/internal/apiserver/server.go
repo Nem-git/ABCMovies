@@ -26,6 +26,10 @@ type DeliveryManager interface {
 	Start(ctx context.Context, req delivery.StartRequest) (*delivery.Session, error)
 	Heartbeat(id string) error
 	PlayMenu(sessionID string) (*PlayMenu, error)
+	// RevokeAllOnAccount ends every session routed through the account
+	// (all members): removal of the record is a full revocation
+	// (PLAN.md §7.5).
+	RevokeAllOnAccount(accountID string) int
 }
 
 // Server implements the CoreService (PLAN.md §8).

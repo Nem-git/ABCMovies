@@ -47,6 +47,10 @@ func (m managedDelivery) Start(ctx context.Context, req delivery.StartRequest) (
 
 func (m managedDelivery) Heartbeat(id string) error { return m.eng.Heartbeat(id) }
 
+func (m managedDelivery) RevokeAllOnAccount(accountID string) int {
+	return m.eng.RevokeAllOnAccount(accountID)
+}
+
 // PlayMenu recovers a session's staged play menu, attaching each
 // location-bearing track's relay token (PLAN.md §6.2). A download session,
 // an unknown session, or a play session that never staged a menu (no sink,

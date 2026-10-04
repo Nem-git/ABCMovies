@@ -111,6 +111,10 @@ func (m engineManager) PlayMenu(string) (*apiserver.PlayMenu, error) {
 	return nil, apiserver.ErrPlayMenuNotFound
 }
 
+func (m engineManager) RevokeAllOnAccount(accountID string) int {
+	return m.eng.RevokeAllOnAccount(accountID)
+}
+
 // buildServer wires the delivery engine over the given resolver and sink
 // factory and returns an armed CoreService together with the engine its
 // harness drives.

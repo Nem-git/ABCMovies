@@ -428,6 +428,32 @@ func (e *Engine) RevokeAccount(provider, accountID, memberUserID string) int {
 	return killed
 }
 
+// RevokeAllOnAccount kills every session routed through one account, for all
+// members, on both the index and the live-session map. Removing an account is
+// a full revocation of that account's access: sessions a member started
+// through it must not outlive the record that vaulted its credential
+// (PLAN.md §7.5). Completes on the first N, matching RevokeAccount's
+// return-count contract.
+func (e *Engine) RevokeAllOnAccount(accountID string) int {
+	e.mu.Lock()
+	var killed int
+	for id, s := range e.sessions {
+		if s.Context.GetAccountId() != accountID {
+			continue
+		}
+		s.Status = StatusRevoked
+		s.Error = "account revoked"
+		if s.Sink != nil {
+			s.Sink.Abort(context.Background(), s)
+		}
+		e.recordJob(s.toJob())
+		delete(e.byAccount[accountKey{s.Context.GetProvider(), s.Context.GetAccountId(), s.Context.GetMemberUserId()}], id)
+		killed++
+	}
+	e.mu.Unlock()
+	return killed
+}
+
 // Complete marks a session done and finalizes its sink.
 func (e *Engine) Complete(id string) error {
 	e.mu.Lock()
