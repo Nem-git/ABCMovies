@@ -1,6 +1,6 @@
 # Scope (v1)
 
-This document fixes **what v1 of the project is**: which milestones ship, what is explicitly out, what "v1 done" means, and the operator sign-offs the plan requires (lawfulness in particular). It exists so IMPLEMENTATION.md's milestone roadmap stays a generic reference while the actual release boundary lives here. PLAN.md remains the spec; this document is a commitment about *release*, not a change to what the system is.
+This document fixes **what v1 of the project is**: which milestones ship, what is explicitly out, and what "v1 done" means. It exists so IMPLEMENTATION.md's milestone roadmap stays a generic reference while the actual release boundary lives here. PLAN.md remains the spec; this document is a commitment about *release*, not a change to what the system is.
 
 **Boundary:** product decisions → PLAN.md §11; implementation decisions → TECHNICAL-DECISIONS.md; scope and acceptance → here.
 
@@ -22,7 +22,7 @@ This document fixes **what v1 of the project is**: which milestones ship, what i
 
 | Deferred | Where it's specified | Note |
 | --- | --- | --- |
-| DRM slot (acquire-keys / decrypt) | PLAN.md §6.6 | See sign-off in §3 |
+| DRM slot (acquire-keys / decrypt) | PLAN.md §6.6 | v2 — the `drm?` manifest field is carried but never populated in v1 |
 | Lazy streaming-service providers | PLAN.md §5.4 | v1 providers are library-class only |
 | Sidecar custody | PLAN.md §7.4 | Server-held custody only in v1; relay-through-owner is v2 |
 | Egress routing | PLAN.md §7.3 | Off by default; not built in v1 |

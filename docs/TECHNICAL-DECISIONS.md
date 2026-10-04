@@ -59,8 +59,8 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 
 ### 1.4 Version pins
 
-- **Decision:** pins live at **one home per tool kind**, never duplicated: the core language pins itself via its manifest's `toolchain` directive (auto-enforced on every tool invocation), and the schema tooling + linter live in `.tool-versions` at the repo root, referenced by the Containerfile and CI (ENVIRONMENT.md §1, CI-CD.md §3). A change to a pin invalidates caches (CI-CD.md §8). Go is not listed in `.tool-versions` because the Go toolchain cannot be version-switched on hosts where developers already manage Go; the manifest's `toolchain` directive (GOTOOLCHAIN=auto) makes the manifest authoritative anyway, so listing Go twice would reintroduce the exact split-brain this rule prevents.
-- **Initial pin set** (re-verified at M0 scaffolding, IMPLEMENTATION.md §8.4): Go **`go 1.26` / `toolchain go1.26.6`** in the repo-root `go.mod`; **buf 1.72.0**, **golangci-lint v2.12.2**, **node 24.19.0** (runtime for the formatting tooling), and **gitleaks 8.24.3** (secret-leak scan) in `.tool-versions`; as Go tool dependencies in the repo-root `go.mod` (executables installed to `bin/` by `make deps`, §1.6): protoc-gen-go **v1.36.12** (always equal to the `google.golang.org/protobuf` runtime version), protoc-gen-go-grpc **v1.6.2**, protoc-gen-connect-go (§1.2), grpc-go **v1.83.0**, and **govulncheck v1.7.0** (vulnerability scan, `make vuln`). The node-based tools are npm dev dependencies — the formatters (`prettier`, `markdownlint-cli2`) at the repo root, and the web codegen/bundling tools (`protoc-gen-es`, `esbuild`, §1.2) likewise at the root — pinned in their `package-lock.json`; their versions live there, not in `.tool-versions`.
+- **Decision:** pins live at **one home per tool kind**, never duplicated: the core language pins itself via its manifest's `toolchain` directive (auto-enforced on every tool invocation), and the schema tooling + linter live in `.tool-versions` at the repo root, referenced by the Containerfile and CI (ENVIRONMENT.md §1, CI-CD.md §3). A change to a pin invalidates caches (CI-CD.md §8). Go is pinned in both places deliberately: the manifest's `toolchain` directive (GOTOOLCHAIN=auto) is authoritative for builds, while the `.tool-versions` entry is what the mise-based toolchain provisioning reads (the Containerfile and CI both run `mise install`, and its shims precede the base image's Go on `PATH`). The two must name the same version; `make pin-check` fails when they diverge.
+- **Pin set.** The canonical values live in the files, not here — restating them would be a second source of truth, and drift between the two is exactly what this rule prevents. Look up, never copy: the schema tooling and linter in `.tool-versions`; the runtime's `go` and `toolchain` directives and the Go tool executables (protoc-gen-go, protoc-gen-go-grpc, protoc-gen-connect-go, govulncheck — installed to `bin/` by `make deps`, §1.6) in the repo-root `go.mod`; the node-based tools as npm dev dependencies pinned in the root and `frontends/web/` `package-lock.json` files. The original values are recorded in the M0 scaffolding commits (0a716ba, eb47c35).
 
 ### 1.5 Instance config location and secrets convention
 
@@ -80,7 +80,7 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 | `make check` | lint + build + full suite (unit, round-trip, integration, fixture suites) + vuln — the CI gate |
 | `make run` | boot the skeleton (registry, slot, API server) |
 | `make run-web` | boot the web frontend's serving layer (core embedded in-process, §1.2) |
-| `make lint` / `make build` / `make test-unit` / `make vuln` | the individual stages `make check` composes |
+| `make lint` / `make build` / `make test-unit` / `make vuln` / `make pin-check` | the individual stages `make check` composes |
 
 `make lint` enforces all formatting and hygiene mechanically: buf lint + format freshness on the schemas, gofumpt on Go, prettier on JSON/YAML, markdownlint on Markdown, and the secret-leak scan (`make secret-scan`). `make test-unit` runs the unit suites with the race detector. `make vuln` runs govulncheck against the module. CI runs these recipes verbatim (CI-CD.md §1); it never invents its own commands.
 
@@ -151,18 +151,6 @@ Each decision records the choice, the rationale, and the constraint it satisfies
   - Collisions append `(2)`, `(3)`, ...; characters illegal in path names are stripped.
 - **Rationale:** the arr/TRaSH convention is the de-facto standard for self-hosted media libraries (Sonarr/Radarr), so deliverables land in tools' expected format with zero further renaming.
 - **Consequence:** the template is data, not code — configurable without a code change; the default is frozen for v1 and any change to the *default* is a PLAN.md §11 change.
-
-### 1.31 Delivery pipeline model — **typed step-chain**
-
-- **Decision:** a delivery pipeline is an ordered **step-chain** (a step DAG) — passthrough, decrypt, remux, transcode, compose, record — each with a **typed** `StepParams` discriminated union. The engine records the chain on the session at Start and refuses any non-executable step loudly. v1 executes only passthrough, remux (container-copy plus stream selection), and compose.
-- **Rationale:** "real sequencing, honest decline" — a chain the engine cannot honour must fail loudly (§2.5 of PLAN.md), not degrade; typing each step's params makes a mis-wired step a plan-time failure rather than a runtime surprise.
-- **Consequence:** transcode, record, DRM decrypt, and per-track compose to a container are **not implemented in v1** and are declined with a logged intent; the decline path is the seam these land behind later. Multi-quality (multi-rendition) fan-out of one session is explicitly out of v1 scope — it is logged, not emitted.
-
-### 1.32 Slot sink config namespacing — **`options` map**
-
-- **Decision:** a slot's sink configuration is a namespaced `options: map[string]string`; the disk sink reads `options.path`. The flat `Path` and dead `Retention` fields are removed from the sink entry.
-- **Rationale:** a flat per-field sink config stops scaling once a sink has several knobs; a namespaced map keeps one slot's schema additive without touching the shared slot shape.
-- **Consequence:** this is a **breaking config-schema change** (approved pre-release, §1.24 / §3.4 of PLAN.md): existing `path:` entries must move to `options.path`. `config.example.yaml` documents the new shape.
 
 ### 1.16 Store backends — **SQLite, one file per store class**
 
@@ -272,7 +260,19 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 - **Rationale:** PLAN.md §9.1's idempotency textual ("session start takes an idempotency key; retries are safe; double-start is impossible") guards the concrete risk of a **double-start on a one-stream account** — a real, likely bug. That risk is already bounded structurally by the per-account concurrent-session cap the engine enforces at Start (§1.14), which counts *active* sessions and rejects over-capacity starts. Idempotency would be a retry-refinement *on top of* that cap, not the guard itself, so deferring it loses no safety. The cost of deferral is honest and cheap: a client retry of `StartDelivery` yields a fresh session and must rely on (a) the cap, or (b) its own tracking of the returned session id — standard "create" semantics, not create-once. `Job.idempotency_key` stays a frozen load-bearing field (§2.3); M4 simply never sets it.
 - **Consequence:** the M4 API request carries no key; the session id doubles as the internal idempotency identity. If idempotency later returns, it is a server-generated value mapped from the resolved (provider, account, nativeId, goal) and requires no API change for clients.
 
-### 1.20 Web client play + test path (M5)
+### 1.31 Delivery pipeline model — **typed step-chain**
+
+- **Decision:** a delivery pipeline is an ordered **step-chain** (a step DAG) — passthrough, decrypt, remux, transcode, compose, record — each with a **typed** `StepParams` discriminated union. The engine records the chain on the session at Start and refuses any non-executable step loudly. v1 executes only passthrough, remux (container-copy plus stream selection), and compose.
+- **Rationale:** "real sequencing, honest decline" — a chain the engine cannot honour must fail loudly (§2.5 of PLAN.md), not degrade; typing each step's params makes a mis-wired step a plan-time failure rather than a runtime surprise.
+- **Consequence:** transcode, record, DRM decrypt, and per-track compose to a container are **not implemented in v1** and are declined with a logged intent; the decline path is the seam these land behind later. Multi-quality (multi-rendition) fan-out of one session is explicitly out of v1 scope — it is logged, not emitted.
+
+### 1.32 Slot sink config namespacing — **`options` map**
+
+- **Decision:** a slot's sink configuration is a namespaced `options: map[string]string`; the disk sink reads `options.path`. The flat `Path` and dead `Retention` fields are removed from the sink entry.
+- **Rationale:** a flat per-field sink config stops scaling once a sink has several knobs; a namespaced map keeps one slot's schema additive without touching the shared slot shape.
+- **Consequence:** this is a **breaking config-schema change** (approved pre-release, §1.24 / §3.4 of PLAN.md): existing `path:` entries must move to `options.path`. `config.example.yaml` documents the new shape.
+
+### 1.33 Web client play + test path (M5)
 
 - **Decision:**
   - The browser plays a linked title with **start-delivery + get-play-info**, then renders the slot's relay URL into a `<video>` element (passthrough, no remux); the `member_user_id` is bound at **signup** because the login response returns only the token. The bearer token stays **in-memory for the page lifetime** — no storage, revoked at logout.
