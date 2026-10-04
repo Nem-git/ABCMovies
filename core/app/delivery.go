@@ -13,6 +13,7 @@ import (
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
+	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/policy"
 )
@@ -111,6 +112,32 @@ func declaredCap(n uint32) policy.Set {
 	return policy.Set{policy.KeyConcurrentStreams: strconv.Itoa(int(n))}
 }
 
+// resolveAccountConstraints is the recorded-min(policy, provider_cap)
+// grounding for one delivery request: a linked account reads its cap from
+// the stored record (owner-declared at link time), a public operator
+// account reads its from the slot config. An account id pretty freely
+// shaped by a provider lands in the history of a lot of config files, so
+// the not-found branch admits with the instance policy alone rather than
+// inventing a cap — the produce-sources call will honestly identify it.
+func resolveAccountConstraints(ctx context.Context, cfg *config.Config, accts *accounts.Store, provider, accountID string) (policy.Set, policy.Set, error) {
+	if rec, err := accts.Get(ctx, accountID); err == nil {
+		return nil, declaredCap(rec.MaxConcurrentStreams), nil
+	}
+	for _, slot := range cfg.Slots.Providers {
+		for _, acct := range slot.Accounts {
+			if acct.ID != accountID {
+				continue
+			}
+			override, err := policy.ParseOverlay(acct.Policy)
+			if err != nil {
+				return nil, nil, fmt.Errorf("policy: %v", err)
+			}
+			return override, declaredCap(acct.MaxConcurrentStreams), nil
+		}
+	}
+	return nil, nil, nil
+}
+
 // armDelivery builds the delivery engine over the composed resolver and sink
 // factory, starts its watchdog, and hands it — wrapped as managedDelivery — to
 // the API service so delivery RPCs start working. The connected-account
@@ -133,29 +160,7 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 		HeartbeatGrace:    90 * time.Second,
 		InstancePolicy:    instancePolicy,
 		AccountConstraints: func(ctx context.Context, provider, accountID string) (policy.Set, policy.Set, error) {
-			// Linked accounts: their record carries the owner-declared cap
-			// set at link time. No owner-side policy override exists until
-			// the member-management surface at M6.
-			if rec, err := accountStore.Get(ctx, accountID); err == nil {
-				return nil, declaredCap(rec.MaxConcurrentStreams), nil
-			}
-			// Operator-declared accounts: carried directly in the config.
-			for _, slot := range s.cfg.Slots.Providers {
-				for _, acct := range slot.Accounts {
-					if acct.ID != accountID {
-						continue
-					}
-					override, err := policy.ParseOverlay(acct.Policy)
-					if err != nil {
-						return nil, nil, fmt.Errorf("policy: %v", err)
-					}
-					return override, declaredCap(acct.MaxConcurrentStreams), nil
-				}
-			}
-			// Unknown account: nothing to resolve against — admit with the
-			// instance policy alone rather than inventing a cap. The
-			// produce-sources call will honestly identify the account.
-			return nil, nil, nil
+			return resolveAccountConstraints(ctx, s.cfg, accountStore, provider, accountID)
 		},
 		SourceResolver: compositeResolver{resolvers: rt.Resolvers},
 		SinkFactory:    rt.Sinks,
