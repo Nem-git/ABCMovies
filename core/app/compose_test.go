@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -113,9 +114,10 @@ func TestComposeSlotsAvailabilityEventInvalidatesCache(t *testing.T) {
 	reg := registry.NewInProcess()
 	defer reg.Close()
 	sourceCache := store.NewInMemory()
+	cache := store.NewInMemory()
 	bus := apiserver.NewInMemoryBus()
 	rt, err := ComposeSlots(ctx, config.SlotsConfig{}, config.EnrichmentConfig{}, reg,
-		sourceCache, store.NewInMemory(), store.NewInMemory(), bus, slog.Default())
+		sourceCache, store.NewInMemory(), store.NewInMemory(), cache, bus, slog.Default())
 	if err != nil {
 		t.Fatalf("compose: %v", err)
 	}
@@ -125,7 +127,7 @@ func TestComposeSlotsAvailabilityEventInvalidatesCache(t *testing.T) {
 	}
 
 	// A derived-library entry as if a user had already read their library.
-	if err := sourceCache.Put(ctx, "lib/u/alice", []byte(`{"entries":[]}`)); err != nil {
+	if err := cache.Put(ctx, "lib/u/alice", []byte(`{"entries":[]}`)); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 	sub := bus.Subscribe("sub-1", "alice")
@@ -133,7 +135,7 @@ func TestComposeSlotsAvailabilityEventInvalidatesCache(t *testing.T) {
 
 	rt.eventMux.Publish(availabilityEnvelope("e1", "jellyfin", "acct-1"))
 
-	if _, err := sourceCache.Get(ctx, "lib/u/alice"); err != store.ErrKeyNotFound {
+	if _, err := cache.Get(ctx, "lib/u/alice"); err != store.ErrKeyNotFound {
 		t.Fatalf("expected cached library dropped, got err=%v", err)
 	}
 
@@ -144,12 +146,44 @@ func TestComposeSlotsAvailabilityEventInvalidatesCache(t *testing.T) {
 	}
 }
 
+func TestComposeSlotsDerivedCacheLivesInTheCacheStore(t *testing.T) {
+	reg := registry.NewInProcess()
+	defer reg.Close()
+	sourceCache := store.NewInMemory()
+	cache := store.NewInMemory()
+
+	rt, err := ComposeSlots(context.Background(), config.SlotsConfig{}, config.EnrichmentConfig{}, reg,
+		sourceCache, store.NewInMemory(), store.NewInMemory(), cache, apiserver.NewInMemoryBus(), slog.Default())
+	if err != nil {
+		t.Fatalf("compose: %v", err)
+	}
+	defer rt.Bus.Close()
+
+	if _, err := rt.Library.Library(context.Background(), "u1"); err != nil {
+		t.Fatalf("derive library: %v", err)
+	}
+	libKeys, err := cache.List(context.Background(), "lib/u/")
+	if err != nil {
+		t.Fatalf("list cache store: %v", err)
+	}
+	if len(libKeys) == 0 {
+		t.Fatal("derived library did not land in the cache store")
+	}
+	leaked, err := sourceCache.List(context.Background(), "lib/u/")
+	if err != nil {
+		t.Fatalf("list source cache: %v", err)
+	}
+	if len(leaked) != 0 {
+		t.Fatalf("derived library leaked into the source cache: %v", strings.Join(leaked, ", "))
+	}
+}
+
 func TestComposeSlotsEmptyConfig(t *testing.T) {
 	reg := registry.NewInProcess()
 	defer reg.Close()
 
 	rt, err := ComposeSlots(context.Background(), config.SlotsConfig{}, config.EnrichmentConfig{}, reg,
-		store.NewInMemory(), store.NewInMemory(), store.NewInMemory(), apiserver.NewInMemoryBus(), slog.Default())
+		store.NewInMemory(), store.NewInMemory(), store.NewInMemory(), store.NewInMemory(), apiserver.NewInMemoryBus(), slog.Default())
 	if err != nil {
 		t.Fatalf("compose: %v", err)
 	}

@@ -369,7 +369,7 @@ func newM5Stack(t *testing.T, jf *fakeJellyfin) *m5Stack {
 		t.Fatalf("SetupProviders: %v", err)
 	}
 
-	librarySvc, err := library.NewService(reaches, itemReg, stores.SourceCache, nil,
+	librarySvc, err := library.NewService(reaches, itemReg, stores.Cache, nil,
 		library.WithEnrichment(meta, nil))
 	if err != nil {
 		t.Fatalf("library.NewService: %v", err)

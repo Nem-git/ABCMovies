@@ -133,12 +133,14 @@ func (e registryEvidence) Evidence(ctx context.Context, entryID string) (enrichm
 // (queue, engine, drain worker), and the event path between syncs and cache
 // invalidation. reg is the caller-owned slot registry; sourceCache backs
 // both the caches and the registry's mappings; metaCache holds enriched
-// records.
+// records; cache holds the per-user derived library (a separate store class
+// from sourceCache, even though both are rebuildable — the source cache is
+// provider scrapes, the derived cache is the per-user merge).
 //
 // No owner id goes into the item registry yet: operator-facing
 // merge-conflict notifications arrive with the operator surface, until then
 // the registry suppresses those envelopes.
-func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.EnrichmentConfig, reg *registry.InProcessRegistry, sourceCache, metaCache, vault store.Store, apiBus *apiserver.InMemoryBus, logger *slog.Logger) (*SlotRuntime, error) {
+func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.EnrichmentConfig, reg *registry.InProcessRegistry, sourceCache, metaCache, vault, cache store.Store, apiBus *apiserver.InMemoryBus, logger *slog.Logger) (*SlotRuntime, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -200,7 +202,7 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 	worker := enrichment.NewWorker(queue, engine.Enrich, logger)
 	jobs = append(jobs, worker.Job(drainCadence))
 
-	libSvc, err := library.NewService(reaches, itemReg, sourceCache, logger,
+	libSvc, err := library.NewService(reaches, itemReg, cache, logger,
 		library.WithEnrichment(meta, queue.Enqueue))
 	if err != nil {
 		rt.Bus.Close()

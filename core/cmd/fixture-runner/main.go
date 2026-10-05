@@ -328,7 +328,7 @@ func runLibraryMergeCase(s suite, c fixture) error {
 		reaches = append(reaches, library.Reach{Sync: syncer, AccountID: acct.ID, Visibility: accounts.VisibilityPublic})
 	}
 
-	svc, err := library.NewService(reaches, reg, st, slog.Default())
+	svc, err := library.NewService(reaches, reg, store.NewInMemory(), slog.Default())
 	if err != nil {
 		return fmt.Errorf("library service: %w", err)
 	}
