@@ -21,7 +21,7 @@ func TestSQLite_CreatesMissingParentDirs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewSQLite with missing parents: %v", err)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 	if err := s.Put(t.Context(), "k", []byte("v")); err != nil {
 		t.Fatalf("Put: %v", err)
 	}
@@ -45,7 +45,7 @@ func TestVault_CreatesMissingParentDirs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewVault with missing parents: %v", err)
 	}
-	defer v.Close()
+	defer func() { _ = v.Close() }()
 	if err := v.Put(t.Context(), "k", []byte("v")); err != nil {
 		t.Fatalf("Put: %v", err)
 	}
