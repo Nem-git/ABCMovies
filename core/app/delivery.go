@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
@@ -166,7 +165,15 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 		},
 		SourceResolver: compositeResolver{resolvers: rt.Resolvers},
 		SinkFactory:    rt.Sinks,
-		RecordJob:      func(j *corev1.Job) { s.persistDeliveryJob(rt, j) },
+		// The engine is the one announcer of delivery-job status: it
+		// observes every transition, including the ones no client
+		// requested (expiry, revocation, cleanup), and the handler keeps
+		// only its store write for GetJob freshness. Both call the same
+		// RecordJobStatus the harnesses use, so fixtures exercise the
+		// production path rather than a re-implementation.
+		RecordJob: func(j *corev1.Job) {
+			apiserver.RecordJobStatus(context.Background(), s.stores.Jobs, rt.Bus, j)
+		},
 		// MenuReady announces a staged play menu once, at Start (PLAN.md
 		// §6.2). The slot runtime bus and the API bus are one object in the
 		// composed stack, so a single publish covers both audiences; a
@@ -195,28 +202,4 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 		srv.SetProber(provider, prober)
 	}
 	return nil
-}
-
-// persistDeliveryJob writes a delivery session's system-of-record Job and
-// announces its status event, mirroring the API service's job persistence
-// (PLAN.md §9.1, §9.2) so GetJob and Subscribe stay current.
-func (s *Stack) persistDeliveryJob(rt *SlotRuntime, job *corev1.Job) {
-	if job == nil {
-		return
-	}
-	raw, err := proto.Marshal(job)
-	if err != nil {
-		return
-	}
-	_ = s.stores.Jobs.Put(context.Background(), "job:"+job.GetId(), raw)
-	rt.Bus.Publish(&corev1.EventEnvelope{
-		Id:       fmt.Sprintf("evt-delivery-%s", job.GetId()),
-		Type:     corev1.EventType_EVENT_TYPE_JOB_STATUS,
-		Audience: corev1.EventAudience_EVENT_AUDIENCE_USER,
-		UserId:   job.GetOwnerUserId(),
-		Payload: &corev1.EventEnvelope_JobStatus{
-			JobStatus: &corev1.JobStatusEvent{JobId: job.GetId(), Status: job.GetStatus()},
-		},
-		EmittedAt: timestamppb.Now(),
-	})
 }

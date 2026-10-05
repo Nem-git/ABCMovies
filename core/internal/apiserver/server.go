@@ -159,7 +159,7 @@ func (s *Server) StartDelivery(ctx context.Context, req *apiv1.StartDeliveryRequ
 	if err != nil {
 		return nil, status.Error(codes.Code(delivery.Code(err)), err.Error())
 	}
-	s.persistDeliveryJob(ctx, sess.Job())
+	s.recordJob(ctx, sess.Job())
 	return &apiv1.StartDeliveryResponse{Job: sess.Job()}, nil
 }
 
@@ -190,9 +190,12 @@ func deliveryGoal(g apiv1.DeliveryGoal) (delivery.Goal, error) {
 	}
 }
 
-// persistDeliveryJob writes the job and announces its status event, mirroring
-// CreateJob so GetJob and Subscribe stay current (PLAN.md §9.1, §9.2).
-func (s *Server) persistDeliveryJob(ctx context.Context, job *corev1.Job) {
+// recordJob persists the job so GetJob reflects the new state. Delivery-job
+// status events are announced by the engine's RecordJob hook (wired in
+// core/app production code): the engine observes every transition —
+// including the ones no client requested — while the API layer only ever
+// sees StartDelivery, so the engine is the one announcer.
+func (s *Server) recordJob(ctx context.Context, job *corev1.Job) {
 	if job == nil {
 		return
 	}
@@ -200,19 +203,23 @@ func (s *Server) persistDeliveryJob(ctx context.Context, job *corev1.Job) {
 	if err != nil {
 		return
 	}
-	// When the managed engine's RecordJob hook is wired (productionapp path)
-	// it has already persisted and announced this state: the job record is
-	// present with the same status. Skip the duplicate publish; the store
-	// write remains as the idempotent sanity write.
-	if prior, err := s.stores.Jobs.Get(ctx, "job:"+job.GetId()); err == nil {
-		var prev corev1.Job
-		if proto.Unmarshal(prior, &prev) == nil && prev.GetStatus() == job.GetStatus() {
-			_ = s.stores.Jobs.Put(ctx, "job:"+job.GetId(), raw)
-			return
-		}
-	}
 	_ = s.stores.Jobs.Put(ctx, "job:"+job.GetId(), raw)
-	s.bus.Publish(&corev1.EventEnvelope{
+}
+
+// RecordJobStatus persists a delivery job's state and announces its
+// transition on the bus. It is the single announcer for delivery-job status:
+// production wires it as the engine's RecordJob hook, and test harnesses
+// wire the same function, so no fixture reconstructs the envelope by hand.
+func RecordJobStatus(ctx context.Context, st store.Store, b Bus, job *corev1.Job) {
+	if job == nil {
+		return
+	}
+	raw, err := proto.Marshal(job)
+	if err != nil {
+		return
+	}
+	_ = st.Put(ctx, "job:"+job.GetId(), raw)
+	b.Publish(&corev1.EventEnvelope{
 		Id:       fmt.Sprintf("evt-delivery-%s", job.GetId()),
 		Type:     corev1.EventType_EVENT_TYPE_JOB_STATUS,
 		Audience: corev1.EventAudience_EVENT_AUDIENCE_USER,

@@ -14,6 +14,55 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// TestM5JobStatusAnnouncedExactlyOnce pins the announcer split: the
+// delivery engine's hook is the one sender of job-status events and the
+// StartDelivery handler contributes only its store write, so a subscriber
+// sees one job-status event per transition (PLAN.md §9.2 at-most-once).
+func TestM5JobStatusAnnouncedExactlyOnce(t *testing.T) {
+	jf := fakeJellyfinServer(t)
+	stack := newM5Stack(t, jf)
+	client := apiv1.NewCoreServiceClient(startWireServer(t, stack))
+	aliceCtx := authedCtx(t.Context(), stack.aliceToken)
+
+	evCh := stack.bus.Subscribe("m5-exactonce-alice", stack.alice.UserID)
+	defer stack.bus.Unsubscribe("m5-exactonce-alice")
+
+	play, err := client.StartDelivery(aliceCtx, &apiv1.StartDeliveryRequest{
+		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:     stack.ns,
+		AccountId:    "lnk_alice_home",
+		MemberUserId: stack.alice.UserID,
+		NativeId:     "movie-gondwana",
+		Sink:         "device",
+	})
+	if err != nil {
+		t.Fatalf("StartDelivery: %v", err)
+	}
+	jobID := play.GetJob().GetId()
+
+	for _, want := range []corev1.EventType{
+		corev1.EventType_EVENT_TYPE_DELIVERY_PLAY_MENU_READY,
+		corev1.EventType_EVENT_TYPE_JOB_STATUS,
+	} {
+		select {
+		case env := <-evCh:
+			if env.GetType() != want {
+				t.Fatalf("event = %v, want %v", env.GetType(), want)
+			}
+			if env.GetType() == corev1.EventType_EVENT_TYPE_JOB_STATUS && env.GetJobStatus().GetJobId() != jobID {
+				t.Fatalf("event job = %q, want %q", env.GetJobStatus().GetJobId(), jobID)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for %v", want)
+		}
+	}
+	select {
+	case env := <-evCh:
+		t.Fatalf("unexpected second event: %v", env.GetType())
+	case <-time.After(300 * time.Millisecond):
+	}
+}
+
 // TestM5PlayEndToEndProvesRelayNotes proves one play session across the whole
 // M5 stack (PLAN.md §6.2): alice starts a play against her linked account's
 // server namespace, the session stages its menu and is announced as a job,

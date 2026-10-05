@@ -207,6 +207,9 @@ func TestM5RemoveAccountEndsLiveSessions(t *testing.T) {
 	client := apiv1.NewCoreServiceClient(startWireServer(t, stack))
 	aliceCtx := authedCtx(t.Context(), stack.aliceToken)
 
+	evCh := stack.bus.Subscribe("m5-remove-jobs-alice", stack.alice.UserID)
+	defer stack.bus.Unsubscribe("m5-remove-jobs-alice")
+
 	play, err := client.StartDelivery(aliceCtx, &apiv1.StartDeliveryRequest{
 		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
 		Provider:     stack.ns,
@@ -230,8 +233,42 @@ func TestM5RemoveAccountEndsLiveSessions(t *testing.T) {
 	}
 	assertRunning()
 
+	// Drain the start-transition events (menu-ready, then one job-status)
+	// so the event asserted below unambiguously belongs to the revocation.
+	for i, want := range []corev1.EventType{
+		corev1.EventType_EVENT_TYPE_DELIVERY_PLAY_MENU_READY,
+		corev1.EventType_EVENT_TYPE_JOB_STATUS,
+	} {
+		select {
+		case env := <-evCh:
+			if env.GetType() != want {
+				t.Fatalf("start event %d = %v, want %v", i, env.GetType(), want)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for start event %v", want)
+		}
+	}
+
 	if _, err := client.RemoveAccount(aliceCtx, &apiv1.RemoveAccountRequest{AccountId: "lnk_alice_home"}); err != nil {
 		t.Fatalf("RemoveAccount: %v", err)
+	}
+
+	// The revocation must announce a job-status transition for the live
+	// session — the engine hook is the event source, no client asked for
+	// this transition through the API.
+	select {
+	case env := <-evCh:
+		if env.GetType() != corev1.EventType_EVENT_TYPE_JOB_STATUS {
+			t.Fatalf("event type = %v, want job-status", env.GetType())
+		}
+		if env.GetJobStatus().GetJobId() != sessID {
+			t.Fatalf("event job = %q, want %q", env.GetJobStatus().GetJobId(), sessID)
+		}
+		if env.GetJobStatus().GetStatus() != corev1.JobStatus_JOB_STATUS_FAILED {
+			t.Fatalf("event status = %v, want failed", env.GetJobStatus().GetStatus())
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the job-status event on revocation")
 	}
 
 	sess, ok := stack.eng.Get(sessID)

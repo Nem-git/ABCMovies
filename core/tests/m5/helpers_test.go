@@ -389,13 +389,18 @@ func newM5Stack(t *testing.T, jf *fakeJellyfin) *m5Stack {
 		InstancePolicy: policy.Set{"concurrentStreams": "3"},
 		SourceResolver: &namespaceResolver{bySlot: resolvers},
 		SinkFactory:    sinks,
-		// The API service's own persistDeliveryJob covers the store + event
-		// in the handler; the engine's hook is a no-op here (M4 precedent).
-		RecordJob: func(*corev1.Job) {},
+		// The engine owns delivery-job status events: its hook records
+		// and announces every transition, the StartDelivery handler keeps
+		// only its own store write. Harnesses call the same
+		// apiserver.RecordJobStatus, so fixtures exercise the production
+		// path rather than a re-implementation.
+		RecordJob: func(j *corev1.Job) {
+			apiserver.RecordJobStatus(context.Background(), stores.Jobs, bus, j)
+		},
 		// MenuReady announces the staged play menu on the harness bus, the
 		// subscriber notification a frontend reacts to (PLAN.md §6.2, §9.2);
-		// it mirrors production, where armDelivery publishes on both the
-		// slot runtime bus and the API bus.
+		// it mirrors production, where armDelivery publishes on the one
+		// composed bus.
 		MenuReady: func(sess *delivery.Session) {
 			bus.Publish(&corev1.EventEnvelope{
 				Id:       fmt.Sprintf("evt-menu-%s", sess.ID),
