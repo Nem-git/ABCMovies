@@ -113,7 +113,7 @@ func (s *Server) ListAccounts(ctx context.Context, req *apiv1.ListAccountsReques
 			CallerLinked: rec.OwnerUserID == uid,
 			Status:       apiStatus(rec.Status),
 			Visibility:   apiVisibilityAPI(rec.Visibility),
-			SharedWith:   rec.SharedWith,
+			SharedWith:   rosterFor(rec, uid),
 			OwnerUserId:  rec.OwnerUserID,
 		})
 	}
@@ -127,7 +127,9 @@ func (s *Server) ListAccounts(ctx context.Context, req *apiv1.ListAccountsReques
 			CallerLinked: false,
 			Status:       apiv1.AccountStatus_ACCOUNT_STATUS_LINKED,
 			Visibility:   apiVisibilityAPI(r.Visibility),
-			SharedWith:   r.Members,
+			// Reach records for host-provided accounts never carry a roster:
+			// a host account is public by definition, and exposing its
+			// member list would hand an anonymous visitor a set of usernames.
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].GetAccountId() < out[j].GetAccountId() })
@@ -204,6 +206,20 @@ func containsAccount(accs []*apiv1.Account, id string) bool {
 		}
 	}
 	return false
+}
+
+// rosterFor is the only producer of an account's member list on the wire:
+// a roster is visible to the account's owner and to nobody else. A member
+// learns that an account is shared — Visibility tells them that — but never
+// whom with. A private or host-provided account carries no roster at all
+// (the store clears one once visibility leaves SHARED, and host accounts
+// are public by definition), so leaving the field empty there is not a
+// behaviour change for those shapes.
+func rosterFor(rec accounts.Record, uid string) []string {
+	if rec.OwnerUserID != "" && rec.OwnerUserID == uid {
+		return rec.SharedWith
+	}
+	return nil
 }
 
 // apiVisibility maps the API visibility enum to the accounts store's
