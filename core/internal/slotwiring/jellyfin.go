@@ -136,9 +136,6 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library
 			sourcecache.WithEntryLookup(deps.ItemRegistry),
 			sourcecache.WithItemResolver(registryResolver{r: deps.ItemRegistry, notify: deps.Enqueue}),
 		}
-		if deps.SyncGate != nil {
-			opts = append(opts, sourcecache.WithGate(deps.SyncGate))
-		}
 		if deps.EventSink != nil {
 			opts = append(opts, sourcecache.WithEventsSink(deps.EventSink))
 		}

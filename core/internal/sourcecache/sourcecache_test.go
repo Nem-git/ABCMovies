@@ -138,44 +138,6 @@ func TestSyncAbortsOnProviderError(t *testing.T) {
 	}
 }
 
-// denyAllYieldsDeferredBackgroundRounds proves a busy account defers the
-// round, not fails it: the provider must see no requests and no error.
-func TestSyncAccountHonorsGate(t *testing.T) {
-	var hits int
-	fp := &countingProvider{inner: &fakeProvider{pages: []*slotsv1.CatalogueSyncResponse{{}}}, hits: &hits}
-	s, _ := newSync(t, fp)
-	s.gate = denyGate{allow: false}
-	stats, err := s.SyncAccount(context.Background(), "primary")
-	if err != nil {
-		t.Fatalf("deferred round: err = %v, want nil", err)
-	}
-	if stats.Items != 0 || stats.Pages != 0 {
-		t.Fatalf("stats = %+v, want zero: the round never ran", stats)
-	}
-	if hits != 0 {
-		t.Fatalf("provider saw %d calls, want 0", hits)
-	}
-}
-
-type countingProvider struct {
-	inner *fakeProvider
-	hits  *int
-}
-
-func (c *countingProvider) CatalogueSync(ctx context.Context, req *slotsv1.CatalogueSyncRequest) (*slotsv1.CatalogueSyncResponse, error) {
-	*c.hits++
-	return c.inner.CatalogueSync(ctx, req)
-}
-
-// denyGate yields a deterministic yes/no admission for tests.
-type denyGate struct {
-	allow bool
-}
-
-func (g denyGate) Admit(_, _ string) (func(), bool) {
-	return func() {}, g.allow
-}
-
 func TestNewRejectsMissingParts(t *testing.T) {
 	cache := store.NewInMemory()
 	if _, err := New("", &fakeProvider{}, cache, nil); err == nil {

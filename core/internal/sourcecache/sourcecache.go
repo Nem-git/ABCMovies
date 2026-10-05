@@ -89,21 +89,6 @@ func WithItemResolver(res ItemResolver) Option {
 	return func(s *Synchronizer) { s.resolver = res }
 }
 
-// Gate admits a background round to the provider for one account. A denied
-// round is deferred to a later cadence tick, never queued against an account
-// whose seats are spoken for; a round that runs is released through the
-// returned func. The ForegroundGate (delivery) is the production instance;
-// tests may supply a fixed policy.
-type Gate interface {
-	Admit(provider, accountID string) (release func(), allowed bool)
-}
-
-// WithGate wires the admission gate the synchronizer consults before every
-// background round.
-func WithGate(g Gate) Option {
-	return func(s *Synchronizer) { s.gate = g }
-}
-
 // manifest is the per-account completion marker. Consumers read it to know
 // whether the cached index is complete and how fresh it is.
 type manifest struct {
@@ -120,7 +105,6 @@ type Synchronizer struct {
 	entries  EntryLookup  // optional
 	sink     EventSink    // optional
 	resolver ItemResolver // optional
-	gate     Gate         // optional; nil admits every round
 }
 
 // New builds a synchronizer for one provider slot.
@@ -198,21 +182,6 @@ func (s *Synchronizer) Manifest(ctx context.Context, accountID string) (manifest
 // reconciles nothing: deletions happen only after every page validated.
 func (s *Synchronizer) SyncAccount(ctx context.Context, accountID string) (Stats, error) {
 	stats := Stats{}
-	// Background rounds yield to foreground seats on the same account: while
-	// a member is streaming, the source cache runs nothing of the provider's
-	// catalogue, and a deferral is not an error — the next cadence tick
-	// re-tries. Released when the round returns, success or failure.
-	if s.gate != nil {
-		release, allow := s.gate.Admit(s.provider, accountID)
-		if !allow {
-			s.logger.Info("sourcecache round deferred; account seats spoken for",
-				"slot", s.provider, "account", accountID)
-			return stats, nil
-		}
-		if release != nil {
-			defer release()
-		}
-	}
 	prefix := s.provider + "/" + accountID + "/"
 	prevKeys, err := s.cache.List(ctx, prefix)
 	if err != nil {

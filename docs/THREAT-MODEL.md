@@ -47,7 +47,7 @@ PLAN.md §7.6's honesty principle governs everything here: there is no mathemati
 | T12 | Audit/log leak reveals item identity | Logs | Anyone with log access | Content-blind logging: volume and timing only (§1.3, §7.6) | §6 "nothing logged"; CI secret-leak gate (CI-CD.md §4) |
 | T13 | Malicious or non-conforming slot admitted | Any core capability | Slot provider | Fixture suite + negative fixtures; reject, never downgrade (§2.5); isolation on subprocess/network (§4); user slots tenancy-scoped and revocable (§4.1) | TESTING.md §3 fixture gate; negative fixtures mandatory |
 | T14 | Identity/merge poisoning via bad metadata | Library integrity | Hostile provider / enrichment | Provenance on every external ID; corroboration required for heuristic IDs; coverage never drives identity (§5.3) | M2/M3 fixtures (negative: no merge without corroboration) |
-| T15 | Request floods / queue exhaustion | Instance availability | External | Admission control, per-resource caps, backpressure, busy answers carry queue position (§6.5); shared pacing budgets (§7.2) | Integration tests on queue behavior; M6 ForegroundGate, M7 per-request pacing |
+| T15 | Request floods / queue exhaustion | Instance availability | External | Admission control, per-resource caps, backpressure, busy answers carry queue position (§6.5); shared pacing budgets (§7.2) | Integration tests on queue behavior; M7 per-request pacing |
 
 ## 4. Trust boundaries
 

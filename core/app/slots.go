@@ -91,10 +91,6 @@ type SlotRuntime struct {
 	Resolvers slotwiring.Resolvers
 	Sinks     delivery.SinkFactory
 	Relay     *delivery.Relay
-	// SyncGate is the shared budget gate catalogue sync and future
-	// background rounds check; it is bound to the engine in armDelivery
-	// once the engine exists.
-	SyncGate *delivery.ForegroundGate
 
 	// Probers map provider adapters — the adapter name a LinkAccountRequest
 	// carries as its provider — to credential probers, so the API validates
@@ -153,12 +149,6 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 
 	rt := &SlotRuntime{Bus: apiserver.NewInMemoryBus(), Queue: queue}
 	mux := &eventMux{bus: rt.Bus, log: logger}
-	// The shared pacing budget's v1 gate: one vocabulary of seats, one
-	// in-flight background round per account, yielding to foreground
-	// sessions that later get bound via Bind at delivery arming.
-	syncGate := delivery.NewForegroundGate()
-	rt.SyncGate = syncGate
-
 	rt.Relay = delivery.NewRelay()
 	linked := accounts.NewStore(vault, logger)
 	jobs, reaches, cats, resolvers, err := slotwiring.SetupAll(ctx, slots, slotwiring.Deps{
@@ -170,7 +160,6 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 		ItemRegistry: itemReg,
 		EventSink:    mux,
 		Enqueue:      queue.Enqueue,
-		SyncGate:     syncGate,
 	})
 	if err != nil {
 		rt.Bus.Close()

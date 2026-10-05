@@ -186,12 +186,6 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 		Logger: logger,
 	})
 	s.delivery = eng
-	// The shared budget gate that catalogue and enrichment rounds consult
-	// is bound to the engine's session set: foreground sessions hold
-	// seats that background rounds yield to.
-	if rt.SyncGate != nil {
-		rt.SyncGate.Bind(eng)
-	}
 	go eng.Watch(context.Background())
 	srv.SetDelivery(managedDelivery{eng: eng, relay: rt.Relay})
 	srv.SetLibrary(rt.Library)
