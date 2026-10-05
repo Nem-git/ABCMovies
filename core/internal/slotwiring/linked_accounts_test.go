@@ -308,6 +308,70 @@ func TestSetupProvidersProvisionsUserOwnedServer(t *testing.T) {
 	}
 }
 
+// TestSetupProvidersGroupsTwoLinkedAccountsOnOneServer pins the grouping
+// fix: two linked accounts on the same server, with no configured slot,
+// produce ONE synthetic slot carrying both accounts — previously each made
+// its own slot under the same namespace and the duplicate Admit killed boot.
+func TestSetupProvidersGroupsTwoLinkedAccountsOnOneServer(t *testing.T) {
+	vault := store.NewInMemory()
+	linked := accounts.NewStore(vault, slog.Default())
+	ctx := context.Background()
+
+	token := "vaulted-session-token-3"
+	fake := newLinkedFake(t, token)
+	for _, owner := range []string{"user-1", "user-2"} {
+		id := accounts.NewID()
+		// Equivalent addresses (case, trailing slash) must still group.
+		base := fake.server.URL
+		if owner == "user-2" {
+			base += "/"
+		}
+		rec := accounts.Record{ID: id, Provider: "jellyfin", BaseURL: base, Username: "bob", OwnerUserID: owner}
+		if err := linked.Add(ctx, rec); err != nil {
+			t.Fatalf("Add: %v", err)
+		}
+		if err := linked.Save(ctx, id, []byte(fmt.Sprintf(`{"AccessToken":%q,"User":{"Id":"u-1"}}`, token))); err != nil {
+			t.Fatalf("vault session: %v", err)
+		}
+	}
+
+	reg := registry.NewInProcess()
+	defer reg.Close()
+	itemReg, err := itemregistry.New(store.NewInMemory(), "")
+	if err != nil {
+		t.Fatalf("item registry: %v", err)
+	}
+
+	jobs, reaches, resolvers, err := SetupProviders(nil, Deps{
+		Registry:     reg,
+		Accounts:     linked,
+		SourceCache:  store.NewInMemory(),
+		Logger:       slog.Default(),
+		ItemRegistry: itemReg,
+	})
+	if err != nil {
+		t.Fatalf("SetupProviders: %v", err)
+	}
+	if len(resolvers) != 1 {
+		t.Fatalf("resolvers = %d, want one (one synthetic slot)", len(resolvers))
+	}
+	if len(reaches) != 2 {
+		t.Fatalf("reaches = %d, want two (one per account)", len(reaches))
+	}
+	if len(jobs) != 2 {
+		t.Fatalf("jobs = %d, want one per account", len(jobs))
+	}
+	for _, r := range reaches {
+		items, err := r.Sync.ListItems(ctx, r.AccountID)
+		if err != nil {
+			t.Fatalf("ListItems: %v", err)
+		}
+		if len(items) != 1 {
+			t.Fatalf("source cache for account %q has %d items, want 1", r.AccountID, len(items))
+		}
+	}
+}
+
 // TestServerNamespaceIsDeterministic pins the namespace identity: equivalent
 // base URLs (scheme, host case, trailing slash) collapse to one server, and
 // the result is stable and namespaced.
@@ -318,8 +382,14 @@ func TestServerNamespaceIsDeterministic(t *testing.T) {
 	if a != b || b != c {
 		t.Fatalf("namespace unstable across equivalent base URLs: %q vs %q vs %q", a, b, c)
 	}
-	if !strings.HasPrefix(a, "srv_") {
-		t.Fatalf("namespace %q lacks the srv_ prefix", a)
+	if !strings.HasPrefix(a, "srv-") {
+		t.Fatalf("namespace %q lacks the srv- prefix", a)
+	}
+	if !strings.Contains(a, "my-jellyfin-8096") {
+		t.Fatalf("namespace %q is not readable: want the server host slug inside", a)
+	}
+	if got := ServerNamespace(accounts.Record{Provider: "jellyfin", BaseURL: "http://other:8096"}); got == a {
+		t.Fatalf("different servers derived the same namespace %q", a)
 	}
 	if canonicalServer("http://jf-a/") != "http://jf-a" {
 		t.Fatalf("canonicalServer keeps the trailing slash: %q", canonicalServer("http://jf-a/"))

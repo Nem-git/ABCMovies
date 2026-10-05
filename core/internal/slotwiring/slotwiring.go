@@ -178,10 +178,40 @@ func RouteLinkedAccounts(entries []config.SlotEntry, records []accounts.Record) 
 // account or its owner. Every account of one server — and every user who
 // links it — lands in the same namespace, so the same film seen through any
 // of them merges into one entry. It is stable across reboots and doubles as
-// the slot id a provisioned user-owned server is wired under.
+// the slot id a provisioned user-owned server is wired under. The name is
+// readable (srv-<adapter>-<host>-<hash>) because it appears in logs and
+// error messages; the hash tail keeps two servers on one host distinct.
 func ServerNamespace(rec accounts.Record) string {
-	h := sha256.Sum256([]byte(rec.Provider + "\x00" + canonicalServer(rec.BaseURL)))
-	return "srv_" + hex.EncodeToString(h[:8])
+	base := canonicalServer(rec.BaseURL)
+	h := sha256.Sum256([]byte(rec.Provider + "\x00" + base))
+	return fmt.Sprintf("srv-%s-%s-%s", rec.Provider, serverSlug(base), hex.EncodeToString(h[:4]))
+}
+
+// serverSlug makes a server authority int8 legible: lowercase, non-alphanumer
+// characters become dashes, nothing leading or trailing. Used inside derived
+// slot names only; the hash keeps identity canonical.
+func serverSlug(base string) string {
+	u, err := url.Parse(base)
+	authority := base
+	if err == nil && u.Host != "" {
+		authority = u.Host
+	}
+	var b strings.Builder
+	dash := false
+	for _, r := range strings.ToLower(authority) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+			dash = false
+		case !dash && b.Len() > 0:
+			b.WriteByte('-')
+			dash = true
+		}
+	}
+	if out := strings.Trim(b.String(), "-"); out != "" {
+		return out
+	}
+	return "unknown"
 }
 
 // canonicalServer normalizes a base URL enough to be a stable namespace
@@ -230,25 +260,39 @@ func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []l
 			return nil, nil, nil, err
 		}
 		deps.LinkedBySlot = bySlot
+		// Provisioned records group by derived server id: two accounts on one
+		// server — the ordinary household case where several members link the
+		// same home server — become ONE synthetic slot carrying them all,
+		// never two slots claiming the same namespace (which would refuse the
+		// second at Admit and kill boot).
+		grouped := map[string][]accounts.Record{}
+		var serverOrder []string
 		for _, rec := range provisioned {
-			if _, ok := providers[rec.Provider]; !ok {
+			ns := ServerNamespace(rec)
+			if _, ok := grouped[ns]; !ok {
+				serverOrder = append(serverOrder, ns)
+			}
+			grouped[ns] = append(grouped[ns], rec)
+		}
+		for _, ns := range serverOrder {
+			recs := grouped[ns]
+			if _, ok := providers[recs[0].Provider]; !ok {
 				logger.Warn("linked account's provider adapter is not registered; it stays stored but feeds no library",
-					"account", rec.ID, "provider", rec.Provider)
+					"server", ns, "provider", recs[0].Provider, "accounts", len(recs))
 				continue
 			}
-			ns := ServerNamespace(rec)
-			deps.LinkedBySlot[ns] = append(deps.LinkedBySlot[ns], rec)
+			deps.LinkedBySlot[ns] = append(deps.LinkedBySlot[ns], recs...)
 			// The synthetic entry carries no operator accounts: the linked
-			// record IS the slot's single vault-first account.
+			// records ARE the slot's vault-first accounts.
 			entries = append(entries, config.SlotEntry{
-				Adapter:   rec.Provider,
+				Adapter:   recs[0].Provider,
 				ID:        ns,
 				Enabled:   true,
 				Transport: "in-process",
-				Server:    rec.BaseURL,
+				Server:    recs[0].BaseURL,
 			})
-			logger.Info("linked account provisions a user-owned server slot",
-				"account", rec.ID, "owner", rec.OwnerUserID, "server", ns, "base_url", rec.BaseURL)
+			logger.Info("linked accounts provision one user-owned server slot",
+				"server", ns, "base_url", recs[0].BaseURL, "accounts", len(recs))
 		}
 	}
 
