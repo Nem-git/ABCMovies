@@ -185,6 +185,33 @@ func (rt *SlotRuntime) DropAccount(rec accounts.Record) error {
 			return fmt.Errorf("drop source-cache row %q: %w", k, err)
 		}
 	}
+	// A user-provided slot exists only because of linked accounts: with its
+	// last account gone, nothing remains to provision, so it retires — its
+	// cached rows, its resolver, and its entry in the registry all go.
+	// Operator-declared slots (accounts configured in config) are never
+	// retired by an unlink; the operator's config outlives any single account.
+	if len(b.Entry.Accounts) == 0 {
+		remaining := 0
+		if linked, err := rt.deps.Accounts.List(context.Background()); err == nil {
+			for _, l := range linked {
+				if l.Provider == b.Entry.Adapter && slotwiring.ServerAddressMatch(b.Entry.Server, l.BaseURL) {
+					remaining++
+				}
+			}
+		}
+		if remaining == 0 {
+			rt.deps.Registry.Forget(b.Entry.ID)
+			delete(rt.Resolvers, b.Entry.ID)
+			keep := make([]*slotwiring.BuiltSlot, 0, len(rt.Providers))
+			for _, p := range rt.Providers {
+				if p.Entry.ID == b.Entry.ID {
+					continue
+				}
+				keep = append(keep, p)
+			}
+			rt.Providers = keep
+		}
+	}
 	return nil
 }
 

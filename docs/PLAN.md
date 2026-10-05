@@ -221,7 +221,7 @@ User slots differ from operator slots in *attribution and scope*, not in kind:
 
 ### 5.1 The library is per-user
 
-**The library is derived from the user's reachable sessions — nothing more.** It is built from the providers that user can actually reach: their own accounts, shared accounts, host-provided accounts, and anonymous/guest sessions where a provider allows browsing without a login. If a user has no account on a provider, that provider contributes nothing to that user's library.
+**The library is derived from the user's reachable sessions — nothing more.** It is built from the providers that user can actually reach: their own accounts, shared accounts, host-provided accounts, and anonymous/guest sessions where a provider allows browsing without a login. If a user has no reachable session on a provider — no account of their own, and no account shared with them — that provider contributes nothing to their library. A shared account contributes to every member it is shared with, whether or not that member holds a provider login of their own on that server.
 
 Consequences:
 

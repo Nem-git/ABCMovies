@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -36,6 +37,7 @@ type Registry interface {
 // InProcessRegistry handshakes declared slots and keeps a live table of what
 // is admitted. It uses an in-process gRPC transport (bufconn).
 type InProcessRegistry struct {
+	mu    sync.Mutex
 	slots map[string]*slotEntry
 }
 
@@ -79,9 +81,12 @@ func (r *InProcessRegistry) Describe(name string, server corev1.MetaServiceServe
 // down and only the declaration is returned.
 func (r *InProcessRegistry) handshake(name string, server corev1.MetaServiceServer, publish bool) (SlotInfo, error) {
 	if publish {
+		r.mu.Lock()
 		if _, exists := r.slots[name]; exists {
+			r.mu.Unlock()
 			return SlotInfo{}, fmt.Errorf("registry: slot %q already admitted", name)
 		}
+		r.mu.Unlock()
 	}
 	lis := bufconn.Listen(bufSize)
 	srv := grpc.NewServer()
@@ -126,6 +131,7 @@ func (r *InProcessRegistry) handshake(name string, server corev1.MetaServiceServ
 		_ = lis.Close()
 		return info, nil
 	}
+	r.mu.Lock()
 	r.slots[name] = &slotEntry{
 		capabilities: caps,
 		policy:       info.Policy,
@@ -133,11 +139,34 @@ func (r *InProcessRegistry) handshake(name string, server corev1.MetaServiceServ
 		conn:         conn,
 		listener:     lis,
 	}
+	r.mu.Unlock()
 	return info, nil
+}
+
+// Forget dismisses a slot and tears its transport down: the slot may not
+// serve or be queried again. It is the retirement half of Admit — used when
+// a slot that no account needs any longer (e.g. the last account of a
+// user-provided server is unlinked) goes away; an entry that was never
+// admitted is a no-op, not an error.
+func (r *InProcessRegistry) Forget(name string) {
+	r.mu.Lock()
+	entry, ok := r.slots[name]
+	if ok {
+		delete(r.slots, name)
+	}
+	r.mu.Unlock()
+	if !ok {
+		return
+	}
+	_ = entry.conn.Close()
+	entry.server.Stop()
+	_ = entry.listener.Close()
 }
 
 // Capabilities returns the admitted capabilities of a slot.
 func (r *InProcessRegistry) Capabilities(name string) ([]Capability, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	entry, ok := r.slots[name]
 	if !ok {
 		return nil, false
@@ -149,6 +178,8 @@ func (r *InProcessRegistry) Capabilities(name string) ([]Capability, bool) {
 // {"browse.sync-cadence": "6h"}. Absent keys were simply not declared; the
 // caller applies its own precedence around them. Unknown slot → nil, false.
 func (r *InProcessRegistry) Policy(name string) (map[string]string, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	entry, ok := r.slots[name]
 	if !ok {
 		return nil, false
@@ -160,6 +191,8 @@ func (r *InProcessRegistry) Policy(name string) (map[string]string, bool) {
 // The order of slots is not specified; callers that display them sort
 // themselves. The returned maps are copies.
 func (r *InProcessRegistry) Snapshot() map[string]SlotInfo {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	out := make(map[string]SlotInfo, len(r.slots))
 	for name, entry := range r.slots {
 		caps := make([]Capability, len(entry.capabilities))
@@ -175,7 +208,14 @@ func (r *InProcessRegistry) Snapshot() map[string]SlotInfo {
 
 // Close tears down every admitted slot's transport.
 func (r *InProcessRegistry) Close() {
+	r.mu.Lock()
+	slots := make([]*slotEntry, 0, len(r.slots))
 	for _, entry := range r.slots {
+		slots = append(slots, entry)
+	}
+	r.slots = map[string]*slotEntry{}
+	r.mu.Unlock()
+	for _, entry := range slots {
 		_ = entry.conn.Close()
 		entry.server.Stop()
 		_ = entry.listener.Close()
