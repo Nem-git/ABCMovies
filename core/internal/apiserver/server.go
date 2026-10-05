@@ -19,6 +19,15 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// AccountAttacher wires a freshly-linked account into the live provider slot
+// that serves its server (PLAN.md §5.1): route the record to that slot, admit
+// the account to it, and build its sync machinery. The composition root
+// implements it; until armed, linking stores the record and the account waits
+// for the next boot to come alive.
+type AccountAttacher interface {
+	AttachAccount(rec accounts.Record) error
+}
+
 // DeliveryManager is the delivery-engine surface the API layer calls
 // (PLAN.md §6, §9.1). Exposing an interface keeps the apiserver decoupled
 // from the engine's internals and lets the handlers be tested with a stub.
@@ -54,6 +63,7 @@ type Server struct {
 	library  LibrarySeam
 	accounts *accounts.Store
 	probers  map[string]CredentialProber
+	attacher AccountAttacher
 }
 
 // NewServer returns a CoreService backed by the given bus, stores, and auth.
@@ -77,6 +87,17 @@ func NewServer(bus Bus, stores config.Stores, authenticator *auth.CompositeAuthe
 		accounts: accounts.NewStore(stores.Vault, nil),
 		probers:  map[string]CredentialProber{},
 	}
+}
+
+// SetAttacher arms the runtime link path (PLAN.md §5.1): when armed, a link
+// not only stores the record and session but wires the account into its live
+// provider slot, so the account is reachable without a restart. Compose-time
+// only, like SetProber/SetLibrary.
+func (s *Server) SetAttacher(a AccountAttacher) {
+	if a == nil {
+		return
+	}
+	s.attacher = a
 }
 
 // SetDelivery arms the delivery engine after construction — used when the

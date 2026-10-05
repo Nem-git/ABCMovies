@@ -67,6 +67,11 @@ type SlotRuntime struct {
 	// its wiring; keeping the handle here lets the compose-level fixture
 	// drive an availability event through the real wiring.
 	eventMux *eventMux
+	// deps is the composition Deps the boot used, retained so a runtime
+	// account link can build the new account's sync machinery through the
+	// same resources (source cache, item registry, event sink, enrichment
+	// queue, context, logger) without a fresh composition.
+	deps slotwiring.Deps
 	// Library derives and caches per-user libraries over every wired reach.
 	Library *library.Service
 	// ItemRegistry is the instance-wide provider item registry; exposed for
@@ -87,6 +92,10 @@ type SlotRuntime struct {
 	// Jobs are the slots' recurring refresh jobs; register them with a
 	// scheduler and run it. The enrichment drain job is included.
 	Jobs []scheduler.Job
+	// Scheduler runs every recurring job, wired in ComposeSlots with the boot
+	// set of jobs. It is shared with the runtime link path: a refresh job
+	// registered after startup starts its worker immediately (PLAN.md §5.1).
+	Scheduler *scheduler.Scheduler
 	// Providers are the live provider slots, as built at boot: the composition
 	// root's record of which slot serves which entry. A runtime account link
 	// attaches to one of these without a rebuild (PLAN.md §5.1).
@@ -107,6 +116,46 @@ type SlotRuntime struct {
 	// nothing is vaulted that the probe rejected). Empty when no provider
 	// adapter arms a prober.
 	Probers map[string]apiserver.CredentialProber
+}
+
+// providerFor finds the built provider slot whose adapter and declared server
+// match the account's provider and base URL — the same matching rule boot
+// routing uses (PLAN.md §3.5). A link to a server no slot serves reports an
+// error, never a silent guess.
+func (rt *SlotRuntime) providerFor(provider, baseURL string) *slotwiring.BuiltSlot {
+	for _, b := range rt.Providers {
+		if b.Entry.Adapter == provider && slotwiring.ServerAddressMatch(b.Entry.Server, baseURL) {
+			return b
+		}
+	}
+	return nil
+}
+
+// AttachAccount links a provider account onto a live slot without a restart
+// (PLAN.md §5.1): it routes the record to the slot serving its server, admits
+// the account to that slot, builds its sync machinery through the shared
+// per-account path, publishes the reach, registers the refresh job on the
+// shared scheduler, and kicks off the first sync in the background. If any
+// step fails the account is taken back out of the slot and the error
+// propagates, so the caller can roll back the stored record and session.
+func (rt *SlotRuntime) AttachAccount(rec accounts.Record) error {
+	b := rt.providerFor(rec.Provider, rec.BaseURL)
+	if b == nil {
+		return fmt.Errorf("no provider slot serves %s account from %q", rec.Provider, rec.BaseURL)
+	}
+	syncer, reach, job, err := slotwiring.AttachAccount(b, rec, rt.deps)
+	if err != nil {
+		return err
+	}
+	if err := rt.Library.AddReach(*reach); err != nil {
+		if attachable, ok := b.Impl.(slotwiring.AttachableSlot); ok {
+			attachable.DropAccount(rec.ID)
+		}
+		return fmt.Errorf("publish reach: %w", err)
+	}
+	rt.Scheduler.Register(*job)
+	slotwiring.FirstSync(syncer, rec.ID, rt.deps)
+	return nil
 }
 
 // registryEvidence adapts the item registry to the enrichment engine's
@@ -162,23 +211,24 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 	mux := &eventMux{bus: rt.Bus, log: logger}
 	rt.eventMux = mux
 	rt.Relay = delivery.NewRelay()
-	linked := accounts.NewStore(vault, logger)
-	jobs, reaches, cats, resolvers, built, err := slotwiring.SetupAll(ctx, slots, slotwiring.Deps{
+	deps := slotwiring.Deps{
 		Ctx:          ctx,
 		Registry:     reg,
-		Accounts:     linked,
+		Accounts:     accounts.NewStore(vault, logger),
 		SourceCache:  sourceCache,
 		Logger:       logger,
 		ItemRegistry: itemReg,
 		EventSink:    mux,
 		Enqueue:      queue.Enqueue,
-	})
+	}
+	jobs, reaches, cats, resolvers, built, err := slotwiring.SetupAll(ctx, slots, deps)
 	if err != nil {
 		rt.Bus.Close()
 		return nil, fmt.Errorf("slots: %w", err)
 	}
 	rt.Resolvers = resolvers
 	rt.Probers = map[string]apiserver.CredentialProber{}
+	rt.deps = deps
 	for _, e := range slots.Providers {
 		if !e.Enabled {
 			continue
@@ -214,6 +264,10 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 	}
 	rt.Library, rt.ItemRegistry, rt.Jobs = libSvc, itemReg, jobs
 	rt.Providers = built
+	rt.Scheduler = scheduler.New(0, logger)
+	for _, j := range rt.Jobs {
+		rt.Scheduler.Register(j)
+	}
 	// The production wiring must complete the two event destinations, or
 	// availability never triggers a derived-library invalidation at runtime.
 	mux.lib = libSvc

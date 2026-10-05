@@ -201,5 +201,8 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 	for provider, prober := range rt.Probers {
 		srv.SetProber(provider, prober)
 	}
+	// Arms the runtime link path: a freshly-linked account routes to its
+	// provider slot and comes alive without a restart (PLAN.md §5.1).
+	srv.SetAttacher(rt)
 	return nil
 }

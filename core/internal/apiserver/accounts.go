@@ -81,6 +81,15 @@ func (s *Server) LinkAccount(ctx context.Context, req *apiv1.LinkAccountRequest)
 		_ = s.accounts.Delete(ctx, id)
 		return nil, status.Error(codes.Internal, "failed to persist the account record")
 	}
+	if s.attacher != nil {
+		if err := s.attacher.AttachAccount(rec); err != nil {
+			// The account could not be wired into a live slot: take back the
+			// record and its session so the user is not left with an account
+			// that stores but never serves. The attacher cleans the slot side.
+			_ = s.accounts.Delete(ctx, id)
+			return nil, status.Error(codes.Internal, "failed to wire the account into its slot: "+err.Error())
+		}
+	}
 	s.emitAccountEvent(uid, id, rec.Provider, corev1.EventType_EVENT_TYPE_ACCOUNT_SESSION_LINKED)
 	return &apiv1.LinkAccountResponse{AccountId: id}, nil
 }

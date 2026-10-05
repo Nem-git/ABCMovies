@@ -90,6 +90,7 @@ type BuiltSlot struct {
 type AttachableSlot interface {
 	sourcecache.Client
 	AddAccount(id string) error
+	DropAccount(id string)
 }
 
 // AttachAccount wires one linked account into the provider slot that serves
@@ -111,6 +112,9 @@ func AttachAccount(b *BuiltSlot, rec accounts.Record, deps Deps) (*sourcecache.S
 	meta := reachMeta{owner: rec.OwnerUserID, visibility: rec.Visibility, members: rec.SharedWith}
 	syncer, reach, job, err := accountSyncMachine(providerNamespace(b.Entry), rec.ID, attachable, b.Cadence, meta, deps)
 	if err != nil {
+		// The account must not be half-wired: the slot accepted it but its
+		// machinery did not build, so take it back before anyone sees it.
+		attachable.DropAccount(rec.ID)
 		return nil, nil, nil, err
 	}
 	return syncer, reach, job, nil
@@ -319,6 +323,14 @@ func canonicalServer(base string) string {
 		return strings.ToLower(strings.TrimRight(base, "/"))
 	}
 	return u.Scheme + "://" + strings.ToLower(u.Host) + strings.TrimRight(u.Path, "/")
+}
+
+// ServerAddressMatch reports whether a provider slot and a linked account
+// belong to the same server: both sides canonicalized. Boot routing and the
+// runtime link path use this one rule (PLAN.md §3.5), so a slot never
+// silently serves a link that points at a different server.
+func ServerAddressMatch(slotServer, baseURL string) bool {
+	return canonicalServer(slotServer) == canonicalServer(baseURL)
 }
 
 // Resolvers maps a provider slot id to its produce-sources delivery resolver,
