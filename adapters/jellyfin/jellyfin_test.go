@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -168,15 +169,37 @@ func queryInt(r *http.Request, key string) int {
 
 const testPasswordEnv = "JELLYFIN_TEST_PASSWORD"
 
+// staticSource is the test roster: a fixed map of account ids to their
+// provider-side description. Production wiring builds the same interface over
+// config plus the linked-account store.
+type staticSource map[string]Account
+
+func (s *staticSource) Lookup(_ context.Context, id string) (Account, error) {
+	a, ok := (*s)[id]
+	if !ok {
+		return Account{}, fmt.Errorf("unknown account %q", id)
+	}
+	return a, nil
+}
+
+// sourceFor indexes accounts by id for a test slot's AccountSource.
+func sourceFor(accts ...Account) *staticSource {
+	s := make(staticSource, len(accts))
+	for _, a := range accts {
+		s[a.ID] = a
+	}
+	return &s
+}
+
 func newTestSlot(t *testing.T, f *fakeJellyfin) *Slot {
 	t.Helper()
 	t.Setenv(testPasswordEnv, "sekret")
-	slot, err := New([]Account{{
+	slot, err := New([]string{"primary"}, sourceFor(Account{
 		ID:          "primary",
 		URL:         f.server.URL,
 		Username:    "bob",
 		PasswordEnv: testPasswordEnv,
-	}}, WithHTTPClient(f.server.Client()))
+	}), WithHTTPClient(f.server.Client()))
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -245,11 +268,11 @@ func TestVaultFirstLinkedAccountRestoresSession(t *testing.T) {
 		t.Fatalf("seed session: %v", err)
 	}
 
-	slot, err := New([]Account{{
+	slot, err := New([]string{"lnk_abc"}, sourceFor(Account{
 		ID:       "lnk_abc",
 		URL:      f.server.URL,
 		Username: "bob",
-	}}, WithHTTPClient(f.server.Client()), WithSessionVault(vault))
+	}), WithHTTPClient(f.server.Client()), WithSessionVault(vault))
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -267,11 +290,11 @@ func TestVaultFirstLinkedAccountRestoresSession(t *testing.T) {
 // (PLAN.md §7.5).
 func TestVaultFirstAccountWithoutSessionNeedsRelink(t *testing.T) {
 	f := newFake(t, nil)
-	slot, err := New([]Account{{
+	slot, err := New([]string{"lnk_abc"}, sourceFor(Account{
 		ID:       "lnk_abc",
 		URL:      f.server.URL,
 		Username: "bob",
-	}}, WithHTTPClient(f.server.Client()), WithSessionVault(&memVault{blobs: map[string][]byte{}}))
+	}), WithHTTPClient(f.server.Client()), WithSessionVault(&memVault{blobs: map[string][]byte{}}))
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -286,16 +309,54 @@ func TestVaultFirstAccountWithoutSessionNeedsRelink(t *testing.T) {
 // still names its server and username.
 func TestNewAllowsVaultFirstAccount(t *testing.T) {
 	f := newFake(t, nil)
-	slot, err := New([]Account{{
+	slot, err := New([]string{"lnk_abc"}, sourceFor(Account{
 		ID:       "lnk_abc",
 		URL:      f.server.URL,
 		Username: "bob",
-	}}, WithHTTPClient(f.server.Client()))
+	}), WithHTTPClient(f.server.Client()))
 	if err != nil {
 		t.Fatalf("New rejected a vault-first account: %v", err)
 	}
 	if slot == nil {
 		t.Fatal("New returned a nil slot")
+	}
+}
+
+// TestAddAndDropAccountAtRuntime pins the runtime account seam: the slot
+// serves an account that was added after construction, without a rebuild, and
+// an account that was dropped stops being served — with its cached session
+// (a live credential) discarded.
+func TestAddAndDropAccountAtRuntime(t *testing.T) {
+	f := newFake(t, []mediaItem{{Id: "a", Type: "Movie", Name: "A"}})
+	t.Setenv(testPasswordEnv, "sekret")
+	src := staticSource{
+		"primary": {ID: "primary", URL: f.server.URL, Username: "bob", PasswordEnv: testPasswordEnv},
+	}
+	slot, err := New([]string{"primary"}, &src, WithHTTPClient(f.server.Client()))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ctx := context.Background()
+
+	// The roster gains an account; the slot must serve it after AddAccount.
+	src["lnk_1"] = Account{ID: "lnk_1", URL: f.server.URL, Username: "bob", PasswordEnv: testPasswordEnv}
+	if err := slot.AddAccount("lnk_1"); err != nil {
+		t.Fatalf("AddAccount: %v", err)
+	}
+	if _, err := slot.CatalogueSync(ctx, &slotsv1.CatalogueSyncRequest{AccountId: "lnk_1"}); err != nil {
+		t.Fatalf("CatalogueSync for runtime-added account: %v", err)
+	}
+
+	// An id the slot has never served is unknown.
+	if _, err := slot.CatalogueSync(ctx, &slotsv1.CatalogueSyncRequest{AccountId: "ghost"}); err == nil {
+		t.Fatal("CatalogueSync for unknown account must be an error")
+	}
+
+	// Dropping the account stops it being served and clears its session.
+	slot.DropAccount("lnk_1")
+	if _, err := slot.CatalogueSync(ctx, &slotsv1.CatalogueSyncRequest{AccountId: "lnk_1"}); err == nil ||
+		!strings.Contains(err.Error(), "unknown account") {
+		t.Fatalf("CatalogueSync after DropAccount = %v, want unknown account", err)
 	}
 }
 
@@ -426,15 +487,15 @@ func TestNewRejectsIncompleteAccounts(t *testing.T) {
 		{ID: "a", URL: "", Username: "u", PasswordEnv: "P"},
 		{ID: "a", URL: "http://x", Username: "", PasswordEnv: "P"},
 	} {
-		if _, err := New([]Account{a}); err == nil {
+		if _, err := New([]string{a.ID}, sourceFor(a)); err == nil {
 			t.Fatalf("incomplete account %+v accepted", a)
 		}
 	}
-	if _, err := New(nil); err == nil {
+	if _, err := New(nil, sourceFor()); err == nil {
 		t.Fatal("zero accounts accepted")
 	}
 	dup := Account{ID: "a", URL: "http://x", Username: "u", PasswordEnv: "P"}
-	if _, err := New([]Account{dup, dup}); err == nil {
+	if _, err := New([]string{"a", "a"}, sourceFor(dup, dup)); err == nil {
 		t.Fatal("duplicate account id accepted")
 	}
 }
@@ -467,7 +528,7 @@ func TestProbeCredentials(t *testing.T) {
 	// uses: the probe and the slot speak one authResult format.
 	mv := &memVault{blobs: map[string][]byte{}}
 	_ = mv.Save(context.Background(), "linked-1", blob)
-	slot, err := New([]Account{{ID: "linked-1", URL: f.server.URL, Username: "bob"}},
+	slot, err := New([]string{"linked-1"}, sourceFor(Account{ID: "linked-1", URL: f.server.URL, Username: "bob"}),
 		WithHTTPClient(f.server.Client()),
 		WithSessionVault(mv))
 	if err != nil {

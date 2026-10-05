@@ -32,6 +32,32 @@ func init() {
 	RegisterProvider("jellyfin", wireJellyfin)
 }
 
+// slotRoster is the core-side source of truth the adapter consults for
+// account details: operator-declared accounts come from config, linked
+// accounts from the record store (which also holds their vaulted sessions).
+// The adapter keeps no copy of this — only a per-account token cache — and
+// linked accounts are always resolved as vault-first: PasswordEnv is empty,
+// so a dead session is a re-link, never a silent re-login.
+type slotRoster struct {
+	server string
+	ops    map[string]jellyfin.Account
+	store  *accounts.Store
+}
+
+func (r slotRoster) Lookup(ctx context.Context, id string) (jellyfin.Account, error) {
+	if a, ok := r.ops[id]; ok {
+		return a, nil
+	}
+	rec, err := r.store.Get(ctx, id)
+	if err != nil {
+		return jellyfin.Account{}, fmt.Errorf("account %q: %w", id, err)
+	}
+	if canonicalServer(rec.BaseURL) != r.server {
+		return jellyfin.Account{}, fmt.Errorf("account %q is not on this slot's server", id)
+	}
+	return jellyfin.Account{ID: rec.ID, URL: rec.BaseURL, Username: rec.Username}, nil
+}
+
 // registryResolver adapts the item registry to the synchronizer's
 // ItemResolver: every synced item resolves behind the run's success boundary.
 // Any status other than unchanged means identity work happened — a mapping
@@ -70,20 +96,22 @@ func providerNamespace(entry config.SlotEntry) string {
 // unpublished slot — the composition root admits it as its final step, so
 // this function never publishes on its caller's behalf (publish last).
 func wireJellyfin(entry config.SlotEntry, deps Deps) (*builtSlot, error) {
-	accts := make([]jellyfin.Account, 0, len(entry.Accounts)+len(deps.LinkedBySlot[entry.ID]))
-	reachesMeta := make([]reachMeta, 0, cap(accts))
+	// Operator-declared accounts are host-provided and public (PLAN.md
+	// §2.2): every user may derive them into a library.
+	ops := make(map[string]jellyfin.Account, len(entry.Accounts))
+	ids := make([]string, 0, len(entry.Accounts)+len(deps.LinkedBySlot[entry.ID]))
+	reachesMeta := make([]reachMeta, 0, len(entry.Accounts)+len(deps.LinkedBySlot[entry.ID]))
 	for _, a := range entry.Accounts {
 		if a.ID == "" {
 			return nil, fmt.Errorf("account entry missing id")
 		}
-		accts = append(accts, jellyfin.Account{
+		ids = append(ids, a.ID)
+		ops[a.ID] = jellyfin.Account{
 			ID:          a.ID,
 			URL:         entry.Server,
 			Username:    a.Username,
 			PasswordEnv: a.PasswordEnv,
-		})
-		// Operator-declared accounts are host-provided and public (PLAN.md
-		// §2.2): every user may derive them into a library.
+		}
 		reachesMeta = append(reachesMeta, reachMeta{visibility: accounts.VisibilityPublic})
 	}
 	// Linked accounts join the same slot as the operator accounts of the same
@@ -95,11 +123,7 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) (*builtSlot, error) {
 			return nil, fmt.Errorf("slot %q serves %q but linked account %q is on %q",
 				entry.ID, entry.Server, rec.ID, rec.BaseURL)
 		}
-		accts = append(accts, jellyfin.Account{
-			ID:       rec.ID,
-			URL:      rec.BaseURL,
-			Username: rec.Username,
-		})
+		ids = append(ids, rec.ID)
 		reachesMeta = append(reachesMeta, reachMeta{
 			owner:      rec.OwnerUserID,
 			visibility: rec.Visibility,
@@ -111,7 +135,8 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) (*builtSlot, error) {
 	if deps.Accounts != nil {
 		opts = append(opts, jellyfin.WithSessionVault(deps.Accounts))
 	}
-	slot, err := jellyfin.New(accts, opts...)
+	src := slotRoster{canonicalServer(entry.Server), ops, deps.Accounts}
+	slot, err := jellyfin.New(ids, src, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("build: %w", err)
 	}
@@ -125,10 +150,10 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) (*builtSlot, error) {
 		return nil, fmt.Errorf("cadence: %w", err)
 	}
 
-	jobs := make([]scheduler.Job, 0, len(accts))
-	reaches := make([]library.Reach, 0, len(accts))
+	jobs := make([]scheduler.Job, 0, len(ids))
+	reaches := make([]library.Reach, 0, len(ids))
 	namespace := providerNamespace(entry)
-	for i, acc := range accts {
+	for i, accountID := range ids {
 		if deps.ItemRegistry == nil {
 			return nil, fmt.Errorf("slot %q: identity work requires an item registry; none was wired", entry.ID)
 		}
@@ -143,7 +168,6 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) (*builtSlot, error) {
 		if err != nil {
 			return nil, fmt.Errorf("source cache: %w", err)
 		}
-		accountID := acc.ID
 		reaches = append(reaches, library.Reach{
 			Sync:       syncer,
 			AccountID:  accountID,

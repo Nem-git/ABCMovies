@@ -97,12 +97,21 @@ func queryInt(r *http.Request, key string) int {
 
 const m1TestPasswordEnv = "JELLYFIN_TEST_PASSWORD"
 
+// staticRosterM1 answers account lookups from one fixed entry: the M1
+// fixture serves a single declared account. Production wiring resolves the
+// same interface from config plus the linked-account store.
+type staticRosterM1 struct{ acct jellyfin.Account }
+
+func (s staticRosterM1) Lookup(_ context.Context, _ string) (jellyfin.Account, error) {
+	return s.acct, nil
+}
+
 // newM1Slot builds a real jellyfin adapter pointed at the fake server. The
 // password comes from the environment, exactly as production resolves it.
 func newM1Slot(t *testing.T, f *fakeJellyfin) *jellyfin.Slot {
 	t.Helper()
 	t.Setenv(m1TestPasswordEnv, "sekret")
-	slot, err := jellyfin.New([]jellyfin.Account{{
+	slot, err := jellyfin.New([]string{"primary"}, staticRosterM1{jellyfin.Account{
 		ID:          "primary",
 		URL:         f.server.URL,
 		Username:    "bob",
