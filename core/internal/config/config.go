@@ -131,7 +131,9 @@ type EnrichmentConfig struct {
 }
 
 // Stores holds the instantiated store backends for each storage class
-// (PLAN.md §2.4).
+// (PLAN.md §2.4). VaultAEAD is the single instance key resolved from
+// stores.vault-key; the vault, the sealed users store and an encrypted
+// data-key cache all derive from it.
 type Stores struct {
 	Cache         store.Store
 	Vault         store.Store
@@ -141,6 +143,7 @@ type Stores struct {
 	Users         store.Store
 	SourceCache   store.Store
 	MetadataCache store.Store
+	VaultAEAD     cipher.AEAD
 }
 
 func Default() *Config {
@@ -298,15 +301,30 @@ func BuildStores(ctx context.Context, cfg *Config, logger *slog.Logger) (Stores,
 		return s, fmt.Errorf("stores.metadata-cache: %w", err)
 	}
 
-	// Vault requires an AEAD cipher.
+	// The instance key is resolved exactly once and shared by everything that
+	// must be sealed at rest: the vault store, the sealed login store, and an
+	// encrypted data-key cache. Resolving it per consumer would, with a
+	// generated key, hand each of them a different key — and sealed records
+	// would become unreadable in-process as well.
+	aead, err := loadOrGenerateVaultKey(cfg.Stores.VaultKey, logger)
+	if err != nil {
+		return s, fmt.Errorf("stores.vault key: %w", err)
+	}
+	s.VaultAEAD = aead
+
+	// Login records carry password hashes and wrapped keys. Seal them with the
+	// instance key regardless of backend so the guarantee (records are never
+	// plaintext at rest) does not depend on a config dropdown.
+	s.Users, err = store.NewSealed(s.Users, aead, logger)
+	if err != nil {
+		return s, fmt.Errorf("stores.users: %w", err)
+	}
+
+	// Vault requires an AEAD cipher — the single one resolved above is it.
 	switch cfg.Stores.Vault.Backend {
 	case "in-memory":
 		s.Vault = store.NewInMemory()
 	case "local-file":
-		aead, vaultErr := loadOrGenerateVaultKey(cfg.Stores.VaultKey, logger)
-		if vaultErr != nil {
-			return s, fmt.Errorf("stores.vault key: %w", vaultErr)
-		}
 		vaultPath := cfg.Stores.Vault.Path
 		if vaultPath == "" {
 			vaultPath = "data/vault.db"
@@ -319,6 +337,7 @@ func BuildStores(ctx context.Context, cfg *Config, logger *slog.Logger) (Stores,
 		return s, fmt.Errorf("stores.vault: unknown backend %q", cfg.Stores.Vault.Backend)
 	}
 
+	auditDurability(cfg, logger)
 	return s, nil
 }
 
@@ -349,11 +368,11 @@ func buildStore(_ context.Context, cfg StoreConfig, defaultPath string) (store.S
 	}
 }
 
-// loadOrGenerateVaultKey returns an AEAD cipher for the vault. If the config
-// value is "generated", a random 32-byte key is created and a warning is
-// logged (data will not survive restart). Otherwise the value is hex-decoded
-// as a 32-byte key.
-func loadOrGenerateVaultKey(val string, logger *slog.Logger) (cipher.AEAD, error) {
+// loadOrGenerateVaultKey returns an AEAD cipher for the instance key. If the
+// config value is "generated", a random 32-byte key is created — fine within
+// one process, useless across a restart, which auditDurability names.
+// Otherwise the value is hex-decoded as a 32-byte key.
+func loadOrGenerateVaultKey(val string, _ *slog.Logger) (cipher.AEAD, error) {
 	var key []byte
 
 	switch val {
@@ -361,9 +380,6 @@ func loadOrGenerateVaultKey(val string, logger *slog.Logger) (cipher.AEAD, error
 		key = make([]byte, 32)
 		if _, err := rand.Read(key); err != nil {
 			return nil, fmt.Errorf("generate vault key: %w", err)
-		}
-		if logger != nil {
-			logger.Warn("generated ephemeral vault key — data will not survive restart")
 		}
 	default:
 		// Treat as hex-encoded 32-byte key.
@@ -392,6 +408,43 @@ func loadOrGenerateVaultKey(val string, logger *slog.Logger) (cipher.AEAD, error
 	return aead, nil
 }
 
+// auditDurability is the one voice on store durability at boot. The storage
+// classification says what may be lost and what must not; rather than trusting
+// the operator to remember, boot inspects the effective configuration and
+// names, per affected class, exactly what a restart takes away. It never
+// refuses to boot: a throwaway instance is a legitimate configuration, and
+// it should be able to say so honestly out loud.
+func auditDurability(cfg *Config, logger *slog.Logger) {
+	if logger == nil {
+		return
+	}
+
+	// A generated key never matches itself across a restart. Whatever is
+	// sealed on disk — account sessions, user records, an encrypted data-key
+	// cache — is irrecoverable afterwards, even though the files remain.
+	// In-memory classes lose their contents with the process either way.
+	if cfg.Stores.VaultKey == "" || cfg.Stores.VaultKey == "generated" {
+		logger.Warn("stores: no instance key configured (stores.vault-key is generated): every sealed store becomes unreadable after a restart. Pin a 64-hex-character key to keep logins, account sessions and watch history.")
+	}
+
+	var lost []string
+	if cfg.Stores.Users.Backend == "in-memory" {
+		lost = append(lost, "logins (users)")
+	}
+	if cfg.Stores.Vault.Backend == "in-memory" {
+		lost = append(lost, "account sessions (vault)")
+	}
+	if cfg.Stores.WatchHistory.Backend == "in-memory" {
+		lost = append(lost, "watch history")
+	}
+	if len(lost) > 0 {
+		logger.Warn("stores: must-not-lose classes are in-memory — a restart loses them", "lost", lost)
+	}
+	if cfg.Stores.Jobs.Backend == "in-memory" {
+		logger.Warn("stores: jobs are in-memory — a restart restarts in-flight work instead of continuing it")
+	}
+}
+
 // ParseTokenTTL parses the token TTL from the config string.
 // Returns the default (7 days) if the string is empty or invalid.
 func ParseTokenTTL(val string) time.Duration {
@@ -404,14 +457,6 @@ func ParseTokenTTL(val string) time.Duration {
 		return defaultTTL
 	}
 	return d
-}
-
-// VaultAEAD returns the AEAD cipher for vault-class encryption, loading or
-// generating the configured vault key. Callers that need the cipher outside
-// store construction (the sealed DEK cache) use this instead of reaching
-// into BuildStores.
-func VaultAEAD(cfg *Config, logger *slog.Logger) (cipher.AEAD, error) {
-	return loadOrGenerateVaultKey(cfg.Stores.VaultKey, logger)
 }
 
 // BuildAuth creates the auth-layer stores from the given backend stores and

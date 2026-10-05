@@ -1,12 +1,15 @@
 package config_test
 
 import (
+	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/nem-git/abcmovies/core/internal/auth"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
@@ -226,6 +229,106 @@ func TestBuildStores_VaultDefaultPath(t *testing.T) {
 	_, err := config.BuildStores(t.Context(), c, nil)
 	if err != nil {
 		t.Fatalf("BuildStores: %v", err)
+	}
+}
+
+func TestBuildStores_UserRecordsFollowTheInstanceKey(t *testing.T) {
+	dir := t.TempDir()
+	usersPath := filepath.Join(dir, "users.db")
+
+	newCfg := func(key string) *config.Config {
+		c := config.Default()
+		c.Stores.VaultKey = key
+		c.Stores.Users = config.StoreConfig{Backend: "local-file", Path: usersPath}
+		return c
+	}
+
+	first, err := config.BuildStores(t.Context(), newCfg(strings.Repeat("ab", 32)), nil)
+	if err != nil {
+		t.Fatalf("BuildStores: %v", err)
+	}
+	users := auth.NewStoreUserStore(first.Users)
+	if err := users.PutUser("alice", &auth.UserData{Salt: []byte("s"), PasswordHash: []byte("h"), WrappedDEK: []byte("d"), WrappedRecovery: []byte("r")}); err != nil {
+		t.Fatalf("PutUser: %v", err)
+	}
+	if err := config.CloseStores(first); err != nil {
+		t.Fatalf("CloseStores: %v", err)
+	}
+
+	// The on-disk record must never be the plaintext JSON of a login.
+	var leaked bool
+	if blobs, err := filepath.Glob(usersPath + "*"); err == nil {
+		for _, f := range blobs {
+			raw, err := os.ReadFile(f)
+			if err != nil {
+				continue
+			}
+			if bytes.Contains(raw, []byte("PasswordHash")) {
+				leaked = true
+			}
+		}
+	}
+	if leaked {
+		t.Fatal("a login record reached disk as plaintext JSON")
+	}
+
+	// A restart with the same key must read the record back.
+	second, err := config.BuildStores(t.Context(), newCfg(strings.Repeat("ab", 32)), nil)
+	if err != nil {
+		t.Fatalf("BuildStores: %v", err)
+	}
+	if _, err := auth.NewStoreUserStore(second.Users).GetUser("alice"); err != nil {
+		t.Fatalf("a sealed record must open under the same instance key: %v", err)
+	}
+	if err := config.CloseStores(second); err != nil {
+		t.Fatalf("CloseStores: %v", err)
+	}
+
+	// The same file under a different key must fail closed — nothing opens.
+	third, err := config.BuildStores(t.Context(), newCfg(strings.Repeat("cd", 32)), nil)
+	if err != nil {
+		t.Fatalf("BuildStores: %v", err)
+	}
+	if _, err := auth.NewStoreUserStore(third.Users).GetUser("alice"); err == nil {
+		t.Fatal("a sealed record opened under a different instance key")
+	}
+}
+
+func TestBuildStores_DurabilityAuditReportsInMemoryAndGeneratedKey(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+	if _, err := config.BuildStores(t.Context(), config.Default(), logger); err != nil {
+		t.Fatalf("BuildStores: %v", err)
+	}
+	out := buf.String()
+	for _, want := range []string{
+		"no instance key configured",
+		"logins (users)",
+		"account sessions (vault)",
+		"watch history",
+		"jobs are in-memory",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("durability audit missing %q\ngot:\n%s", want, out)
+		}
+	}
+}
+
+func TestBuildStores_DurableConfigProducesNoDurabilityWarnings(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+	dir := t.TempDir()
+	c := config.Default()
+	c.Stores.VaultKey = strings.Repeat("cd", 32)
+	c.Stores.Vault = config.StoreConfig{Backend: "local-file", Path: filepath.Join(dir, "vault.db")}
+	c.Stores.Users = config.StoreConfig{Backend: "local-file", Path: filepath.Join(dir, "users.db")}
+	c.Stores.WatchHistory = config.StoreConfig{Backend: "local-file", Path: filepath.Join(dir, "watch-history.db")}
+	c.Stores.Jobs = config.StoreConfig{Backend: "local-file", Path: filepath.Join(dir, "jobs.db")}
+	if _, err := config.BuildStores(t.Context(), c, logger); err != nil {
+		t.Fatalf("BuildStores: %v", err)
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("a durable configuration must not warn; got:\n%s", buf.String())
 	}
 }
 

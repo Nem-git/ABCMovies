@@ -11,7 +11,6 @@ package app
 
 import (
 	"context"
-	"crypto/cipher"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -79,15 +78,7 @@ func Build(configPath string, logger *slog.Logger) (*Stack, error) {
 		return nil, fmt.Errorf("stores: %w", err)
 	}
 
-	var vaultAEAD cipher.AEAD
-	if cfg.Auth.DEKCache == "encrypted-store" {
-		vaultAEAD, err = config.VaultAEAD(cfg, logger)
-		if err != nil {
-			_ = closeStores(stores)
-			return nil, fmt.Errorf("dek-cache: %w", err)
-		}
-	}
-	users, tokens, deks, err := config.BuildAuth(stores.Users, stores.Sessions, cfg.Auth.DEKCache, vaultAEAD)
+	users, tokens, deks, err := config.BuildAuth(stores.Users, stores.Sessions, cfg.Auth.DEKCache, stores.VaultAEAD)
 	if err != nil {
 		_ = closeStores(stores)
 		return nil, fmt.Errorf("auth: %w", err)
