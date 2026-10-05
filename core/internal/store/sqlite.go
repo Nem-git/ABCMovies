@@ -31,6 +31,9 @@ type SQLite struct {
 // NewSQLite opens or creates a SQLite database at path and returns a ready
 // Store. The caller should call Close when done.
 func NewSQLite(_ context.Context, path string) (*SQLite, error) {
+	if err := ensureParentDir(path); err != nil {
+		return nil, fmt.Errorf("sqlite: %w", err)
+	}
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: open %s: %w", path, err)

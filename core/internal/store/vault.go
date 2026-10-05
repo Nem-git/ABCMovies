@@ -43,6 +43,9 @@ func NewVault(ctx context.Context, path string, aead cipher.AEAD) (*Vault, error
 	if aead == nil {
 		return nil, fmt.Errorf("vault: aead cipher is required")
 	}
+	if err := ensureParentDir(path); err != nil {
+		return nil, fmt.Errorf("vault: %w", err)
+	}
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, fmt.Errorf("vault: open %s: %w", path, err)
