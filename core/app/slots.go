@@ -62,8 +62,10 @@ func (m *eventMux) Publish(env *corev1.EventEnvelope) {
 type SlotRuntime struct {
 	// Bus carries sync-emitted events to subscribers.
 	Bus *apiserver.InMemoryBus
-	// eventMux is referenced here so production can prove the availability
-	// wiring (in-band invalidation) actually completed during composition.
+	// eventMux routes sync-emitted events to the bus and the library
+	// invalidator. Production composition is the only place that sets
+	// its wiring; keeping the handle here lets the compose-level fixture
+	// drive an availability event through the real wiring.
 	eventMux *eventMux
 	// Library derives and caches per-user libraries over every wired reach.
 	Library *library.Service

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
+	"time"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
@@ -35,9 +36,10 @@ func (f *fakePublisher) Publish(env *corev1.EventEnvelope) {
 
 func availabilityEnvelope(id, provider, accountID string) *corev1.EventEnvelope {
 	return &corev1.EventEnvelope{
-		Id:       id,
-		Type:     corev1.EventType_EVENT_TYPE_AVAILABILITY_CHANGED,
-		Audience: corev1.EventAudience_EVENT_AUDIENCE_ACCOUNT,
+		Id:        id,
+		Type:      corev1.EventType_EVENT_TYPE_AVAILABILITY_CHANGED,
+		Audience:  corev1.EventAudience_EVENT_AUDIENCE_ACCOUNT,
+		AccountId: accountID,
 		Payload: &corev1.EventEnvelope_Availability{
 			Availability: &corev1.AvailabilityEvent{
 				AccountId: accountID,
@@ -97,6 +99,48 @@ func TestMuxInvalidationFailureDoesNotDropEvent(t *testing.T) {
 
 	if len(pub.published) != 1 {
 		t.Fatalf("bus received %v, want the forwarded envelope despite the invalidation failure", pub.published)
+	}
+}
+
+// Regression fixture for the production wiring: before it existed,
+// availability events reached the bus while no cached library was ever
+// dropped, and every test passed because each test wired its own invalidator.
+// Composing the slots for real must connect availability events to derived
+// library invalidation, and the production entitlement predicate must keep an
+// unknown account from leaking to subscribers.
+func TestComposeSlotsAvailabilityEventInvalidatesCache(t *testing.T) {
+	ctx := context.Background()
+	reg := registry.NewInProcess()
+	defer reg.Close()
+	sourceCache := store.NewInMemory()
+	bus := apiserver.NewInMemoryBus()
+	rt, err := ComposeSlots(ctx, config.SlotsConfig{}, config.EnrichmentConfig{}, reg,
+		sourceCache, store.NewInMemory(), store.NewInMemory(), bus, slog.Default())
+	if err != nil {
+		t.Fatalf("compose: %v", err)
+	}
+	defer rt.Bus.Close()
+	if rt.eventMux == nil {
+		t.Fatal("production wiring did not expose the event mux")
+	}
+
+	// A derived-library entry as if a user had already read their library.
+	if err := sourceCache.Put(ctx, "lib/u/alice", []byte(`{"entries":[]}`)); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	sub := bus.Subscribe("sub-1", "alice")
+	defer bus.Unsubscribe("sub-1")
+
+	rt.eventMux.Publish(availabilityEnvelope("e1", "jellyfin", "acct-1"))
+
+	if _, err := sourceCache.Get(ctx, "lib/u/alice"); err != store.ErrKeyNotFound {
+		t.Fatalf("expected cached library dropped, got err=%v", err)
+	}
+
+	select {
+	case e := <-sub:
+		t.Fatalf("unknown account leaked to subscriber: %v", e.GetType())
+	case <-time.After(100 * time.Millisecond):
 	}
 }
 
