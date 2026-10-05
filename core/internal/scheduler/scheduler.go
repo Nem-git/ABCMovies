@@ -36,8 +36,12 @@ type Job struct {
 // Scheduler runs jobs on a cadence with jitter and per-job backoff.
 type Scheduler struct {
 	cadence time.Duration
-	jobs    []Job
 	logger  *slog.Logger
+	mu      sync.Mutex
+	jobs    []Job
+	started bool
+	ctx     context.Context
+	wg      sync.WaitGroup
 }
 
 // New builds a scheduler with the default cadence (zero means default).
@@ -51,26 +55,43 @@ func New(cadence time.Duration, logger *slog.Logger) *Scheduler {
 	return &Scheduler{cadence: cadence, logger: logger}
 }
 
-// Register adds a job. Jobs registered before Run are scheduled; registering
-// after Run starts returns false and does nothing (growth is declared, not
-// improvised).
+// Register adds a job. Jobs registered before Run are scheduled at startup;
+// registering after Run has begun starts that job's worker immediately, so a
+// runtime-linked account's refresh begins without a restart. The first fire
+// of every job still waits one (jittered) cadence — the account's first fill
+// belongs to the attach path, not the schedule.
 func (s *Scheduler) Register(j Job) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.jobs = append(s.jobs, j)
+	if s.started {
+		ctx := s.ctx
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			s.loop(ctx, j)
+		}()
+	}
 	return true
 }
 
 // Run blocks until ctx is cancelled, firing each job once per cadence with
 // independent jitter and backoff.
 func (s *Scheduler) Run(ctx context.Context) {
-	var wg sync.WaitGroup
-	for _, j := range s.jobs {
-		wg.Add(1)
+	s.mu.Lock()
+	s.started = true
+	s.ctx = ctx
+	jobs := make([]Job, len(s.jobs))
+	copy(jobs, s.jobs)
+	s.mu.Unlock()
+	for _, j := range jobs {
+		s.wg.Add(1)
 		go func(j Job) {
-			defer wg.Done()
+			defer s.wg.Done()
 			s.loop(ctx, j)
 		}(j)
 	}
-	wg.Wait()
+	s.wg.Wait()
 }
 
 func (s *Scheduler) loop(ctx context.Context, j Job) {
