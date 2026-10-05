@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
@@ -62,11 +63,24 @@ type Deps struct {
 	Enqueue func(entryID string)
 }
 
-// providerFactory admits one slot instance and returns its recurring jobs
-// plus the reaches (synchronizer + account pairs) it makes available for
-// derived libraries, and — when the adapter can produce media sources — the
-// delivery resolver the engine routes produce-sources through (PLAN.md §6.2).
-type providerFactory func(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library.Reach, delivery.Resolver, error)
+// builtSlot is a provider slot fully assembled by its factory but not yet
+// published: the adapter instance, its per-account sync machinery (one
+// source-cache synchronizer per account, each having run its initial sync),
+// the handshake-declared cadence resolved into refresh jobs, and the
+// delivery resolver. Nothing has been admitted into the registry, so a
+// failure anywhere in the build publishes nothing.
+type builtSlot struct {
+	entry    config.SlotEntry
+	impl     corev1.MetaServiceServer
+	jobs     []scheduler.Job
+	reaches  []library.Reach
+	resolver delivery.Resolver
+}
+
+// providerFactory builds one slot instance and everything derived from it,
+// but does NOT admit it: admission is the caller's last step, so a factory
+// that fails halfway leaves the instance unwired rather than half-wired.
+type providerFactory func(entry config.SlotEntry, deps Deps) (*builtSlot, error)
 
 var providers = map[string]providerFactory{}
 
@@ -79,10 +93,18 @@ func RegisterProvider(adapter string, f providerFactory) {
 	providers[adapter] = f
 }
 
-// catalogueFactory admits one catalogue slot instance and hands back the
-// engine-facing client pair. Catalogues run no jobs of their own — they are
-// pulled by the enrichment drain, not pushed by a cadence.
-type catalogueFactory func(entry config.SlotEntry, deps Deps) (enrichment.Catalogue, error)
+// builtCatalogue is the engine-facing catalogue client paired with the
+// served slot instance, ready to be admitted.
+type builtCatalogue struct {
+	catalogue enrichment.Catalogue
+	impl      corev1.MetaServiceServer
+}
+
+// catalogueFactory builds one catalogue slot instance (its token check and
+// construction) and hands back the engine-facing client pair without
+// admitting it. Catalogues run no jobs of their own — they are pulled by the
+// enrichment drain, not pushed by a cadence.
+type catalogueFactory func(entry config.SlotEntry, deps Deps) (*builtCatalogue, error)
 
 var catalogs = map[string]catalogueFactory{}
 
@@ -99,14 +121,20 @@ func RegisterCatalogue(adapter string, f catalogueFactory) {
 // foreign identity namespaces; it powers the no-overlap rule below.
 type namespaceClaimer interface{ Namespaces() []string }
 
-// SetupCatalogues admits every enabled catalogue entry. Two enabled slots
-// may never claim the same identity namespace — with overlap,
-// GetMetadata(ref) would silently depend on wiring order instead of data
-// (TECHNICAL-DECISIONS.md §1.29), so startup fails loudly instead.
+// SetupCatalogues builds, validates and admits every enabled catalogue entry.
+// Two enabled slots may never claim the same identity namespace — with
+// overlap, GetMetadata(ref) would silently depend on wiring order instead of
+// data (TECHNICAL-DECISIONS.md §1.29), so startup fails loudly instead. The
+// overlap check runs on the served slot instance (not the narrowed engine
+// client), before anything is admitted.
 func SetupCatalogues(entries []config.SlotEntry, deps Deps) ([]enrichment.Catalogue, error) {
 	logger := deps.Logger
-	claimed := map[string]string{} // namespace -> slot id
-	var out []enrichment.Catalogue
+
+	type pending struct {
+		entry config.SlotEntry
+		b     *builtCatalogue
+	}
+	var built []pending
 	for _, entry := range entries {
 		if !entry.Enabled {
 			logger.Info("slot disabled by config; skipping", "slot", entry.ID, "adapter", entry.Adapter)
@@ -120,15 +148,29 @@ func SetupCatalogues(entries []config.SlotEntry, deps Deps) ([]enrichment.Catalo
 		if err != nil {
 			return nil, fmt.Errorf("slot %q (adapter %q): %w", entry.ID, entry.Adapter, err)
 		}
-		if claimer, ok := cat.Client.(namespaceClaimer); ok {
+		built = append(built, pending{entry, cat})
+	}
+
+	claimed := map[string]string{} // namespace -> slot id
+	for _, p := range built {
+		if claimer, ok := p.b.impl.(namespaceClaimer); ok {
 			for _, ns := range claimer.Namespaces() {
 				if owner, dup := claimed[ns]; dup {
-					return nil, fmt.Errorf("slots %q and %q both claim identity namespace %q", owner, entry.ID, ns)
+					return nil, fmt.Errorf("slots %q and %q both claim identity namespace %q", owner, p.entry.ID, ns)
 				}
-				claimed[ns] = entry.ID
+				claimed[ns] = p.entry.ID
 			}
 		}
-		out = append(out, cat)
+	}
+
+	var out []enrichment.Catalogue
+	for _, p := range built {
+		caps, err := deps.Registry.Admit(p.entry.ID, p.b.impl)
+		if err != nil {
+			return nil, fmt.Errorf("slot %q (adapter %q): %w", p.entry.ID, p.entry.Adapter, err)
+		}
+		logAdmitted(logger, p.entry.ID, caps)
+		out = append(out, p.b.catalogue)
 	}
 	return out, nil
 }
@@ -296,9 +338,7 @@ func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []l
 		}
 	}
 
-	var jobs []scheduler.Job
-	var reaches []library.Reach
-	resolvers := Resolvers{}
+	var built []*builtSlot
 	for _, entry := range entries {
 		if !entry.Enabled {
 			logger.Info("slot disabled by config; skipping", "slot", entry.ID, "adapter", entry.Adapter)
@@ -308,14 +348,28 @@ func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []l
 		if !ok {
 			return nil, nil, nil, fmt.Errorf("slot %q: unknown provider adapter %q (registered: %v)", entry.ID, entry.Adapter, keys(providers))
 		}
-		entryJobs, entryReaches, res, err := f(entry, deps)
+		b, err := f(entry, deps)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("slot %q (adapter %q): %w", entry.ID, entry.Adapter, err)
 		}
-		jobs = append(jobs, entryJobs...)
-		reaches = append(reaches, entryReaches...)
-		if res != nil {
-			resolvers[entry.ID] = res
+		built = append(built, b)
+	}
+
+	// Publish last: every factory succeeded before any slot is admitted, so a
+	// failure above leaves the registry untouched rather than half-populated.
+	var jobs []scheduler.Job
+	var reaches []library.Reach
+	resolvers := Resolvers{}
+	for _, b := range built {
+		caps, err := deps.Registry.Admit(b.entry.ID, b.impl)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("slot %q (adapter %q): %w", b.entry.ID, b.entry.Adapter, err)
+		}
+		logAdmitted(logger, b.entry.ID, caps)
+		jobs = append(jobs, b.jobs...)
+		reaches = append(reaches, b.reaches...)
+		if b.resolver != nil {
+			resolvers[b.entry.ID] = b.resolver
 		}
 	}
 	return jobs, reaches, resolvers, nil

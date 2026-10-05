@@ -10,7 +10,6 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/config"
-	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/scheduler"
@@ -63,20 +62,19 @@ func providerNamespace(entry config.SlotEntry) string {
 	return entry.ID
 }
 
-// wireJellyfin admits one Jellyfin slot instance under its configured id,
-// builds its accounts from operator config *and* the linked accounts routed
-// to this slot (same server namespace, §1.25), wires the vault-backed session
-// store, schedules each account's catalogue sync at the resolved cadence
-// (config override > declared > default), and hands back the slot's
-// produce-sources resolver for the delivery engine. A provisioned user-owned
-// server arrives here as a synthetic entry carrying exactly one linked
-// account with no operator accounts.
-func wireJellyfin(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library.Reach, delivery.Resolver, error) {
+// wireJellyfin builds one Jellyfin slot instance under its configured id:
+// accounts come from operator config *and* the linked accounts routed to
+// this slot (same server, §1.25), the vault-backed session store is wired in,
+// each account's source cache is built and synced once, and the
+// handshake-declared cadence is resolved into refresh jobs. It returns the
+// unpublished slot — the composition root admits it as its final step, so
+// this function never publishes on its caller's behalf (publish last).
+func wireJellyfin(entry config.SlotEntry, deps Deps) (*builtSlot, error) {
 	accts := make([]jellyfin.Account, 0, len(entry.Accounts)+len(deps.LinkedBySlot[entry.ID]))
 	reachesMeta := make([]reachMeta, 0, cap(accts))
 	for _, a := range entry.Accounts {
 		if a.ID == "" {
-			return nil, nil, nil, fmt.Errorf("account entry missing id")
+			return nil, fmt.Errorf("account entry missing id")
 		}
 		accts = append(accts, jellyfin.Account{
 			ID:          a.ID,
@@ -94,7 +92,7 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library
 	// follows the record the owner chose at link time (§5.1).
 	for _, rec := range deps.LinkedBySlot[entry.ID] {
 		if canonicalServer(rec.BaseURL) != canonicalServer(entry.Server) {
-			return nil, nil, nil, fmt.Errorf("slot %q serves %q but linked account %q is on %q",
+			return nil, fmt.Errorf("slot %q serves %q but linked account %q is on %q",
 				entry.ID, entry.Server, rec.ID, rec.BaseURL)
 		}
 		accts = append(accts, jellyfin.Account{
@@ -115,18 +113,16 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library
 	}
 	slot, err := jellyfin.New(accts, opts...)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("build: %w", err)
+		return nil, fmt.Errorf("build: %w", err)
 	}
-	caps, err := deps.Registry.Admit(entry.ID, slot)
+	info, err := deps.Registry.Describe(entry.ID, slot)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("handshake: %w", err)
+		return nil, fmt.Errorf("handshake: %w", err)
 	}
-	logAdmitted(deps.Logger, entry.ID, caps)
 
-	policy, _ := deps.Registry.Policy(entry.ID)
-	cadence, err := DeclaredCadence(entry.SyncCadence, policy, jellyfinCadenceKey)
+	cadence, err := DeclaredCadence(entry.SyncCadence, info.Policy, jellyfinCadenceKey)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("cadence: %w", err)
+		return nil, fmt.Errorf("cadence: %w", err)
 	}
 
 	jobs := make([]scheduler.Job, 0, len(accts))
@@ -134,7 +130,7 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library
 	namespace := providerNamespace(entry)
 	for i, acc := range accts {
 		if deps.ItemRegistry == nil {
-			return nil, nil, nil, fmt.Errorf("slot %q: identity work requires an item registry; none was wired", entry.ID)
+			return nil, fmt.Errorf("slot %q: identity work requires an item registry; none was wired", entry.ID)
 		}
 		opts := []sourcecache.Option{
 			sourcecache.WithEntryLookup(deps.ItemRegistry),
@@ -145,7 +141,7 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library
 		}
 		syncer, err := sourcecache.New(namespace, slot, deps.SourceCache, deps.Logger, opts...)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("source cache: %w", err)
+			return nil, fmt.Errorf("source cache: %w", err)
 		}
 		accountID := acc.ID
 		reaches = append(reaches, library.Reach{
@@ -168,7 +164,13 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library
 			},
 		})
 	}
-	return jobs, reaches, jellyfinResolver{slot: slot}, nil
+	return &builtSlot{
+		entry:    entry,
+		impl:     slot,
+		jobs:     jobs,
+		reaches:  reaches,
+		resolver: jellyfinResolver{slot: slot},
+	}, nil
 }
 
 // jellyfinResolver adapts the Jellyfin slot's ProduceSources to the delivery

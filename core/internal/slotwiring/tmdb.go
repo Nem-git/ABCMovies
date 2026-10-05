@@ -14,27 +14,26 @@ func init() {
 	RegisterCatalogue("tmdb", wireTMDB)
 }
 
-// wireTMDB admits one TMDB catalogue instance. The credential travels via
+// wireTMDB builds one TMDB catalogue instance. The credential travels via
 // the slot's token-env (TECHNICAL-DECISIONS.md §1.27): the adapter reads
 // the named environment variable at composition time and startup fails
 // loudly when it is absent — a half-credentialed catalogue would silently
-// enrich nothing.
-func wireTMDB(entry config.SlotEntry, deps Deps) (enrichment.Catalogue, error) {
+// enrich nothing. The slot is returned unpublished; the composition root
+// admits it as its final step.
+func wireTMDB(entry config.SlotEntry, deps Deps) (*builtCatalogue, error) {
 	if entry.TokenEnv == "" {
-		return enrichment.Catalogue{}, fmt.Errorf("slot %q: catalogue slots deliver their credential through token-env; none configured", entry.ID)
+		return nil, fmt.Errorf("slot %q: catalogue slots deliver their credential through token-env; none configured", entry.ID)
 	}
 	slot, err := tmdb.New(entry.TokenEnv)
 	if err != nil {
-		return enrichment.Catalogue{}, fmt.Errorf("build: %w", err)
+		return nil, fmt.Errorf("build: %w", err)
 	}
-	caps, err := deps.Registry.Admit(entry.ID, slot)
-	if err != nil {
-		return enrichment.Catalogue{}, fmt.Errorf("handshake: %w", err)
-	}
-	logAdmitted(deps.Logger, entry.ID, caps)
-	return enrichment.Catalogue{
-		Slot:   entry.ID,
-		Client: &catalogClient{slot: slot},
+	return &builtCatalogue{
+		catalogue: enrichment.Catalogue{
+			Slot:   entry.ID,
+			Client: &catalogClient{slot: slot},
+		},
+		impl: slot,
 	}, nil
 }
 

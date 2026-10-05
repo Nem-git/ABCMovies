@@ -54,11 +54,34 @@ func NewInProcess() *InProcessRegistry {
 
 // Admit handshakes an in-process slot over an in-memory transport: it serves
 // the slot's Meta service on a buffer connection, asks CapabilityQuery, and
-// validates the declaration. An invalid declaration is rejected (§3.3 of
-// PLAN.md: nothing is assumed, everything is asked).
+// validates the declaration, then records what the slot declared. An invalid
+// declaration is rejected (§3.3 of PLAN.md: nothing is assumed, everything is
+// asked). Publication is Admit's only side effect — Describe skips it.
 func (r *InProcessRegistry) Admit(name string, server corev1.MetaServiceServer) ([]Capability, error) {
-	if _, exists := r.slots[name]; exists {
-		return nil, fmt.Errorf("registry: slot %q already admitted", name)
+	info, err := r.handshake(name, server, true)
+	if err != nil {
+		return nil, err
+	}
+	return info.Capabilities, nil
+}
+
+// Describe runs the same serve-handshake-validate against a slot as Admit,
+// but publishes nothing and tears the probe transport down: factories use it
+// to resolve what a slot declared (its capabilities and policy, e.g. the
+// sync cadence) before the composition root publishes anything.
+func (r *InProcessRegistry) Describe(name string, server corev1.MetaServiceServer) (SlotInfo, error) {
+	return r.handshake(name, server, false)
+}
+
+// handshake serves the slot's Meta service on a buffer connection, asks
+// CapabilityQuery and validates the declaration. When publish is true the
+// slot is recorded in the registry; when false the probe transport is torn
+// down and only the declaration is returned.
+func (r *InProcessRegistry) handshake(name string, server corev1.MetaServiceServer, publish bool) (SlotInfo, error) {
+	if publish {
+		if _, exists := r.slots[name]; exists {
+			return SlotInfo{}, fmt.Errorf("registry: slot %q already admitted", name)
+		}
 	}
 	lis := bufconn.Listen(bufSize)
 	srv := grpc.NewServer()
@@ -72,7 +95,7 @@ func (r *InProcessRegistry) Admit(name string, server corev1.MetaServiceServer) 
 	)
 	if err != nil {
 		_ = lis.Close()
-		return nil, fmt.Errorf("registry: dial %q: %w", name, err)
+		return SlotInfo{}, fmt.Errorf("registry: dial %q: %w", name, err)
 	}
 
 	go func() { _ = srv.Serve(lis) }()
@@ -82,7 +105,7 @@ func (r *InProcessRegistry) Admit(name string, server corev1.MetaServiceServer) 
 		_ = conn.Close()
 		srv.Stop()
 		_ = lis.Close()
-		return nil, fmt.Errorf("registry: handshake %q failed: %w", name, err)
+		return SlotInfo{}, fmt.Errorf("registry: handshake %q failed: %w", name, err)
 	}
 
 	caps := make([]Capability, 0, len(resp.GetCapabilities()))
@@ -91,19 +114,26 @@ func (r *InProcessRegistry) Admit(name string, server corev1.MetaServiceServer) 
 			_ = conn.Close()
 			srv.Stop()
 			_ = lis.Close()
-			return nil, fmt.Errorf("registry: %q declared invalid capability (name %q version %d)", name, c.GetName(), c.GetVersion())
+			return SlotInfo{}, fmt.Errorf("registry: %q declared invalid capability (name %q version %d)", name, c.GetName(), c.GetVersion())
 		}
 		caps = append(caps, Capability{Name: c.GetName(), Version: c.GetVersion()})
 	}
 
+	info := SlotInfo{Capabilities: caps, Policy: resp.GetPolicy()}
+	if !publish {
+		_ = conn.Close()
+		srv.Stop()
+		_ = lis.Close()
+		return info, nil
+	}
 	r.slots[name] = &slotEntry{
 		capabilities: caps,
-		policy:       resp.GetPolicy(),
+		policy:       info.Policy,
 		server:       srv,
 		conn:         conn,
 		listener:     lis,
 	}
-	return caps, nil
+	return info, nil
 }
 
 // Capabilities returns the admitted capabilities of a slot.
