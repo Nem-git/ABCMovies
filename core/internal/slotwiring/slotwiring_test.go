@@ -89,7 +89,7 @@ func TestDisabledEntriesAreSkipped(t *testing.T) {
 
 	jobs, _, _, err := SetupProviders([]config.SlotEntry{{
 		ID: "primary", Adapter: "jellyfin", Enabled: false,
-		Accounts: []config.AccountConfig{{ID: "primary"}}, // no URL/password on purpose
+		Accounts: []config.AccountConfig{{ID: "primary"}}, // no credentials on purpose
 	}}, Deps{Registry: reg, Logger: slog.Default()})
 	if err != nil {
 		t.Fatalf("disabled entry must not be wired: %v", err)

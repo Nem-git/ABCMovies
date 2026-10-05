@@ -115,9 +115,9 @@ slots:
     - id: primary
       adapter: jellyfin
       enabled: true
+      server: "http://jf.local"
       accounts:
         - id: home
-          url: "http://jf.local"
           username: bob
           password-env: JF_PASSWORD
           max-concurrent-streams: 2
@@ -138,9 +138,9 @@ slots:
     - id: primary
       adapter: jellyfin
       enabled: true
+      server: "http://jf.local"
       accounts:
         - id: home
-          url: "http://jf.local"
           username: bob
           password-env: JF_PASSWORD
           max-concurrent-streams: 2
@@ -431,10 +431,10 @@ slots:
     - adapter: jellyfin
       id: primary
       enabled: true
+      server: http://jellyfin.local:8096
       sync-cadence: 15m
       accounts:
         - id: primary
-          url: http://jellyfin.local:8096
           username: bob
           password-env: JELLYFIN_PASSWORD
 `)
@@ -474,8 +474,18 @@ func TestValidateSlots_Rejections(t *testing.T) {
 		},
 		{
 			name:    "missing adapter",
-			yaml:    "slots:\n  providers:\n    - id: primary\n      enabled: true\n",
+			yaml:    "slots:\n  providers:\n    - id: primary\n      enabled: true\n      server: \"http://jf.example\"\n",
 			wantErr: "adapter is required",
+		},
+		{
+			name:    "missing server",
+			yaml:    "slots:\n  providers:\n    - id: primary\n      adapter: jellyfin\n      enabled: true\n",
+			wantErr: "must declare the server",
+		},
+		{
+			name:    "account missing id",
+			yaml:    "slots:\n  providers:\n    - id: primary\n      adapter: jellyfin\n      enabled: true\n      server: \"http://jf.example\"\n      accounts:\n        - username: bob\n",
+			wantErr: "account entry missing id",
 		},
 		{
 			name: "duplicate id across kinds",
@@ -484,6 +494,7 @@ func TestValidateSlots_Rejections(t *testing.T) {
     - adapter: jellyfin
       id: primary
       enabled: true
+      server: "http://jf.example"
   sinks:
     - adapter: jellyfin
       id: primary

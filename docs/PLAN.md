@@ -130,6 +130,8 @@ Five slot types exist. **Every slot answers the meta-contract** (§3.3); provide
 | **subtitle-source** | get-subtitles | its own | external subtitle source, keyed by external identity (§5.3); provenance-marked, opt-in (§6.2) |
 | **drm** | acquire-keys, decrypt | its own | license negotiation + decryption (§6.6) |
 
+**A provider slot serves exactly one server.** The slot declares which server it serves; its accounts are logins *on that server*, each carrying its own credentials, per-account policy overrides and upstream concurrency cap — never a second server. One server per slot makes the slot's identity namespace, its sync cadence and its per-provider pacing a single unambiguous scope. A member who links a server no configured slot declares gets a slot synthesized for that server: same shape, same rules, derived deterministically from the server address, so every account of that server — and every member who links it — lands in one namespace and a title seen through any of them merges into one entry.
+
 **Frontends are not slots.** A slot is something the core reaches *out* to, declares in config, handshakes at startup, and supervises. A frontend is the opposite: it reaches *in* to the core's API. The core must not know a frontend exists, and adding one never changes the core (§8). Sinks are slots because the engine actively drives them; frontends drive themselves. The test: *who reaches out to whom?*
 
 ### 3.2 Provider capabilities, per operation

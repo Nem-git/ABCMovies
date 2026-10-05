@@ -80,7 +80,7 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library
 		}
 		accts = append(accts, jellyfin.Account{
 			ID:          a.ID,
-			URL:         a.URL,
+			URL:         entry.Server,
 			Username:    a.Username,
 			PasswordEnv: a.PasswordEnv,
 		})
@@ -93,6 +93,10 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library
 	// vaulted at link time (§3.5) and is restored by the adapter. Sharing
 	// follows the record the owner chose at link time (§5.1).
 	for _, rec := range deps.LinkedBySlot[entry.ID] {
+		if canonicalServer(rec.BaseURL) != canonicalServer(entry.Server) {
+			return nil, nil, nil, fmt.Errorf("slot %q serves %q but linked account %q is on %q",
+				entry.ID, entry.Server, rec.ID, rec.BaseURL)
+		}
 		accts = append(accts, jellyfin.Account{
 			ID:       rec.ID,
 			URL:      rec.BaseURL,

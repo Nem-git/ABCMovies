@@ -21,9 +21,9 @@ func TestResolveAccountConstraints(t *testing.T) {
 	}
 	cfg := &config.Config{}
 	cfg.Slots.Providers = []config.SlotEntry{{
-		ID: "primary", Adapter: "jellyfin", Enabled: true,
+		ID: "primary", Adapter: "jellyfin", Enabled: true, Server: "http://jf",
 		Accounts: []config.AccountConfig{{
-			ID: "home", URL: "http://jf", Username: "bob", PasswordEnv: "JF_PASSWORD",
+			ID: "home", Username: "bob", PasswordEnv: "JF_PASSWORD",
 			MaxConcurrentStreams: 4, Policy: map[string]string{"concurrentStreams": "1"},
 		}},
 	}}

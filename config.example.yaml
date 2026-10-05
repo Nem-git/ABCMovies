@@ -67,9 +67,11 @@ slots:
   #     # Optional override; otherwise the cadence the adapter declares at
   #     # handshake applies (see TECHNICAL-DECISIONS.md for precedence).
   #     sync-cadence: 6h
+  #     # The one server this slot serves. Every account below is a login on
+  #     # this server — a slot never spans servers.
+  #     server: 'http://jellyfin.local:8096'
   #     accounts:
   #       - id: primary
-  #         url: 'http://jellyfin.local:8096'
   #         username: your-jellyfin-user
   #         password-env: JELLYFIN_PASSWORD
   #         # Optional: the account's declared upstream concurrency

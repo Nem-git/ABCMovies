@@ -78,9 +78,9 @@ slots:
       id: jf
       enabled: true
       sync-cadence: "5m"
+      server: ` + fakeURL + `
       accounts:
         - id: jf-op
-          url: ` + fakeURL + `
           username: alice.homeserver.user
           password-env: JF_TEST_PASSWORD
   sinks:

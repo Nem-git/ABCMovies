@@ -23,13 +23,13 @@ type StoreConfig struct {
 	Path    string `yaml:"path,omitempty"`
 }
 
-// AccountConfig declares one streaming-provider account (IMPLEMENTATION.md §3:
-// operator-declared accounts). The password is never written down — it is
-// resolved from an environment variable named by password-env, and the
-// provider session token that replaces it is stored sealed in the vault.
+// AccountConfig declares one login on the server its provider slot serves
+// (IMPLEMENTATION.md §3: operator-declared accounts). The password is never
+// written down — it is resolved from an environment variable named by
+// password-env, and the provider session token that replaces it is stored
+// sealed in the vault.
 type AccountConfig struct {
 	ID          string `yaml:"id"`
-	URL         string `yaml:"url"`
 	Username    string `yaml:"username"`
 	PasswordEnv string `yaml:"password-env"`
 	// MaxConcurrentStreams is the declared ceiling for this account: the
@@ -59,7 +59,11 @@ type SlotEntry struct {
 	// secret (e.g. the TMDB bearer token); the value never lives in config
 	// (TECHNICAL-DECISIONS §1.27). Optional; only adapters that authenticate
 	// instance-wide read it.
-	TokenEnv string          `yaml:"token-env"`
+	TokenEnv string `yaml:"token-env"`
+	// Server is the base URL of the single server this provider slot serves
+	// (PLAN.md §3.1). Accounts of a slot are logins on that server — a slot
+	// never spans servers. Catalogue and sink entries leave it empty.
+	Server   string          `yaml:"server"`
 	Accounts []AccountConfig `yaml:"accounts"`
 	// Options is the per-adapter configuration bag. Each adapter reads only
 	// the keys it declares; the shared SlotEntry stays free of adapter-specific
@@ -220,7 +224,8 @@ func validatePolicies(c *Config) error {
 // validateSlots enforces the invariants the slot taxonomy implies (PLAN.md
 // §3.1): instance IDs are unique across every kind, each entry names its
 // adapter, and v1 speaks exactly one transport — a subprocess entry must fail
-// loudly rather than be silently ignored.
+// loudly rather than be silently ignored. Provider slots additionally must
+// declare the one server they serve, and every account inside them needs an id.
 func validateSlots(slots SlotsConfig) error {
 	seen := map[string]string{}
 	for _, list := range []struct {
@@ -249,6 +254,16 @@ func validateSlots(slots SlotsConfig) error {
 				// v1 ships in-process only; empty means the default.
 			default:
 				return fmt.Errorf("slot %q: unsupported transport %q (v1 supports \"in-process\")", e.ID, e.Transport)
+			}
+			if list.kind == "providers" {
+				if e.Server == "" {
+					return fmt.Errorf("slot %q: a provider slot must declare the server it serves", e.ID)
+				}
+				for _, a := range e.Accounts {
+					if a.ID == "" {
+						return fmt.Errorf("slot %q: account entry missing id", e.ID)
+					}
+				}
 			}
 		}
 	}

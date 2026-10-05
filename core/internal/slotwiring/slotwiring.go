@@ -134,58 +134,40 @@ func SetupCatalogues(entries []config.SlotEntry, deps Deps) ([]enrichment.Catalo
 }
 
 // RouteLinkedAccounts assigns each linked provider account to exactly one
-// enabled slot instance of the matching adapter — or, when no configured slot
-// serves its server, hands the record back as a provisioning seed (the
-// account becomes its own user-owned server slot; PLAN.md §3.5 sharing
-// decision). The rule is deterministic:
+// enabled slot instance of the matching adapter whose declared server it
+// belongs to — or, when no configured slot serves that server, hands the
+// record back as a provisioning seed (the accounts of that server become
+// their own user-owned server slot; PLAN.md §3.5 sharing decision). The rule
+// is deterministic:
 //
-//   - no enabled slot of that adapter -> provisioned: the caller wires the
-//     account as a user-owned server under ServerNamespace;
-//   - exactly one enabled slot -> attached there;
-//   - several enabled slots -> attached to the unique one that declares an
-//     operator account with the same server base-url; no match or several
-//     matches is a wiring error, never a silent pick.
+//   - no enabled slot of that adapter declares the record's server ->
+//     provisioned: the caller wires the record as a user-owned server under
+//     ServerNamespace;
+//   - exactly one enabled slot declares it -> attached there;
+//   - several enabled slots declare it -> a wiring error, never a silent pick.
 //
 // Routing is per server: the slot id is the identity namespace (§1.25), so an
 // item seen through a linked account must join the same namespace as the
-// operator-declared accounts of the same Jellyfin server — otherwise the same
-// film from two accounts of one server would split into two identities.
+// operator-declared accounts of the same server — otherwise the same film
+// from two accounts of one server would split into two identities.
 func RouteLinkedAccounts(entries []config.SlotEntry, records []accounts.Record) (bySlot map[string][]accounts.Record, provisioned []accounts.Record, err error) {
 	bySlot = map[string][]accounts.Record{}
 	for _, rec := range records {
-		var candidates []config.SlotEntry
+		var matching []string
 		for _, e := range entries {
-			if e.Enabled && e.Adapter == rec.Provider {
-				candidates = append(candidates, e)
+			if e.Enabled && e.Adapter == rec.Provider && canonicalServer(e.Server) == canonicalServer(rec.BaseURL) {
+				matching = append(matching, e.ID)
 			}
 		}
-		switch len(candidates) {
+		switch len(matching) {
+		case 1:
+			bySlot[matching[0]] = append(bySlot[matching[0]], rec)
 		case 0:
 			provisioned = append(provisioned, rec)
-		case 1:
-			bySlot[candidates[0].ID] = append(bySlot[candidates[0].ID], rec)
 		default:
-			var matching []string
-			for _, e := range candidates {
-				for _, a := range e.Accounts {
-					if a.URL == rec.BaseURL {
-						matching = append(matching, e.ID)
-						break
-					}
-				}
-			}
-			switch len(matching) {
-			case 1:
-				bySlot[matching[0]] = append(bySlot[matching[0]], rec)
-			case 0:
-				return nil, nil, fmt.Errorf(
-					"linked %s account %q (base-url %q) matches no enabled slot's server: %d %s slots are enabled, declare the server or disable the extras",
-					rec.Provider, rec.ID, rec.BaseURL, len(candidates), rec.Provider)
-			default:
-				return nil, nil, fmt.Errorf(
-					"linked %s account %q (base-url %q) is ambiguous: slots %v all declare that server",
-					rec.Provider, rec.ID, rec.BaseURL, matching)
-			}
+			return nil, nil, fmt.Errorf(
+				"linked %s account %q (base-url %q) is ambiguous: slots %v all declare that server",
+				rec.Provider, rec.ID, rec.BaseURL, matching)
 		}
 	}
 	return bySlot, provisioned, nil
@@ -263,6 +245,7 @@ func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []l
 				ID:        ns,
 				Enabled:   true,
 				Transport: "in-process",
+				Server:    rec.BaseURL,
 			})
 			logger.Info("linked account provisions a user-owned server slot",
 				"account", rec.ID, "owner", rec.OwnerUserID, "server", ns, "base_url", rec.BaseURL)

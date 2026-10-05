@@ -22,30 +22,31 @@ func rec(id, provider, baseURL string) accounts.Record {
 	return accounts.Record{ID: id, Provider: provider, BaseURL: baseURL, Username: "bob"}
 }
 
-// TestRouteLinkedAccounts pins the deterministic routing rule: a single
-// enabled slot of the adapter catches all its linked accounts; several slots
-// need a base-url match; a server with no configured slot is a provisioning
-// seed (the account becomes its own user-owned server); ambiguity is an
-// error, never a silent pick.
+// TestRouteLinkedAccounts pins the deterministic routing rule: an account
+// attaches to the unique enabled slot whose server it belongs to; several
+// slots on that server is an error, never a silent pick; a server no slot
+// declares is a provisioning seed (the account becomes its own user-owned
+// server).
 func TestRouteLinkedAccounts(t *testing.T) {
 	t.Parallel()
-	jfEntry := func(id, url string) config.SlotEntry {
+	jfEntry := func(id, server string) config.SlotEntry {
 		e := config.SlotEntry{Adapter: "jellyfin", ID: id, Enabled: true}
-		if url != "" {
-			e.Accounts = []config.AccountConfig{{ID: id + "-op", URL: url, Username: "op"}}
+		if server != "" {
+			e.Server = server
+			e.Accounts = []config.AccountConfig{{ID: id + "-op", Username: "op"}}
 		}
 		return e
 	}
 
-	t.Run("single enabled slot catches every linked account", func(t *testing.T) {
+	t.Run("a slot catches only the linked accounts on its own server", func(t *testing.T) {
 		bySlot, provisioned, err := RouteLinkedAccounts(
 			[]config.SlotEntry{jfEntry("home", "http://jf-a")},
 			[]accounts.Record{rec("lnk_1", "jellyfin", "http://jf-a"), rec("lnk_2", "jellyfin", "http://jf-b")})
 		if err != nil {
 			t.Fatalf("RouteLinkedAccounts: %v", err)
 		}
-		if len(bySlot["home"]) != 2 || len(provisioned) != 0 {
-			t.Fatalf("bySlot=%v provisioned=%v, want both in home", bySlot, provisioned)
+		if len(bySlot["home"]) != 1 || len(provisioned) != 1 {
+			t.Fatalf("bySlot=%v provisioned=%v, want jf-a attached and jf-b provisioned", bySlot, provisioned)
 		}
 	})
 
@@ -71,12 +72,15 @@ func TestRouteLinkedAccounts(t *testing.T) {
 		}
 	})
 
-	t.Run("several slots with no server match is an error", func(t *testing.T) {
-		_, _, err := RouteLinkedAccounts(
+	t.Run("several slots but no server match provisions a user-owned server", func(t *testing.T) {
+		_, provisioned, err := RouteLinkedAccounts(
 			[]config.SlotEntry{jfEntry("a", "http://jf-a"), jfEntry("b", "http://jf-b")},
 			[]accounts.Record{rec("lnk_1", "jellyfin", "http://jf-nowhere")})
-		if err == nil || !strings.Contains(err.Error(), "matches no enabled slot") {
-			t.Fatalf("want server-match error, got %v", err)
+		if err != nil {
+			t.Fatalf("RouteLinkedAccounts: %v", err)
+		}
+		if len(provisioned) != 1 {
+			t.Fatalf("provisioned = %v, want the record", provisioned)
 		}
 	})
 
@@ -182,7 +186,7 @@ func TestSetupProvidersWiresLinkedAccount(t *testing.T) {
 	}
 
 	jobs, reaches, _, err := SetupProviders([]config.SlotEntry{{
-		Adapter: "jellyfin", ID: "home-jf", Enabled: true,
+		Adapter: "jellyfin", ID: "home-jf", Enabled: true, Server: fake.server.URL,
 	}}, Deps{
 		Registry:     reg,
 		Accounts:     linked,
