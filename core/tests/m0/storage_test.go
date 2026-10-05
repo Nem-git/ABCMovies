@@ -39,7 +39,7 @@ func TestStorage_Jobs_PersistAndRetrieve(t *testing.T) {
 		t.Fatalf("CreateJob: %v", err)
 	}
 
-	resp, err := stack.server.GetJob(t.Context(), &apiv1.GetJobRequest{JobId: "job-storage-1"})
+	resp, err := stack.server.GetJob(apiserver.WithUserID(t.Context(), "user:alice"), &apiv1.GetJobRequest{JobId: "job-storage-1"})
 	if err != nil {
 		t.Fatalf("GetJob: %v", err)
 	}

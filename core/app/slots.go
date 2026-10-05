@@ -62,6 +62,9 @@ func (m *eventMux) Publish(env *corev1.EventEnvelope) {
 type SlotRuntime struct {
 	// Bus carries sync-emitted events to subscribers.
 	Bus *apiserver.InMemoryBus
+	// eventMux is referenced here so production can prove the availability
+	// wiring (in-band invalidation) actually completed during composition.
+	eventMux *eventMux
 	// Library derives and caches per-user libraries over every wired reach.
 	Library *library.Service
 	// ItemRegistry is the instance-wide provider item registry; exposed for
@@ -133,7 +136,7 @@ func (e registryEvidence) Evidence(ctx context.Context, entryID string) (enrichm
 // No owner id goes into the item registry yet: operator-facing
 // merge-conflict notifications arrive with the operator surface, until then
 // the registry suppresses those envelopes.
-func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.EnrichmentConfig, reg *registry.InProcessRegistry, sourceCache, metaCache, vault store.Store, logger *slog.Logger) (*SlotRuntime, error) {
+func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.EnrichmentConfig, reg *registry.InProcessRegistry, sourceCache, metaCache, vault store.Store, apiBus *apiserver.InMemoryBus, logger *slog.Logger) (*SlotRuntime, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -147,8 +150,9 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 	}
 	queue := enrichment.NewInMemoryQueue()
 
-	rt := &SlotRuntime{Bus: apiserver.NewInMemoryBus(), Queue: queue}
+	rt := &SlotRuntime{Bus: apiBus, Queue: queue}
 	mux := &eventMux{bus: rt.Bus, log: logger}
+	rt.eventMux = mux
 	rt.Relay = delivery.NewRelay()
 	linked := accounts.NewStore(vault, logger)
 	jobs, reaches, cats, resolvers, err := slotwiring.SetupAll(ctx, slots, slotwiring.Deps{
@@ -201,6 +205,13 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 		return nil, fmt.Errorf("library: %w", err)
 	}
 	rt.Library, rt.ItemRegistry, rt.Jobs = libSvc, itemReg, jobs
+	// The production wiring must complete the two event destinations, or
+	// availability never triggers a derived-library invalidation at runtime.
+	mux.lib = libSvc
+	apiBus.SetAccountEntiter(func(accountID, uid string) bool {
+		_, ok := libSvc.ReachAuthorized(accountID, uid)
+		return ok
+	})
 	rt.Meta = meta
 	rt.Engine = engine
 	rt.Catalogues = cats

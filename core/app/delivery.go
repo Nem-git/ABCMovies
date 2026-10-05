@@ -49,7 +49,9 @@ func (m managedDelivery) Start(ctx context.Context, req delivery.StartRequest) (
 	return m.eng.Start(ctx, req)
 }
 
-func (m managedDelivery) Heartbeat(id string) error { return m.eng.Heartbeat(id) }
+func (m managedDelivery) Heartbeat(id string, memberUserID string) error {
+	return m.eng.Heartbeat(id, memberUserID)
+}
 
 func (m managedDelivery) RevokeAllOnAccount(accountID string) int {
 	return m.eng.RevokeAllOnAccount(accountID)

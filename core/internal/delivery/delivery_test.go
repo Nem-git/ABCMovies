@@ -250,17 +250,20 @@ func TestHeartbeatBoundaries(t *testing.T) {
 		Goal: GoalPlay, MemberUserID: "u",
 		Provider: "jellyfin", AccountID: "a", Sink: "device",
 	})
-	if err := e.Heartbeat(s.ID); err != nil {
+	if err := e.Heartbeat(s.ID, "u"); err != nil {
 		t.Fatalf("Heartbeat active: %v", err)
 	}
 	if err := e.Complete(s.ID); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
-	if err := e.Heartbeat(s.ID); err == nil {
+	if err := e.Heartbeat(s.ID, "u"); err == nil {
 		t.Errorf("heartbeat on completed session should fail")
 	}
-	if err := e.Heartbeat("nope"); err == nil {
+	if err := e.Heartbeat("nope", "u"); err == nil {
 		t.Errorf("heartbeat on unknown session should fail")
+	}
+	if err := e.Heartbeat(s.ID, "intruder"); err == nil {
+		t.Errorf("heartbeat as a different member should fail")
 	}
 }
 

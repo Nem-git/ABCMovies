@@ -25,6 +25,14 @@ func UserIDFromContext(ctx context.Context) (string, bool) {
 	return uid, ok
 }
 
+// WithUserID returns a context carrying uid as the authenticated principal.
+// Embedding hosts that deliver over their own auth terminations use this to
+// produce the context the CoreService expects (AuthContext is the equivalent
+// for requests entering through the auth interceptors).
+func WithUserID(ctx context.Context, uid string) context.Context {
+	return context.WithValue(ctx, userIDKey, uid)
+}
+
 // DEKFromContext extracts the user's DEK from the context. The DEK is set
 // by the auth interceptor after login and enables per-user blob encryption.
 // Returns nil if no DEK is available (e.g. the session was not created via

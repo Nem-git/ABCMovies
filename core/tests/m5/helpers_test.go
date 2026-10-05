@@ -458,7 +458,9 @@ func (m m5Delivery) Start(ctx context.Context, req delivery.StartRequest) (*deli
 	return m.eng.Start(ctx, req)
 }
 
-func (m m5Delivery) Heartbeat(id string) error { return m.eng.Heartbeat(id) }
+func (m m5Delivery) Heartbeat(id string, memberUserID string) error {
+	return m.eng.Heartbeat(id, memberUserID)
+}
 
 func (m m5Delivery) RevokeAllOnAccount(accountID string) int {
 	return m.eng.RevokeAllOnAccount(accountID)

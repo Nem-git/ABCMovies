@@ -18,9 +18,11 @@ import (
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
+	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/policy"
 	"github.com/nem-git/abcmovies/core/internal/slotwiring"
 	"github.com/nem-git/abcmovies/core/internal/store"
@@ -106,7 +108,9 @@ func (m engineManager) Start(ctx context.Context, req delivery.StartRequest) (*d
 	return m.eng.Start(ctx, req)
 }
 
-func (m engineManager) Heartbeat(id string) error { return m.eng.Heartbeat(id) }
+func (m engineManager) Heartbeat(id string, memberUserID string) error {
+	return m.eng.Heartbeat(id, memberUserID)
+}
 
 func (m engineManager) PlayMenu(string) (*apiserver.PlayMenu, error) {
 	return nil, apiserver.ErrPlayMenuNotFound
@@ -130,8 +134,28 @@ func buildServer(resolver delivery.Resolver, sinks delivery.SinkFactory) (*apise
 	bus := apiserver.NewInMemoryBus()
 	srv := apiserver.NewServer(bus, config.Stores{Jobs: store.NewInMemory()}, nil, nil)
 	srv.SetDelivery(engineManager{eng: eng})
+	srv.SetLibrary(trivialLibrary{})
 	return srv, eng
 }
+
+// trivialLibrary satisfies the delivery-authorization seam for the M4
+// harness: every account is reachable by every member, slicing very little
+// real sharing logic (the M5 harness carries the sharing work).
+type trivialLibrary struct{}
+
+func (trivialLibrary) Library(context.Context, string) ([]*corev1.LibraryEntry, error) {
+	return nil, nil
+}
+
+func (trivialLibrary) Metadata(context.Context, string) (*corev1.TitleMetadata, bool, error) {
+	return nil, false, nil
+}
+
+func (trivialLibrary) ReachAuthorized(accountID, userID string) (library.Reach, bool) {
+	return library.Reach{AccountID: accountID, Visibility: accounts.VisibilityPublic}, true
+}
+func (trivialLibrary) ReachesForUser(userID string) []library.Reach { return nil }
+func (trivialLibrary) RemoveReach(accountID string)                 {}
 
 // TestM4RemuxDownloadToDiskEndToEnd proves one remux download session
 // end-to-end: a whole-mux feature is resolved, the disk sink names it by the
@@ -163,7 +187,7 @@ func TestM4RemuxDownloadToDiskEndToEnd(t *testing.T) {
 	srv, eng := buildServer(&fakeResolver{muxSource(provider.URL)}, sinks)
 	defer eng.Close()
 
-	resp, err := srv.StartDelivery(context.Background(), &apiv1.StartDeliveryRequest{
+	resp, err := srv.StartDelivery(apiserver.WithUserID(context.Background(), "u1"), &apiv1.StartDeliveryRequest{
 		Goal:           apiv1.DeliveryGoal_DELIVERY_GOAL_DOWNLOAD,
 		Provider:       "jellyfin",
 		AccountId:      "acc1",
@@ -234,7 +258,7 @@ func TestM4PassthroughPlayToDeviceEndToEnd(t *testing.T) {
 	srv, eng := buildServer(&fakeResolver{perTrackSource(provider.URL)}, &delivery.DeviceSinkFactory{Relay: relay})
 	defer eng.Close()
 
-	resp, err := srv.StartDelivery(context.Background(), &apiv1.StartDeliveryRequest{
+	resp, err := srv.StartDelivery(apiserver.WithUserID(context.Background(), "u1"), &apiv1.StartDeliveryRequest{
 		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
 		Provider:     "jellyfin",
 		AccountId:    "acc1",
@@ -304,7 +328,7 @@ func TestM4DRMRefusedNotSilentlyDelivered(t *testing.T) {
 	srv, eng := buildServer(&fakeResolver{drmPerTrackSource(provider.URL)}, factory)
 	defer eng.Close()
 
-	_, err := srv.StartDelivery(context.Background(), &apiv1.StartDeliveryRequest{
+	_, err := srv.StartDelivery(apiserver.WithUserID(context.Background(), "u1"), &apiv1.StartDeliveryRequest{
 		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
 		Provider:     "jellyfin",
 		AccountId:    "acc1",

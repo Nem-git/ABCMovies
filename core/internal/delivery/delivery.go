@@ -398,13 +398,18 @@ func (e *Engine) Get(id string) (*Session, bool) {
 }
 
 // Heartbeat proves a play session is alive (PLAN.md §9.1). A legitimately
-// paused session still heartbeats, so it is not killed.
-func (e *Engine) Heartbeat(id string) error {
+// paused session still heartbeats, so it is not killed. The session must
+// belong to memberUserID; otherwise another member could keep it alive
+// (§2.2 member-scoping).
+func (e *Engine) Heartbeat(id string, memberUserID string) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	s, ok := e.sessions[id]
 	if !ok {
 		return errNotFound("session %q not found", id)
+	}
+	if s.Context.GetMemberUserId() != memberUserID {
+		return &deliveryError{code: codeDenied, msg: "session does not belong to this caller"}
 	}
 	if !s.isActive() {
 		return errInvalid("session %q is %s and cannot heartbeat", id, s.Status)
@@ -692,6 +697,7 @@ const (
 	codeInvalid  = 3
 	codeNotFound = 5
 	codeQuota    = 8
+	codeDenied   = 7
 )
 
 func errInvalid(format string, a ...any) error {

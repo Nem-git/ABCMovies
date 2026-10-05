@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/registry"
 	"github.com/nem-git/abcmovies/core/internal/store"
@@ -104,7 +105,7 @@ func TestComposeSlotsEmptyConfig(t *testing.T) {
 	defer reg.Close()
 
 	rt, err := ComposeSlots(context.Background(), config.SlotsConfig{}, config.EnrichmentConfig{}, reg,
-		store.NewInMemory(), store.NewInMemory(), store.NewInMemory(), slog.Default())
+		store.NewInMemory(), store.NewInMemory(), store.NewInMemory(), apiserver.NewInMemoryBus(), slog.Default())
 	if err != nil {
 		t.Fatalf("compose: %v", err)
 	}

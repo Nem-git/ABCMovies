@@ -183,6 +183,75 @@ func TestDerivesMergedLibraryFromTwoAccounts(t *testing.T) {
 	}
 }
 
+func TestInvalidateAccountTargetsOnlyAffectedUsers(t *testing.T) {
+	ctx := context.Background()
+	cache := store.NewInMemory()
+	reg, err := itemregistry.New(cache, "")
+	if err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+	sink := &bridgeSink{}
+
+	mkAccount := func(namespace, accountID, title string) *sourcecache.Synchronizer {
+		f := &fakeProvider{pages: []*slotsv1.CatalogueSyncResponse{{Items: []*slotsv1.CatalogueItem{
+			movie("m1", title, 2024),
+		}}}}
+		s, err := sourcecache.New(namespace, f, cache, slog.Default(),
+			sourcecache.WithEntryLookup(reg), sourcecache.WithItemResolver(resolveVia{reg}), sourcecache.WithEventsSink(sink))
+		if err != nil {
+			t.Fatalf("sourcecache: %v", err)
+		}
+		if _, err := s.SyncAccount(ctx, accountID); err != nil {
+			t.Fatalf("sync %s: %v", accountID, err)
+		}
+		return s
+	}
+
+	aliceAcct := mkAccount("jellyfin", "acct-alice", "Alice Film")
+	bobAcct := mkAccount("jellyfin", "acct-bob", "Bob Film")
+
+	svc, err := NewService([]Reach{
+		{Sync: aliceAcct, AccountID: "acct-alice", Owner: "alice", Visibility: accounts.VisibilityPrivate},
+		{Sync: bobAcct, AccountID: "acct-bob", Owner: "bob", Visibility: accounts.VisibilityPrivate},
+	}, reg, cache, slog.Default())
+	if err != nil {
+		t.Fatalf("service: %v", err)
+	}
+	sink.svc = svc
+
+	// Both owners pre-fill their cached libraries.
+	if _, err := svc.Library(ctx, "alice"); err != nil {
+		t.Fatalf("alice view: %v", err)
+	}
+	if _, err := svc.Library(ctx, "bob"); err != nil {
+		t.Fatalf("bob view: %v", err)
+	}
+
+	// An availability change on bob's account must not touch alice's cache.
+	if err := svc.InvalidateAccount("jellyfin", "acct-bob"); err != nil {
+		t.Fatalf("invalidate: %v", err)
+	}
+	keys, err := cache.List(ctx, userPrefix)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(keys) != 1 || keys[0] != "lib/u/alice" {
+		t.Fatalf("remaining cached users = %v, want exactly alice's", keys)
+	}
+
+	// The same event on alice's account removes hers as well.
+	if err := svc.InvalidateAccount("jellyfin", "acct-alice"); err != nil {
+		t.Fatalf("invalidate: %v", err)
+	}
+	keys, err = cache.List(ctx, userPrefix)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(keys) != 0 {
+		t.Fatalf("remaining cached users = %v, want none", keys)
+	}
+}
+
 func TestAvailabilityEventInvalidatesDerivedCache(t *testing.T) {
 	fx := newFixture(t, true)
 	fx.syncAll(t)

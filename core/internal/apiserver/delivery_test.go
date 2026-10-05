@@ -9,8 +9,10 @@ import (
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
+	"github.com/nem-git/abcmovies/core/internal/library"
 )
 
 // stubDelivery is a configurable DeliveryManager for exercising the API
@@ -28,7 +30,7 @@ func (s *stubDelivery) Start(ctx context.Context, req delivery.StartRequest) (*d
 	return s.session, s.startErr
 }
 
-func (s *stubDelivery) Heartbeat(id string) error {
+func (s *stubDelivery) Heartbeat(id string, memberUserID string) error {
 	s.heartbeats = append(s.heartbeats, id)
 	return s.heartErr
 }
@@ -59,8 +61,9 @@ func TestStartDelivery_Success(t *testing.T) {
 	authenticator, session := testAuth(t)
 	dm := &stubDelivery{session: runningSession()}
 	srv := apiserver.NewServer(bus, testStores(t), authenticator, session, dm)
+	srv.SetLibrary(&stubLibrary{reachable: map[string][]string{"acc-1": {"user-1"}}, reaches: []library.Reach{{AccountID: "acc-1", Visibility: accounts.VisibilityPublic}}})
 
-	resp, err := srv.StartDelivery(context.Background(), &apiv1.StartDeliveryRequest{
+	resp, err := srv.StartDelivery(ctxAs(session, "user-1"), &apiv1.StartDeliveryRequest{
 		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
 		Provider:     "jellyfin",
 		AccountId:    "acc-1",

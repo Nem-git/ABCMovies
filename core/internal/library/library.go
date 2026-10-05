@@ -403,18 +403,62 @@ func (s *Service) Metadata(ctx context.Context, ref string) (*corev1.TitleMetada
 	return rec, ok, nil
 }
 
-// InvalidateAccount drops every cached user library after one account's
-// availability changed. Until member scoping exists every user reaches every
-// linked account, so the precise recipient set is "everyone"; the next read
-// rebuilds lazily (PLAN.md §5.1: a missed event leaves a slightly stale cache
-// until the next periodic rebuild — acceptable).
-func (s *Service) InvalidateAccount(_ string, _ string) error {
+// InvalidateAccount drops the cached user libraries that derive from one
+// account's freshly-refreshed availability; users who could never derive it
+// are unaffected. For a public account the whole cache is affected (every
+// user may derive it); for a shared account only its members and owner; for
+// a private account only its owner. Unknown accounts still force the old
+// full sweep — if we cannot prove who could derive it, every cached user is
+// a legitimate recipient of the reset.
+func (s *Service) InvalidateAccount(provider, accountID string) error {
+	s.mu.RLock()
+	reaches := make([]Reach, 0, len(s.reaches))
+	for _, r := range s.reaches {
+		if r.AccountID == accountID && r.Sync != nil && r.Sync.Provider() == provider {
+			reaches = append(reaches, r)
+		}
+	}
+	s.mu.RUnlock()
+
+	if len(reaches) == 0 {
+		return s.invalidateAll(context.Background())
+	}
+
+	affilter := func(userID string) bool {
+		for _, r := range reaches {
+			if r.authorized(userID) {
+				return true
+			}
+		}
+		return false
+	}
 	keys, err := s.cache.List(context.Background(), userPrefix)
 	if err != nil {
 		return fmt.Errorf("library: list cached users: %w", err)
 	}
 	for _, k := range keys {
+		uid := strings.TrimPrefix(k, userPrefix)
+		unescaped, uerr := url.PathUnescape(uid)
+		if uerr != nil {
+			unescaped = uid
+		}
+		if !affilter(unescaped) {
+			continue
+		}
 		if err := s.cache.Delete(context.Background(), k); err != nil {
+			return fmt.Errorf("library: invalidate %q: %w", k, err)
+		}
+	}
+	return nil
+}
+
+func (s *Service) invalidateAll(ctx context.Context) error {
+	keys, err := s.cache.List(ctx, userPrefix)
+	if err != nil {
+		return fmt.Errorf("library: list cached users: %w", err)
+	}
+	for _, k := range keys {
+		if err := s.cache.Delete(ctx, k); err != nil {
 			return fmt.Errorf("library: invalidate %q: %w", k, err)
 		}
 	}

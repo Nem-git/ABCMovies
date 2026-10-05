@@ -24,7 +24,10 @@ import (
 // from the engine's internals and lets the handlers be tested with a stub.
 type DeliveryManager interface {
 	Start(ctx context.Context, req delivery.StartRequest) (*delivery.Session, error)
-	Heartbeat(id string) error
+	// Heartbeat(id, memberUserID) keeps the session alive only when its
+	// session member matches memberUserID; the engine rejects otherwise
+	// (§2.2 member-scoping).
+	Heartbeat(id string, memberUserID string) error
 	PlayMenu(sessionID string) (*PlayMenu, error)
 	// RevokeAllOnAccount ends every session routed through the account
 	// (all members): removal of the record is a full revocation
@@ -87,10 +90,14 @@ func (s *Server) SetDelivery(dm DeliveryManager) {
 func (s *Server) Delivery() DeliveryManager { return s.delivery }
 
 // GetJob returns a job's current state from the jobs store (PLAN.md §9.1).
+// The job is visible only to its owner: the caller presenting a delivery job
+// that belongs to another member gets PermissionDenied, the same boundary the
+// play menu applies (§2.2 member-scoping).
 func (s *Server) GetJob(ctx context.Context, req *apiv1.GetJobRequest) (*apiv1.GetJobResponse, error) {
 	if err := schema.ValidateGetJobRequest(req); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+	uid, _ := UserIDFromContext(ctx)
 	raw, err := s.stores.Jobs.Get(ctx, "job:"+req.GetJobId())
 	if err == store.ErrKeyNotFound {
 		return nil, status.Error(codes.NotFound, "job not found")
@@ -101,6 +108,10 @@ func (s *Server) GetJob(ctx context.Context, req *apiv1.GetJobRequest) (*apiv1.G
 	var job corev1.Job
 	if err := proto.Unmarshal(raw, &job); err != nil {
 		return nil, status.Error(codes.Internal, "corrupted job data")
+	}
+	// Jobs without an owner belong to no one; a delivery job always carries one.
+	if owner := job.GetOwnerUserId(); owner != "" && owner != uid {
+		return nil, status.Error(codes.PermissionDenied, "job belongs to another user")
 	}
 	return &apiv1.GetJobResponse{Job: &job}, nil
 }
@@ -118,6 +129,22 @@ func (s *Server) StartDelivery(ctx context.Context, req *apiv1.StartDeliveryRequ
 	goal, err := deliveryGoal(req.GetGoal())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	// The member the session is attributed to must be the authenticated
+	// caller — the quota and policy keys this delivery is counted against
+	// attach to that identity, and silent re-attribution would corrupt them
+	// (§2.2). Account reachability is verified against the caller next: an
+	// authenticated user may only start a delivery through an account they
+	// may derive a library from.
+	uid, _ := UserIDFromContext(ctx)
+	if req.GetMemberUserId() != uid {
+		return nil, status.Error(codes.PermissionDenied, "member_user_id does not match the authenticated caller")
+	}
+	if s.library == nil {
+		return nil, status.Error(codes.Unavailable, "library engine not configured")
+	}
+	if _, ok := s.library.ReachAuthorized(req.GetAccountId(), uid); !ok {
+		return nil, status.Error(codes.PermissionDenied, "account not reachable by the caller")
 	}
 	sess, err := s.delivery.Start(ctx, delivery.StartRequest{
 		Goal:           goal,
@@ -144,7 +171,8 @@ func (s *Server) Heartbeat(ctx context.Context, req *apiv1.HeartbeatRequest) (*a
 	if s.delivery == nil {
 		return nil, status.Error(codes.Unavailable, "delivery engine not configured")
 	}
-	if err := s.delivery.Heartbeat(req.GetSessionId()); err != nil {
+	uid, _ := UserIDFromContext(ctx)
+	if err := s.delivery.Heartbeat(req.GetSessionId(), uid); err != nil {
 		return nil, status.Error(codes.Code(delivery.Code(err)), err.Error())
 	}
 	return &apiv1.HeartbeatResponse{SessionId: req.GetSessionId()}, nil
@@ -171,6 +199,17 @@ func (s *Server) persistDeliveryJob(ctx context.Context, job *corev1.Job) {
 	raw, err := proto.Marshal(job)
 	if err != nil {
 		return
+	}
+	// When the managed engine's RecordJob hook is wired (productionapp path)
+	// it has already persisted and announced this state: the job record is
+	// present with the same status. Skip the duplicate publish; the store
+	// write remains as the idempotent sanity write.
+	if prior, err := s.stores.Jobs.Get(ctx, "job:"+job.GetId()); err == nil {
+		var prev corev1.Job
+		if proto.Unmarshal(prior, &prev) == nil && prev.GetStatus() == job.GetStatus() {
+			_ = s.stores.Jobs.Put(ctx, "job:"+job.GetId(), raw)
+			return
+		}
 	}
 	_ = s.stores.Jobs.Put(ctx, "job:"+job.GetId(), raw)
 	s.bus.Publish(&corev1.EventEnvelope{
