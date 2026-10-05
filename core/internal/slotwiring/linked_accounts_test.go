@@ -185,7 +185,7 @@ func TestSetupProvidersWiresLinkedAccount(t *testing.T) {
 		t.Fatalf("item registry: %v", err)
 	}
 
-	jobs, reaches, _, err := SetupProviders([]config.SlotEntry{{
+	jobs, reaches, _, _, err := SetupProviders([]config.SlotEntry{{
 		Adapter: "jellyfin", ID: "home-jf", Enabled: true, Server: fake.server.URL,
 	}}, Deps{
 		Registry:     reg,
@@ -266,7 +266,7 @@ func TestSetupProvidersProvisionsUserOwnedServer(t *testing.T) {
 	}
 
 	// No configured slot at all: the link must provision its own server.
-	jobs, reaches, resolvers, err := SetupProviders(nil, Deps{
+	jobs, reaches, resolvers, _, err := SetupProviders(nil, Deps{
 		Registry:     reg,
 		Accounts:     linked,
 		SourceCache:  store.NewInMemory(),
@@ -342,7 +342,7 @@ func TestSetupProvidersGroupsTwoLinkedAccountsOnOneServer(t *testing.T) {
 		t.Fatalf("item registry: %v", err)
 	}
 
-	jobs, reaches, resolvers, err := SetupProviders(nil, Deps{
+	jobs, reaches, resolvers, _, err := SetupProviders(nil, Deps{
 		Registry:     reg,
 		Accounts:     linked,
 		SourceCache:  store.NewInMemory(),
@@ -369,6 +369,80 @@ func TestSetupProvidersGroupsTwoLinkedAccountsOnOneServer(t *testing.T) {
 		if len(items) != 1 {
 			t.Fatalf("source cache for account %q has %d items, want 1", r.AccountID, len(items))
 		}
+	}
+}
+
+// TestAttachAccountWiresNewAccountWithoutRebuild pins the runtime attach seam:
+// a second linked account on the same server, added after the slot was built,
+// is served by the adapter and produces a working sync — without the slot
+// being torn down or rebuilt. The ownership and sharing metadata ride the
+// reach, so the owner's library picks the account up.
+func TestAttachAccountWiresNewAccountWithoutRebuild(t *testing.T) {
+	vault := store.NewInMemory()
+	linked := accounts.NewStore(vault, slog.Default())
+	ctx := context.Background()
+
+	token := "vaulted-session-token-2"
+	fake := newLinkedFake(t, token)
+	itemReg, err := itemregistry.New(store.NewInMemory(), "")
+	if err != nil {
+		t.Fatalf("item registry: %v", err)
+	}
+	addedRec := accounts.Record{ID: accounts.NewID(), Provider: "jellyfin", BaseURL: fake.server.URL, Username: "bob", OwnerUserID: "user-1", Visibility: accounts.VisibilityPublic}
+	if err := linked.Add(ctx, addedRec); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if err := linked.Save(ctx, addedRec.ID, []byte(fmt.Sprintf(`{"AccessToken":%q,"User":{"Id":"u-1"}}`, token))); err != nil {
+		t.Fatalf("vault session: %v", err)
+	}
+
+	reg := registry.NewInProcess()
+	defer reg.Close()
+	deps := Deps{
+		Ctx:          ctx,
+		Registry:     reg,
+		Accounts:     linked,
+		SourceCache:  store.NewInMemory(),
+		Logger:       slog.Default(),
+		ItemRegistry: itemReg,
+	}
+	_, _, _, built, err := SetupProviders([]config.SlotEntry{{
+		Adapter: "jellyfin", ID: "home-jf", Enabled: true, Server: fake.server.URL,
+	}}, deps)
+	if err != nil {
+		t.Fatalf("SetupProviders: %v", err)
+	}
+	if len(built) != 1 {
+		t.Fatalf("built = %d, want the one home-jf slot", len(built))
+	}
+
+	// The owner later links a second account on the same server. The running
+	// slot must serve it — no rebuild, no restart.
+	second := accounts.Record{ID: accounts.NewID(), Provider: "jellyfin", BaseURL: fake.server.URL, Username: "carol", OwnerUserID: "user-2", Visibility: accounts.VisibilityPrivate}
+	if err := linked.Add(ctx, second); err != nil {
+		t.Fatalf("Add second: %v", err)
+	}
+	if err := linked.Save(ctx, second.ID, []byte(fmt.Sprintf(`{"AccessToken":%q,"User":{"Id":"u-2"}}`, token))); err != nil {
+		t.Fatalf("vault second: %v", err)
+	}
+
+	syncer, reach, job, err := AttachAccount(built[0], second, deps)
+	if err != nil {
+		t.Fatalf("AttachAccount: %v", err)
+	}
+	if reach.AccountID != second.ID || reach.Owner != "user-2" || reach.Visibility != accounts.VisibilityPrivate {
+		t.Fatalf("reach = %+v, want account %q owned by user-2, private", reach, second.ID)
+	}
+	if job.Name != "source-cache-sync/home-jf/"+second.ID || job.Cadence != built[0].Cadence {
+		t.Fatalf("job = %+v, want source-cache-sync/home-jf/<id> at the slot cadence", job)
+	}
+	if _, err := syncer.SyncAccount(ctx, second.ID); err != nil {
+		t.Fatalf("synced account from a runtime attach: %v", err)
+	}
+	// The original boot reach is untouched: attach adds, it does not replace
+	// or rebuild the slot's existing account machinery.
+	if len(built[0].Reaches) != 1 {
+		t.Fatalf("built slot reaches = %d, want the one boot reach (attach returns a new one)", len(built[0].Reaches))
 	}
 }
 

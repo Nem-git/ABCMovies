@@ -3,6 +3,7 @@ package slotwiring
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/nem-git/abcmovies/adapters/jellyfin"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
@@ -95,7 +96,7 @@ func providerNamespace(entry config.SlotEntry) string {
 // handshake-declared cadence is resolved into refresh jobs. It returns the
 // unpublished slot — the composition root admits it as its final step, so
 // this function never publishes on its caller's behalf (publish last).
-func wireJellyfin(entry config.SlotEntry, deps Deps) (*builtSlot, error) {
+func wireJellyfin(entry config.SlotEntry, deps Deps) (*BuiltSlot, error) {
 	// Operator-declared accounts are host-provided and public (PLAN.md
 	// §2.2): every user may derive them into a library.
 	ops := make(map[string]jellyfin.Account, len(entry.Accounts))
@@ -154,47 +155,65 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) (*builtSlot, error) {
 	reaches := make([]library.Reach, 0, len(ids))
 	namespace := providerNamespace(entry)
 	for i, accountID := range ids {
-		if deps.ItemRegistry == nil {
-			return nil, fmt.Errorf("slot %q: identity work requires an item registry; none was wired", entry.ID)
-		}
-		opts := []sourcecache.Option{
-			sourcecache.WithEntryLookup(deps.ItemRegistry),
-			sourcecache.WithItemResolver(registryResolver{r: deps.ItemRegistry, notify: deps.Enqueue}),
-		}
-		if deps.EventSink != nil {
-			opts = append(opts, sourcecache.WithEventsSink(deps.EventSink))
-		}
-		syncer, err := sourcecache.New(namespace, slot, deps.SourceCache, deps.Logger, opts...)
+		syncer, reach, job, err := accountSyncMachine(namespace, accountID, slot, cadence, reachesMeta[i], deps)
 		if err != nil {
-			return nil, fmt.Errorf("source cache: %w", err)
+			return nil, err
 		}
-		reaches = append(reaches, library.Reach{
-			Sync:       syncer,
-			AccountID:  accountID,
-			Owner:      reachesMeta[i].owner,
-			Visibility: reachesMeta[i].visibility,
-			Members:    reachesMeta[i].members,
-		})
+		reaches = append(reaches, *reach)
+		jobs = append(jobs, *job)
 		if _, err := syncer.SyncAccount(deps.Ctx, accountID); err != nil {
 			deps.Logger.Warn("initial source-cache sync failed; will retry on cadence",
 				"slot", entry.ID, "account", accountID, "error", err)
 		}
-		jobs = append(jobs, scheduler.Job{
-			Name:    "source-cache-sync/" + entry.ID + "/" + accountID,
-			Cadence: cadence,
-			Run: func(jobCtx context.Context) error {
-				_, err := syncer.SyncAccount(jobCtx, accountID)
-				return err
-			},
-		})
 	}
-	return &builtSlot{
-		entry:    entry,
-		impl:     slot,
-		jobs:     jobs,
-		reaches:  reaches,
-		resolver: jellyfinResolver{slot: slot},
+	return &BuiltSlot{
+		Entry:    entry,
+		Impl:     slot,
+		Jobs:     jobs,
+		Reaches:  reaches,
+		Resolver: jellyfinResolver{slot: slot},
+		Cadence:  cadence,
 	}, nil
+}
+
+// accountSyncMachine builds the per-account sync machinery for one account of
+// a provider slot: the source-cache synchronizer, the derived-library reach
+// that exposes its cached items, and the recurring refresh job. wireJellyfin
+// builds these at boot and a runtime link builds them again, one account at a
+// time — one code path, no slot rebuild. The first sync is the caller's job:
+// boot runs it inline so items exist before the API serves; a runtime link
+// runs it in the background because LinkAccount must not block on a paged sync.
+func accountSyncMachine(namespace, accountID string, client sourcecache.Client, cadence time.Duration, meta reachMeta, deps Deps) (*sourcecache.Synchronizer, *library.Reach, *scheduler.Job, error) {
+	if deps.ItemRegistry == nil {
+		return nil, nil, nil, fmt.Errorf("slot %q: identity work requires an item registry; none was wired", namespace)
+	}
+	opts := []sourcecache.Option{
+		sourcecache.WithEntryLookup(deps.ItemRegistry),
+		sourcecache.WithItemResolver(registryResolver{r: deps.ItemRegistry, notify: deps.Enqueue}),
+	}
+	if deps.EventSink != nil {
+		opts = append(opts, sourcecache.WithEventsSink(deps.EventSink))
+	}
+	syncer, err := sourcecache.New(namespace, client, deps.SourceCache, deps.Logger, opts...)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("source cache: %w", err)
+	}
+	reach := &library.Reach{
+		Sync:       syncer,
+		AccountID:  accountID,
+		Owner:      meta.owner,
+		Visibility: meta.visibility,
+		Members:    meta.members,
+	}
+	job := &scheduler.Job{
+		Name:    "source-cache-sync/" + namespace + "/" + accountID,
+		Cadence: cadence,
+		Run: func(jobCtx context.Context) error {
+			_, err := syncer.SyncAccount(jobCtx, accountID)
+			return err
+		},
+	}
+	return syncer, reach, job, nil
 }
 
 // jellyfinResolver adapts the Jellyfin slot's ProduceSources to the delivery

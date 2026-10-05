@@ -358,7 +358,7 @@ func newM5Stack(t *testing.T, jf *fakeJellyfin) *m5Stack {
 	if err != nil {
 		t.Fatalf("itemregistry.New: %v", err)
 	}
-	_, reaches, resolvers, err := slotwiring.SetupProviders(nil, slotwiring.Deps{
+	_, reaches, resolvers, _, err := slotwiring.SetupProviders(nil, slotwiring.Deps{
 		Ctx:          t.Context(),
 		Registry:     reg,
 		Accounts:     accts,

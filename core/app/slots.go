@@ -87,6 +87,10 @@ type SlotRuntime struct {
 	// Jobs are the slots' recurring refresh jobs; register them with a
 	// scheduler and run it. The enrichment drain job is included.
 	Jobs []scheduler.Job
+	// Providers are the live provider slots, as built at boot: the composition
+	// root's record of which slot serves which entry. A runtime account link
+	// attaches to one of these without a rebuild (PLAN.md §5.1).
+	Providers []*slotwiring.BuiltSlot
 
 	// Delivery pieces, set when the delivery engine is composed: Resolvers
 	// maps a provider slot id to its produce-sources resolver; Sinks is the
@@ -159,7 +163,7 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 	rt.eventMux = mux
 	rt.Relay = delivery.NewRelay()
 	linked := accounts.NewStore(vault, logger)
-	jobs, reaches, cats, resolvers, err := slotwiring.SetupAll(ctx, slots, slotwiring.Deps{
+	jobs, reaches, cats, resolvers, built, err := slotwiring.SetupAll(ctx, slots, slotwiring.Deps{
 		Ctx:          ctx,
 		Registry:     reg,
 		Accounts:     linked,
@@ -209,6 +213,7 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 		return nil, fmt.Errorf("library: %w", err)
 	}
 	rt.Library, rt.ItemRegistry, rt.Jobs = libSvc, itemReg, jobs
+	rt.Providers = built
 	// The production wiring must complete the two event destinations, or
 	// availability never triggers a derived-library invalidation at runtime.
 	mux.lib = libSvc

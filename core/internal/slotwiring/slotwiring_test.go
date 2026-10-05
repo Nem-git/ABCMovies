@@ -72,7 +72,7 @@ func TestUnknownAdapterRejected(t *testing.T) {
 	reg := registry.NewInProcess()
 	defer reg.Close()
 
-	_, _, _, err := SetupProviders([]config.SlotEntry{{
+	_, _, _, _, err := SetupProviders([]config.SlotEntry{{
 		ID: "primary", Adapter: "jellifin", Enabled: true, // deliberate typo
 	}}, Deps{Registry: reg, Logger: slog.Default()})
 	if err == nil || !strings.Contains(err.Error(), "unknown provider adapter") {
@@ -87,7 +87,7 @@ func TestDisabledEntriesAreSkipped(t *testing.T) {
 	reg := registry.NewInProcess()
 	defer reg.Close()
 
-	jobs, _, _, err := SetupProviders([]config.SlotEntry{{
+	jobs, _, _, _, err := SetupProviders([]config.SlotEntry{{
 		ID: "primary", Adapter: "jellyfin", Enabled: false,
 		Accounts: []config.AccountConfig{{ID: "primary"}}, // no credentials on purpose
 	}}, Deps{Registry: reg, Logger: slog.Default()})
@@ -106,7 +106,7 @@ func TestUnimplementedKindsRejected(t *testing.T) {
 	slots := config.SlotsConfig{}
 	slots.SubtitleSources = []config.SlotEntry{{ID: "sub-a", Adapter: "trakt-sub", Enabled: true}}
 
-	if _, _, _, _, err := SetupAll(context.Background(), slots, Deps{}); err == nil ||
+	if _, _, _, _, _, err := SetupAll(context.Background(), slots, Deps{}); err == nil ||
 		!strings.Contains(err.Error(), "not implemented yet") {
 		t.Fatalf("want not-implemented-yet error, got %v", err)
 	}
@@ -119,7 +119,7 @@ func TestUnknownCatalogueAdapterRejected(t *testing.T) {
 	slots := config.SlotsConfig{}
 	slots.Catalogue = []config.SlotEntry{{ID: "trakt", Adapter: "trakt", Enabled: true}}
 
-	if _, _, _, _, err := SetupAll(context.Background(), slots, Deps{}); err == nil ||
+	if _, _, _, _, _, err := SetupAll(context.Background(), slots, Deps{}); err == nil ||
 		!strings.Contains(err.Error(), "unknown catalogue adapter") {
 		t.Fatalf("want unknown-catalogue-adapter error, got %v", err)
 	}
@@ -134,7 +134,7 @@ func TestSetupProvidersPublishesLastOnLateFailure(t *testing.T) {
 	reg := registry.NewInProcess()
 	defer reg.Close()
 
-	_, _, _, err := SetupProviders([]config.SlotEntry{{
+	_, _, _, _, err := SetupProviders([]config.SlotEntry{{
 		ID: "primary", Adapter: "jellyfin", Enabled: true, Server: "http://jf.invalid",
 		SyncCadence: "not-a-duration",
 		Accounts:    []config.AccountConfig{{ID: "home", Username: "bob", PasswordEnv: "JELLYFIN_TEST_PASSWORD"}},

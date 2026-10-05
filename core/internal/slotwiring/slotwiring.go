@@ -69,18 +69,72 @@ type Deps struct {
 // the handshake-declared cadence resolved into refresh jobs, and the
 // delivery resolver. Nothing has been admitted into the registry, so a
 // failure anywhere in the build publishes nothing.
-type builtSlot struct {
-	entry    config.SlotEntry
-	impl     corev1.MetaServiceServer
-	jobs     []scheduler.Job
-	reaches  []library.Reach
-	resolver delivery.Resolver
+type BuiltSlot struct {
+	Entry    config.SlotEntry
+	Impl     corev1.MetaServiceServer
+	Jobs     []scheduler.Job
+	Reaches  []library.Reach
+	Resolver delivery.Resolver
+	// Cadence is the slot's resolved refresh cadence (config override >
+	// adapter-declared > scheduler default). A runtime-linked account's
+	// refresh job takes the slot's cadence so it stays in step with the
+	// slot's other accounts.
+	Cadence time.Duration
+}
+
+// AttachableSlot is a provider slot that can take a runtime-linked account:
+// it can admit the account to itself and serve catalogue syncs for it.
+// *jellyfin.Slot satisfies it; adapters that cannot accept a runtime link
+// simply do not. The providerFactory is the build half of the relationship,
+// this is the mutate half.
+type AttachableSlot interface {
+	sourcecache.Client
+	AddAccount(id string) error
+}
+
+// AttachAccount wires one linked account into the provider slot that serves
+// its server — the runtime counterpart to wireJellyfin's per-account build,
+// one account at a time, no slot rebuild. It admits the account to the slot
+// and hands back the synchronizer, the reach to commit into the library, and
+// the refresh job to register. Nothing is committed here: the caller
+// publishes the reach and registers the job, and only then starts the first
+// sync, so a half-wired account never feeds a library. If anything fails,
+// the caller owns error cleanup (drop the record and session; DropAccount).
+func AttachAccount(b *BuiltSlot, rec accounts.Record, deps Deps) (*sourcecache.Synchronizer, *library.Reach, *scheduler.Job, error) {
+	attachable, ok := b.Impl.(AttachableSlot)
+	if !ok {
+		return nil, nil, nil, fmt.Errorf("slot %q (adapter %q): does not accept a runtime-linked account", b.Entry.ID, b.Entry.Adapter)
+	}
+	if err := attachable.AddAccount(rec.ID); err != nil {
+		return nil, nil, nil, fmt.Errorf("slot %q: add account: %w", b.Entry.ID, err)
+	}
+	meta := reachMeta{owner: rec.OwnerUserID, visibility: rec.Visibility, members: rec.SharedWith}
+	syncer, reach, job, err := accountSyncMachine(providerNamespace(b.Entry), rec.ID, attachable, b.Cadence, meta, deps)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return syncer, reach, job, nil
+}
+
+// FirstSync starts the initial source-cache fill for an account whose reach is
+// already committed, in the background: linking is interactive, so the
+// catalogue fills in over the next seconds instead of blocking the caller, and
+// the run's availability events invalidate the affected cached libraries. A
+// failure is logged and left for the refresh job's next run — the account is
+// linked and live either way.
+func FirstSync(syncer *sourcecache.Synchronizer, accountID string, deps Deps) {
+	go func() {
+		if _, err := syncer.SyncAccount(deps.Ctx, accountID); err != nil {
+			deps.Logger.Warn("initial source-cache sync failed; will retry on cadence",
+				"account", accountID, "error", err)
+		}
+	}()
 }
 
 // providerFactory builds one slot instance and everything derived from it,
 // but does NOT admit it: admission is the caller's last step, so a factory
 // that fails halfway leaves the instance unwired rather than half-wired.
-type providerFactory func(entry config.SlotEntry, deps Deps) (*builtSlot, error)
+type providerFactory func(entry config.SlotEntry, deps Deps) (*BuiltSlot, error)
 
 var providers = map[string]providerFactory{}
 
@@ -276,7 +330,7 @@ type Resolvers map[string]delivery.Resolver
 // implementing their refresh cadence plus the reaches their accounts expose.
 // An unknown adapter or a failing handshake aborts startup loudly — a
 // half-wired instance is worse than a down one.
-func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []library.Reach, Resolvers, error) {
+func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []library.Reach, Resolvers, []*BuiltSlot, error) {
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -295,11 +349,11 @@ func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []l
 	if deps.Accounts != nil {
 		linked, err := deps.Accounts.List(deps.Ctx)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("linked accounts: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("linked accounts: %w", err)
 		}
 		bySlot, provisioned, err := RouteLinkedAccounts(entries, linked)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		deps.LinkedBySlot = bySlot
 		// Provisioned records group by derived server id: two accounts on one
@@ -338,7 +392,7 @@ func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []l
 		}
 	}
 
-	var built []*builtSlot
+	var built []*BuiltSlot
 	for _, entry := range entries {
 		if !entry.Enabled {
 			logger.Info("slot disabled by config; skipping", "slot", entry.ID, "adapter", entry.Adapter)
@@ -346,11 +400,11 @@ func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []l
 		}
 		f, ok := providers[entry.Adapter]
 		if !ok {
-			return nil, nil, nil, fmt.Errorf("slot %q: unknown provider adapter %q (registered: %v)", entry.ID, entry.Adapter, keys(providers))
+			return nil, nil, nil, nil, fmt.Errorf("slot %q: unknown provider adapter %q (registered: %v)", entry.ID, entry.Adapter, keys(providers))
 		}
 		b, err := f(entry, deps)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("slot %q (adapter %q): %w", entry.ID, entry.Adapter, err)
+			return nil, nil, nil, nil, fmt.Errorf("slot %q (adapter %q): %w", entry.ID, entry.Adapter, err)
 		}
 		built = append(built, b)
 	}
@@ -361,18 +415,18 @@ func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []l
 	var reaches []library.Reach
 	resolvers := Resolvers{}
 	for _, b := range built {
-		caps, err := deps.Registry.Admit(b.entry.ID, b.impl)
+		caps, err := deps.Registry.Admit(b.Entry.ID, b.Impl)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("slot %q (adapter %q): %w", b.entry.ID, b.entry.Adapter, err)
+			return nil, nil, nil, nil, fmt.Errorf("slot %q (adapter %q): %w", b.Entry.ID, b.Entry.Adapter, err)
 		}
-		logAdmitted(logger, b.entry.ID, caps)
-		jobs = append(jobs, b.jobs...)
-		reaches = append(reaches, b.reaches...)
-		if b.resolver != nil {
-			resolvers[b.entry.ID] = b.resolver
+		logAdmitted(logger, b.Entry.ID, caps)
+		jobs = append(jobs, b.Jobs...)
+		reaches = append(reaches, b.Reaches...)
+		if b.Resolver != nil {
+			resolvers[b.Entry.ID] = b.Resolver
 		}
 	}
-	return jobs, reaches, resolvers, nil
+	return jobs, reaches, resolvers, built, nil
 }
 
 // SetupAll walks every slot kind from config. Provider and catalogue wiring
@@ -380,7 +434,7 @@ func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []l
 // and device entries); the remaining kinds are stubs that fail loudly if an
 // operator ever declares one before its milestone lands — silent ignoring
 // would make a typo look like a working deployment.
-func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]scheduler.Job, []library.Reach, []enrichment.Catalogue, Resolvers, error) {
+func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]scheduler.Job, []library.Reach, []enrichment.Catalogue, Resolvers, []*BuiltSlot, error) {
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -388,14 +442,14 @@ func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]sched
 	deps.Ctx = ctx
 	deps.Logger = logger
 
-	pJobs, reaches, resolvers, err := SetupProviders(slots.Providers, deps)
+	pJobs, reaches, resolvers, built, err := SetupProviders(slots.Providers, deps)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 
 	cats, err := SetupCatalogues(slots.Catalogue, deps)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 
 	// Sinks are wired through SetupSinks (they need a delivery relay), so
@@ -409,10 +463,10 @@ func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]sched
 		{"drm", slots.Drm},
 	} {
 		if len(kind.entries) > 0 {
-			return nil, nil, nil, nil, fmt.Errorf("%s slots are not implemented yet; remove the %q entries or wait for their milestone", kind.name, kind.name+"s")
+			return nil, nil, nil, nil, nil, fmt.Errorf("%s slots are not implemented yet; remove the %q entries or wait for their milestone", kind.name, kind.name+"s")
 		}
 	}
-	return pJobs, reaches, cats, resolvers, nil
+	return pJobs, reaches, cats, resolvers, built, nil
 }
 
 // DeclaredCadence resolves a sync cadence by precedence: explicit operator
