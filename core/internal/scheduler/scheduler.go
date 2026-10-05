@@ -42,6 +42,7 @@ type Scheduler struct {
 	started bool
 	ctx     context.Context
 	wg      sync.WaitGroup
+	running map[string]context.CancelFunc
 }
 
 // New builds a scheduler with the default cadence (zero means default).
@@ -52,7 +53,7 @@ func New(cadence time.Duration, logger *slog.Logger) *Scheduler {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Scheduler{cadence: cadence, logger: logger}
+	return &Scheduler{cadence: cadence, logger: logger, running: map[string]context.CancelFunc{}}
 }
 
 // Register adds a job. Jobs registered before Run are scheduled at startup;
@@ -65,14 +66,40 @@ func (s *Scheduler) Register(j Job) bool {
 	defer s.mu.Unlock()
 	s.jobs = append(s.jobs, j)
 	if s.started {
-		ctx := s.ctx
-		s.wg.Add(1)
-		go func() {
-			defer s.wg.Done()
-			s.loop(ctx, j)
-		}()
+		s.startJob(j)
 	}
 	return true
+}
+
+// Remove cancels a job's recurring worker so it never fires on cadence again
+// (an in-flight run may complete once). Safe to call for a job that never
+// ran. The slot side of the removal is the caller's job; this retires only
+// the schedule.
+func (s *Scheduler) Remove(name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if cancel, ok := s.running[name]; ok {
+		cancel()
+		delete(s.running, name)
+	}
+	for i, j := range s.jobs {
+		if j.Name == name {
+			s.jobs = append(s.jobs[:i], s.jobs[i+1:]...)
+			break
+		}
+	}
+}
+
+// startJob launches a job's worker under its own cancellable context. Callers
+// hold s.mu.
+func (s *Scheduler) startJob(j Job) {
+	ctx, cancel := context.WithCancel(s.ctx)
+	s.running[j.Name] = cancel
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		s.loop(ctx, j)
+	}()
 }
 
 // Run blocks until ctx is cancelled, firing each job once per cadence with
@@ -85,11 +112,9 @@ func (s *Scheduler) Run(ctx context.Context) {
 	copy(jobs, s.jobs)
 	s.mu.Unlock()
 	for _, j := range jobs {
-		s.wg.Add(1)
-		go func(j Job) {
-			defer s.wg.Done()
-			s.loop(ctx, j)
-		}(j)
+		s.mu.Lock()
+		s.startJob(j)
+		s.mu.Unlock()
 	}
 	s.wg.Wait()
 }

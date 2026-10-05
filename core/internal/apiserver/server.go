@@ -28,6 +28,14 @@ type AccountAttacher interface {
 	AttachAccount(rec accounts.Record) error
 }
 
+// AccountDropper takes an unlinked account out of the live slot: the slot
+// drops its cached session, its refresh job leaves the shared scheduler, and
+// its source-cache rows are dropped. The api layer owns the record, session
+// blob, reach and stream revocation; this is the slot side.
+type AccountDropper interface {
+	DropAccount(rec accounts.Record) error
+}
+
 // DeliveryManager is the delivery-engine surface the API layer calls
 // (PLAN.md §6, §9.1). Exposing an interface keeps the apiserver decoupled
 // from the engine's internals and lets the handlers be tested with a stub.
@@ -64,6 +72,7 @@ type Server struct {
 	accounts *accounts.Store
 	probers  map[string]CredentialProber
 	attacher AccountAttacher
+	dropper  AccountDropper
 }
 
 // NewServer returns a CoreService backed by the given bus, stores, and auth.
@@ -98,6 +107,16 @@ func (s *Server) SetAttacher(a AccountAttacher) {
 		return
 	}
 	s.attacher = a
+}
+
+// SetDropper arms the live-removal counterpart to SetAttacher: when armed, an
+// unlink also takes the account out of its running slot (cached session,
+// refresh job, source-cache rows), not just out of the permission views.
+func (s *Server) SetDropper(d AccountDropper) {
+	if d == nil {
+		return
+	}
+	s.dropper = d
 }
 
 // SetDelivery arms the delivery engine after construction — used when the

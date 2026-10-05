@@ -175,6 +175,13 @@ func (s *Server) RemoveAccount(ctx context.Context, req *apiv1.RemoveAccountRequ
 	if s.library != nil {
 		s.library.RemoveReach(rec.ID)
 	}
+	// The running slot must forget it too: drop the account's cached session,
+	// retire its refresh job, and drop its source-cache rows — the record and
+	// session blob are already gone, and a ghost account with a working token
+	// must not linger until restart.
+	if s.dropper != nil {
+		_ = s.dropper.DropAccount(rec)
+	}
 	// Every session routed through this account must die with it: the engine
 	// marks them revoked (and aborts their sinks) before we announce the
 	// account's removal, so the notification never lags the cut-off

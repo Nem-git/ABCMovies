@@ -158,6 +158,36 @@ func (rt *SlotRuntime) AttachAccount(rec accounts.Record) error {
 	return nil
 }
 
+// DropAccount takes a linked account out of the running slot live: the slot
+// drops its cached session, its refresh job leaves the shared scheduler, and
+// the account's source-cache rows are dropped. It is the removal counterpart
+// to AttachAccount. A missing live slot is not an error — there is nothing
+// live left to take back; the record and session are deleted by the api layer.
+func (rt *SlotRuntime) DropAccount(rec accounts.Record) error {
+	b := rt.providerFor(rec.Provider, rec.BaseURL)
+	if b == nil {
+		// The account's slot is not live anymore — nothing to take back. The
+		// api layer has already deleted the record and session and pulled the
+		// reach; any cache rows belong to a slot that no longer exists.
+		return nil
+	}
+	if attachable, ok := b.Impl.(slotwiring.AttachableSlot); ok {
+		attachable.DropAccount(rec.ID)
+	}
+	rt.Scheduler.Remove("source-cache-sync/" + b.Namespace() + "/" + rec.ID)
+	prefix := b.Namespace() + "/" + rec.ID + "/"
+	keys, err := rt.deps.SourceCache.List(context.Background(), prefix)
+	if err != nil {
+		return fmt.Errorf("list source-cache rows for %q: %w", rec.ID, err)
+	}
+	for _, k := range keys {
+		if err := rt.deps.SourceCache.Delete(context.Background(), k); err != nil {
+			return fmt.Errorf("drop source-cache row %q: %w", k, err)
+		}
+	}
+	return nil
+}
+
 // registryEvidence adapts the item registry to the enrichment engine's
 // EntrySource: an entry's evidence is exactly its stored identity proof —
 // kind, asserted external IDs, title and year — the material matching

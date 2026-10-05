@@ -82,6 +82,10 @@ type BuiltSlot struct {
 	Cadence time.Duration
 }
 
+// Namespace is the source-cache namespace the slot's accounts sync under —
+// whatever produced its entry id (config or the derived server namespace).
+func (b *BuiltSlot) Namespace() string { return providerNamespace(b.Entry) }
+
 // AttachableSlot is a provider slot that can take a runtime-linked account:
 // it can admit the account to itself and serve catalogue syncs for it.
 // *jellyfin.Slot satisfies it; adapters that cannot accept a runtime link
