@@ -93,27 +93,37 @@ slots:
 #   encode: disabled
 
 stores:
-  # One backend per store class (docs/PLAN.md §2.4). Dev defaults are
-  # lightweight; production uses the pinned backends (§1.16).
-  # Each class has a default file path to prevent collisions when multiple
-  # stores use "local-file" (e.g. data/caches.db, data/vault.db).
+  # One backend per store class (docs/PLAN.md §2.4). Classes whose loss costs
+  # user data or breaks the "restart continues" promise default to disk here;
+  # changing any of them to in-memory makes a throwaway instance, and boot
+  # says so per class. Each class has a default file path to prevent
+  # collisions when multiple stores use "local-file" (e.g. data/caches.db,
+  # data/vault.db).
+  # The merged per-user library cache — safe to lose, so it stays cheap and
+  # ephemeral unless you opt into restart-speed.
   caches:
     backend: in-memory
+    # path: data/caches.db  # default
   vault:
     backend: local-file
     # path: data/vault.db  # default
-    # vault-key: generated  # or 64 hex chars for a stable key
+    # vault-key: generated  # or 64 hex chars for a stable key. Generate
+    # one with: openssl rand -hex 32 — it seals logins, account sessions
+    # and any encrypted data-key cache, so losing it makes all three
+    # unreadable.
   watch-history:
-    backend: in-memory
+    backend: local-file
     # path: data/watch-history.db  # default
   jobs:
-    backend: in-memory
+    backend: local-file
     # path: data/jobs.db  # default
+  # Deliberately ephemeral: access tokens and unwrapped data keys are
+  # re-minted, not recovered; a restart signs everyone back in.
   sessions:
     backend: in-memory
     # path: data/sessions.db  # default
   users:
-    backend: in-memory
+    backend: local-file
     # path: data/users.db  # default
   # The account source cache (docs/PLAN.md §5.4) — what each linked account
   # carries. Durable by default; rebuilding from the provider is the fallback.
