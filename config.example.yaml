@@ -94,6 +94,16 @@ slots:
 #   bandwidth: unlimited
 #   encode: disabled
 
+# Delivery engine knobs (docs/PLAN.md §7.2):
+#   on-cap-change: what lowering an account's concurrent-stream cap does to
+#     the sessions already running on it.
+#     new-sessions-only (default) — running streams finish, and the new cap
+#       applies from the next session.
+#     enforce-now — the excess sessions end immediately, oldest first.
+#   A user may override this per account. An unknown value fails startup.
+# delivery:
+#   on-cap-change: new-sessions-only
+
 stores:
   # One backend per store class (docs/PLAN.md §2.4). Classes whose loss costs
   # user data or breaks the "restart continues" promise default to disk here;
