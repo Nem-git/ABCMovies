@@ -8,11 +8,14 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"go.yaml.in/yaml/v4"
 
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/auth"
+	"github.com/nem-git/abcmovies/core/internal/policy"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
@@ -22,15 +25,26 @@ type StoreConfig struct {
 	Path    string `yaml:"path,omitempty"`
 }
 
-// AccountConfig declares one streaming-provider account (IMPLEMENTATION.md §3:
-// operator-declared accounts). The password is never written down — it is
-// resolved from an environment variable named by password-env, and the
-// provider session token that replaces it is stored sealed in the vault.
+// AccountConfig declares one login on the server its provider slot serves
+// (IMPLEMENTATION.md §3: operator-declared accounts). The password is never
+// written down — it is resolved from an environment variable named by
+// password-env, and the provider session token that replaces it is stored
+// sealed in the vault.
 type AccountConfig struct {
 	ID          string `yaml:"id"`
-	URL         string `yaml:"url"`
 	Username    string `yaml:"username"`
 	PasswordEnv string `yaml:"password-env"`
+	// MaxConcurrentStreams is the declared ceiling for this account: the
+	// operator's statement of what the upstream allows (PLAN.md §7.2). 0 or
+	// absent leaves the account uncapped — the instance default policy
+	// still applies to every member. Mirrors the linked-account record's
+	// MaxConcurrentStreams.
+	MaxConcurrentStreams uint32 `yaml:"max-concurrent-streams,omitempty"`
+	// Policy overrides instance defaults for this account only. Keys absent
+	// here inherit the instance policy; malformed values or unknown keys
+	// refuse startup, never silently ignore. Validated against the policy
+	// package's strict vocabulary.
+	Policy map[string]string `yaml:"policy,omitempty"`
 }
 
 // SlotEntry is one declared slot instance within a kind list. The kind comes
@@ -47,7 +61,11 @@ type SlotEntry struct {
 	// secret (e.g. the TMDB bearer token); the value never lives in config
 	// (TECHNICAL-DECISIONS §1.27). Optional; only adapters that authenticate
 	// instance-wide read it.
-	TokenEnv string          `yaml:"token-env"`
+	TokenEnv string `yaml:"token-env"`
+	// Server is the base URL of the single server this provider slot serves
+	// (PLAN.md §3.1). Accounts of a slot are logins on that server — a slot
+	// never spans servers. Catalogue and sink entries leave it empty.
+	Server   string          `yaml:"server"`
 	Accounts []AccountConfig `yaml:"accounts"`
 	// Options is the per-adapter configuration bag. Each adapter reads only
 	// the keys it declares; the shared SlotEntry stays free of adapter-specific
@@ -100,10 +118,30 @@ type Config struct {
 		SourceCache   StoreConfig `yaml:"source-cache"`
 		MetadataCache StoreConfig `yaml:"metadata-cache"`
 	} `yaml:"stores"`
-	Slots SlotsConfig `yaml:"slots"`
+	// Policy is the instance-wide usage policy — a limit-type → value map
+	// (PLAN.md §7.2). Absent keys inherit the shipped defaults; unknown
+	// keys and malformed values fail startup. The delivery engine stamps it
+	// on every job's recorded DeliveryContext.
+	Policy map[string]string `yaml:"policy,omitempty"`
+	Slots  SlotsConfig       `yaml:"slots"`
 	// Enrichment tunes the background metadata pipeline. Absent keys fall
 	// back to the defaults the enrichment package declares.
 	Enrichment EnrichmentConfig `yaml:"enrichment"`
+	// Delivery tunes session admission and the cap-change behaviour
+	// (TECHNICAL-DECISIONS.md). Absent keys fall back to the shipped
+	// defaults.
+	Delivery DeliveryConfig `yaml:"delivery"`
+}
+
+// DeliveryConfig carries the delivery engine's operator knobs.
+type DeliveryConfig struct {
+	// OnCapChange selects what lowering an account's concurrent-stream cap
+	// does to the sessions already running on it: "new-sessions-only"
+	// (default) lets running streams finish and applies the new cap from
+	// the next session; "enforce-now" ends the excess sessions immediately,
+	// oldest first. An account may override this with its own
+	// cap_change_policy.
+	OnCapChange string `yaml:"on-cap-change"`
 }
 
 // EnrichmentConfig carries the enrichment pipeline's operator knobs.
@@ -114,7 +152,9 @@ type EnrichmentConfig struct {
 }
 
 // Stores holds the instantiated store backends for each storage class
-// (PLAN.md §2.4).
+// (PLAN.md §2.4). VaultAEAD is the single instance key resolved from
+// stores.vault-key; the vault, the sealed users store and an encrypted
+// data-key cache all derive from it.
 type Stores struct {
 	Cache         store.Store
 	Vault         store.Store
@@ -124,6 +164,7 @@ type Stores struct {
 	Users         store.Store
 	SourceCache   store.Store
 	MetadataCache store.Store
+	VaultAEAD     cipher.AEAD
 }
 
 func Default() *Config {
@@ -171,13 +212,37 @@ func Load(path string) (*Config, error) {
 	if err := validateSlots(c.Slots); err != nil {
 		return nil, fmt.Errorf("config: slots: %w", err)
 	}
+	if err := validatePolicies(c); err != nil {
+		return nil, err
+	}
 	return c, nil
+}
+
+// validatePolicies fails the load when the instance policy block or any
+// account policy block fails the strict policy-vocabulary check. Failing
+// here — at boot, once, with the offending key named — is what a mis-typed
+// limit must produce; never starting confined by nothing.
+func validatePolicies(c *Config) error {
+	if _, err := policy.ParseInstance(c.Policy); err != nil {
+		return err
+	}
+	for _, list := range [][]SlotEntry{c.Slots.Providers, c.Slots.Catalogue, c.Slots.Sinks} {
+		for _, e := range list {
+			for _, a := range e.Accounts {
+				if _, err := policy.ParseOverlay(a.Policy); err != nil {
+					return fmt.Errorf("account %q in slot %q: %w", a.ID, e.ID, err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // validateSlots enforces the invariants the slot taxonomy implies (PLAN.md
 // §3.1): instance IDs are unique across every kind, each entry names its
 // adapter, and v1 speaks exactly one transport — a subprocess entry must fail
-// loudly rather than be silently ignored.
+// loudly rather than be silently ignored. Provider slots additionally must
+// declare the one server they serve, and every account inside them needs an id.
 func validateSlots(slots SlotsConfig) error {
 	seen := map[string]string{}
 	for _, list := range []struct {
@@ -206,6 +271,16 @@ func validateSlots(slots SlotsConfig) error {
 				// v1 ships in-process only; empty means the default.
 			default:
 				return fmt.Errorf("slot %q: unsupported transport %q (v1 supports \"in-process\")", e.ID, e.Transport)
+			}
+			if list.kind == "providers" {
+				if e.Server == "" {
+					return fmt.Errorf("slot %q: a provider slot must declare the server it serves", e.ID)
+				}
+				for _, a := range e.Accounts {
+					if a.ID == "" {
+						return fmt.Errorf("slot %q: account entry missing id", e.ID)
+					}
+				}
 			}
 		}
 	}
@@ -258,15 +333,30 @@ func BuildStores(ctx context.Context, cfg *Config, logger *slog.Logger) (Stores,
 		return s, fmt.Errorf("stores.metadata-cache: %w", err)
 	}
 
-	// Vault requires an AEAD cipher.
+	// The instance key is resolved exactly once and shared by everything that
+	// must be sealed at rest: the vault store, the sealed login store, and an
+	// encrypted data-key cache. Resolving it per consumer would, with a
+	// generated key, hand each of them a different key — and sealed records
+	// would become unreadable in-process as well.
+	aead, err := loadOrGenerateVaultKey(cfg.Stores.VaultKey, logger)
+	if err != nil {
+		return s, fmt.Errorf("stores.vault key: %w", err)
+	}
+	s.VaultAEAD = aead
+
+	// Login records carry password hashes and wrapped keys. Seal them with the
+	// instance key regardless of backend so the guarantee (records are never
+	// plaintext at rest) does not depend on a config dropdown.
+	s.Users, err = store.NewSealed(s.Users, aead, logger)
+	if err != nil {
+		return s, fmt.Errorf("stores.users: %w", err)
+	}
+
+	// Vault requires an AEAD cipher — the single one resolved above is it.
 	switch cfg.Stores.Vault.Backend {
 	case "in-memory":
 		s.Vault = store.NewInMemory()
 	case "local-file":
-		aead, vaultErr := loadOrGenerateVaultKey(cfg.Stores.VaultKey, logger)
-		if vaultErr != nil {
-			return s, fmt.Errorf("stores.vault key: %w", vaultErr)
-		}
 		vaultPath := cfg.Stores.Vault.Path
 		if vaultPath == "" {
 			vaultPath = "data/vault.db"
@@ -279,6 +369,7 @@ func BuildStores(ctx context.Context, cfg *Config, logger *slog.Logger) (Stores,
 		return s, fmt.Errorf("stores.vault: unknown backend %q", cfg.Stores.Vault.Backend)
 	}
 
+	auditDurability(cfg, logger)
 	return s, nil
 }
 
@@ -309,11 +400,11 @@ func buildStore(_ context.Context, cfg StoreConfig, defaultPath string) (store.S
 	}
 }
 
-// loadOrGenerateVaultKey returns an AEAD cipher for the vault. If the config
-// value is "generated", a random 32-byte key is created and a warning is
-// logged (data will not survive restart). Otherwise the value is hex-decoded
-// as a 32-byte key.
-func loadOrGenerateVaultKey(val string, logger *slog.Logger) (cipher.AEAD, error) {
+// loadOrGenerateVaultKey returns an AEAD cipher for the instance key. If the
+// config value is "generated", a random 32-byte key is created — fine within
+// one process, useless across a restart, which auditDurability names.
+// Otherwise the value is hex-decoded as a 32-byte key.
+func loadOrGenerateVaultKey(val string, _ *slog.Logger) (cipher.AEAD, error) {
 	var key []byte
 
 	switch val {
@@ -321,9 +412,6 @@ func loadOrGenerateVaultKey(val string, logger *slog.Logger) (cipher.AEAD, error
 		key = make([]byte, 32)
 		if _, err := rand.Read(key); err != nil {
 			return nil, fmt.Errorf("generate vault key: %w", err)
-		}
-		if logger != nil {
-			logger.Warn("generated ephemeral vault key — data will not survive restart")
 		}
 	default:
 		// Treat as hex-encoded 32-byte key.
@@ -352,6 +440,58 @@ func loadOrGenerateVaultKey(val string, logger *slog.Logger) (cipher.AEAD, error
 	return aead, nil
 }
 
+// auditDurability is the one voice on store durability at boot. The storage
+// classification says what may be lost and what must not; rather than trusting
+// the operator to remember, boot inspects the effective configuration and
+// names, per affected class, exactly what a restart takes away. It never
+// refuses to boot: a throwaway instance is a legitimate configuration, and
+// it should be able to say so honestly out loud.
+func auditDurability(cfg *Config, logger *slog.Logger) {
+	if logger == nil {
+		return
+	}
+
+	// A generated key never matches itself across a restart. Whatever is
+	// sealed on disk — account sessions, user records, an encrypted data-key
+	// cache — is irrecoverable afterwards, even though the files remain.
+	// In-memory classes lose their contents with the process either way.
+	if cfg.Stores.VaultKey == "" || cfg.Stores.VaultKey == "generated" {
+		logger.Warn("stores: no instance key configured (stores.vault-key is generated): every sealed store becomes unreadable after a restart. Pin a 64-hex-character key to keep logins, account sessions and watch history.")
+	}
+
+	var lost []string
+	if cfg.Stores.Users.Backend == "in-memory" {
+		lost = append(lost, "logins (users)")
+	}
+	if cfg.Stores.Vault.Backend == "in-memory" {
+		lost = append(lost, "account sessions (vault)")
+	}
+	if cfg.Stores.WatchHistory.Backend == "in-memory" {
+		lost = append(lost, "watch history")
+	}
+	if len(lost) > 0 {
+		logger.Warn("stores: must-not-lose classes are in-memory — a restart loses them", "lost", lost)
+	}
+	if cfg.Stores.Jobs.Backend == "in-memory" {
+		logger.Warn("stores: jobs are in-memory — a restart restarts in-flight work instead of continuing it")
+	}
+}
+
+// ParseCapChangeDefault resolves the operator's delivery.on-cap-change
+// setting into the accounts vocabulary. An empty value resolves to the
+// shipped default, "new-sessions-only": a lowered cap never kills a running
+// session. Unknown values are a startup failure, never a silent fallback.
+func ParseCapChangeDefault(raw string) (accounts.CapChangePolicy, error) {
+	switch strings.TrimSpace(raw) {
+	case "", "new-sessions-only":
+		return accounts.CapChangePolicyNewSessionsOnly, nil
+	case "enforce-now":
+		return accounts.CapChangePolicyEnforceNow, nil
+	default:
+		return accounts.CapChangePolicyDefault, fmt.Errorf("delivery: unknown on-cap-change %q (want \"new-sessions-only\" or \"enforce-now\")", raw)
+	}
+}
+
 // ParseTokenTTL parses the token TTL from the config string.
 // Returns the default (7 days) if the string is empty or invalid.
 func ParseTokenTTL(val string) time.Duration {
@@ -364,14 +504,6 @@ func ParseTokenTTL(val string) time.Duration {
 		return defaultTTL
 	}
 	return d
-}
-
-// VaultAEAD returns the AEAD cipher for vault-class encryption, loading or
-// generating the configured vault key. Callers that need the cipher outside
-// store construction (the sealed DEK cache) use this instead of reaching
-// into BuildStores.
-func VaultAEAD(cfg *Config, logger *slog.Logger) (cipher.AEAD, error) {
-	return loadOrGenerateVaultKey(cfg.Stores.VaultKey, logger)
 }
 
 // BuildAuth creates the auth-layer stores from the given backend stores and

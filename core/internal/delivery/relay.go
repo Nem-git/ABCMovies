@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"net/http"
 	"sync"
 	"time"
 )
@@ -29,8 +30,27 @@ type Relay struct {
 type ticket struct {
 	sessionID string
 	trackID   string
-	fetch     func(context.Context) (io.ReadCloser, error)
+	fetch     FetchFunc
 	expiry    time.Time
+}
+
+// FetchFunc pulls one track's bytes from the provider. rangeHeader carries the
+// caller's HTTP Range value ("" means the whole stream): a byte-addressable
+// request forwards it to the provider so only the requested segment is pulled
+// (PLAN.md §3.6 — byte-addressable sinks pull segments or byte ranges through
+// relay URLs, and the engine fetches only what the sink asks for). A fetch
+// that is not range-addressable may ignore it and return the full stream.
+type FetchFunc func(ctx context.Context, rangeHeader string) (FetchResult, error)
+
+// FetchResult is one provider response to a pull: the provider's own status
+// and headers plus the body. The relay is a pipe, not a decoder — the provider
+// answered 206 for a ranged pull (Content-Range and Content-Length included),
+// and those are exactly what the serving layer re-emits, so a player seeking
+// through a stream never sees a mangled range response.
+type FetchResult struct {
+	StatusCode int
+	Header     http.Header
+	Body       io.ReadCloser
 }
 
 // NewRelay returns an empty relay.
@@ -42,7 +62,7 @@ func NewRelay() *Relay {
 // token that resolves to it. Tokens are random and unguessable; expiry bounds
 // how long a granted URL stays valid (stream URLs expire in minutes-to-hours,
 // PLAN.md §6.2).
-func (r *Relay) Grant(sessionID, trackID string, fetch func(context.Context) (io.ReadCloser, error), ttl time.Duration) (string, error) {
+func (r *Relay) Grant(sessionID, trackID string, fetch FetchFunc, ttl time.Duration) (string, error) {
 	if sessionID == "" || trackID == "" || fetch == nil {
 		return "", fmt.Errorf("relay: session, track, and fetch are required")
 	}
@@ -61,29 +81,47 @@ func (r *Relay) Grant(sessionID, trackID string, fetch func(context.Context) (io
 	return tok, nil
 }
 
-// Open resolves a token to a byte reader. It validates the ticket is live
-// (granted and not expired), and returns the reader plus a release func the
-// caller must close/forget on abort. A consumed ticket stays valid until it
-// expires or the session is revoked, so a frontend may re-pull a track.
-func (r *Relay) Open(token string) (io.ReadCloser, func(), error) {
+// OpenOption customizes one pull through a granted relay URL.
+type OpenOption func(*openOptions)
+
+type openOptions struct {
+	rangeHeader string
+}
+
+// WithRange forwards an HTTP Range header to the provider on this pull, so a
+// byte-addressable sink downloads only the segment it asked for. The
+// provider's own response — status (206), Content-Range, Content-Length — is
+// returned untouched.
+func WithRange(v string) OpenOption {
+	return func(o *openOptions) { o.rangeHeader = v }
+}
+
+// Open resolves a token to a provider response. It validates the ticket is
+// live (granted and not expired), then pulls the bytes — forwarding any Range
+// the caller requested. A consumed ticket stays valid until it expires or the
+// session is revoked, so a frontend may re-pull a track.
+func (r *Relay) Open(token string, opts ...OpenOption) (FetchResult, error) {
 	r.mu.Lock()
 	t, ok := r.tickets[token]
 	if !ok {
 		r.mu.Unlock()
-		return nil, nil, fmt.Errorf("relay: unknown token")
+		return FetchResult{}, fmt.Errorf("relay: unknown token")
 	}
 	if r.now().After(t.expiry) {
 		r.mu.Unlock()
-		return nil, nil, fmt.Errorf("relay: grant expired")
+		return FetchResult{}, fmt.Errorf("relay: grant expired")
 	}
 	r.mu.Unlock()
 
-	body, err := t.fetch(context.Background())
-	if err != nil {
-		return nil, nil, fmt.Errorf("relay: fetch: %w", err)
+	var o openOptions
+	for _, opt := range opts {
+		opt(&o)
 	}
-	release := func() {}
-	return body, release, nil
+	res, err := t.fetch(context.Background(), o.rangeHeader)
+	if err != nil {
+		return FetchResult{}, fmt.Errorf("relay: fetch: %w", err)
+	}
+	return res, nil
 }
 
 // TokenTrack returns the session and track a token belongs to, or ok=false.

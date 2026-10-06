@@ -42,7 +42,7 @@ func TestWalkingSkeleton(t *testing.T) {
 	}
 
 	// Retrieve job.
-	resp, err := stack.server.GetJob(t.Context(), &apiv1.GetJobRequest{JobId: "skeleton-job-1"})
+	resp, err := stack.server.GetJob(apiserver.WithUserID(t.Context(), "user:alice"), &apiv1.GetJobRequest{JobId: "skeleton-job-1"})
 	if err != nil {
 		t.Fatalf("GetJob: %v", err)
 	}

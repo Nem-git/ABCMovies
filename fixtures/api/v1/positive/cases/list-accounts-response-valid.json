@@ -1,0 +1,20 @@
+{
+  "name": "list-accounts-response-valid",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {
+    "accounts": [
+      {
+        "accountId": "lnk_acc_1",
+        "provider": "jellyfin",
+        "baseUrl": "http://jf.local:8096",
+        "callerLinked": true,
+        "status": "ACCOUNT_STATUS_LINKED",
+        "visibility": "ACCOUNT_VISIBILITY_PRIVATE",
+        "ownerUserId": "user-1"
+      }
+    ]
+  },
+  "type": "ListAccountsResponse"
+}

@@ -5,4 +5,4 @@ formatters:
     - gofumpt
   settings:
     gofumpt:
-      lang-version: '1.26'
+      lang-version: '1.27'

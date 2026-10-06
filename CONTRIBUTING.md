@@ -7,7 +7,7 @@ This project is specified before it is built, and its documents are designed to 
 - **Milestones, not ad-hoc features.** Work is organized around milestones M0–M9 ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) §3). A feature outside the current milestone is a discussion, not a PR.
 - **Fixture-first.** A requirement without a fixture is not done ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) §1.1). Code lands with its fixture suite, including negative fixtures for anything that accepts input.
 - **No core changes to add a slot.** Adding an adapter is writing an adapter + fixtures + config; if it requires a core change, that is a design violation to review ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) §4.1), not a normal step.
-- **Product changes go to PLAN.md.** If work surfaces a product decision, it is recorded in PLAN.md §11 — never left only in code or fixtures ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) §3). Implementation choices go to [TECHNICAL-DECISIONS.md](docs/TECHNICAL-DECISIONS.md); scope changes go to [SCOPE.md](docs/SCOPE.md) with a sign-off.
+- **Product changes go to PLAN.md.** If work surfaces a product decision, it is recorded in PLAN.md §11 — never left only in code or fixtures ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) §3). Implementation choices go to [TECHNICAL-DECISIONS.md](docs/TECHNICAL-DECISIONS.md); scope changes go to [SCOPE.md](docs/SCOPE.md).
 - **Reject, never downgrade.** A slot that fails its fixture suite is rejected, never silently downgraded ([PLAN.md](docs/PLAN.md) §2.5).
 
 ## Pull requests

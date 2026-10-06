@@ -13,7 +13,7 @@ The project is specified before it is built. The documents are designed to be re
 | [ENVIRONMENT.md](docs/ENVIRONMENT.md) | What a developer machine must contain; reproducibility (local == CI) |
 | [TESTING.md](docs/TESTING.md) | What "tested" means: fixture suites, test pyramid, vault/secrets suite |
 | [CI-CD.md](docs/CI-CD.md) | How changes are integrated, verified, and shipped |
-| [SCOPE.md](docs/SCOPE.md) | What v1 is (M0–M6), what is deferred, operator sign-offs |
+| [SCOPE.md](docs/SCOPE.md) | What v1 is (M0–M6), what is deferred, what "v1 done" means |
 | [TECHNICAL-DECISIONS.md](docs/TECHNICAL-DECISIONS.md) | The implementation choices the references stay agnostic about |
 | [RESEARCH.md](docs/RESEARCH.md) | Feasibility evidence behind decisions (spike findings) |
 | [THREAT-MODEL.md](docs/THREAT-MODEL.md) | What is protected, against whom, and the tests that verify it |

@@ -12,7 +12,6 @@ import (
 	"google.golang.org/grpc"
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
-	"github.com/nem-git/abcmovies/core/internal/scheduler"
 
 	"github.com/nem-git/abcmovies/core/app"
 )
@@ -38,11 +37,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	sched := scheduler.New(0, logger)
-	for _, j := range slots.Jobs {
-		sched.Register(j)
-	}
-	go sched.Run(ctx)
+	// The slot runtime owns the shared scheduler, already wired with the boot
+	// set of jobs; run it here. A runtime account link registers its refresh
+	// job on the same scheduler and it starts immediately.
+	go slots.Scheduler.Run(ctx)
 
 	unary, stream := stack.AuthInterceptors()
 	gs := grpc.NewServer(

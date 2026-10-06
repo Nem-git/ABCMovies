@@ -130,6 +130,8 @@ Five slot types exist. **Every slot answers the meta-contract** (§3.3); provide
 | **subtitle-source** | get-subtitles | its own | external subtitle source, keyed by external identity (§5.3); provenance-marked, opt-in (§6.2) |
 | **drm** | acquire-keys, decrypt | its own | license negotiation + decryption (§6.6) |
 
+**A provider slot serves exactly one server.** The slot declares which server it serves; its accounts are logins *on that server*, each carrying its own credentials, per-account policy overrides and upstream concurrency cap — never a second server. One server per slot makes the slot's identity namespace, its sync cadence and its per-provider pacing a single unambiguous scope. A member who links a server no configured slot declares gets a slot synthesized for that server: same shape, same rules, derived deterministically from the server address, so every account of that server — and every member who links it — lands in one namespace and a title seen through any of them merges into one entry.
+
 **Frontends are not slots.** A slot is something the core reaches *out* to, declares in config, handshakes at startup, and supervises. A frontend is the opposite: it reaches *in* to the core's API. The core must not know a frontend exists, and adding one never changes the core (§8). Sinks are slots because the engine actively drives them; frontends drive themselves. The test: *who reaches out to whom?*
 
 ### 3.2 Provider capabilities, per operation
@@ -219,7 +221,7 @@ User slots differ from operator slots in *attribution and scope*, not in kind:
 
 ### 5.1 The library is per-user
 
-**The library is derived from the user's reachable sessions — nothing more.** It is built from the providers that user can actually reach: their own accounts, shared accounts, host-provided accounts, and anonymous/guest sessions where a provider allows browsing without a login. If a user has no account on a provider, that provider contributes nothing to that user's library.
+**The library is derived from the user's reachable sessions — nothing more.** It is built from the providers that user can actually reach: their own accounts, shared accounts, host-provided accounts, and anonymous/guest sessions where a provider allows browsing without a login. If a user has no reachable session on a provider — no account of their own, and no account shared with them — that provider contributes nothing to their library. A shared account contributes to every member it is shared with, whether or not that member holds a provider login of their own on that server.
 
 Consequences:
 
@@ -613,5 +615,11 @@ Key decisions, pointing to where they are argued in the body:
 | Catalogue items carry all their content metadata inside an embedded TitleMetadata; which of those fields count as matching evidence is decided by the matching engine, never by the schema | §3.4, §5.3 |
 | Pipelines are ordered **step-chains** (a DAG of transform stages), not a single kind; the engine records a session's chain at start, and a step v1 cannot run is **declined loudly and logged** (decrypt / transcode / record), never downgraded to passthrough | §6.3, §2.5 |
 | Slot sink config is a namespaced `options` map (disk `path` lives under `options`); the flat `Path`/`Retention` sink fields are removed | §6.4, config |
+| A play session announces itself twice: a delivery-menu-ready event (menu painted) before the job-status event that records the session; a subscriber attached as the slot owner/relayer receives both, in that order | §6.5, §8.2, §9.1 |
+| Linking at runtime provisions immediately: the account's client is built, its initial source-cache sync runs, and only then is the account committed to the slot, the derived-library set and the delivery routing — no half-wired account is ever visible. No restart or reload is required, and no running account's stream is disturbed. Custody is vault-first at link time either way | §3.5, §4 |
+| Sharing stays the owner's call after the account is linked, and only on an account they own: narrowing ends exactly the sessions of the members who lost access, while the owner and anyone newly shared with keep theirs. Widening interrupts nobody. An operator-declared account cannot be changed this way at all | §7.1, §3.5 |
+| Delivery attribution comes from the token's principal, never a client-stated member id: `StartDeliveryRequest.member_user_id` is removed and `Heartbeat`/`GetJob` keep the owner check at the API seam. Signup now returns a session token and Login returns the user id, so both auth responses carry everything a client needs | §2.2, §3.5, §6; TECHNICAL-DECISIONS §1.12, §1.36 |
+| All sinks — including the default device sink — are declared explicitly in instance config; the device entry is trivial (`id: device`, `adapter: device`, `enabled: true`), mapping the per-slot-config model onto all v1 sinks uniformly | §6.4; TECHNICAL-DECISIONS §1.13 |
+| Lowering an account's stream cap is per-account and the owner's choice: the shipped default applies the new cap from the next session and never interrupts a running stream; the other option cuts the excess sessions immediately, oldest first | §7.2, §3.5 |
 
 **Scope of this log.** This log records *product* decisions only. Implementation decisions (language, transport, tooling) are recorded in TECHNICAL-DECISIONS.md; scope and acceptance live in SCOPE.md; feasibility evidence lives in RESEARCH.md. This document deliberately stays agnostic about all three.

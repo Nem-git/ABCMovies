@@ -1,0 +1,14 @@
+{
+  "name": "update-account-valid-sharing",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {
+    "accountId": "lnk_0123456789abcdef0123456789abcdef",
+    "sharing": {
+      "visibility": "ACCOUNT_VISIBILITY_SHARED",
+      "sharedWith": ["alice", "carol"]
+    }
+  },
+  "type": "UpdateAccountRequest"
+}

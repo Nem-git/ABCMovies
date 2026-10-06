@@ -1,0 +1,10 @@
+{
+  "name": "get-play-info-valid",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {
+    "sessionId": "del-1"
+  },
+  "type": "GetPlayInfoRequest"
+}

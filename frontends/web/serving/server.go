@@ -48,6 +48,12 @@ func New(configPath string, logger *slog.Logger) (*Server, error) {
 	mux.Handle("GET /debug/registry", debugRegistryHandler{stack: stack})
 	mux.Handle("GET /debug/sourcecache", debugSourceCacheHandler{stack: stack})
 	mux.Handle("GET /debug/enrichment", debugEnrichmentHandler{stack: stack})
+	// The media relay serves delivery sessions' staged bytes (PLAN.md §3.6).
+	// It is unauthenticated beyond the relay token itself: the token is minted
+	// per session per track by the engine and dies with the session, which is
+	// the whole authorization story — bearer sessions would just add a second
+	// minting step. BuildSlots has run above, so the relay is armed.
+	mux.Handle("/media/relay/", stack.RelayHandler())
 	mux.Handle("/", staticHandler())
 
 	return &Server{mux: mux, stack: stack}, nil

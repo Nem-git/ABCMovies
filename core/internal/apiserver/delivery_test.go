@@ -9,8 +9,10 @@ import (
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
+	"github.com/nem-git/abcmovies/core/internal/library"
 )
 
 // stubDelivery is a configurable DeliveryManager for exercising the API
@@ -20,15 +22,47 @@ type stubDelivery struct {
 	startErr   error
 	heartbeats []string
 	heartErr   error
+	playmenu   *apiserver.PlayMenu
+	menuErr    error
+	revokes    []struct {
+		provider, accountID string
+		keep                []string
+	}
+	applies []struct {
+		provider, accountID string
+		enforceNow          bool
+	}
 }
 
 func (s *stubDelivery) Start(ctx context.Context, req delivery.StartRequest) (*delivery.Session, error) {
 	return s.session, s.startErr
 }
 
-func (s *stubDelivery) Heartbeat(id string) error {
+func (s *stubDelivery) Heartbeat(id string, memberUserID string) error {
 	s.heartbeats = append(s.heartbeats, id)
 	return s.heartErr
+}
+
+func (s *stubDelivery) PlayMenu(sessionID string) (*apiserver.PlayMenu, error) {
+	return s.playmenu, s.menuErr
+}
+
+func (s *stubDelivery) RevokeAllOnAccount(accountID string) int { return 0 }
+
+func (s *stubDelivery) RevokeOthersOnAccount(provider, accountID string, keepMembers []string) int {
+	s.revokes = append(s.revokes, struct {
+		provider, accountID string
+		keep                []string
+	}{provider, accountID, keepMembers})
+	return 0
+}
+
+func (s *stubDelivery) ApplyAccountCap(ctx context.Context, provider, accountID string, enforceNow bool) (int, error) {
+	s.applies = append(s.applies, struct {
+		provider, accountID string
+		enforceNow          bool
+	}{provider, accountID, enforceNow})
+	return 0, nil
 }
 
 func runningSession() *delivery.Session {
@@ -37,10 +71,9 @@ func runningSession() *delivery.Session {
 		Goal:   delivery.GoalPlay,
 		Status: delivery.StatusRunning,
 		Context: corev1.DeliveryContext{
-			Provider:     "jellyfin",
-			AccountId:    "acc-1",
-			MemberUserId: "user-1",
-			Sink:         "device",
+			Provider:  "jellyfin",
+			AccountId: "acc-1",
+			Sink:      "device",
 		},
 	}
 }
@@ -51,14 +84,14 @@ func TestStartDelivery_Success(t *testing.T) {
 	authenticator, session := testAuth(t)
 	dm := &stubDelivery{session: runningSession()}
 	srv := apiserver.NewServer(bus, testStores(t), authenticator, session, dm)
+	srv.SetLibrary(&stubLibrary{reachable: map[string][]string{"acc-1": {"user-1"}}, reaches: []library.Reach{{AccountID: "acc-1", Visibility: accounts.VisibilityPublic}}})
 
-	resp, err := srv.StartDelivery(context.Background(), &apiv1.StartDeliveryRequest{
-		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
-		Provider:     "jellyfin",
-		AccountId:    "acc-1",
-		MemberUserId: "user-1",
-		NativeId:     "item-42",
-		Sink:         "device",
+	resp, err := srv.StartDelivery(ctxAs(session, "user-1"), &apiv1.StartDeliveryRequest{
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:  "jellyfin",
+		AccountId: "acc-1",
+		NativeId:  "item-42",
+		Sink:      "device",
 	})
 	if err != nil {
 		t.Fatalf("StartDelivery: %v", err)
@@ -78,12 +111,11 @@ func TestStartDelivery_Unconfigured(t *testing.T) {
 	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
 
 	_, err := srv.StartDelivery(context.Background(), &apiv1.StartDeliveryRequest{
-		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
-		Provider:     "jellyfin",
-		AccountId:    "acc-1",
-		MemberUserId: "user-1",
-		NativeId:     "item",
-		Sink:         "device",
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:  "jellyfin",
+		AccountId: "acc-1",
+		NativeId:  "item",
+		Sink:      "device",
 	})
 	if got := status.Code(err); got != codes.Unavailable {
 		t.Fatalf("code = %v, want Unavailable", got)
@@ -99,8 +131,6 @@ func TestStartDelivery_Validation(t *testing.T) {
 
 	cases := []*apiv1.StartDeliveryRequest{
 		{},
-		{Goal: apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY, Provider: "j", AccountId: "a", MemberUserId: "u", NativeId: "i"}, // missing sink
-		{Goal: apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY, Provider: "j", AccountId: "a", MemberUserId: "u", Sink: "s"},     // missing native
 	}
 	for i, r := range cases {
 		if _, err := srv.StartDelivery(context.Background(), r); status.Code(err) != codes.InvalidArgument {

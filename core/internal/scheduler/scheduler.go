@@ -36,8 +36,13 @@ type Job struct {
 // Scheduler runs jobs on a cadence with jitter and per-job backoff.
 type Scheduler struct {
 	cadence time.Duration
-	jobs    []Job
 	logger  *slog.Logger
+	mu      sync.Mutex
+	jobs    []Job
+	started bool
+	ctx     context.Context
+	wg      sync.WaitGroup
+	running map[string]context.CancelFunc
 }
 
 // New builds a scheduler with the default cadence (zero means default).
@@ -48,29 +53,70 @@ func New(cadence time.Duration, logger *slog.Logger) *Scheduler {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Scheduler{cadence: cadence, logger: logger}
+	return &Scheduler{cadence: cadence, logger: logger, running: map[string]context.CancelFunc{}}
 }
 
-// Register adds a job. Jobs registered before Run are scheduled; registering
-// after Run starts returns false and does nothing (growth is declared, not
-// improvised).
+// Register adds a job. Jobs registered before Run are scheduled at startup;
+// registering after Run has begun starts that job's worker immediately, so a
+// runtime-linked account's refresh begins without a restart. The first fire
+// of every job still waits one (jittered) cadence — the account's first fill
+// belongs to the attach path, not the schedule.
 func (s *Scheduler) Register(j Job) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.jobs = append(s.jobs, j)
+	if s.started {
+		s.startJob(j)
+	}
 	return true
+}
+
+// Remove cancels a job's recurring worker so it never fires on cadence again
+// (an in-flight run may complete once). Safe to call for a job that never
+// ran. The slot side of the removal is the caller's job; this retires only
+// the schedule.
+func (s *Scheduler) Remove(name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if cancel, ok := s.running[name]; ok {
+		cancel()
+		delete(s.running, name)
+	}
+	for i, j := range s.jobs {
+		if j.Name == name {
+			s.jobs = append(s.jobs[:i], s.jobs[i+1:]...)
+			break
+		}
+	}
+}
+
+// startJob launches a job's worker under its own cancellable context. Callers
+// hold s.mu.
+func (s *Scheduler) startJob(j Job) {
+	ctx, cancel := context.WithCancel(s.ctx)
+	s.running[j.Name] = cancel
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		s.loop(ctx, j)
+	}()
 }
 
 // Run blocks until ctx is cancelled, firing each job once per cadence with
 // independent jitter and backoff.
 func (s *Scheduler) Run(ctx context.Context) {
-	var wg sync.WaitGroup
-	for _, j := range s.jobs {
-		wg.Add(1)
-		go func(j Job) {
-			defer wg.Done()
-			s.loop(ctx, j)
-		}(j)
+	s.mu.Lock()
+	s.started = true
+	s.ctx = ctx
+	jobs := make([]Job, len(s.jobs))
+	copy(jobs, s.jobs)
+	s.mu.Unlock()
+	for _, j := range jobs {
+		s.mu.Lock()
+		s.startJob(j)
+		s.mu.Unlock()
 	}
-	wg.Wait()
+	s.wg.Wait()
 }
 
 func (s *Scheduler) loop(ctx context.Context, j Job) {

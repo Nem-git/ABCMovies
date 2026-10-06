@@ -26,7 +26,7 @@ PLAN.md §7.6's honesty principle governs everything here: there is no mathemati
 | **Revoked member** | None after revocation | Must lose all active sessions instantly (§7.1) |
 | **Provider / catalogue** | Sees its own requests and bytes | Legitimate partner; a hostile one can poison identity or throttle (§5.3, §5.4) |
 | **Slot code** (third-party adapter) | Least privilege for its job; **sees what it carries** (accepted, §1.3) | Trusted like any dependency; isolated on subprocess/network transports (§4) |
-| **Instance operator / compromised host** | Holds vault, relay key, DEKs during processing | The policy-not-proof actor: can decrypt the vault by design (§7.6, SCOPE.md sign-off) |
+| **Instance operator / compromised host** | Holds vault, relay key, DEKs during processing | The policy-not-proof actor: can decrypt the vault by design (§7.6) |
 | **DRM licensor** (v2 only) | Sees license negotiation | Threat surface for v2 (§6.6); out of v1 scope |
 
 ## 3. Threats
@@ -38,16 +38,16 @@ PLAN.md §7.6's honesty principle governs everything here: there is no mathemati
 | T3 | Credential capture during relay | Session material in memory | Malicious slot code | Slots see what they carry (accepted, §1.3); least privilege; decrypted material in-memory only, never logged (§7.6) | §6 "nothing logged" (negative) |
 | T4 | User-blob decryption at rest | History, playlists, derived library | Operator / physical | DEK wrapped by password-KEK + recovery-KEK; unwrap only during processing; recovery key is the sole reset path (§7.6) | §6; §5 watch-history store class ("user's key, encrypted") |
 | T5 | Password theft via server compromise | Login credentials | External | Server-side key derivation: server derives password-KEK from password at auth time, stores derived material only, never persists plaintext password (IMPLEMENTATION.md §1.3). Process discipline, not mathematical guarantee (§7.6) | §6 "server derives password-KEK; plaintext password is never stored" |
-| T6 | Member observes another member | Sessions, history, quota, library | Member | Member-scoping invariant (§2.2); per-user libraries (§5.1); events tenancy-routed and scope-filtered (§9.2) | M6 "member-scoping invariant is tested, not asserted"; §9.2 event-routing tests |
+| T6 | Member observes another member | Sessions, history, quota, library | Member | Member-scoping invariant (§2.2); per-user libraries (§5.1); events tenancy-routed and scope-filtered (§9.2) | M6 "member-scoping invariant is tested, not asserted" (fixtures: m6/memberscope, apiserver/bus_test, compose wiring fixture); §9.2 event-routing tests |
 | T7 | Revoked member keeps streaming | Active delivery sessions | Revoked member | Engine-side kill via session→account index; in-progress downloads discarded (§7.1) | M6 "revocation kills live sessions" |
 | T8 | Guest mints identities to exceed policy | Policy / concurrency caps | Guest | Device identity with session TTL; guest rate limits + per-instance concurrency cap (§2.2) | §5 derived-library guest cache; guest rate-limit tests |
-| T9 | Vault decryption by the operator | Account sessions | Instance operator | **Accepted by design**: server-held is policy-not-proof; the provable option is the sidecar (v2, §7.4). Disclosed in §7.6 and signed in SCOPE.md | SCOPE.md sign-off; §6 owner-only ops still hold |
+| T9 | Vault decryption by the operator | Account sessions | Instance operator | **Accepted by design**: server-held is policy-not-proof; the provable option is the sidecar (v2, §7.4). Disclosed in §7.6 | §6 owner-only ops still hold |
 | T10 | Content-key cache compromise | DRM keys | Operator | Encrypted at rest; fail-fast re-license drops the entry; credential rotation never purges (§6.6) | §5 content-key cache class; M8 (v2) |
 | T11 | Media interception in transit | Media bytes | Network | Transport encryption on all transports; egress routing separates control from bulk (v2, §7.3) | Integration tests over real transports (§4.3) |
 | T12 | Audit/log leak reveals item identity | Logs | Anyone with log access | Content-blind logging: volume and timing only (§1.3, §7.6) | §6 "nothing logged"; CI secret-leak gate (CI-CD.md §4) |
 | T13 | Malicious or non-conforming slot admitted | Any core capability | Slot provider | Fixture suite + negative fixtures; reject, never downgrade (§2.5); isolation on subprocess/network (§4); user slots tenancy-scoped and revocable (§4.1) | TESTING.md §3 fixture gate; negative fixtures mandatory |
 | T14 | Identity/merge poisoning via bad metadata | Library integrity | Hostile provider / enrichment | Provenance on every external ID; corroboration required for heuristic IDs; coverage never drives identity (§5.3) | M2/M3 fixtures (negative: no merge without corroboration) |
-| T15 | Request floods / queue exhaustion | Instance availability | External | Admission control, per-resource caps, backpressure, busy answers carry queue position (§6.5); pacing budgets (§7.2) | Integration tests on queue behavior; M6 pacing |
+| T15 | Request floods / queue exhaustion | Instance availability | External | Admission control, per-resource caps, backpressure, busy answers carry queue position (§6.5); shared pacing budgets (§7.2) | Integration tests on queue behavior; M7 per-request pacing |
 
 ## 4. Trust boundaries
 
@@ -86,4 +86,3 @@ The boundary that matters is **client ⇄ core**: the server sees the plaintext 
 - **PLAN.md §7.6, §1.3** — the trust model this document operationalizes.
 - **TESTING.md §5, §6** — the tests that verify each row; the vault suite is T1–T5/T12's enforcement.
 - **CI-CD.md §2, §4** — where the tests gate merges and the secret-leak check runs.
-- **SCOPE.md §3** — the operator sign-offs that accept T9 and the content-blind scope.

@@ -7,7 +7,6 @@
     "goal": "DELIVERY_GOAL_DOWNLOAD",
     "provider": "jellyfin",
     "accountId": "acc-1",
-    "memberUserId": "user-1",
     "nativeId": "item-42",
     "sink": "disk",
     "selectedTarget": "WEB-1080",

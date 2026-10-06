@@ -1,0 +1,14 @@
+{
+  "name": "update-account-orphan-roster",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {
+    "accountId": "lnk_0123456789abcdef0123456789abcdef",
+    "sharing": {
+      "visibility": "ACCOUNT_VISIBILITY_PRIVATE",
+      "sharedWith": ["alice"]
+    }
+  },
+  "type": "UpdateAccountRequest"
+}

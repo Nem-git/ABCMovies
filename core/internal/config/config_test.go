@@ -1,12 +1,16 @@
 package config_test
 
 import (
+	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/nem-git/abcmovies/core/internal/accounts"
+	"github.com/nem-git/abcmovies/core/internal/auth"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
@@ -92,6 +96,78 @@ stores:
 	}
 }
 
+func TestLoad_InvalidInstancePolicyFails(t *testing.T) {
+	path := writeConfig(t, `
+core:
+  api:
+    bind: "127.0.0.1:8443"
+policy:
+  concurrentStream: "3"
+`)
+	if _, err := config.Load(path); err == nil {
+		t.Fatal("unknown policy key: want startup error")
+	}
+}
+
+func TestLoad_InvalidAccountPolicyFails(t *testing.T) {
+	path := writeConfig(t, `
+slots:
+  providers:
+    - id: primary
+      adapter: jellyfin
+      enabled: true
+      server: "http://jf.local"
+      accounts:
+        - id: home
+          username: bob
+          password-env: JF_PASSWORD
+          max-concurrent-streams: 2
+          policy:
+            traffic: "high"
+`)
+	if _, err := config.Load(path); err == nil {
+		t.Fatal("unknown account policy key: want startup error")
+	}
+}
+
+func TestLoad_ValidPolicyAppliesDefaultsUnderneath(t *testing.T) {
+	path := writeConfig(t, `
+policy:
+  concurrentStreams: "5"
+slots:
+  providers:
+    - id: primary
+      adapter: jellyfin
+      enabled: true
+      server: "http://jf.local"
+      accounts:
+        - id: home
+          username: bob
+          password-env: JF_PASSWORD
+          max-concurrent-streams: 2
+`)
+	c, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := c.Policy["concurrentStreams"]; got != "5" {
+		t.Fatalf("policy.concurrentStreams = %q, want 5", got)
+	}
+	alice := c.Slots.Providers[0].Accounts[0]
+	if alice.MaxConcurrentStreams != 2 {
+		t.Fatalf("max-concurrent-streams = %d, want 2", alice.MaxConcurrentStreams)
+	}
+}
+
+func writeConfig(t *testing.T, yaml string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(p, []byte(yaml), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	return p
+}
+
 func TestParseTokenTTL_Default(t *testing.T) {
 	got := config.ParseTokenTTL("")
 	want := 168 * time.Hour
@@ -154,6 +230,106 @@ func TestBuildStores_VaultDefaultPath(t *testing.T) {
 	_, err := config.BuildStores(t.Context(), c, nil)
 	if err != nil {
 		t.Fatalf("BuildStores: %v", err)
+	}
+}
+
+func TestBuildStores_UserRecordsFollowTheInstanceKey(t *testing.T) {
+	dir := t.TempDir()
+	usersPath := filepath.Join(dir, "users.db")
+
+	newCfg := func(key string) *config.Config {
+		c := config.Default()
+		c.Stores.VaultKey = key
+		c.Stores.Users = config.StoreConfig{Backend: "local-file", Path: usersPath}
+		return c
+	}
+
+	first, err := config.BuildStores(t.Context(), newCfg(strings.Repeat("ab", 32)), nil)
+	if err != nil {
+		t.Fatalf("BuildStores: %v", err)
+	}
+	users := auth.NewStoreUserStore(first.Users)
+	if err := users.PutUser("alice", &auth.UserData{Salt: []byte("s"), PasswordHash: []byte("h"), WrappedDEK: []byte("d"), WrappedRecovery: []byte("r")}); err != nil {
+		t.Fatalf("PutUser: %v", err)
+	}
+	if err := config.CloseStores(first); err != nil {
+		t.Fatalf("CloseStores: %v", err)
+	}
+
+	// The on-disk record must never be the plaintext JSON of a login.
+	var leaked bool
+	if blobs, err := filepath.Glob(usersPath + "*"); err == nil {
+		for _, f := range blobs {
+			raw, err := os.ReadFile(f)
+			if err != nil {
+				continue
+			}
+			if bytes.Contains(raw, []byte("PasswordHash")) {
+				leaked = true
+			}
+		}
+	}
+	if leaked {
+		t.Fatal("a login record reached disk as plaintext JSON")
+	}
+
+	// A restart with the same key must read the record back.
+	second, err := config.BuildStores(t.Context(), newCfg(strings.Repeat("ab", 32)), nil)
+	if err != nil {
+		t.Fatalf("BuildStores: %v", err)
+	}
+	if _, err := auth.NewStoreUserStore(second.Users).GetUser("alice"); err != nil {
+		t.Fatalf("a sealed record must open under the same instance key: %v", err)
+	}
+	if err := config.CloseStores(second); err != nil {
+		t.Fatalf("CloseStores: %v", err)
+	}
+
+	// The same file under a different key must fail closed — nothing opens.
+	third, err := config.BuildStores(t.Context(), newCfg(strings.Repeat("cd", 32)), nil)
+	if err != nil {
+		t.Fatalf("BuildStores: %v", err)
+	}
+	if _, err := auth.NewStoreUserStore(third.Users).GetUser("alice"); err == nil {
+		t.Fatal("a sealed record opened under a different instance key")
+	}
+}
+
+func TestBuildStores_DurabilityAuditReportsInMemoryAndGeneratedKey(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+	if _, err := config.BuildStores(t.Context(), config.Default(), logger); err != nil {
+		t.Fatalf("BuildStores: %v", err)
+	}
+	out := buf.String()
+	for _, want := range []string{
+		"no instance key configured",
+		"logins (users)",
+		"account sessions (vault)",
+		"watch history",
+		"jobs are in-memory",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("durability audit missing %q\ngot:\n%s", want, out)
+		}
+	}
+}
+
+func TestBuildStores_DurableConfigProducesNoDurabilityWarnings(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+	dir := t.TempDir()
+	c := config.Default()
+	c.Stores.VaultKey = strings.Repeat("cd", 32)
+	c.Stores.Vault = config.StoreConfig{Backend: "local-file", Path: filepath.Join(dir, "vault.db")}
+	c.Stores.Users = config.StoreConfig{Backend: "local-file", Path: filepath.Join(dir, "users.db")}
+	c.Stores.WatchHistory = config.StoreConfig{Backend: "local-file", Path: filepath.Join(dir, "watch-history.db")}
+	c.Stores.Jobs = config.StoreConfig{Backend: "local-file", Path: filepath.Join(dir, "jobs.db")}
+	if _, err := config.BuildStores(t.Context(), c, logger); err != nil {
+		t.Fatalf("BuildStores: %v", err)
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("a durable configuration must not warn; got:\n%s", buf.String())
 	}
 }
 
@@ -256,10 +432,10 @@ slots:
     - adapter: jellyfin
       id: primary
       enabled: true
+      server: http://jellyfin.local:8096
       sync-cadence: 15m
       accounts:
         - id: primary
-          url: http://jellyfin.local:8096
           username: bob
           password-env: JELLYFIN_PASSWORD
 `)
@@ -299,8 +475,18 @@ func TestValidateSlots_Rejections(t *testing.T) {
 		},
 		{
 			name:    "missing adapter",
-			yaml:    "slots:\n  providers:\n    - id: primary\n      enabled: true\n",
+			yaml:    "slots:\n  providers:\n    - id: primary\n      enabled: true\n      server: \"http://jf.example\"\n",
 			wantErr: "adapter is required",
+		},
+		{
+			name:    "missing server",
+			yaml:    "slots:\n  providers:\n    - id: primary\n      adapter: jellyfin\n      enabled: true\n",
+			wantErr: "must declare the server",
+		},
+		{
+			name:    "account missing id",
+			yaml:    "slots:\n  providers:\n    - id: primary\n      adapter: jellyfin\n      enabled: true\n      server: \"http://jf.example\"\n      accounts:\n        - username: bob\n",
+			wantErr: "account entry missing id",
 		},
 		{
 			name: "duplicate id across kinds",
@@ -309,6 +495,7 @@ func TestValidateSlots_Rejections(t *testing.T) {
     - adapter: jellyfin
       id: primary
       enabled: true
+      server: "http://jf.example"
   sinks:
     - adapter: jellyfin
       id: primary
@@ -335,5 +522,28 @@ func TestValidateSlots_Rejections(t *testing.T) {
 				t.Fatalf("want error containing %q, got %v", tt.wantErr, err)
 			}
 		})
+	}
+}
+
+// The instance cap-change default parses loudly: the named modes resolve, an
+// empty value is the shipped default (new sessions only — running playback
+// is never interrupted out of the box), and anything else is a startup
+// failure rather than a silent fallback.
+func TestParseCapChangeDefault(t *testing.T) {
+	for raw, want := range map[string]accounts.CapChangePolicy{
+		"":                  accounts.CapChangePolicyNewSessionsOnly,
+		"new-sessions-only": accounts.CapChangePolicyNewSessionsOnly,
+		"enforce-now":       accounts.CapChangePolicyEnforceNow,
+	} {
+		got, err := config.ParseCapChangeDefault(raw)
+		if err != nil {
+			t.Fatalf("config.ParseCapChangeDefault(%q): %v", raw, err)
+		}
+		if got != want {
+			t.Errorf("config.ParseCapChangeDefault(%q) = %q, want %q", raw, got, want)
+		}
+	}
+	if _, err := config.ParseCapChangeDefault("explode"); err == nil {
+		t.Fatal("unknown value should fail")
 	}
 }

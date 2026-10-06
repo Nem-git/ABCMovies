@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"testing"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/metadatacache"
 	"github.com/nem-git/abcmovies/core/internal/sourcecache"
@@ -113,7 +115,10 @@ func newFixture(t *testing.T, withResolver bool) *fixture {
 	fx.acct1 = mk(fx.f1)
 	fx.acct2 = mk(fx.f2)
 
-	svc, err := NewService([]Reach{{fx.acct1, "acct-1"}, {fx.acct2, "acct-2"}}, reg, cache, slog.Default())
+	svc, err := NewService([]Reach{
+		{Sync: fx.acct1, AccountID: "acct-1", Visibility: accounts.VisibilityPublic},
+		{Sync: fx.acct2, AccountID: "acct-2", Visibility: accounts.VisibilityPublic},
+	}, reg, cache, slog.Default())
 	if err != nil {
 		t.Fatalf("service: %v", err)
 	}
@@ -175,6 +180,75 @@ func TestDerivesMergedLibraryFromTwoAccounts(t *testing.T) {
 	upRow := up.GetCoverage()["jellyfin:jf5"]
 	if upRow.GetVerdict() != corev1.CoverageVerdict_COVERAGE_VERDICT_PRESENCE_ONLY || len(up.GetExternalIdentities()) != 0 {
 		t.Fatalf("id-less title must be presence-only without identities: %+v %+v", upRow, up.GetExternalIdentities())
+	}
+}
+
+func TestInvalidateAccountTargetsOnlyAffectedUsers(t *testing.T) {
+	ctx := context.Background()
+	cache := store.NewInMemory()
+	reg, err := itemregistry.New(cache, "")
+	if err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+	sink := &bridgeSink{}
+
+	mkAccount := func(namespace, accountID, title string) *sourcecache.Synchronizer {
+		f := &fakeProvider{pages: []*slotsv1.CatalogueSyncResponse{{Items: []*slotsv1.CatalogueItem{
+			movie("m1", title, 2024),
+		}}}}
+		s, err := sourcecache.New(namespace, f, cache, slog.Default(),
+			sourcecache.WithEntryLookup(reg), sourcecache.WithItemResolver(resolveVia{reg}), sourcecache.WithEventsSink(sink))
+		if err != nil {
+			t.Fatalf("sourcecache: %v", err)
+		}
+		if _, err := s.SyncAccount(ctx, accountID); err != nil {
+			t.Fatalf("sync %s: %v", accountID, err)
+		}
+		return s
+	}
+
+	aliceAcct := mkAccount("jellyfin", "acct-alice", "Alice Film")
+	bobAcct := mkAccount("jellyfin", "acct-bob", "Bob Film")
+
+	svc, err := NewService([]Reach{
+		{Sync: aliceAcct, AccountID: "acct-alice", Owner: "alice", Visibility: accounts.VisibilityPrivate},
+		{Sync: bobAcct, AccountID: "acct-bob", Owner: "bob", Visibility: accounts.VisibilityPrivate},
+	}, reg, cache, slog.Default())
+	if err != nil {
+		t.Fatalf("service: %v", err)
+	}
+	sink.svc = svc
+
+	// Both owners pre-fill their cached libraries.
+	if _, err := svc.Library(ctx, "alice"); err != nil {
+		t.Fatalf("alice view: %v", err)
+	}
+	if _, err := svc.Library(ctx, "bob"); err != nil {
+		t.Fatalf("bob view: %v", err)
+	}
+
+	// An availability change on bob's account must not touch alice's cache.
+	if err := svc.InvalidateAccount("jellyfin", "acct-bob"); err != nil {
+		t.Fatalf("invalidate: %v", err)
+	}
+	keys, err := cache.List(ctx, userPrefix)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(keys) != 1 || keys[0] != "lib/u/alice" {
+		t.Fatalf("remaining cached users = %v, want exactly alice's", keys)
+	}
+
+	// The same event on alice's account removes hers as well.
+	if err := svc.InvalidateAccount("jellyfin", "acct-alice"); err != nil {
+		t.Fatalf("invalidate: %v", err)
+	}
+	keys, err = cache.List(ctx, userPrefix)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(keys) != 0 {
+		t.Fatalf("remaining cached users = %v, want none", keys)
 	}
 }
 
@@ -250,6 +324,101 @@ func TestSharedItemAcrossTwoAccountsRecordsBothObservers(t *testing.T) {
 	}
 }
 
+// TestVisibilityScopesDerivedLibraries pins the per-account sharing gate
+// (PLAN.md §5.1): a private account's items are derived only into its owner's
+// library, a shared account reaches its named members, and a host-provided
+// (public) account reaches everyone. The same gate must govern both the
+// derivation and the delivery authorization helper.
+func TestVisibilityScopesDerivedLibraries(t *testing.T) {
+	ctx := context.Background()
+	cache := store.NewInMemory()
+	reg, err := itemregistry.New(cache, "")
+	if err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+	sink := &bridgeSink{}
+
+	mkAccount := func(namespace, accountID, title string) *sourcecache.Synchronizer {
+		f := &fakeProvider{pages: []*slotsv1.CatalogueSyncResponse{{Items: []*slotsv1.CatalogueItem{
+			movie("m1", title, 2024),
+		}}}}
+		s, err := sourcecache.New(namespace, f, cache, slog.Default(),
+			sourcecache.WithEntryLookup(reg), sourcecache.WithItemResolver(resolveVia{reg}), sourcecache.WithEventsSink(sink))
+		if err != nil {
+			t.Fatalf("sourcecache: %v", err)
+		}
+		if _, err := s.SyncAccount(ctx, accountID); err != nil {
+			t.Fatalf("sync %s: %v", accountID, err)
+		}
+		return s
+	}
+
+	host := mkAccount("host-srv", "acct-host", "Host Film")
+	priv := mkAccount("priv-srv", "acct-priv", "Private Film")
+	shared := mkAccount("shared-srv", "acct-shared", "Shared Film")
+
+	svc, err := NewService([]Reach{
+		{Sync: host, AccountID: "acct-host", Visibility: accounts.VisibilityPublic},
+		{Sync: priv, AccountID: "acct-priv", Owner: "alice", Visibility: accounts.VisibilityPrivate},
+		{Sync: shared, AccountID: "acct-shared", Owner: "alice", Visibility: accounts.VisibilityShared, Members: []string{"bob"}},
+	}, reg, cache, slog.Default())
+	if err != nil {
+		t.Fatalf("service: %v", err)
+	}
+	sink.svc = svc
+
+	coverageKeys := func(userID string) []string {
+		entries, err := svc.Library(ctx, userID)
+		if err != nil {
+			t.Fatalf("Library(%q): %v", userID, err)
+		}
+		keys := make([]string, 0)
+		for _, e := range entries {
+			for k := range e.GetCoverage() {
+				keys = append(keys, k)
+			}
+		}
+		sort.Strings(keys)
+		return keys
+	}
+
+	want := func(userID string, keys ...string) {
+		t.Helper()
+		sort.Strings(keys)
+		got := coverageKeys(userID)
+		if fmt.Sprint(got) != fmt.Sprint(keys) {
+			t.Fatalf("library(%q) coverage = %v, want %v", userID, got, keys)
+		}
+	}
+	want("alice", "host-srv:m1", "priv-srv:m1", "shared-srv:m1")
+	want("bob", "host-srv:m1", "shared-srv:m1")
+	want("carol", "host-srv:m1")
+
+	for _, tc := range []struct {
+		account, user string
+		want          bool
+	}{
+		{"acct-priv", "alice", true},
+		{"acct-priv", "bob", false},
+		{"acct-priv", "carol", false},
+		{"acct-host", "carol", true},
+		{"acct-host", "alice", true},
+		{"acct-shared", "alice", true},
+		{"acct-shared", "bob", true},
+		{"acct-shared", "carol", false},
+		{"acct-never-linked", "alice", false},
+	} {
+		if _, ok := svc.ReachAuthorized(tc.account, tc.user); ok != tc.want {
+			t.Fatalf("ReachAuthorized(%q, %q) = %v, want %v", tc.account, tc.user, ok, tc.want)
+		}
+	}
+	// ReachesForUser routes through the same gate: a stranger can derive only
+	// the host-provided account.
+	if got := len(svc.ReachesForUser("carol")); got != 1 {
+		t.Fatalf("ReachesForUser(carol) = %d reaches, want 1", got)
+	}
+}
+
 func TestSameAdapterTwoSlotsDoNotCollide(t *testing.T) {
 	fx := newFixture(t, true)
 	fx.syncAll(t)
@@ -313,8 +482,10 @@ func TestEnrichmentSeamsFillRefAndMarkMisses(t *testing.T) {
 	}
 
 	var marked []string
-	svc, err := NewService([]Reach{{fx.acct1, "acct-1"}, {fx.acct2, "acct-2"}},
-		fx.reg, fx.cache, slog.Default(), WithEnrichment(meta, func(id string) { marked = append(marked, id) }))
+	svc, err := NewService([]Reach{
+		{Sync: fx.acct1, AccountID: "acct-1", Visibility: accounts.VisibilityPublic},
+		{Sync: fx.acct2, AccountID: "acct-2", Visibility: accounts.VisibilityPublic},
+	}, fx.reg, fx.cache, slog.Default(), WithEnrichment(meta, func(id string) { marked = append(marked, id) }))
 	if err != nil {
 		t.Fatalf("service: %v", err)
 	}
@@ -335,5 +506,78 @@ func TestEnrichmentSeamsFillRefAndMarkMisses(t *testing.T) {
 	}
 	if len(marked) != 1 || marked[0] != up.GetId() {
 		t.Fatalf("marked = %v, want exactly [%s]", marked, up.GetId())
+	}
+}
+
+// SetReachSharing swaps the live reach and invalidates the cached libraries
+// of the union of the old and new audiences: the users who lost access need
+// their stale copy gone, the users who just gained it need no stale copy to
+// begin with, and the users who were never authorized in either direction
+// are untouched.
+func TestSetReachSharingSweepsUnionOfAudiences(t *testing.T) {
+	ctx := context.Background()
+	cache := store.NewInMemory()
+	for _, u := range []string{"alice", "bob", "carol", "dave"} {
+		if err := cache.Put(ctx, userPrefix+u, []byte(`[]`)); err != nil {
+			t.Fatalf("seed cache: %v", err)
+		}
+	}
+	sync := &sourcecache.Synchronizer{}
+	svc := &Service{cache: cache, logger: slog.Default()}
+	svc.reaches = map[string]Reach{
+		"acct-1": {
+			Sync: sync, AccountID: "acct-1", Owner: "alice",
+			Visibility: accounts.VisibilityShared, Members: []string{"bob", "carol"},
+		},
+	}
+
+	// Narrow from shared-with-bob+carol to private: alice's copy still
+	// needs rebuilding (her audience changed shape), bob's and carol's must
+	// go, and dave — never authorized either way — keeps theirs.
+	if err := svc.SetReachSharing("acct-1", accounts.VisibilityPrivate, nil); err != nil {
+		t.Fatalf("SetReachSharing: %v", err)
+	}
+	for _, u := range []string{"alice", "bob", "carol"} {
+		if _, err := cache.Get(ctx, userPrefix+u); err == nil {
+			t.Errorf("cached library for %q survived a sharing narrowing", u)
+		}
+	}
+	if _, err := cache.Get(ctx, userPrefix+"dave"); err != nil {
+		t.Errorf("dave's unrelated cache was swept: %v", err)
+	}
+	r, ok := svc.reaches["acct-1"]
+	if !ok || r.Visibility != accounts.VisibilityPrivate || len(r.Members) != 0 {
+		t.Fatalf("reach = %+v, want private with cleared roster", r)
+	}
+
+	// Widening back to shared with bob must invalidate the same cache rows
+	// from the other side: alice's audience grows, bob regains access, and
+	// dave is still untouched.
+	if err := cache.Put(ctx, userPrefix+"alice", []byte(`[]`)); err != nil {
+		t.Fatalf("re-seed alice: %v", err)
+	}
+	if err := svc.SetReachSharing("acct-1", accounts.VisibilityShared, []string{"bob"}); err != nil {
+		t.Fatalf("SetReachSharing widen: %v", err)
+	}
+	if _, err := cache.Get(ctx, userPrefix+"alice"); err == nil {
+		t.Error("alice's cache survived a sharing widening")
+	}
+	if _, err := cache.Get(ctx, userPrefix+"bob"); err == nil {
+		t.Error("bob's stale cache survived a sharing widening")
+	}
+	if _, err := cache.Get(ctx, userPrefix+"dave"); err != nil {
+		t.Errorf("dave's unrelated cache was swept: %v", err)
+	}
+	if _, ok := svc.ReachAuthorized("acct-1", "carol"); ok {
+		t.Error("carol still authorized after narrowing")
+	}
+	if _, ok := svc.ReachAuthorized("acct-1", "bob"); !ok {
+		t.Error("bob lost authorization after re-sharing with him")
+	}
+	if _, ok := svc.ReachAuthorized("acct-1", "alice"); !ok {
+		t.Error("owner lost authorization")
+	}
+	if err := svc.SetReachSharing("no-such-account", accounts.VisibilityPublic, nil); err == nil {
+		t.Error("unknown reach should error")
 	}
 }

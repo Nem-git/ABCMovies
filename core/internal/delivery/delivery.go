@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sort"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -30,6 +31,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/policy"
 )
 
 // Goal is the delivery goal — play or download (PLAN.md §6.1). The goal is a
@@ -69,6 +71,12 @@ type Session struct {
 	// which pipeline runs and the container the deliverable is named as. It
 	// is set once at Start, before any sink work, so it seeds the resume key.
 	Plan Plan
+
+	// Menu is the staged play menu for a play session, set once at Start
+	// (PLAN.md §6.1): the manifest tracks that were delivered to the sink and
+	// are ready to pull. It is nil for downloads. GetPlayInfo recovers the
+	// menu from here — the payload keyed by the session id (PLAN.md §6.2).
+	Menu []*corev1.Track
 
 	Sink Sink
 
@@ -113,17 +121,30 @@ type SinkFactory interface {
 
 // Options tunes the engine's liveness behaviour.
 type Options struct {
+	// SessionTTL is the play-session watchdog's idle ceiling (§1.14). Play
+	// sessions refresh liveness with heartbeats; downloads with progress.
 	SessionTTL        time.Duration
 	HeartbeatInterval time.Duration
 	HeartbeatGrace    time.Duration
-	// ConcurrentStreams caps active sessions per account (PLAN.md §9.1,
-	// TECHNICAL-DECISIONS.md §1.14, §1.30). Zero means the default (3).
-	ConcurrentStreams int
-	SourceResolver    Resolver
-	SinkFactory       SinkFactory
-	RecordJob         func(*corev1.Job)
-	Now               func() time.Time
-	Logger            *slog.Logger
+	// InstancePolicy is the operator's usage policy (PLAN.md §7.2): parsed and
+	// validated per policy-package rules. Nil resolves to the shipped defaults
+	// (concurrentStreams: 3, bandwidth: unlimited, encode: disabled).
+	InstancePolicy policy.Set
+	// AccountConstraints resolves one account's declared constraints: the
+	// policy override the owner set (applied here onto the instance policy)
+	// and the provider-declared concurrency cap. Nil admits the account with
+	// the instance policy only.
+	AccountConstraints func(ctx context.Context, provider, accountID string) (override policy.Set, cap policy.Set, err error)
+	SourceResolver     Resolver
+	SinkFactory        SinkFactory
+	RecordJob          func(*corev1.Job)
+	// MenuReady announces that a play session's menu is fully staged, once
+	// Start has delivered every track to the sink. The app publishes the
+	// delivery-play-menu-ready event through it (PLAN.md §6.2); nil mutes the
+	// announcement.
+	MenuReady func(*Session)
+	Now       func() time.Time
+	Logger    *slog.Logger
 }
 
 // Engine owns the delivery sessions and the session→account index.
@@ -136,13 +157,16 @@ type Engine struct {
 	ttl      time.Duration
 	interval time.Duration
 	grace    time.Duration
-	cap      int
 
 	resolver  Resolver
 	sinkMaker SinkFactory
 	recordJob func(*corev1.Job)
+	menuReady func(*Session)
 	now       func() time.Time
 	logger    *slog.Logger
+
+	instancePolicy     policy.Set
+	accountConstraints func(ctx context.Context, provider, accountID string) (override policy.Set, cap policy.Set, err error)
 
 	stopCh  chan struct{}
 	done    chan struct{}
@@ -159,30 +183,28 @@ func New(opts Options) *Engine {
 		ttl:       opts.SessionTTL,
 		interval:  opts.HeartbeatInterval,
 		grace:     opts.HeartbeatGrace,
-		cap:       opts.ConcurrentStreams,
 		resolver:  opts.SourceResolver,
 		sinkMaker: opts.SinkFactory,
 		recordJob: opts.RecordJob,
+		menuReady: opts.MenuReady,
 		now:       opts.Now,
 		logger:    opts.Logger,
 		stopCh:    make(chan struct{}),
 		done:      make(chan struct{}),
 	}
+	e.instancePolicy = opts.InstancePolicy
+	if e.instancePolicy == nil {
+		e.instancePolicy = policy.Defaults()
+	}
+	e.accountConstraints = opts.AccountConstraints
 	if e.now == nil {
 		e.now = time.Now
-	}
-	if e.cap == 0 {
-		e.cap = defaultConcurrentStreams
 	}
 	if e.logger == nil {
 		e.logger = slog.Default()
 	}
 	return e
 }
-
-// defaultConcurrentStreams is the v1 baseline from TECHNICAL-DECISIONS.md
-// §1.14 (policy default `concurrentStreams: 3`).
-const defaultConcurrentStreams = 3
 
 // StartRequest names what to deliver and why (PLAN.md §6). Start is a plain
 // "create": each Start makes a new session; a retried start is a new create,
@@ -257,12 +279,18 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 		)
 		return nil, errInvalid("cannot satisfy delivery: %v", err)
 	}
-	key := accountKey{req.Provider, req.AccountID, req.MemberUserID}
-	if n := e.countActive(key); n >= e.cap {
-		return nil, errQuota("account %s/%s is at its concurrent-stream cap (%d)", req.Provider, req.AccountID, e.cap)
-	}
-
 	now := e.now()
+	override, capSet, err := e.resolveConstraints(ctx, req)
+	if err != nil {
+		return nil, errInvalid("account constraints: %v", err)
+	}
+	// The policy in effect for this account folds the operator's instance
+	// defaults with the account's override, and §7.2's min() rule folds in
+	// the provider-declared cap.
+	effectivePolicy := e.instancePolicy.With(override)
+	accountLimit := policy.EffectiveAccountLimit(effectivePolicy, capSet)
+	memberLimit, _ := e.instancePolicy.Streams()
+
 	sess := &Session{
 		ID:            e.newSessionID(),
 		Goal:          req.Goal,
@@ -278,6 +306,8 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 			Sink:           req.Sink,
 			SelectedTarget: req.SelectedTarget,
 			Container:      req.Container,
+			Policy:         &corev1.Policy{Limits: effectivePolicy},
+			ProviderCap:    &corev1.Policy{Limits: capSet},
 		},
 	}
 
@@ -289,7 +319,31 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 		sess.Sink = sink
 	}
 
+	// Counting and admission must be atomic: a check-then-act pair that isn't
+	// lets two concurrent starts both pass a limit that either would trip.
+	key := accountKey{req.Provider, req.AccountID, req.MemberUserID}
 	e.mu.Lock()
+	memberActive := 0
+	accountActive := 0
+	for _, s := range e.sessions {
+		if !s.isActive() {
+			continue
+		}
+		if s.Context.GetMemberUserId() == req.MemberUserID {
+			memberActive++
+		}
+		if s.Context.GetProvider() == req.Provider && s.Context.GetAccountId() == req.AccountID {
+			accountActive++
+		}
+	}
+	if memberActive >= memberLimit {
+		e.mu.Unlock()
+		return nil, errQuota("member %s is at its concurrent-stream cap (%d)", req.MemberUserID, memberLimit)
+	}
+	if accountActive >= accountLimit {
+		e.mu.Unlock()
+		return nil, errQuota("account %s/%s is at its concurrent-stream cap (%d)", req.Provider, req.AccountID, accountLimit)
+	}
 	e.sessions[sess.ID] = sess
 	if e.byAccount[key] == nil {
 		e.byAccount[key] = make(map[string]struct{})
@@ -298,21 +352,38 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 	e.mu.Unlock()
 
 	sess.Status = StatusRunning
+
+	// A play session stages its menu before it is announced: every manifest
+	// track with a location is delivered to the sink right away, so the
+	// delivery-play-menu-ready event — and any GetPlayInfo recovery — always
+	// finds a complete menu, and a start that cannot stage fails loudly here
+	// rather than surface an empty player (PLAN.md §6.1, §6.2). Delivery-only
+	// tracks (carried-in audio/subtitle) have no location and stage nothing;
+	// the player reads them off the carrier track they name.
+	if req.Goal == GoalPlay && sess.Sink != nil && len(src.GetTracks()) > 0 {
+		sess.Menu = src.GetTracks()
+		for _, tr := range src.GetTracks() {
+			if len(tr.GetDelivery().GetLocations()) == 0 {
+				continue
+			}
+			if _, err := sess.Sink.Deliver(ctx, sess, tr, nil); err != nil {
+				return nil, fmt.Errorf("stage play menu: %w", err)
+			}
+		}
+		if e.menuReady != nil {
+			e.menuReady(sess)
+		}
+	}
+
 	e.recordJob(sess.toJob())
 	return sess, nil
 }
 
-// countActive returns the number of live sessions for an account key.
-func (e *Engine) countActive(key accountKey) int {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	n := 0
-	for id := range e.byAccount[key] {
-		if s, ok := e.sessions[id]; ok && s.isActive() {
-			n++
-		}
+func (e *Engine) resolveConstraints(ctx context.Context, req StartRequest) (override policy.Set, cap policy.Set, err error) {
+	if e.accountConstraints == nil {
+		return nil, nil, nil
 	}
-	return n
+	return e.accountConstraints(ctx, req.Provider, req.AccountID)
 }
 
 func (e *Engine) newSessionID() string {
@@ -328,13 +399,18 @@ func (e *Engine) Get(id string) (*Session, bool) {
 }
 
 // Heartbeat proves a play session is alive (PLAN.md §9.1). A legitimately
-// paused session still heartbeats, so it is not killed.
-func (e *Engine) Heartbeat(id string) error {
+// paused session still heartbeats, so it is not killed. The session must
+// belong to memberUserID; otherwise another member could keep it alive
+// (§2.2 member-scoping).
+func (e *Engine) Heartbeat(id string, memberUserID string) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	s, ok := e.sessions[id]
 	if !ok {
 		return errNotFound("session %q not found", id)
+	}
+	if s.Context.GetMemberUserId() != memberUserID {
+		return &deliveryError{code: codeDenied, msg: "session does not belong to this caller"}
 	}
 	if !s.isActive() {
 		return errInvalid("session %q is %s and cannot heartbeat", id, s.Status)
@@ -390,6 +466,126 @@ func (e *Engine) RevokeAccount(provider, accountID, memberUserID string) int {
 	delete(e.byAccount, key)
 	e.mu.Unlock()
 	return killed
+}
+
+// RevokeAllOnAccount kills every session routed through one account, for all
+// members, on both the index and the live-session map. Removing an account is
+// a full revocation of that account's access: sessions a member started
+// through it must not outlive the record that vaulted its credential
+// (PLAN.md §7.5). Completes on the first N, matching RevokeAccount's
+// return-count contract.
+func (e *Engine) RevokeAllOnAccount(accountID string) int {
+	e.mu.Lock()
+	var killed int
+	for id, s := range e.sessions {
+		if s.Context.GetAccountId() != accountID {
+			continue
+		}
+		s.Status = StatusRevoked
+		s.Error = "account revoked"
+		if s.Sink != nil {
+			s.Sink.Abort(context.Background(), s)
+		}
+		e.recordJob(s.toJob())
+		delete(e.byAccount[accountKey{s.Context.GetProvider(), s.Context.GetAccountId(), s.Context.GetMemberUserId()}], id)
+		killed++
+	}
+	e.mu.Unlock()
+	return killed
+}
+
+// RevokeOthersOnAccount ends every session on (provider, accountID) whose
+// member is not in keepMembers. Changing an account's sharing to something
+// narrower uses this: whoever no longer holds the account loses their live
+// sessions on it, and only they do — the owner and the newly shared-with
+// members keep theirs.
+func (e *Engine) RevokeOthersOnAccount(provider, accountID string, keepMembers []string) int {
+	keep := make(map[string]bool, len(keepMembers))
+	for _, m := range keepMembers {
+		keep[m] = true
+	}
+	e.mu.Lock()
+	var killed int
+	for id, s := range e.sessions {
+		if s.Context.GetProvider() != provider || s.Context.GetAccountId() != accountID || !s.isActive() {
+			continue
+		}
+		if keep[s.Context.GetMemberUserId()] {
+			continue
+		}
+		s.Status = StatusRevoked
+		s.Error = "account sharing narrowed"
+		if s.Sink != nil {
+			s.Sink.Abort(context.Background(), s)
+		}
+		e.recordJob(s.toJob())
+		delete(e.byAccount[accountKey{provider, accountID, s.Context.GetMemberUserId()}], id)
+		killed++
+	}
+	e.mu.Unlock()
+	return killed
+}
+
+// ApplyAccountCap re-evaluates one account's effective concurrent-stream
+// allowance (the lesser of its policy and the provider's declared cap, the
+// same computation admission uses) and, when enforceNow is set, ends the
+// excess sessions on that account, oldest first. The zero allowance — an
+// account whose recorded or provider cap was just lowered to zero — ends all
+// of them. New-sessions-only behaviour never ends anything here.
+func (e *Engine) ApplyAccountCap(ctx context.Context, provider, accountID string, enforceNow bool) (int, error) {
+	override, capSet, err := e.resolveConstraints(ctx, StartRequest{Provider: provider, AccountID: accountID})
+	if err != nil {
+		return 0, err
+	}
+	effectivePolicy := e.instancePolicy.With(override)
+	accountLimit := policy.EffectiveAccountLimit(effectivePolicy, capSet)
+
+	type liveSession struct {
+		sess *Session
+		id   string
+	}
+	var active []liveSession
+	e.mu.Lock()
+	for id, s := range e.sessions {
+		if !s.isActive() || s.Context.GetProvider() != provider || s.Context.GetAccountId() != accountID {
+			continue
+		}
+		active = append(active, liveSession{sess: s, id: id})
+	}
+	e.mu.Unlock()
+	if !enforceNow || len(active) <= accountLimit {
+		return 0, nil
+	}
+	// Deterministic eviction: the session that started first loses first; ties
+	// break on session id so the same state yields the same cut.
+	sort.Slice(active, func(i, j int) bool {
+		a, b := active[i].sess, active[j].sess
+		if a.createdAt.Equal(b.createdAt) {
+			return active[i].id < active[j].id
+		}
+		return a.createdAt.Before(b.createdAt)
+	})
+
+	kill := len(active) - accountLimit
+	var killed int
+	for _, ls := range active[:kill] {
+		e.mu.Lock()
+		s, ok := e.sessions[ls.id]
+		if !ok || !s.isActive() {
+			e.mu.Unlock()
+			continue
+		}
+		s.Status = StatusRevoked
+		s.Error = "stream limit lowered by the account owner"
+		if s.Sink != nil {
+			s.Sink.Abort(context.Background(), s)
+		}
+		e.recordJob(s.toJob())
+		delete(e.byAccount[accountKey{provider, accountID, s.Context.GetMemberUserId()}], ls.id)
+		killed++
+		e.mu.Unlock()
+	}
+	return killed, nil
 }
 
 // Complete marks a session done and finalizes its sink.
@@ -596,6 +792,7 @@ const (
 	codeInvalid  = 3
 	codeNotFound = 5
 	codeQuota    = 8
+	codeDenied   = 7
 )
 
 func errInvalid(format string, a ...any) error {

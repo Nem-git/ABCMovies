@@ -1,0 +1,11 @@
+{
+  "name": "update-account-valid-cap",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {
+    "accountId": "lnk_0123456789abcdef0123456789abcdef",
+    "maxConcurrentStreams": 3
+  },
+  "type": "UpdateAccountRequest"
+}

@@ -1,0 +1,11 @@
+{
+  "name": "update-account-unknown-policy",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {
+    "accountId": "lnk_0123456789abcdef0123456789abcdef",
+    "capChangePolicy": 99
+  },
+  "type": "UpdateAccountRequest"
+}

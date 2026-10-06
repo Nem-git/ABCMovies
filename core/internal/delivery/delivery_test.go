@@ -250,17 +250,20 @@ func TestHeartbeatBoundaries(t *testing.T) {
 		Goal: GoalPlay, MemberUserID: "u",
 		Provider: "jellyfin", AccountID: "a", Sink: "device",
 	})
-	if err := e.Heartbeat(s.ID); err != nil {
+	if err := e.Heartbeat(s.ID, "u"); err != nil {
 		t.Fatalf("Heartbeat active: %v", err)
 	}
 	if err := e.Complete(s.ID); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
-	if err := e.Heartbeat(s.ID); err == nil {
+	if err := e.Heartbeat(s.ID, "u"); err == nil {
 		t.Errorf("heartbeat on completed session should fail")
 	}
-	if err := e.Heartbeat("nope"); err == nil {
+	if err := e.Heartbeat("nope", "u"); err == nil {
 		t.Errorf("heartbeat on unknown session should fail")
+	}
+	if err := e.Heartbeat(s.ID, "intruder"); err == nil {
+		t.Errorf("heartbeat as a different member should fail")
 	}
 }
 
@@ -393,6 +396,38 @@ func TestRevokeAccountEndsSessions(t *testing.T) {
 	}
 	if !sawRevoked {
 		t.Errorf("revocation not recorded as job error")
+	}
+}
+
+func TestRevokeAllOnAccountEndsEveryMemberOnThatAccount(t *testing.T) {
+	e, res, fac := newTestEngine(Options{
+		SessionTTL: 24 * time.Hour,
+		RecordJob:  func(*corev1.Job) {},
+	})
+	res.source = wholeMuxSource()
+	defer e.Close()
+	base := StartRequest{
+		Goal: GoalDownload, NativeID: "i", Sink: "disk",
+		Provider: "jellyfin", AccountID: "acc1", MemberUserID: "u1",
+	}
+	s1, _ := e.Start(context.Background(), base)
+	s2, _ := e.Start(context.Background(), func() StartRequest { r := base; r.MemberUserID = "u2"; return r }())
+	s3, _ := e.Start(context.Background(), func() StartRequest { r := base; r.AccountID = "acc2"; return r }())
+
+	if n := e.RevokeAllOnAccount("acc1"); n != 2 {
+		t.Errorf("revoked %d sessions, want 2", n)
+	}
+	for _, s := range []*Session{s1, s2} {
+		got, _ := e.Get(s.ID)
+		if got == nil || got.Status != StatusRevoked {
+			t.Errorf("%s (%v) not revoked", s.ID, got)
+		}
+		if !fac.sinks[s.ID].aborted {
+			t.Errorf("%s sink not aborted", s.ID)
+		}
+	}
+	if got, _ := e.Get(s3.ID); got == nil || got.Status != StatusRunning {
+		t.Errorf("session on a different account must survive, got %v", got)
 	}
 }
 

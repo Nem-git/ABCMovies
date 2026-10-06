@@ -1,0 +1,22 @@
+{
+  "name": "update-account-response-valid",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {
+    "account": {
+      "accountId": "lnk_0123456789abcdef0123456789abcdef",
+      "provider": "jellyfin",
+      "baseUrl": "http://jf.local:8096",
+      "callerLinked": true,
+      "status": "ACCOUNT_STATUS_LINKED",
+      "visibility": "ACCOUNT_VISIBILITY_SHARED",
+      "sharedWith": ["alice", "carol"],
+      "ownerUserId": "user:bob",
+      "maxConcurrentStreams": 3,
+      "capChangePolicy": "CAP_CHANGE_POLICY_ENFORCE_NOW",
+      "effectiveCapChangePolicy": "CAP_CHANGE_POLICY_ENFORCE_NOW"
+    }
+  },
+  "type": "UpdateAccountResponse"
+}

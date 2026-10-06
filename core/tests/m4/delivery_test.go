@@ -18,9 +18,12 @@ import (
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
+	"github.com/nem-git/abcmovies/core/internal/library"
+	"github.com/nem-git/abcmovies/core/internal/policy"
 	"github.com/nem-git/abcmovies/core/internal/slotwiring"
 	"github.com/nem-git/abcmovies/core/internal/store"
 	"google.golang.org/grpc/codes"
@@ -96,22 +99,72 @@ func (c *countingFactory) NewSink(ctx context.Context, s *delivery.Session, trac
 	return c.SinkFactory.NewSink(ctx, s, tracks)
 }
 
+// engineManager adapts the engine to the API service's DeliveryManager
+// seam. M4 predates the play-menu surface; a menu request on this milestone
+// is booked as unknown.
+type engineManager struct{ eng *delivery.Engine }
+
+func (m engineManager) Start(ctx context.Context, req delivery.StartRequest) (*delivery.Session, error) {
+	return m.eng.Start(ctx, req)
+}
+
+func (m engineManager) Heartbeat(id string, memberUserID string) error {
+	return m.eng.Heartbeat(id, memberUserID)
+}
+
+func (m engineManager) PlayMenu(string) (*apiserver.PlayMenu, error) {
+	return nil, apiserver.ErrPlayMenuNotFound
+}
+
+func (m engineManager) RevokeAllOnAccount(accountID string) int {
+	return m.eng.RevokeAllOnAccount(accountID)
+}
+
+func (m engineManager) RevokeOthersOnAccount(provider, accountID string, keepMembers []string) int {
+	return m.eng.RevokeOthersOnAccount(provider, accountID, keepMembers)
+}
+
+func (m engineManager) ApplyAccountCap(ctx context.Context, provider, accountID string, enforceNow bool) (int, error) {
+	return m.eng.ApplyAccountCap(ctx, provider, accountID, enforceNow)
+}
+
 // buildServer wires the delivery engine over the given resolver and sink
 // factory and returns an armed CoreService together with the engine its
 // harness drives.
 func buildServer(resolver delivery.Resolver, sinks delivery.SinkFactory) (*apiserver.Server, *delivery.Engine) {
 	eng := delivery.New(delivery.Options{
-		SessionTTL:        time.Hour,
-		ConcurrentStreams: 3,
-		SourceResolver:    resolver,
-		SinkFactory:       sinks,
-		RecordJob:         func(*corev1.Job) {},
+		SessionTTL:     time.Hour,
+		InstancePolicy: policy.Set{"concurrentStreams": "3"},
+		SourceResolver: resolver,
+		SinkFactory:    sinks,
+		RecordJob:      func(*corev1.Job) {},
 	})
 	bus := apiserver.NewInMemoryBus()
 	srv := apiserver.NewServer(bus, config.Stores{Jobs: store.NewInMemory()}, nil, nil)
-	srv.SetDelivery(eng)
+	srv.SetDelivery(engineManager{eng: eng})
+	srv.SetLibrary(trivialLibrary{})
 	return srv, eng
 }
+
+// trivialLibrary satisfies the delivery-authorization seam for the M4
+// harness: every account is reachable by every member, slicing very little
+// real sharing logic (the M5 harness carries the sharing work).
+type trivialLibrary struct{}
+
+func (trivialLibrary) Library(context.Context, string) ([]*corev1.LibraryEntry, error) {
+	return nil, nil
+}
+
+func (trivialLibrary) Metadata(context.Context, string) (*corev1.TitleMetadata, bool, error) {
+	return nil, false, nil
+}
+
+func (trivialLibrary) ReachAuthorized(accountID, userID string) (library.Reach, bool) {
+	return library.Reach{AccountID: accountID, Visibility: accounts.VisibilityPublic}, true
+}
+func (trivialLibrary) ReachesForUser(userID string) []library.Reach                { return nil }
+func (trivialLibrary) RemoveReach(accountID string)                                {}
+func (trivialLibrary) SetReachSharing(string, accounts.Visibility, []string) error { return nil }
 
 // TestM4RemuxDownloadToDiskEndToEnd proves one remux download session
 // end-to-end: a whole-mux feature is resolved, the disk sink names it by the
@@ -143,11 +196,10 @@ func TestM4RemuxDownloadToDiskEndToEnd(t *testing.T) {
 	srv, eng := buildServer(&fakeResolver{muxSource(provider.URL)}, sinks)
 	defer eng.Close()
 
-	resp, err := srv.StartDelivery(context.Background(), &apiv1.StartDeliveryRequest{
+	resp, err := srv.StartDelivery(apiserver.WithUserID(context.Background(), "u1"), &apiv1.StartDeliveryRequest{
 		Goal:           apiv1.DeliveryGoal_DELIVERY_GOAL_DOWNLOAD,
 		Provider:       "jellyfin",
 		AccountId:      "acc1",
-		MemberUserId:   "u1",
 		NativeId:       "item1",
 		Sink:           "disk",
 		SelectedTarget: "Inception (2010)",
@@ -214,13 +266,12 @@ func TestM4PassthroughPlayToDeviceEndToEnd(t *testing.T) {
 	srv, eng := buildServer(&fakeResolver{perTrackSource(provider.URL)}, &delivery.DeviceSinkFactory{Relay: relay})
 	defer eng.Close()
 
-	resp, err := srv.StartDelivery(context.Background(), &apiv1.StartDeliveryRequest{
-		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
-		Provider:     "jellyfin",
-		AccountId:    "acc1",
-		MemberUserId: "u1",
-		NativeId:     "item1",
-		Sink:         "device",
+	resp, err := srv.StartDelivery(apiserver.WithUserID(context.Background(), "u1"), &apiv1.StartDeliveryRequest{
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:  "jellyfin",
+		AccountId: "acc1",
+		NativeId:  "item1",
+		Sink:      "device",
 	})
 	if err != nil {
 		t.Fatalf("StartDelivery: %v", err)
@@ -247,12 +298,12 @@ func TestM4PassthroughPlayToDeviceEndToEnd(t *testing.T) {
 		if !ok {
 			t.Fatalf("no relay ticket staged for %s", tr.GetId())
 		}
-		body, _, err := relay.Open(tok)
+		res, err := relay.Open(tok)
 		if err != nil {
 			t.Fatalf("relay.Open %s: %v", tr.GetId(), err)
 		}
-		data, _ := io.ReadAll(body)
-		_ = body.Close()
+		data, _ := io.ReadAll(res.Body)
+		_ = res.Body.Close()
 		if string(data) != want[tr.GetId()] {
 			t.Errorf("track %s relayed %q, want %q", tr.GetId(), data, want[tr.GetId()])
 		}
@@ -263,7 +314,8 @@ func TestM4PassthroughPlayToDeviceEndToEnd(t *testing.T) {
 	}
 	// After finalize the session's relay tickets are revoked.
 	v1tok, _ := device.RelayToken("v1")
-	if _, _, err := relay.Open(v1tok); err == nil {
+	if res, err := relay.Open(v1tok); err == nil {
+		_ = res.Body.Close()
 		t.Error("relay still served a ticket after the session finalized")
 	}
 }
@@ -283,13 +335,12 @@ func TestM4DRMRefusedNotSilentlyDelivered(t *testing.T) {
 	srv, eng := buildServer(&fakeResolver{drmPerTrackSource(provider.URL)}, factory)
 	defer eng.Close()
 
-	_, err := srv.StartDelivery(context.Background(), &apiv1.StartDeliveryRequest{
-		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
-		Provider:     "jellyfin",
-		AccountId:    "acc1",
-		MemberUserId: "u1",
-		NativeId:     "item1",
-		Sink:         "device",
+	_, err := srv.StartDelivery(apiserver.WithUserID(context.Background(), "u1"), &apiv1.StartDeliveryRequest{
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:  "jellyfin",
+		AccountId: "acc1",
+		NativeId:  "item1",
+		Sink:      "device",
 	})
 	if status.Code(err) != codes.InvalidArgument || !strings.Contains(err.Error(), "DRM-encrypted") {
 		t.Fatalf("want a loud InvalidArgument DRM refusal, got code=%v err=%v", status.Code(err), err)

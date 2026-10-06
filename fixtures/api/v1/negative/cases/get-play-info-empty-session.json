@@ -1,0 +1,10 @@
+{
+  "name": "get-play-info-empty-session",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {
+    "sessionId": ""
+  },
+  "type": "GetPlayInfoRequest"
+}

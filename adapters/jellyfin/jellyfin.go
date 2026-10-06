@@ -24,12 +24,36 @@ import (
 // implementation detail behind the contract's opaque tokens.
 const pageSize = 500
 
-// Account is one operator-declared streaming-provider account (IMPLEMENTATION.md §3).
+// Account is the provider-side description of one account, as the core's
+// roster reports it: operator-declared accounts from config, linked accounts
+// from the record store. PasswordEnv names the environment variable holding
+// the password, and is optional: an operator-declared account logs in through
+// it, while a linked account (PLAN.md §3.5) arrives with its validated session
+// already in the vault and never needs the password here. When it is empty the
+// session must come from the vault, or the account is treated as needing
+// a re-link.
 type Account struct {
 	ID          string // the account_id callers pass to CatalogueSync
 	URL         string // base URL of the Jellyfin server
 	Username    string // login name
-	PasswordEnv string // environment variable holding the password
+	PasswordEnv string
+}
+
+// AccountSource resolves one account id, served by this slot, to its provider-
+// side description. The core owns the roster; the adapter consults it per
+// request and keeps only a token cache — never the account's ownership or
+// sharing metadata, and never a second copy of the roster itself.
+type AccountSource interface {
+	Lookup(ctx context.Context, accountID string) (Account, error)
+}
+
+// singleAccountSource resolves every id to the same fixed account. It backs
+// the temporary slot ProbeCredentials builds — the probe already holds the
+// account details, so no roster lookup is needed.
+type singleAccountSource Account
+
+func (s singleAccountSource) Lookup(_ context.Context, _ string) (Account, error) {
+	return Account(s), nil
 }
 
 // Option customizes the slot's HTTP behaviour (tests inject their server).
@@ -68,30 +92,60 @@ type Slot struct {
 	slotsv1.UnimplementedProviderServiceServer
 
 	mu       sync.Mutex
-	accounts map[string]*session // by Account.ID
+	ids      map[string]bool     // the account ids this slot serves
+	sessions map[string]*session // token cache, by account id
+	src      AccountSource
 	opts     clientConfig
 }
 
 type session struct {
-	account Account
+	account Account // a resolved account; the roster is the source of truth
 	token   string
 	userID  string
 }
 
-// New builds a slot serving the given operator-declared accounts.
-func New(accounts []Account, opts ...Option) (*Slot, error) {
-	if len(accounts) == 0 {
+// NoSessionError marks an account that has no live session and no way to
+// obtain one itself: its vault holds nothing usable and it is not backed by a
+// password env (a linked account whose session died, PLAN.md §3.5/§7.5). The
+// only recovery is a user re-link, so the failure is typed rather than folded
+// into a generic login error — the re-auth flow keys off this.
+type NoSessionError struct {
+	AccountID string
+	Username  string
+	BaseURL   string
+}
+
+func (e NoSessionError) Error() string {
+	return fmt.Sprintf("jellyfin: account %q (%s@%s) has no vaulted session and no password-env; re-link required",
+		e.AccountID, e.Username, e.BaseURL)
+}
+
+// New builds a slot serving the given account ids, resolved through src. Empty
+// PasswordEnv is allowed: such an account is vault-first — its session must
+// already be in the vault (a validated link), never re-logged-in from here.
+func New(ids []string, src AccountSource, opts ...Option) (*Slot, error) {
+	if len(ids) == 0 {
 		return nil, fmt.Errorf("jellyfin: at least one account must be declared")
 	}
-	byID := make(map[string]*session, len(accounts))
-	for _, a := range accounts {
-		if a.ID == "" || a.URL == "" || a.Username == "" || a.PasswordEnv == "" {
-			return nil, fmt.Errorf("jellyfin: account %q: id, url, username, and password-env are required", a.ID)
+	if src == nil {
+		return nil, fmt.Errorf("jellyfin: an account source is required")
+	}
+	seen := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		if id == "" {
+			return nil, fmt.Errorf("jellyfin: account entry missing id")
 		}
-		if _, dup := byID[a.ID]; dup {
-			return nil, fmt.Errorf("jellyfin: duplicate account id %q", a.ID)
+		if seen[id] {
+			return nil, fmt.Errorf("jellyfin: duplicate account id %q", id)
 		}
-		byID[a.ID] = &session{account: a}
+		seen[id] = true
+		acct, err := src.Lookup(context.Background(), id)
+		if err != nil {
+			return nil, fmt.Errorf("jellyfin: account %q does not resolve: %w", id, err)
+		}
+		if acct.ID == "" || acct.URL == "" || acct.Username == "" {
+			return nil, fmt.Errorf("jellyfin: account %q: id, url, and username are required", id)
+		}
 	}
 	cfg := clientConfig{
 		httpClient: &http.Client{Timeout: 30 * time.Second},
@@ -100,7 +154,39 @@ func New(accounts []Account, opts ...Option) (*Slot, error) {
 	for _, o := range opts {
 		o(&cfg)
 	}
-	return &Slot{accounts: byID, opts: cfg}, nil
+	return &Slot{ids: seen, sessions: map[string]*session{}, src: src, opts: cfg}, nil
+}
+
+// AddAccount makes the slot serve one more account: it resolves it now, so a
+// bad id fails here rather than at the first request, and creates no session
+// until one is requested. It is idempotent — attaching the same id twice is
+// not an error.
+func (s *Slot) AddAccount(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ids[id] {
+		return nil
+	}
+	acct, err := s.src.Lookup(context.Background(), id)
+	if err != nil {
+		return fmt.Errorf("jellyfin: account %q does not resolve: %w", id, err)
+	}
+	if acct.ID == "" || acct.URL == "" || acct.Username == "" {
+		return fmt.Errorf("jellyfin: account %q: id, url, and username are required", id)
+	}
+	s.ids[id] = true
+	return nil
+}
+
+// DropAccount removes an account from the slot and discards its cached session:
+// the credential must be dead the moment the account is gone. The sealed
+// vault copy is the account store's to delete — accounts.Store.Delete owns it
+// — and removing the id from the source of truth stops any future resolution.
+func (s *Slot) DropAccount(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.ids, id)
+	delete(s.sessions, id)
 }
 
 // CapabilityQuery answers the meta-contract: the slot speaks the meta-contract
@@ -132,7 +218,7 @@ var declaredCadence = 6 * time.Hour
 func (s *Slot) Authenticate(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for id := range s.accounts {
+	for id := range s.ids {
 		if _, err := s.ensureSessionLocked(ctx, id); err != nil {
 			return err
 		}
@@ -140,13 +226,43 @@ func (s *Slot) Authenticate(ctx context.Context) error {
 	return nil
 }
 
+// ProbeCredentials validates a username/password pair directly against a
+// Jellyfin server and returns the vaultable session blob — the same
+// authResult JSON the slot restores from the vault. The core calls it before
+// vaulting a linked account's credentials (PLAN.md §3.5: never vault material
+// that has not been proven to work; the probe is the proof). It builds a
+// minimal client with the same device identity the slot uses, so the returned
+// token is valid for slot use after wiring restores it, and it needs no slot
+// installed — link can be validated before any operator account exists. The
+// password is used once, in the probe request; nothing here stores it.
+func ProbeCredentials(ctx context.Context, baseURL, username string, password []byte, opts ...Option) ([]byte, error) {
+	if baseURL == "" || username == "" || len(password) == 0 {
+		return nil, fmt.Errorf("jellyfin: probe requires base_url, username, and password")
+	}
+	slot, err := New([]string{"probe"}, singleAccountSource(Account{ID: "probe", URL: baseURL, Username: username}), opts...)
+	if err != nil {
+		return nil, err
+	}
+	auth, err := slot.authenticate(ctx, baseURL, username, string(password))
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(auth)
+}
+
 // ensureSessionLocked returns a live session, restoring it from the vault
-// when available and logging in (then vaulting the result) when not. Callers
-// must hold s.mu.
+// when available. A vault-first account (no password env) whose vault holds
+// nothing usable has no way to proceed: that is a NoSessionError, the signal
+// that a user re-link is required. An account backed by a password env falls
+// back to logging in (then vaulting the result). Callers must hold s.mu.
 func (s *Slot) ensureSessionLocked(ctx context.Context, accountID string) (*session, error) {
-	sess, ok := s.accounts[accountID]
+	sess, ok := s.sessions[accountID]
 	if !ok {
-		return nil, fmt.Errorf("jellyfin: unknown account %q", accountID)
+		if !s.ids[accountID] {
+			return nil, fmt.Errorf("jellyfin: unknown account %q", accountID)
+		}
+		sess = &session{}
+		s.sessions[accountID] = sess
 	}
 	if sess.token == "" && s.opts.vault != nil {
 		if blob, err := s.opts.vault.Load(ctx, accountID); err == nil && len(blob) > 0 {
@@ -157,7 +273,21 @@ func (s *Slot) ensureSessionLocked(ctx context.Context, accountID string) (*sess
 			}
 		}
 	}
+	if sess.account.ID == "" {
+		acct, err := s.src.Lookup(ctx, accountID)
+		if err != nil {
+			return nil, fmt.Errorf("jellyfin: account %q does not resolve: %w", accountID, err)
+		}
+		sess.account = acct
+	}
 	if sess.token == "" {
+		if sess.account.PasswordEnv == "" {
+			return nil, NoSessionError{
+				AccountID: sess.account.ID,
+				Username:  sess.account.Username,
+				BaseURL:   sess.account.URL,
+			}
+		}
 		password := os.Getenv(sess.account.PasswordEnv)
 		auth, err := s.authenticate(ctx, sess.account.URL, sess.account.Username, password)
 		if err != nil {
@@ -183,7 +313,7 @@ func (s *Slot) ensureSessionLocked(ctx context.Context, accountID string) (*sess
 func (s *Slot) invalidate(ctx context.Context, accountID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if sess, ok := s.accounts[accountID]; ok {
+	if sess, ok := s.sessions[accountID]; ok {
 		sess.token = ""
 		if s.opts.vault != nil {
 			_ = s.opts.vault.Save(ctx, accountID, nil)

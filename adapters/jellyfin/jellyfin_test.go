@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -168,15 +169,37 @@ func queryInt(r *http.Request, key string) int {
 
 const testPasswordEnv = "JELLYFIN_TEST_PASSWORD"
 
+// staticSource is the test roster: a fixed map of account ids to their
+// provider-side description. Production wiring builds the same interface over
+// config plus the linked-account store.
+type staticSource map[string]Account
+
+func (s *staticSource) Lookup(_ context.Context, id string) (Account, error) {
+	a, ok := (*s)[id]
+	if !ok {
+		return Account{}, fmt.Errorf("unknown account %q", id)
+	}
+	return a, nil
+}
+
+// sourceFor indexes accounts by id for a test slot's AccountSource.
+func sourceFor(accts ...Account) *staticSource {
+	s := make(staticSource, len(accts))
+	for _, a := range accts {
+		s[a.ID] = a
+	}
+	return &s
+}
+
 func newTestSlot(t *testing.T, f *fakeJellyfin) *Slot {
 	t.Helper()
 	t.Setenv(testPasswordEnv, "sekret")
-	slot, err := New([]Account{{
+	slot, err := New([]string{"primary"}, sourceFor(Account{
 		ID:          "primary",
 		URL:         f.server.URL,
 		Username:    "bob",
 		PasswordEnv: testPasswordEnv,
-	}}, WithHTTPClient(f.server.Client()))
+	}), WithHTTPClient(f.server.Client()))
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -206,6 +229,134 @@ func TestAuthenticateFailsFastOnBadCredentials(t *testing.T) {
 	// ensureSession caches nothing on failure; Authenticate surfaces the error.
 	if err := slot.Authenticate(context.Background()); err == nil {
 		t.Fatal("Authenticate succeeded with wrong credentials")
+	}
+}
+
+// memVault is a test-local SessionVault; the real vault lives in core and is
+// off-limits to this package (Go internal).
+type memVault struct {
+	blobs map[string][]byte
+}
+
+func (m *memVault) Save(_ context.Context, accountID string, blob []byte) error {
+	m.blobs[accountID] = blob
+	return nil
+}
+
+func (m *memVault) Load(_ context.Context, accountID string) ([]byte, error) {
+	blob, ok := m.blobs[accountID]
+	if !ok {
+		return nil, nil
+	}
+	return blob, nil
+}
+
+// TestVaultFirstLinkedAccountRestoresSession pins PLAN.md §3.5's custody
+// model for linked accounts: the validated session arrives in the vault at
+// link time, so an account with no password-env must be usable from the
+// vaulted blob alone — no re-login against the provider at boot.
+func TestVaultFirstLinkedAccountRestoresSession(t *testing.T) {
+	f := newFake(t, nil)
+	vault := &memVault{blobs: map[string][]byte{}}
+	blob, _ := json.Marshal(authResult{
+		AccessToken: "vaulted-token",
+		User: struct {
+			ID string `json:"Id"`
+		}{ID: "u-1"},
+	})
+	if err := vault.Save(context.Background(), "lnk_abc", blob); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+
+	slot, err := New([]string{"lnk_abc"}, sourceFor(Account{
+		ID:       "lnk_abc",
+		URL:      f.server.URL,
+		Username: "bob",
+	}), WithHTTPClient(f.server.Client()), WithSessionVault(vault))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if err := slot.Authenticate(context.Background()); err != nil {
+		t.Fatalf("Authenticate with vaulted session: %v", err)
+	}
+	if got := f.logins.Load(); got != 0 {
+		t.Fatalf("provider login happened (%d), want vault restore only", got)
+	}
+}
+
+// TestVaultFirstAccountWithoutSessionNeedsRelink pins the typed failure a
+// linked account returns when its vaulted session is gone and it has no
+// password-env to re-login with: the re-auth flow keys off NoSessionError
+// (PLAN.md §7.5).
+func TestVaultFirstAccountWithoutSessionNeedsRelink(t *testing.T) {
+	f := newFake(t, nil)
+	slot, err := New([]string{"lnk_abc"}, sourceFor(Account{
+		ID:       "lnk_abc",
+		URL:      f.server.URL,
+		Username: "bob",
+	}), WithHTTPClient(f.server.Client()), WithSessionVault(&memVault{blobs: map[string][]byte{}}))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	err = slot.Authenticate(context.Background())
+	if _, ok := err.(NoSessionError); !ok {
+		t.Fatalf("Authenticate error = %v, want NoSessionError", err)
+	}
+}
+
+// TestNewAllowsVaultFirstAccount pins that an account without a password-env
+// is a valid declaration (it is a linked, vault-first account), as long as it
+// still names its server and username.
+func TestNewAllowsVaultFirstAccount(t *testing.T) {
+	f := newFake(t, nil)
+	slot, err := New([]string{"lnk_abc"}, sourceFor(Account{
+		ID:       "lnk_abc",
+		URL:      f.server.URL,
+		Username: "bob",
+	}), WithHTTPClient(f.server.Client()))
+	if err != nil {
+		t.Fatalf("New rejected a vault-first account: %v", err)
+	}
+	if slot == nil {
+		t.Fatal("New returned a nil slot")
+	}
+}
+
+// TestAddAndDropAccountAtRuntime pins the runtime account seam: the slot
+// serves an account that was added after construction, without a rebuild, and
+// an account that was dropped stops being served — with its cached session
+// (a live credential) discarded.
+func TestAddAndDropAccountAtRuntime(t *testing.T) {
+	f := newFake(t, []mediaItem{{Id: "a", Type: "Movie", Name: "A"}})
+	t.Setenv(testPasswordEnv, "sekret")
+	src := staticSource{
+		"primary": {ID: "primary", URL: f.server.URL, Username: "bob", PasswordEnv: testPasswordEnv},
+	}
+	slot, err := New([]string{"primary"}, &src, WithHTTPClient(f.server.Client()))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ctx := context.Background()
+
+	// The roster gains an account; the slot must serve it after AddAccount.
+	src["lnk_1"] = Account{ID: "lnk_1", URL: f.server.URL, Username: "bob", PasswordEnv: testPasswordEnv}
+	if err := slot.AddAccount("lnk_1"); err != nil {
+		t.Fatalf("AddAccount: %v", err)
+	}
+	if _, err := slot.CatalogueSync(ctx, &slotsv1.CatalogueSyncRequest{AccountId: "lnk_1"}); err != nil {
+		t.Fatalf("CatalogueSync for runtime-added account: %v", err)
+	}
+
+	// An id the slot has never served is unknown.
+	if _, err := slot.CatalogueSync(ctx, &slotsv1.CatalogueSyncRequest{AccountId: "ghost"}); err == nil {
+		t.Fatal("CatalogueSync for unknown account must be an error")
+	}
+
+	// Dropping the account stops it being served and clears its session.
+	slot.DropAccount("lnk_1")
+	if _, err := slot.CatalogueSync(ctx, &slotsv1.CatalogueSyncRequest{AccountId: "lnk_1"}); err == nil ||
+		!strings.Contains(err.Error(), "unknown account") {
+		t.Fatalf("CatalogueSync after DropAccount = %v, want unknown account", err)
 	}
 }
 
@@ -328,21 +479,66 @@ func TestCatalogueSyncReauthenticatesOnceAfter401(t *testing.T) {
 
 func TestNewRejectsIncompleteAccounts(t *testing.T) {
 	_ = os.Unsetenv(testPasswordEnv)
+	// An empty PasswordEnv is NOT incomplete: it declares a vault-first
+	// (linked) account whose session must already be in the vault (§3.5), so
+	// only id/url/username are load-bearing here.
 	for _, a := range []Account{
 		{ID: "", URL: "http://x", Username: "u", PasswordEnv: "P"},
 		{ID: "a", URL: "", Username: "u", PasswordEnv: "P"},
 		{ID: "a", URL: "http://x", Username: "", PasswordEnv: "P"},
-		{ID: "a", URL: "http://x", Username: "u", PasswordEnv: ""},
 	} {
-		if _, err := New([]Account{a}); err == nil {
+		if _, err := New([]string{a.ID}, sourceFor(a)); err == nil {
 			t.Fatalf("incomplete account %+v accepted", a)
 		}
 	}
-	if _, err := New(nil); err == nil {
+	if _, err := New(nil, sourceFor()); err == nil {
 		t.Fatal("zero accounts accepted")
 	}
 	dup := Account{ID: "a", URL: "http://x", Username: "u", PasswordEnv: "P"}
-	if _, err := New([]Account{dup, dup}); err == nil {
+	if _, err := New([]string{"a", "a"}, sourceFor(dup, dup)); err == nil {
 		t.Fatal("duplicate account id accepted")
+	}
+}
+
+// TestProbeCredentials validates credentials against a live fake server and
+// returns the vaultable session blob (the authResult wiring restores). It is
+// the proof-before-vault seam for linked accounts (PLAN.md §3.5): the probe
+// needs no slot installed and produces a blob the slot accepts verbatim.
+func TestProbeCredentials(t *testing.T) {
+	f := newFake(t, nil)
+	blob, err := ProbeCredentials(context.Background(), f.server.URL, "bob", []byte("sekret"), WithHTTPClient(f.server.Client()))
+	if err != nil {
+		t.Fatalf("ProbeCredentials: %v", err)
+	}
+	var auth authResult
+	if err := json.Unmarshal(blob, &auth); err != nil {
+		t.Fatalf("blob is not an authResult: %v", err)
+	}
+	if auth.AccessToken == "" || auth.User.ID == "" {
+		t.Fatalf("incomplete probed session: %+v", auth)
+	}
+	if f.logins.Load() != 1 {
+		t.Fatalf("logins = %d, want exactly one probe", f.logins.Load())
+	}
+	// A rejected credential is an error, and nothing was vaulted.
+	if _, err := ProbeCredentials(context.Background(), f.server.URL, "bob", []byte("wrong"), WithHTTPClient(f.server.Client())); err == nil {
+		t.Fatal("wrong credentials should fail the probe")
+	}
+	// The returned blob restores through the same path a slot's session vault
+	// uses: the probe and the slot speak one authResult format.
+	mv := &memVault{blobs: map[string][]byte{}}
+	_ = mv.Save(context.Background(), "linked-1", blob)
+	slot, err := New([]string{"linked-1"}, sourceFor(Account{ID: "linked-1", URL: f.server.URL, Username: "bob"}),
+		WithHTTPClient(f.server.Client()),
+		WithSessionVault(mv))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	produced, err := slot.ProduceSources(context.Background(), &slotsv1.ProduceSourcesRequest{AccountId: "linked-1", NativeId: "item-1"})
+	if err != nil {
+		t.Fatalf("vault-first ProduceSources with probed blob: %v", err)
+	}
+	if len(produced.GetSource().GetTracks()) != 3 {
+		t.Fatalf("whole-mux manifest has %d tracks, want 3", len(produced.GetSource().GetTracks()))
 	}
 }

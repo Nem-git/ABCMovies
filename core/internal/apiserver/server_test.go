@@ -376,7 +376,7 @@ func TestServer_GetJob_CreateAndRetrieve(t *testing.T) {
 	}
 
 	// Retrieve it through GetJob.
-	resp, err := srv.GetJob(context.Background(), &apiv1.GetJobRequest{JobId: "job-001"})
+	resp, err := srv.GetJob(ctxAs(session, "user:alice"), &apiv1.GetJobRequest{JobId: "job-001"})
 	if err != nil {
 		t.Fatalf("GetJob: %v", err)
 	}

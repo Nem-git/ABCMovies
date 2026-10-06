@@ -1,0 +1,15 @@
+{
+  "name": "update-account-valid-all",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {
+    "accountId": "lnk_0123456789abcdef0123456789abcdef",
+    "sharing": {
+      "visibility": "ACCOUNT_VISIBILITY_PRIVATE"
+    },
+    "maxConcurrentStreams": 0,
+    "capChangePolicy": "CAP_CHANGE_POLICY_NEW_SESSIONS_ONLY"
+  },
+  "type": "UpdateAccountRequest"
+}

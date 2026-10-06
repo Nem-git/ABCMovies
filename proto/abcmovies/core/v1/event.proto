@@ -34,6 +34,9 @@ enum EventType {
   EVENT_TYPE_ACCOUNT_SESSION_REVOKED = 6;
   // A title left or joined a provider account (PLAN.md §5.4).
   EVENT_TYPE_AVAILABILITY_CHANGED = 7;
+  // A delivery session's play menu is staged and ready to be pulled
+  // (PLAN.md §6.2); get play info to recover the menu.
+  EVENT_TYPE_DELIVERY_PLAY_MENU_READY = 8;
 }
 
 // EventAudience fixes how the event is tenancy-routed (PLAN.md §9.2).
@@ -108,6 +111,16 @@ message AvailabilityEvent {
   bool present = 4;
 }
 
+// PlayMenuReadyEvent reports that a delivery session's play menu is staged and
+// ready to be pulled (PLAN.md §6.2). The menu itself is recovered through the
+// GetPlayInfo RPC; this is the at-most-once notification, so a subscriber that
+// misses it queries instead (PLAN.md §9.2).
+message PlayMenuReadyEvent {
+  // The delivery session whose menu is ready; its id is the delivery job id
+  // (PLAN.md §9.1).
+  string job_id = 1;
+}
+
 // EventEnvelope wraps every notification (PLAN.md §9.2).
 message EventEnvelope {
   // The event's id.
@@ -130,6 +143,7 @@ message EventEnvelope {
     ProviderSwitchedEvent provider_switched = 9;
     AccountSessionEvent account_session = 10;
     AvailabilityEvent availability = 11;
+    PlayMenuReadyEvent play_menu_ready = 13;
   }
   // When the event was emitted.
   google.protobuf.Timestamp emitted_at = 12;

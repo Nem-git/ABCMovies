@@ -1,0 +1,10 @@
+{
+  "name": "link-account-response-empty-id",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {
+    "accountId": ""
+  },
+  "type": "LinkAccountResponse"
+}

@@ -27,6 +27,81 @@ func TestRunFiresJobsOnShortCadence(t *testing.T) {
 	}
 }
 
+func TestLateRegisteredJobRuns(t *testing.T) {
+	s := New(20*time.Millisecond, slog.Default())
+	var mu sync.Mutex
+	bootFired, lateFired := 0, 0
+	_ = s.Register(Job{Name: "boot", Run: func(context.Context) error {
+		mu.Lock()
+		bootFired++
+		mu.Unlock()
+		return nil
+	}})
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan struct{})
+	go func() { s.Run(ctx); close(done) }()
+
+	// Let the boot job start, then register one more mid-run: it must begin
+	// firing without a restart or a second Run call.
+	time.Sleep(60 * time.Millisecond)
+	_ = s.Register(Job{Name: "late", Run: func(context.Context) error {
+		mu.Lock()
+		lateFired++
+		mu.Unlock()
+		return nil
+	}})
+	time.Sleep(80 * time.Millisecond)
+	cancel()
+	<-done
+
+	mu.Lock()
+	defer mu.Unlock()
+	if bootFired < 1 {
+		t.Fatalf("boot job never fired (%d)", bootFired)
+	}
+	if lateFired < 1 {
+		t.Fatalf("late-registered job never fired (%d)", lateFired)
+	}
+}
+
+func TestRemoveStopsALateRegisteredJob(t *testing.T) {
+	s := New(20*time.Millisecond, slog.Default())
+	var mu sync.Mutex
+	lateFired := 0
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan struct{})
+	go func() { s.Run(ctx); close(done) }()
+
+	late := Job{Name: "late", Run: func(context.Context) error {
+		mu.Lock()
+		lateFired++
+		mu.Unlock()
+		return nil
+	}}
+	time.Sleep(30 * time.Millisecond)
+	_ = s.Register(late)
+	time.Sleep(60 * time.Millisecond)
+	s.Remove("late")
+	before := 0
+	mu.Lock()
+	before = lateFired
+	mu.Unlock()
+	time.Sleep(60 * time.Millisecond)
+	mu.Lock()
+	after := lateFired
+	mu.Unlock()
+	if before == 0 {
+		t.Fatalf("late job never fired before removal")
+	}
+	if after > before {
+		t.Fatalf("job fired %d times after removal (was %d)", after, before)
+	}
+	cancel()
+	<-done
+}
+
 func TestBackoffRecoversAndResetsAfterSuccess(t *testing.T) {
 	backoffBase = time.Millisecond
 	backoffMax = 10 * time.Millisecond

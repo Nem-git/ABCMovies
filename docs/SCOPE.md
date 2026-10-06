@@ -1,6 +1,6 @@
 # Scope (v1)
 
-This document fixes **what v1 of the project is**: which milestones ship, what is explicitly out, what "v1 done" means, and the operator sign-offs the plan requires (lawfulness in particular). It exists so IMPLEMENTATION.md's milestone roadmap stays a generic reference while the actual release boundary lives here. PLAN.md remains the spec; this document is a commitment about *release*, not a change to what the system is.
+This document fixes **what v1 of the project is**: which milestones ship, what is explicitly out, and what "v1 done" means. It exists so IMPLEMENTATION.md's milestone roadmap stays a generic reference while the actual release boundary lives here. PLAN.md remains the spec; this document is a commitment about *release*, not a change to what the system is.
 
 **Boundary:** product decisions → PLAN.md §11; implementation decisions → TECHNICAL-DECISIONS.md; scope and acceptance → here.
 
@@ -16,17 +16,18 @@ This document fixes **what v1 of the project is**: which milestones ship, what i
 | M3 | Enrichment | TitleMetadata schema, metadata cache store (records + external-ID lookup), catalogue slot, field-level merging, provenance per field |
 | M4 | Delivery engine | MediaSource manifest, passthrough play + remux download end-to-end, heartbeat/TTL/revocation; **two co-equal v1 sinks** — the user's device (built-in, browser download) and instance-local disk (TECHNICAL-DECISIONS.md §1.13) |
 | M5 | First frontend | Web frontend on the core API; one inbound protocol locked (TECHNICAL-DECISIONS.md §1.2) |
-| M6 | Sharing + policy + audit | Account sharing by use, min(policy, cap), revocation, member-scoping, account-scoped availability events |
+| M6 | Sharing + policy + audit | Account sharing by use, min(policy, cap), revocation, member-scoping, account-scoped availability events, delivery-job events single-sourced from the engine hook |
 
 **Explicitly out of v1 (deferred to v2):**
 
 | Deferred | Where it's specified | Note |
 | --- | --- | --- |
-| DRM slot (acquire-keys / decrypt) | PLAN.md §6.6 | See sign-off in §3 |
+| DRM slot (acquire-keys / decrypt) | PLAN.md §6.6 | v2 — the `drm?` manifest field is carried but never populated in v1 |
 | Lazy streaming-service providers | PLAN.md §5.4 | v1 providers are library-class only |
 | Sidecar custody | PLAN.md §7.4 | Server-held custody only in v1; relay-through-owner is v2 |
 | Egress routing | PLAN.md §7.3 | Off by default; not built in v1 |
-| Streaming-service pacing integration | PLAN.md §5.4, §7.2 | Pacing machinery is built (M6/M7); the lazy-provider consumer is v2 |
+| Streaming-service pacing integration | PLAN.md §5.4, §7.2 | No pacing machinery in v1 (§1.35); the shared-request pacing machinery (budget, aggregate governor, queue position) waits for M7; the lazy-provider consumer is v2 |
+| Time windows, per-member monthly quotas, bandwidth-capped admission as enforced outcomes | PLAN.md §7.2 | The keys validate and are recorded on every job in v1 (TECHNICAL-DECISIONS.md §1.34), but only `concurrentStreams` gates admission; the other enforced keys land with M7 (pacing) or remain a recorded open item |
 | Scoring profiles, session coalescing, entry-level correction, license-wrapper composition, direct-URL handoff, two-factor / identity-provider login | PLAN.md §6.3, §6.5, §5.3, §6.6, §7.6 | Already documented as future/deferred in IMPLEMENTATION.md §3 |
 | Guests (`guest:<deviceId>` library cache) | PLAN.md §2.2, §5.1 | No guest concept in v1; the guest device cache is v2 |
 | User slots (attribution, tenancy scope, transport restriction, revocability) | PLAN.md §4, §4.1 | v1 ships account sharing by use only (M6); user slots are v2 |

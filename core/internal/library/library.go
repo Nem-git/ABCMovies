@@ -19,28 +19,68 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"sync"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/metadatacache"
 	"github.com/nem-git/abcmovies/core/internal/sourcecache"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
-// Reach names one reachable provider account feeding every user's library.
-// Until sharing lands (member scoping is M6), each linked account is reachable
-// by every host user, which is exactly PLAN.md §5.1's rule for this milestone.
+// Reach names one reachable provider account that can feed derived libraries
+// (PLAN.md §5.1). Sharing is a property of the account, not of its server: an
+// operator-declared account is host-provided and public (§2.2), while a
+// linked account carries its owner plus the visibility the owner chose at
+// link time (§3.5). The derivation and the delivery authorization both filter
+// through these fields, so a private reach is invisible to everyone but its
+// owner — member-scoping holds per account (PLAN.md §2.2).
 type Reach struct {
 	Sync      *sourcecache.Synchronizer
 	AccountID string
+	// Owner is the host user who linked the account. Empty means the account
+	// is operator-declared (host-provided) and usable only through a public
+	// (or shared) visibility.
+	Owner string
+	// Visibility gates which users may derive this account's items. An empty
+	// value is treated conservatively as private — never a leak.
+	Visibility accounts.Visibility
+	// Members extends VisibilityShared to named host users.
+	Members []string
 }
 
-// Service derives and caches per-user libraries over a Store.
+// authorized reports whether requester may derive this reach's cached items.
+func (r Reach) authorized(userID string) bool {
+	switch r.Visibility {
+	case accounts.VisibilityPublic:
+		return true
+	case accounts.VisibilityShared:
+		if r.Owner != "" && r.Owner == userID {
+			return true
+		}
+		for _, m := range r.Members {
+			if m == userID {
+				return true
+			}
+		}
+		return false
+	default:
+		// private (and unset: defensively owner-only).
+		return r.Owner != "" && r.Owner == userID
+	}
+}
+
+// Service derives and caches per-user libraries over a Store. Reaches are
+// held in a registry so the future hot-add path can register a reach beside
+// boot wiring without a restart; the visibility filter applies at derivation
+// and authorization time either way.
 type Service struct {
-	reaches []Reach
+	mu      sync.RWMutex
+	reaches map[string]Reach // by AccountID
 	reg     *itemregistry.Registry
 	cache   store.Store
 	logger  *slog.Logger
@@ -67,7 +107,7 @@ func WithEnrichment(resolver MetaResolver, mark func(entryID string)) Option {
 }
 
 // NewService builds the library service. reg resolves provider items to
-// entries; reaches lists every linked account's synchronizer.
+// entries; reaches lists every available account's synchronizer.
 func NewService(reaches []Reach, reg *itemregistry.Registry, cache store.Store, logger *slog.Logger, opts ...Option) (*Service, error) {
 	if reg == nil || cache == nil {
 		return nil, fmt.Errorf("library: registry and cache are required")
@@ -75,7 +115,13 @@ func NewService(reaches []Reach, reg *itemregistry.Registry, cache store.Store, 
 	if logger == nil {
 		logger = slog.Default()
 	}
-	s := &Service{reaches: reaches, reg: reg, cache: cache, logger: logger}
+	s := &Service{reg: reg, cache: cache, logger: logger}
+	s.reaches = make(map[string]Reach, len(reaches))
+	for _, r := range reaches {
+		if err := s.AddReach(r); err != nil {
+			return nil, err
+		}
+	}
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -84,13 +130,106 @@ func NewService(reaches []Reach, reg *itemregistry.Registry, cache store.Store, 
 
 const userPrefix = "lib/u/"
 
-// Reaches returns a copy of the reachable account list this service derives
-// from. Exposed for the observability surface (which linked accounts feed the
-// library).
-func (s *Service) Reaches() []Reach {
-	out := make([]Reach, len(s.reaches))
-	copy(out, s.reaches)
+// AddReach registers an available account for derivation. This is the runtime
+// seam the future hot-add path uses; boot wiring calls it once per reach as
+// well. A duplicate account id is an error, never a silent replace.
+func (s *Service) AddReach(r Reach) error {
+	if r.AccountID == "" || r.Sync == nil {
+		return fmt.Errorf("library: reach with empty account id or synchronizer")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, dup := s.reaches[r.AccountID]; dup {
+		return fmt.Errorf("library: reach %q already registered", r.AccountID)
+	}
+	s.reaches[r.AccountID] = r
+	return nil
+}
+
+// RemoveReach unregisters an account; its items leave every derived library
+// on the next per-user rebuild.
+func (s *Service) RemoveReach(accountID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.reaches, accountID)
+}
+
+// SetReachSharing replaces the sharing fields of a registered reach — same
+// synchronizer, same account, new audience — and invalidates the derived
+// libraries of everyone who could derive this account *before or after* the
+// change. The two groups fail for different reasons (the removed must drop
+// their now-wrong cache; the newly granted would otherwise hold nothing),
+// so the sweep is over their union.
+func (s *Service) SetReachSharing(accountID string, visibility accounts.Visibility, members []string) error {
+	s.mu.Lock()
+	r, ok := s.reaches[accountID]
+	if !ok {
+		s.mu.Unlock()
+		return fmt.Errorf("library: reach %q not registered", accountID)
+	}
+	before := r
+	r.Visibility = visibility
+	r.Members = members
+	s.reaches[accountID] = r
+	s.mu.Unlock()
+
+	return s.sweepUserCaches(func(userID string) bool {
+		return before.authorized(userID) || r.authorized(userID)
+	})
+}
+
+// snapshot lists every registered reach in deterministic (account-id) order.
+func (s *Service) snapshot() []Reach {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]Reach, 0, len(s.reaches))
+	for _, r := range s.reaches {
+		out = append(out, r)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].AccountID < out[j].AccountID })
 	return out
+}
+
+// derivable lists the reaches the user may derive from, through the per-account
+// visibility gate (PLAN.md §5.1), in snapshot order.
+func (s *Service) derivable(userID string) []Reach {
+	all := s.snapshot()
+	out := make([]Reach, 0, len(all))
+	for _, r := range all {
+		if r.authorized(userID) {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// ReachesForUser returns the accounts whose items the user may derive, in
+// deterministic order. The API surface routes both GetLibrary and the delivery
+// authorization through this same gate, so a reach you cannot use is invisible
+// end to end.
+func (s *Service) ReachesForUser(userID string) []Reach {
+	return s.derivable(userID)
+}
+
+// ReachAuthorized resolves an account to its reach when the requester may use
+// it. Unregistered, absent, and not-shared all return ok=false — made
+// indistinguishable on purpose, so unauthorized account ids cannot be probed
+// (member-scoping invariant, PLAN.md §2.2).
+func (s *Service) ReachAuthorized(accountID, userID string) (Reach, bool) {
+	s.mu.RLock()
+	r, ok := s.reaches[accountID]
+	s.mu.RUnlock()
+	if !ok {
+		return Reach{}, false
+	}
+	return r, r.authorized(userID)
+}
+
+// Reaches returns a copy of every registered reach this service derives from,
+// in deterministic order. Exposed for the observability surface (which
+// accounts feed the library).
+func (s *Service) Reaches() []Reach {
+	return s.snapshot()
 }
 
 func (s *Service) userKey(userID string) string {
@@ -141,7 +280,7 @@ func (s *Service) RebuildUser(ctx context.Context, userID string) error {
 	order := make([]string, 0)
 	entries := make(map[string]*build)
 
-	for _, reach := range s.reaches {
+	for _, reach := range s.derivable(userID) {
 		items, err := reach.Sync.ListItems(ctx, reach.AccountID)
 		if err != nil {
 			return fmt.Errorf("library: list %s/%s: %w", reach.Sync.Provider(), reach.AccountID, err)
@@ -273,18 +412,85 @@ func (s *Service) RebuildUser(ctx context.Context, userID string) error {
 	return nil
 }
 
-// InvalidateAccount drops every cached user library after one account's
-// availability changed. Until member scoping exists every user reaches every
-// linked account, so the precise recipient set is "everyone"; the next read
-// rebuilds lazily (PLAN.md §5.1: a missed event leaves a slightly stale cache
-// until the next periodic rebuild — acceptable).
-func (s *Service) InvalidateAccount(_ string, _ string) error {
+// Metadata resolves a cached display record by its reference id (PLAN.md
+// §5.2), for surfaces that render an entry's cover/poster/title cache.
+// ok=false when no record is cached (or no cache is wired); a miss is not an
+// error — the frontend falls back to the entry alone.
+func (s *Service) Metadata(ctx context.Context, ref string) (*corev1.TitleMetadata, bool, error) {
+	if s.meta == nil || ref == "" {
+		return nil, false, nil
+	}
+	rec, ok, err := s.meta.GetRecord(ctx, ref)
+	if err != nil {
+		return nil, false, err
+	}
+	return rec, ok, nil
+}
+
+// InvalidateAccount drops the cached user libraries that derive from one
+// account's freshly-refreshed availability; users who could never derive it
+// are unaffected. For a public account the whole cache is affected (every
+// user may derive it); for a shared account only its members and owner; for
+// a private account only its owner. Unknown accounts still force the old
+// full sweep — if we cannot prove who could derive it, every cached user is
+// a legitimate recipient of the reset.
+func (s *Service) InvalidateAccount(provider, accountID string) error {
+	s.mu.RLock()
+	reaches := make([]Reach, 0, len(s.reaches))
+	for _, r := range s.reaches {
+		if r.AccountID == accountID && r.Sync != nil && r.Sync.Provider() == provider {
+			reaches = append(reaches, r)
+		}
+	}
+	s.mu.RUnlock()
+
+	if len(reaches) == 0 {
+		return s.invalidateAll(context.Background())
+	}
+
+	affilter := func(userID string) bool {
+		for _, r := range reaches {
+			if r.authorized(userID) {
+				return true
+			}
+		}
+		return false
+	}
+	return s.sweepUserCaches(affilter)
+}
+
+// sweepUserCaches drops the cached derived-library entries of exactly the
+// users the predicate names. This is the one place the per-user cache is
+// invalidated pointwise; InvalidateAccount and SetReachSharing both root
+// through it.
+func (s *Service) sweepUserCaches(invalidate func(userID string) bool) error {
 	keys, err := s.cache.List(context.Background(), userPrefix)
 	if err != nil {
 		return fmt.Errorf("library: list cached users: %w", err)
 	}
 	for _, k := range keys {
+		uid := strings.TrimPrefix(k, userPrefix)
+		unescaped, uerr := url.PathUnescape(uid)
+		if uerr != nil {
+			unescaped = uid
+		}
+		if !invalidate(unescaped) {
+			continue
+		}
 		if err := s.cache.Delete(context.Background(), k); err != nil {
+			return fmt.Errorf("library: invalidate %q: %w", k, err)
+		}
+	}
+	return nil
+}
+
+func (s *Service) invalidateAll(ctx context.Context) error {
+	keys, err := s.cache.List(ctx, userPrefix)
+	if err != nil {
+		return fmt.Errorf("library: list cached users: %w", err)
+	}
+	for _, k := range keys {
+		if err := s.cache.Delete(ctx, k); err != nil {
 			return fmt.Errorf("library: invalidate %q: %w", k, err)
 		}
 	}

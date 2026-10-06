@@ -12,6 +12,7 @@ import (
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
@@ -61,6 +62,16 @@ func (m *eventMux) Publish(env *corev1.EventEnvelope) {
 type SlotRuntime struct {
 	// Bus carries sync-emitted events to subscribers.
 	Bus *apiserver.InMemoryBus
+	// eventMux routes sync-emitted events to the bus and the library
+	// invalidator. Production composition is the only place that sets
+	// its wiring; keeping the handle here lets the compose-level fixture
+	// drive an availability event through the real wiring.
+	eventMux *eventMux
+	// deps is the composition Deps the boot used, retained so a runtime
+	// account link can build the new account's sync machinery through the
+	// same resources (source cache, item registry, event sink, enrichment
+	// queue, context, logger) without a fresh composition.
+	deps slotwiring.Deps
 	// Library derives and caches per-user libraries over every wired reach.
 	Library *library.Service
 	// ItemRegistry is the instance-wide provider item registry; exposed for
@@ -81,6 +92,14 @@ type SlotRuntime struct {
 	// Jobs are the slots' recurring refresh jobs; register them with a
 	// scheduler and run it. The enrichment drain job is included.
 	Jobs []scheduler.Job
+	// Scheduler runs every recurring job, wired in ComposeSlots with the boot
+	// set of jobs. It is shared with the runtime link path: a refresh job
+	// registered after startup starts its worker immediately (PLAN.md §5.1).
+	Scheduler *scheduler.Scheduler
+	// Providers are the live provider slots, as built at boot: the composition
+	// root's record of which slot serves which entry. A runtime account link
+	// attaches to one of these without a rebuild (PLAN.md §5.1).
+	Providers []*slotwiring.BuiltSlot
 
 	// Delivery pieces, set when the delivery engine is composed: Resolvers
 	// maps a provider slot id to its produce-sources resolver; Sinks is the
@@ -90,6 +109,110 @@ type SlotRuntime struct {
 	Resolvers slotwiring.Resolvers
 	Sinks     delivery.SinkFactory
 	Relay     *delivery.Relay
+
+	// Probers map provider adapters — the adapter name a LinkAccountRequest
+	// carries as its provider — to credential probers, so the API validates
+	// linked-account credentials before anything is vaulted (PLAN.md §3.5:
+	// nothing is vaulted that the probe rejected). Empty when no provider
+	// adapter arms a prober.
+	Probers map[string]apiserver.CredentialProber
+}
+
+// providerFor finds the built provider slot whose adapter and declared server
+// match the account's provider and base URL — the same matching rule boot
+// routing uses (PLAN.md §3.5). A link to a server no slot serves reports an
+// error, never a silent guess.
+func (rt *SlotRuntime) providerFor(provider, baseURL string) *slotwiring.BuiltSlot {
+	for _, b := range rt.Providers {
+		if b.Entry.Adapter == provider && slotwiring.ServerAddressMatch(b.Entry.Server, baseURL) {
+			return b
+		}
+	}
+	return nil
+}
+
+// AttachAccount links a provider account onto a live slot without a restart
+// (PLAN.md §5.1): it routes the record to the slot serving its server, admits
+// the account to that slot, builds its sync machinery through the shared
+// per-account path, publishes the reach, registers the refresh job on the
+// shared scheduler, and kicks off the first sync in the background. If any
+// step fails the account is taken back out of the slot and the error
+// propagates, so the caller can roll back the stored record and session.
+func (rt *SlotRuntime) AttachAccount(rec accounts.Record) error {
+	b := rt.providerFor(rec.Provider, rec.BaseURL)
+	if b == nil {
+		return fmt.Errorf("no provider slot serves %s account from %q", rec.Provider, rec.BaseURL)
+	}
+	syncer, reach, job, err := slotwiring.AttachAccount(b, rec, rt.deps)
+	if err != nil {
+		return err
+	}
+	if err := rt.Library.AddReach(*reach); err != nil {
+		if attachable, ok := b.Impl.(slotwiring.AttachableSlot); ok {
+			attachable.DropAccount(rec.ID)
+		}
+		return fmt.Errorf("publish reach: %w", err)
+	}
+	rt.Scheduler.Register(*job)
+	slotwiring.FirstSync(syncer, rec.ID, rt.deps)
+	return nil
+}
+
+// DropAccount takes a linked account out of the running slot live: the slot
+// drops its cached session, its refresh job leaves the shared scheduler, and
+// the account's source-cache rows are dropped. It is the removal counterpart
+// to AttachAccount. A missing live slot is not an error — there is nothing
+// live left to take back; the record and session are deleted by the api layer.
+func (rt *SlotRuntime) DropAccount(rec accounts.Record) error {
+	b := rt.providerFor(rec.Provider, rec.BaseURL)
+	if b == nil {
+		// The account's slot is not live anymore — nothing to take back. The
+		// api layer has already deleted the record and session and pulled the
+		// reach; any cache rows belong to a slot that no longer exists.
+		return nil
+	}
+	if attachable, ok := b.Impl.(slotwiring.AttachableSlot); ok {
+		attachable.DropAccount(rec.ID)
+	}
+	rt.Scheduler.Remove("source-cache-sync/" + b.Namespace() + "/" + rec.ID)
+	prefix := b.Namespace() + "/" + rec.ID + "/"
+	keys, err := rt.deps.SourceCache.List(context.Background(), prefix)
+	if err != nil {
+		return fmt.Errorf("list source-cache rows for %q: %w", rec.ID, err)
+	}
+	for _, k := range keys {
+		if err := rt.deps.SourceCache.Delete(context.Background(), k); err != nil {
+			return fmt.Errorf("drop source-cache row %q: %w", k, err)
+		}
+	}
+	// A user-provided slot exists only because of linked accounts: with its
+	// last account gone, nothing remains to provision, so it retires — its
+	// cached rows, its resolver, and its entry in the registry all go.
+	// Operator-declared slots (accounts configured in config) are never
+	// retired by an unlink; the operator's config outlives any single account.
+	if len(b.Entry.Accounts) == 0 {
+		remaining := 0
+		if linked, err := rt.deps.Accounts.List(context.Background()); err == nil {
+			for _, l := range linked {
+				if l.Provider == b.Entry.Adapter && slotwiring.ServerAddressMatch(b.Entry.Server, l.BaseURL) {
+					remaining++
+				}
+			}
+		}
+		if remaining == 0 {
+			rt.deps.Registry.Forget(b.Entry.ID)
+			delete(rt.Resolvers, b.Entry.ID)
+			keep := make([]*slotwiring.BuiltSlot, 0, len(rt.Providers))
+			for _, p := range rt.Providers {
+				if p.Entry.ID == b.Entry.ID {
+					continue
+				}
+				keep = append(keep, p)
+			}
+			rt.Providers = keep
+		}
+	}
+	return nil
 }
 
 // registryEvidence adapts the item registry to the enrichment engine's
@@ -120,12 +243,14 @@ func (e registryEvidence) Evidence(ctx context.Context, entryID string) (enrichm
 // (queue, engine, drain worker), and the event path between syncs and cache
 // invalidation. reg is the caller-owned slot registry; sourceCache backs
 // both the caches and the registry's mappings; metaCache holds enriched
-// records.
+// records; cache holds the per-user derived library (a separate store class
+// from sourceCache, even though both are rebuildable — the source cache is
+// provider scrapes, the derived cache is the per-user merge).
 //
 // No owner id goes into the item registry yet: operator-facing
 // merge-conflict notifications arrive with the operator surface, until then
 // the registry suppresses those envelopes.
-func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.EnrichmentConfig, reg *registry.InProcessRegistry, sourceCache, metaCache, vault store.Store, logger *slog.Logger) (*SlotRuntime, error) {
+func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.EnrichmentConfig, reg *registry.InProcessRegistry, sourceCache, metaCache, vault, cache store.Store, apiBus *apiserver.InMemoryBus, logger *slog.Logger) (*SlotRuntime, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -139,25 +264,36 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 	}
 	queue := enrichment.NewInMemoryQueue()
 
-	rt := &SlotRuntime{Bus: apiserver.NewInMemoryBus(), Queue: queue}
+	rt := &SlotRuntime{Bus: apiBus, Queue: queue}
 	mux := &eventMux{bus: rt.Bus, log: logger}
-
+	rt.eventMux = mux
 	rt.Relay = delivery.NewRelay()
-	jobs, reaches, cats, resolvers, err := slotwiring.SetupAll(ctx, slots, slotwiring.Deps{
+	deps := slotwiring.Deps{
 		Ctx:          ctx,
 		Registry:     reg,
-		SealedBlobs:  NewSealedBlobs(vault),
+		Accounts:     accounts.NewStore(vault, logger),
 		SourceCache:  sourceCache,
 		Logger:       logger,
 		ItemRegistry: itemReg,
 		EventSink:    mux,
 		Enqueue:      queue.Enqueue,
-	})
+	}
+	jobs, reaches, cats, resolvers, built, err := slotwiring.SetupAll(ctx, slots, deps)
 	if err != nil {
 		rt.Bus.Close()
 		return nil, fmt.Errorf("slots: %w", err)
 	}
 	rt.Resolvers = resolvers
+	rt.Probers = map[string]apiserver.CredentialProber{}
+	rt.deps = deps
+	for _, e := range slots.Providers {
+		if !e.Enabled {
+			continue
+		}
+		if p := slotwiring.ProberForAdapter(e.Adapter); p != nil {
+			rt.Probers[e.Adapter] = p
+		}
+	}
 
 	srvs, err := slotwiring.SetupSinks(slots.Sinks, rt.Relay)
 	if err != nil {
@@ -177,13 +313,25 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 	worker := enrichment.NewWorker(queue, engine.Enrich, logger)
 	jobs = append(jobs, worker.Job(drainCadence))
 
-	libSvc, err := library.NewService(reaches, itemReg, sourceCache, logger,
+	libSvc, err := library.NewService(reaches, itemReg, cache, logger,
 		library.WithEnrichment(meta, queue.Enqueue))
 	if err != nil {
 		rt.Bus.Close()
 		return nil, fmt.Errorf("library: %w", err)
 	}
 	rt.Library, rt.ItemRegistry, rt.Jobs = libSvc, itemReg, jobs
+	rt.Providers = built
+	rt.Scheduler = scheduler.New(0, logger)
+	for _, j := range rt.Jobs {
+		rt.Scheduler.Register(j)
+	}
+	// The production wiring must complete the two event destinations, or
+	// availability never triggers a derived-library invalidation at runtime.
+	mux.lib = libSvc
+	apiBus.SetAccountEntiter(func(accountID, uid string) bool {
+		_, ok := libSvc.ReachAuthorized(accountID, uid)
+		return ok
+	})
 	rt.Meta = meta
 	rt.Engine = engine
 	rt.Catalogues = cats

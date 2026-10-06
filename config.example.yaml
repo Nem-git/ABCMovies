@@ -47,8 +47,13 @@ slots:
   # instance-local disk (must name a path) or the user's device (built-in).
   # The device sink needs no entry here — its config is the frontend's.
   # Each sink carries its own knobs under `options`.
-  sinks: []
-  #   # Example disk sink — copy into `sinks:` and enable.
+  # Each sink named here is reachable by its slot id. v1 has two sinks
+  # (TECHNICAL-DECISIONS.md §1.13): the user's device (built-in; one-line
+  # entry — no options needed) and instance-local disk (needs a path).
+  sinks:
+    - id: device
+      adapter: device
+      enabled: true
   #   - id: disk
   #     adapter: disk
   #     enabled: true
@@ -67,34 +72,75 @@ slots:
   #     # Optional override; otherwise the cadence the adapter declares at
   #     # handshake applies (see TECHNICAL-DECISIONS.md for precedence).
   #     sync-cadence: 6h
+  #     # The one server this slot serves. Every account below is a login on
+  #     # this server — a slot never spans servers.
+  #     server: 'http://jellyfin.local:8096'
   #     accounts:
   #       - id: primary
-  #         url: 'http://jellyfin.local:8096'
   #         username: your-jellyfin-user
   #         password-env: JELLYFIN_PASSWORD
+  #         # Optional: the account's declared upstream concurrency
+  #         # ceiling. The engine enforces min(instance policy, this cap)
+  #         # per account; absent leaves the account uncapped.
+  #         max-concurrent-streams: 3
+  #         # Optional per-account override of the instance policy — only
+  #         # the keys written here override; everything else inherits.
+  #         policy:
+  #           concurrentStreams: 2
+
+# Instance-wide usage policy (docs/PLAN.md §7.2, the enforcement vocabulary
+# from docs/TECHNICAL-DECISIONS.md §1.34): a limit-type => value map. Absent
+# keys inherit the shipped defaults; unknown keys or malformed values fail
+# startup loudly — never run silently unconfined. Enforced in v1:
+# concurrentStreams only; bandwidth/encode/pacing/* keys are validated,
+# recorded on every delivery job, and enforced by their own milestones.
+# policy:
+#   concurrentStreams: 3
+#   bandwidth: unlimited
+#   encode: disabled
+
+# Delivery engine knobs (docs/PLAN.md §7.2):
+#   on-cap-change: what lowering an account's concurrent-stream cap does to
+#     the sessions already running on it.
+#     new-sessions-only (default) — running streams finish, and the new cap
+#       applies from the next session.
+#     enforce-now — the excess sessions end immediately, oldest first.
+#   A user may override this per account. An unknown value fails startup.
+# delivery:
+#   on-cap-change: new-sessions-only
 
 stores:
-  # One backend per store class (docs/PLAN.md §2.4). Dev defaults are
-  # lightweight; production uses the pinned backends (§1.16).
-  # Each class has a default file path to prevent collisions when multiple
-  # stores use "local-file" (e.g. data/caches.db, data/vault.db).
+  # One backend per store class (docs/PLAN.md §2.4). Classes whose loss costs
+  # user data or breaks the "restart continues" promise default to disk here;
+  # changing any of them to in-memory makes a throwaway instance, and boot
+  # says so per class. Each class has a default file path to prevent
+  # collisions when multiple stores use "local-file" (e.g. data/caches.db,
+  # data/vault.db).
+  # The merged per-user library cache — safe to lose, so it stays cheap and
+  # ephemeral unless you opt into restart-speed.
   caches:
     backend: in-memory
+    # path: data/caches.db  # default
   vault:
     backend: local-file
     # path: data/vault.db  # default
-    # vault-key: generated  # or 64 hex chars for a stable key
+    # vault-key: generated  # or 64 hex chars for a stable key. Generate
+    # one with: openssl rand -hex 32 — it seals logins, account sessions
+    # and any encrypted data-key cache, so losing it makes all three
+    # unreadable.
   watch-history:
-    backend: in-memory
+    backend: local-file
     # path: data/watch-history.db  # default
   jobs:
-    backend: in-memory
+    backend: local-file
     # path: data/jobs.db  # default
+  # Deliberately ephemeral: access tokens and unwrapped data keys are
+  # re-minted, not recovered; a restart signs everyone back in.
   sessions:
     backend: in-memory
     # path: data/sessions.db  # default
   users:
-    backend: in-memory
+    backend: local-file
     # path: data/users.db  # default
   # The account source cache (docs/PLAN.md §5.4) — what each linked account
   # carries. Durable by default; rebuilding from the provider is the fallback.

@@ -72,7 +72,7 @@ func TestUnknownAdapterRejected(t *testing.T) {
 	reg := registry.NewInProcess()
 	defer reg.Close()
 
-	_, _, _, err := SetupProviders([]config.SlotEntry{{
+	_, _, _, _, err := SetupProviders([]config.SlotEntry{{
 		ID: "primary", Adapter: "jellifin", Enabled: true, // deliberate typo
 	}}, Deps{Registry: reg, Logger: slog.Default()})
 	if err == nil || !strings.Contains(err.Error(), "unknown provider adapter") {
@@ -87,9 +87,9 @@ func TestDisabledEntriesAreSkipped(t *testing.T) {
 	reg := registry.NewInProcess()
 	defer reg.Close()
 
-	jobs, _, _, err := SetupProviders([]config.SlotEntry{{
+	jobs, _, _, _, err := SetupProviders([]config.SlotEntry{{
 		ID: "primary", Adapter: "jellyfin", Enabled: false,
-		Accounts: []config.AccountConfig{{ID: "primary"}}, // no URL/password on purpose
+		Accounts: []config.AccountConfig{{ID: "primary"}}, // no credentials on purpose
 	}}, Deps{Registry: reg, Logger: slog.Default()})
 	if err != nil {
 		t.Fatalf("disabled entry must not be wired: %v", err)
@@ -106,7 +106,7 @@ func TestUnimplementedKindsRejected(t *testing.T) {
 	slots := config.SlotsConfig{}
 	slots.SubtitleSources = []config.SlotEntry{{ID: "sub-a", Adapter: "trakt-sub", Enabled: true}}
 
-	if _, _, _, _, err := SetupAll(context.Background(), slots, Deps{}); err == nil ||
+	if _, _, _, _, _, err := SetupAll(context.Background(), slots, Deps{}); err == nil ||
 		!strings.Contains(err.Error(), "not implemented yet") {
 		t.Fatalf("want not-implemented-yet error, got %v", err)
 	}
@@ -119,9 +119,77 @@ func TestUnknownCatalogueAdapterRejected(t *testing.T) {
 	slots := config.SlotsConfig{}
 	slots.Catalogue = []config.SlotEntry{{ID: "trakt", Adapter: "trakt", Enabled: true}}
 
-	if _, _, _, _, err := SetupAll(context.Background(), slots, Deps{}); err == nil ||
+	if _, _, _, _, _, err := SetupAll(context.Background(), slots, Deps{}); err == nil ||
 		!strings.Contains(err.Error(), "unknown catalogue adapter") {
 		t.Fatalf("want unknown-catalogue-adapter error, got %v", err)
+	}
+}
+
+// TestSetupProvidersPublishesLastOnLateFailure pins the publish-last order:
+// a slot that fails at a late build step (here the cadence is unparseable,
+// after the adapter was already built and synced) must leave nothing behind
+// in the registry.
+func TestSetupProvidersPublishesLastOnLateFailure(t *testing.T) {
+	t.Setenv("JELLYFIN_TEST_PASSWORD", "x")
+	reg := registry.NewInProcess()
+	defer reg.Close()
+
+	_, _, _, _, err := SetupProviders([]config.SlotEntry{{
+		ID: "primary", Adapter: "jellyfin", Enabled: true, Server: "http://jf.invalid",
+		SyncCadence: "not-a-duration",
+		Accounts:    []config.AccountConfig{{ID: "home", Username: "bob", PasswordEnv: "JELLYFIN_TEST_PASSWORD"}},
+	}}, Deps{Registry: reg, Logger: slog.Default()})
+	if err == nil || !strings.Contains(err.Error(), "sync-cadence") {
+		t.Fatalf("want cadence error, got %v", err)
+	}
+	if _, ok := reg.Policy("primary"); ok {
+		t.Fatal("registry holds a slot that was never published")
+	}
+	if len(reg.Snapshot()) != 0 {
+		t.Fatalf("registry = %v, want empty", reg.Snapshot())
+	}
+}
+
+// TestSetupCataloguesRejectsOverlappingNamespaces pins the overlap check:
+// two catalogue slots claiming the same identity namespace fail startup
+// before either is admitted. (The check used to be dead code — it probed
+// the narrowed engine client instead of the served slot, which does not
+// forward the claims.)
+func TestSetupCataloguesRejectsOverlappingNamespaces(t *testing.T) {
+	t.Setenv("TMDB_TOKEN", "test-token")
+	reg := registry.NewInProcess()
+	defer reg.Close()
+
+	_, err := SetupCatalogues([]config.SlotEntry{
+		{ID: "tmdb-a", Adapter: "tmdb", Enabled: true, TokenEnv: "TMDB_TOKEN"},
+		{ID: "tmdb-b", Adapter: "tmdb", Enabled: true, TokenEnv: "TMDB_TOKEN"},
+	}, Deps{Registry: reg, Logger: slog.Default()})
+	if err == nil || !strings.Contains(err.Error(), "both claim identity namespace") {
+		t.Fatalf("want overlap error, got %v", err)
+	}
+	if len(reg.Snapshot()) != 0 {
+		t.Fatalf("registry = %v, want empty: overlap check fires before publication", reg.Snapshot())
+	}
+}
+
+// TestSetupCataloguesAdmitsEachEnabledEntry pins the happy path: one enabled
+// catalogue is admitted and the engine client is served.
+func TestSetupCataloguesAdmitsEachEnabledEntry(t *testing.T) {
+	t.Setenv("TMDB_TOKEN", "test-token")
+	reg := registry.NewInProcess()
+	defer reg.Close()
+
+	cats, err := SetupCatalogues([]config.SlotEntry{
+		{ID: "tmdb-main", Adapter: "tmdb", Enabled: true, TokenEnv: "TMDB_TOKEN"},
+	}, Deps{Registry: reg, Logger: slog.Default()})
+	if err != nil {
+		t.Fatalf("SetupCatalogues: %v", err)
+	}
+	if len(cats) != 1 || cats[0].Slot != "tmdb-main" {
+		t.Fatalf("cats = %v, want one catalogue tmdb-main", cats)
+	}
+	if _, ok := reg.Policy("tmdb-main"); !ok {
+		t.Fatal("registry lacks the admitted catalogue slot")
 	}
 }
 

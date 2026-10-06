@@ -1,0 +1,11 @@
+{
+  "name": "get-library-valid-filter",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {
+    "query": "blade runner",
+    "pageToken": "100"
+  },
+  "type": "GetLibraryRequest"
+}

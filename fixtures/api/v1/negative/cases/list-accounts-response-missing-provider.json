@@ -1,0 +1,15 @@
+{
+  "name": "list-accounts-response-missing-provider",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {
+    "accounts": [
+      {
+        "accountId": "lnk_acc_1",
+        "status": "ACCOUNT_STATUS_LINKED"
+      }
+    ]
+  },
+  "type": "ListAccountsResponse"
+}

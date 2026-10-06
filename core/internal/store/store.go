@@ -10,10 +10,27 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 )
 
 // ErrKeyNotFound is returned by Get when the key does not exist.
 var ErrKeyNotFound = errors.New("store: key not found")
+
+// ensureParentDir creates the directory holding path when the path is nested,
+// so a fresh checkout can point a file-backed store at a location that does
+// not exist yet instead of failing with an opaque SQLite open error.
+func ensureParentDir(path string) error {
+	dir := filepath.Dir(path)
+	if dir == "" || dir == "." {
+		return nil
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create directory: %w", err)
+	}
+	return nil
+}
 
 // Store is a key-value persistence layer. Keys are opaque strings; values are
 // raw bytes. Implementations differ in durability, encryption, and who may read

@@ -1,0 +1,20 @@
+{
+  "name": "get-play-info-response-track-without-id",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {
+    "tracks": [
+      {
+        "video": {
+          "codec": "hevc",
+          "width": 3840,
+          "height": 2160
+        },
+        "relayUrl": "/media/relay/eyJzZXNz"
+      }
+    ],
+    "container": "mkv"
+  },
+  "type": "GetPlayInfoResponse"
+}

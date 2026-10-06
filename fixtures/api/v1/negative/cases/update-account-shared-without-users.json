@@ -1,0 +1,13 @@
+{
+  "name": "update-account-shared-without-users",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {
+    "accountId": "lnk_0123456789abcdef0123456789abcdef",
+    "sharing": {
+      "visibility": "ACCOUNT_VISIBILITY_SHARED"
+    }
+  },
+  "type": "UpdateAccountRequest"
+}

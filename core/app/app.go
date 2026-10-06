@@ -11,9 +11,9 @@ package app
 
 import (
 	"context"
-	"crypto/cipher"
 	"fmt"
 	"log/slog"
+	"net/http"
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
@@ -52,9 +52,9 @@ type Stack struct {
 	registry *registry.InProcessRegistry
 	bus      *apiserver.InMemoryBus
 
-	// configPath is retained so BuildSlots can re-load the caller's slot
-	// configuration over the same stack.
-	configPath string
+	// cfg is the loaded instance config, retained so BuildSlots and the
+	// delivery wiring compose exactly what Build loaded.
+	cfg *config.Config
 
 	// slots holds the composed provider-slot layer when BuildSlots has been
 	// called; nil until then.
@@ -78,15 +78,7 @@ func Build(configPath string, logger *slog.Logger) (*Stack, error) {
 		return nil, fmt.Errorf("stores: %w", err)
 	}
 
-	var vaultAEAD cipher.AEAD
-	if cfg.Auth.DEKCache == "encrypted-store" {
-		vaultAEAD, err = config.VaultAEAD(cfg, logger)
-		if err != nil {
-			_ = closeStores(stores)
-			return nil, fmt.Errorf("dek-cache: %w", err)
-		}
-	}
-	users, tokens, deks, err := config.BuildAuth(stores.Users, stores.Sessions, cfg.Auth.DEKCache, vaultAEAD)
+	users, tokens, deks, err := config.BuildAuth(stores.Users, stores.Sessions, cfg.Auth.DEKCache, stores.VaultAEAD)
 	if err != nil {
 		_ = closeStores(stores)
 		return nil, fmt.Errorf("auth: %w", err)
@@ -107,6 +99,19 @@ func Build(configPath string, logger *slog.Logger) (*Stack, error) {
 
 	bus := apiserver.NewInMemoryBus()
 	srv := apiserver.NewServer(bus, stores, composite, session)
+	// The accounts RPCs validate named members against this: a share listed
+	// for someone who does not exist is refused, not silently granted to
+	// nobody.
+	srv.SetUserDirectory(apiserver.NewUserDirectory(users))
+	// The instance-wide default for what lowering a cap does to running
+	// sessions; an account with no choice of its own inherits it.
+	capDefault, err := config.ParseCapChangeDefault(cfg.Delivery.OnCapChange)
+	if err != nil {
+		r.Close()
+		_ = closeStores(stores)
+		return nil, err
+	}
+	srv.SetCapChangeDefault(capDefault)
 
 	return &Stack{
 		service:         srv,
@@ -116,7 +121,7 @@ func Build(configPath string, logger *slog.Logger) (*Stack, error) {
 		stores:          stores,
 		registry:        r,
 		bus:             bus,
-		configPath:      configPath,
+		cfg:             cfg,
 	}, nil
 }
 
@@ -156,6 +161,30 @@ func (s *Stack) AuthInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServ
 // Slots returns the composed provider-slot layer, or nil when BuildSlots has
 // not been called (a bare core). See BuildSlots.
 func (s *Stack) Slots() *SlotRuntime { return s.slots }
+
+// Relay returns the composed media relay for serving /media/relay/ pulls
+// (PLAN.md §3.6), or nil before BuildSlots. Only the built-in device sink
+// grants tickets into it, and only its delivery sessions.
+func (s *Stack) Relay() *delivery.Relay {
+	if s.slots == nil {
+		return nil
+	}
+	return s.slots.Relay
+}
+
+// RelayHandler returns an HTTP handler serving staged delivery pulls under
+// /media/relay/ (PLAN.md §3.6), or nil before BuildSlots. It gives an
+// embedder an HTTP transport without reaching into core internals: the
+// handler is unauthenticated beyond the relay token itself — the token is
+// minted per session per track by the engine and dies with the session,
+// which is the whole authorization story (§3.6).
+func (s *Stack) RelayHandler() http.Handler {
+	r := s.Relay()
+	if r == nil {
+		return nil
+	}
+	return &delivery.RelayHandler{Relay: r}
+}
 
 // SlotCapability is one admitted slot's declared contract name and version.
 type SlotCapability struct {
@@ -226,12 +255,16 @@ func (s *Stack) BuildSlots(ctx context.Context, logger *slog.Logger) (*SlotRunti
 	if s.slots != nil {
 		return s.slots, nil
 	}
-	cfg, err := config.Load(s.configPath)
-	if err != nil {
-		return nil, err
+	cfg := s.cfg
+	if cfg == nil {
+		var err error
+		cfg, err = config.Load("")
+		if err != nil {
+			return nil, err
+		}
 	}
 	rt, err := ComposeSlots(ctx, cfg.Slots, cfg.Enrichment,
-		s.registry, s.stores.SourceCache, s.stores.MetadataCache, s.stores.Vault, logger)
+		s.registry, s.stores.SourceCache, s.stores.MetadataCache, s.stores.Vault, s.stores.Cache, s.bus, logger)
 	if err != nil {
 		return nil, err
 	}

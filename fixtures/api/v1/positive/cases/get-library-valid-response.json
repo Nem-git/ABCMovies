@@ -1,0 +1,22 @@
+{
+  "name": "get-library-valid-response",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {
+    "items": [
+      {
+        "entry": {
+          "id": "le_1",
+          "kind": "ENTRY_KIND_MOVIE"
+        },
+        "metadata": {
+          "title": "Blade Runner",
+          "movie": {}
+        }
+      }
+    ],
+    "nextPageToken": "100"
+  },
+  "type": "GetLibraryResponse"
+}

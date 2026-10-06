@@ -1,0 +1,10 @@
+{
+  "name": "remove-account-valid",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {
+    "accountId": "lnk_acc_1"
+  },
+  "type": "RemoveAccountRequest"
+}

@@ -13,11 +13,17 @@ package slotwiring
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"sort"
+	"strings"
 	"time"
 
+	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/enrichment"
@@ -31,14 +37,19 @@ import (
 
 // Deps is everything an adapter's factory may need from the composition.
 type Deps struct {
-	Ctx         context.Context
-	Registry    *registry.InProcessRegistry
-	SealedBlobs interface {
-		Save(ctx context.Context, key string, blob []byte) error
-		Load(ctx context.Context, key string) ([]byte, error)
-	}
-	SourceCache store.Store
-	Logger      *slog.Logger
+	Ctx      context.Context
+	Registry *registry.InProcessRegistry
+	// Accounts is the instance's linked-account store (PLAN.md §3.5). It
+	// doubles as the session vault provider slots persist validated sessions
+	// through, so a linked account never needs a password env at boot.
+	Accounts *accounts.Store
+	// LinkedBySlot holds the linked-account routing result computed before
+	// the provider factories run: enabled slot id -> the linked accounts that
+	// attach to it. Factories for adapters without linked accounts see an
+	// empty (or absent) slice.
+	LinkedBySlot map[string][]accounts.Record
+	SourceCache  store.Store
+	Logger       *slog.Logger
 	// ItemRegistry is the instance-wide provider item registry (identity is
 	// global state, not per-slot). Provider factories require it.
 	ItemRegistry *itemregistry.Registry
@@ -52,11 +63,86 @@ type Deps struct {
 	Enqueue func(entryID string)
 }
 
-// providerFactory admits one slot instance and returns its recurring jobs
-// plus the reaches (synchronizer + account pairs) it makes available for
-// derived libraries, and — when the adapter can produce media sources — the
-// delivery resolver the engine routes produce-sources through (PLAN.md §6.2).
-type providerFactory func(entry config.SlotEntry, deps Deps) ([]scheduler.Job, []library.Reach, delivery.Resolver, error)
+// builtSlot is a provider slot fully assembled by its factory but not yet
+// published: the adapter instance, its per-account sync machinery (one
+// source-cache synchronizer per account, each having run its initial sync),
+// the handshake-declared cadence resolved into refresh jobs, and the
+// delivery resolver. Nothing has been admitted into the registry, so a
+// failure anywhere in the build publishes nothing.
+type BuiltSlot struct {
+	Entry    config.SlotEntry
+	Impl     corev1.MetaServiceServer
+	Jobs     []scheduler.Job
+	Reaches  []library.Reach
+	Resolver delivery.Resolver
+	// Cadence is the slot's resolved refresh cadence (config override >
+	// adapter-declared > scheduler default). A runtime-linked account's
+	// refresh job takes the slot's cadence so it stays in step with the
+	// slot's other accounts.
+	Cadence time.Duration
+}
+
+// Namespace is the source-cache namespace the slot's accounts sync under —
+// whatever produced its entry id (config or the derived server namespace).
+func (b *BuiltSlot) Namespace() string { return providerNamespace(b.Entry) }
+
+// AttachableSlot is a provider slot that can take a runtime-linked account:
+// it can admit the account to itself and serve catalogue syncs for it.
+// *jellyfin.Slot satisfies it; adapters that cannot accept a runtime link
+// simply do not. The providerFactory is the build half of the relationship,
+// this is the mutate half.
+type AttachableSlot interface {
+	sourcecache.Client
+	AddAccount(id string) error
+	DropAccount(id string)
+}
+
+// AttachAccount wires one linked account into the provider slot that serves
+// its server — the runtime counterpart to wireJellyfin's per-account build,
+// one account at a time, no slot rebuild. It admits the account to the slot
+// and hands back the synchronizer, the reach to commit into the library, and
+// the refresh job to register. Nothing is committed here: the caller
+// publishes the reach and registers the job, and only then starts the first
+// sync, so a half-wired account never feeds a library. If anything fails,
+// the caller owns error cleanup (drop the record and session; DropAccount).
+func AttachAccount(b *BuiltSlot, rec accounts.Record, deps Deps) (*sourcecache.Synchronizer, *library.Reach, *scheduler.Job, error) {
+	attachable, ok := b.Impl.(AttachableSlot)
+	if !ok {
+		return nil, nil, nil, fmt.Errorf("slot %q (adapter %q): does not accept a runtime-linked account", b.Entry.ID, b.Entry.Adapter)
+	}
+	if err := attachable.AddAccount(rec.ID); err != nil {
+		return nil, nil, nil, fmt.Errorf("slot %q: add account: %w", b.Entry.ID, err)
+	}
+	meta := reachMeta{owner: rec.OwnerUserID, visibility: rec.Visibility, members: rec.SharedWith}
+	syncer, reach, job, err := accountSyncMachine(providerNamespace(b.Entry), rec.ID, attachable, b.Cadence, meta, deps)
+	if err != nil {
+		// The account must not be half-wired: the slot accepted it but its
+		// machinery did not build, so take it back before anyone sees it.
+		attachable.DropAccount(rec.ID)
+		return nil, nil, nil, err
+	}
+	return syncer, reach, job, nil
+}
+
+// FirstSync starts the initial source-cache fill for an account whose reach is
+// already committed, in the background: linking is interactive, so the
+// catalogue fills in over the next seconds instead of blocking the caller, and
+// the run's availability events invalidate the affected cached libraries. A
+// failure is logged and left for the refresh job's next run — the account is
+// linked and live either way.
+func FirstSync(syncer *sourcecache.Synchronizer, accountID string, deps Deps) {
+	go func() {
+		if _, err := syncer.SyncAccount(deps.Ctx, accountID); err != nil {
+			deps.Logger.Warn("initial source-cache sync failed; will retry on cadence",
+				"account", accountID, "error", err)
+		}
+	}()
+}
+
+// providerFactory builds one slot instance and everything derived from it,
+// but does NOT admit it: admission is the caller's last step, so a factory
+// that fails halfway leaves the instance unwired rather than half-wired.
+type providerFactory func(entry config.SlotEntry, deps Deps) (*BuiltSlot, error)
 
 var providers = map[string]providerFactory{}
 
@@ -69,10 +155,18 @@ func RegisterProvider(adapter string, f providerFactory) {
 	providers[adapter] = f
 }
 
-// catalogueFactory admits one catalogue slot instance and hands back the
-// engine-facing client pair. Catalogues run no jobs of their own — they are
-// pulled by the enrichment drain, not pushed by a cadence.
-type catalogueFactory func(entry config.SlotEntry, deps Deps) (enrichment.Catalogue, error)
+// builtCatalogue is the engine-facing catalogue client paired with the
+// served slot instance, ready to be admitted.
+type builtCatalogue struct {
+	catalogue enrichment.Catalogue
+	impl      corev1.MetaServiceServer
+}
+
+// catalogueFactory builds one catalogue slot instance (its token check and
+// construction) and hands back the engine-facing client pair without
+// admitting it. Catalogues run no jobs of their own — they are pulled by the
+// enrichment drain, not pushed by a cadence.
+type catalogueFactory func(entry config.SlotEntry, deps Deps) (*builtCatalogue, error)
 
 var catalogs = map[string]catalogueFactory{}
 
@@ -89,14 +183,20 @@ func RegisterCatalogue(adapter string, f catalogueFactory) {
 // foreign identity namespaces; it powers the no-overlap rule below.
 type namespaceClaimer interface{ Namespaces() []string }
 
-// SetupCatalogues admits every enabled catalogue entry. Two enabled slots
-// may never claim the same identity namespace — with overlap,
-// GetMetadata(ref) would silently depend on wiring order instead of data
-// (TECHNICAL-DECISIONS.md §1.29), so startup fails loudly instead.
+// SetupCatalogues builds, validates and admits every enabled catalogue entry.
+// Two enabled slots may never claim the same identity namespace — with
+// overlap, GetMetadata(ref) would silently depend on wiring order instead of
+// data (TECHNICAL-DECISIONS.md §1.29), so startup fails loudly instead. The
+// overlap check runs on the served slot instance (not the narrowed engine
+// client), before anything is admitted.
 func SetupCatalogues(entries []config.SlotEntry, deps Deps) ([]enrichment.Catalogue, error) {
 	logger := deps.Logger
-	claimed := map[string]string{} // namespace -> slot id
-	var out []enrichment.Catalogue
+
+	type pending struct {
+		entry config.SlotEntry
+		b     *builtCatalogue
+	}
+	var built []pending
 	for _, entry := range entries {
 		if !entry.Enabled {
 			logger.Info("slot disabled by config; skipping", "slot", entry.ID, "adapter", entry.Adapter)
@@ -110,17 +210,131 @@ func SetupCatalogues(entries []config.SlotEntry, deps Deps) ([]enrichment.Catalo
 		if err != nil {
 			return nil, fmt.Errorf("slot %q (adapter %q): %w", entry.ID, entry.Adapter, err)
 		}
-		if claimer, ok := cat.Client.(namespaceClaimer); ok {
+		built = append(built, pending{entry, cat})
+	}
+
+	claimed := map[string]string{} // namespace -> slot id
+	for _, p := range built {
+		if claimer, ok := p.b.impl.(namespaceClaimer); ok {
 			for _, ns := range claimer.Namespaces() {
 				if owner, dup := claimed[ns]; dup {
-					return nil, fmt.Errorf("slots %q and %q both claim identity namespace %q", owner, entry.ID, ns)
+					return nil, fmt.Errorf("slots %q and %q both claim identity namespace %q", owner, p.entry.ID, ns)
 				}
-				claimed[ns] = entry.ID
+				claimed[ns] = p.entry.ID
 			}
 		}
-		out = append(out, cat)
+	}
+
+	var out []enrichment.Catalogue
+	for _, p := range built {
+		caps, err := deps.Registry.Admit(p.entry.ID, p.b.impl)
+		if err != nil {
+			return nil, fmt.Errorf("slot %q (adapter %q): %w", p.entry.ID, p.entry.Adapter, err)
+		}
+		logAdmitted(logger, p.entry.ID, caps)
+		out = append(out, p.b.catalogue)
 	}
 	return out, nil
+}
+
+// RouteLinkedAccounts assigns each linked provider account to exactly one
+// enabled slot instance of the matching adapter whose declared server it
+// belongs to — or, when no configured slot serves that server, hands the
+// record back as a provisioning seed (the accounts of that server become
+// their own user-owned server slot; PLAN.md §3.5 sharing decision). The rule
+// is deterministic:
+//
+//   - no enabled slot of that adapter declares the record's server ->
+//     provisioned: the caller wires the record as a user-owned server under
+//     ServerNamespace;
+//   - exactly one enabled slot declares it -> attached there;
+//   - several enabled slots declare it -> a wiring error, never a silent pick.
+//
+// Routing is per server: the slot id is the identity namespace (§1.25), so an
+// item seen through a linked account must join the same namespace as the
+// operator-declared accounts of the same server — otherwise the same film
+// from two accounts of one server would split into two identities.
+func RouteLinkedAccounts(entries []config.SlotEntry, records []accounts.Record) (bySlot map[string][]accounts.Record, provisioned []accounts.Record, err error) {
+	bySlot = map[string][]accounts.Record{}
+	for _, rec := range records {
+		var matching []string
+		for _, e := range entries {
+			if e.Enabled && e.Adapter == rec.Provider && canonicalServer(e.Server) == canonicalServer(rec.BaseURL) {
+				matching = append(matching, e.ID)
+			}
+		}
+		switch len(matching) {
+		case 1:
+			bySlot[matching[0]] = append(bySlot[matching[0]], rec)
+		case 0:
+			provisioned = append(provisioned, rec)
+		default:
+			return nil, nil, fmt.Errorf(
+				"linked %s account %q (base-url %q) is ambiguous: slots %v all declare that server",
+				rec.Provider, rec.ID, rec.BaseURL, matching)
+		}
+	}
+	return bySlot, provisioned, nil
+}
+
+// ServerNamespace derives the deterministic identity namespace for a
+// user-owned server (PLAN.md §1.25): the canonical server identity, never the
+// account or its owner. Every account of one server — and every user who
+// links it — lands in the same namespace, so the same film seen through any
+// of them merges into one entry. It is stable across reboots and doubles as
+// the slot id a provisioned user-owned server is wired under. The name is
+// readable (srv-<adapter>-<host>-<hash>) because it appears in logs and
+// error messages; the hash tail keeps two servers on one host distinct.
+func ServerNamespace(rec accounts.Record) string {
+	base := canonicalServer(rec.BaseURL)
+	h := sha256.Sum256([]byte(rec.Provider + "\x00" + base))
+	return fmt.Sprintf("srv-%s-%s-%s", rec.Provider, serverSlug(base), hex.EncodeToString(h[:4]))
+}
+
+// serverSlug makes a server authority int8 legible: lowercase, non-alphanumer
+// characters become dashes, nothing leading or trailing. Used inside derived
+// slot names only; the hash keeps identity canonical.
+func serverSlug(base string) string {
+	u, err := url.Parse(base)
+	authority := base
+	if err == nil && u.Host != "" {
+		authority = u.Host
+	}
+	var b strings.Builder
+	dash := false
+	for _, r := range strings.ToLower(authority) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+			dash = false
+		case !dash && b.Len() > 0:
+			b.WriteByte('-')
+			dash = true
+		}
+	}
+	if out := strings.Trim(b.String(), "-"); out != "" {
+		return out
+	}
+	return "unknown"
+}
+
+// canonicalServer normalizes a base URL enough to be a stable namespace
+// identity: scheme, lowercased host, and path with its trailing slash trimmed.
+// Unparsable input degrades to the trimmed, lowercased string itself.
+func canonicalServer(base string) string {
+	u, err := url.Parse(base)
+	if err != nil {
+		return strings.ToLower(strings.TrimRight(base, "/"))
+	}
+	return u.Scheme + "://" + strings.ToLower(u.Host) + strings.TrimRight(u.Path, "/")
+}
+
+// ServerAddressMatch reports whether a provider slot and a linked account
+// belong to the same server: both sides canonicalized. Boot routing and the
+// runtime link path use this one rule (PLAN.md §3.5), so a slot never
+// silently serves a link that points at a different server.
+func ServerAddressMatch(slotServer, baseURL string) bool {
+	return canonicalServer(slotServer) == canonicalServer(baseURL)
 }
 
 // Resolvers maps a provider slot id to its produce-sources delivery resolver,
@@ -132,7 +346,7 @@ type Resolvers map[string]delivery.Resolver
 // implementing their refresh cadence plus the reaches their accounts expose.
 // An unknown adapter or a failing handshake aborts startup loudly — a
 // half-wired instance is worse than a down one.
-func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []library.Reach, Resolvers, error) {
+func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []library.Reach, Resolvers, []*BuiltSlot, error) {
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -142,9 +356,59 @@ func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []l
 		deps.Ctx = context.Background()
 	}
 
-	var jobs []scheduler.Job
-	var reaches []library.Reach
-	resolvers := Resolvers{}
+	// Route the linked accounts to their slots before any factory runs: the
+	// assignment is a global decision (several slots of one adapter), while a
+	// factory only ever sees its own entry — so the result travels on Deps.
+	// A link whose server no configured slot serves is the request to provision
+	// a user-owned server: it is wired as its own synthetic slot keyed by the
+	// server's derived namespace (PLAN.md §3.5).
+	if deps.Accounts != nil {
+		linked, err := deps.Accounts.List(deps.Ctx)
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("linked accounts: %w", err)
+		}
+		bySlot, provisioned, err := RouteLinkedAccounts(entries, linked)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		deps.LinkedBySlot = bySlot
+		// Provisioned records group by derived server id: two accounts on one
+		// server — the ordinary household case where several members link the
+		// same home server — become ONE synthetic slot carrying them all,
+		// never two slots claiming the same namespace (which would refuse the
+		// second at Admit and kill boot).
+		grouped := map[string][]accounts.Record{}
+		var serverOrder []string
+		for _, rec := range provisioned {
+			ns := ServerNamespace(rec)
+			if _, ok := grouped[ns]; !ok {
+				serverOrder = append(serverOrder, ns)
+			}
+			grouped[ns] = append(grouped[ns], rec)
+		}
+		for _, ns := range serverOrder {
+			recs := grouped[ns]
+			if _, ok := providers[recs[0].Provider]; !ok {
+				logger.Warn("linked account's provider adapter is not registered; it stays stored but feeds no library",
+					"server", ns, "provider", recs[0].Provider, "accounts", len(recs))
+				continue
+			}
+			deps.LinkedBySlot[ns] = append(deps.LinkedBySlot[ns], recs...)
+			// The synthetic entry carries no operator accounts: the linked
+			// records ARE the slot's vault-first accounts.
+			entries = append(entries, config.SlotEntry{
+				Adapter:   recs[0].Provider,
+				ID:        ns,
+				Enabled:   true,
+				Transport: "in-process",
+				Server:    recs[0].BaseURL,
+			})
+			logger.Info("linked accounts provision one user-owned server slot",
+				"server", ns, "base_url", recs[0].BaseURL, "accounts", len(recs))
+		}
+	}
+
+	var built []*BuiltSlot
 	for _, entry := range entries {
 		if !entry.Enabled {
 			logger.Info("slot disabled by config; skipping", "slot", entry.ID, "adapter", entry.Adapter)
@@ -152,19 +416,33 @@ func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []l
 		}
 		f, ok := providers[entry.Adapter]
 		if !ok {
-			return nil, nil, nil, fmt.Errorf("slot %q: unknown provider adapter %q (registered: %v)", entry.ID, entry.Adapter, keys(providers))
+			return nil, nil, nil, nil, fmt.Errorf("slot %q: unknown provider adapter %q (registered: %v)", entry.ID, entry.Adapter, keys(providers))
 		}
-		entryJobs, entryReaches, res, err := f(entry, deps)
+		b, err := f(entry, deps)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("slot %q (adapter %q): %w", entry.ID, entry.Adapter, err)
+			return nil, nil, nil, nil, fmt.Errorf("slot %q (adapter %q): %w", entry.ID, entry.Adapter, err)
 		}
-		jobs = append(jobs, entryJobs...)
-		reaches = append(reaches, entryReaches...)
-		if res != nil {
-			resolvers[entry.ID] = res
+		built = append(built, b)
+	}
+
+	// Publish last: every factory succeeded before any slot is admitted, so a
+	// failure above leaves the registry untouched rather than half-populated.
+	var jobs []scheduler.Job
+	var reaches []library.Reach
+	resolvers := Resolvers{}
+	for _, b := range built {
+		caps, err := deps.Registry.Admit(b.Entry.ID, b.Impl)
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("slot %q (adapter %q): %w", b.Entry.ID, b.Entry.Adapter, err)
+		}
+		logAdmitted(logger, b.Entry.ID, caps)
+		jobs = append(jobs, b.Jobs...)
+		reaches = append(reaches, b.Reaches...)
+		if b.Resolver != nil {
+			resolvers[b.Entry.ID] = b.Resolver
 		}
 	}
-	return jobs, reaches, resolvers, nil
+	return jobs, reaches, resolvers, built, nil
 }
 
 // SetupAll walks every slot kind from config. Provider and catalogue wiring
@@ -172,7 +450,7 @@ func SetupProviders(entries []config.SlotEntry, deps Deps) ([]scheduler.Job, []l
 // and device entries); the remaining kinds are stubs that fail loudly if an
 // operator ever declares one before its milestone lands — silent ignoring
 // would make a typo look like a working deployment.
-func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]scheduler.Job, []library.Reach, []enrichment.Catalogue, Resolvers, error) {
+func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]scheduler.Job, []library.Reach, []enrichment.Catalogue, Resolvers, []*BuiltSlot, error) {
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -180,14 +458,14 @@ func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]sched
 	deps.Ctx = ctx
 	deps.Logger = logger
 
-	pJobs, reaches, resolvers, err := SetupProviders(slots.Providers, deps)
+	pJobs, reaches, resolvers, built, err := SetupProviders(slots.Providers, deps)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 
 	cats, err := SetupCatalogues(slots.Catalogue, deps)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 
 	// Sinks are wired through SetupSinks (they need a delivery relay), so
@@ -201,10 +479,10 @@ func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]sched
 		{"drm", slots.Drm},
 	} {
 		if len(kind.entries) > 0 {
-			return nil, nil, nil, nil, fmt.Errorf("%s slots are not implemented yet; remove the %q entries or wait for their milestone", kind.name, kind.name+"s")
+			return nil, nil, nil, nil, nil, fmt.Errorf("%s slots are not implemented yet; remove the %q entries or wait for their milestone", kind.name, kind.name+"s")
 		}
 	}
-	return pJobs, reaches, cats, resolvers, nil
+	return pJobs, reaches, cats, resolvers, built, nil
 }
 
 // DeclaredCadence resolves a sync cadence by precedence: explicit operator
