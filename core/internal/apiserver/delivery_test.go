@@ -71,9 +71,9 @@ func runningSession() *delivery.Session {
 		Goal:   delivery.GoalPlay,
 		Status: delivery.StatusRunning,
 		Context: corev1.DeliveryContext{
-			Provider:     "jellyfin",
-			AccountId:    "acc-1",
-			Sink:         "device",
+			Provider:  "jellyfin",
+			AccountId: "acc-1",
+			Sink:      "device",
 		},
 	}
 }
@@ -87,11 +87,11 @@ func TestStartDelivery_Success(t *testing.T) {
 	srv.SetLibrary(&stubLibrary{reachable: map[string][]string{"acc-1": {"user-1"}}, reaches: []library.Reach{{AccountID: "acc-1", Visibility: accounts.VisibilityPublic}}})
 
 	resp, err := srv.StartDelivery(ctxAs(session, "user-1"), &apiv1.StartDeliveryRequest{
-		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
-		Provider:     "jellyfin",
-		AccountId:    "acc-1",
-		NativeId:     "item-42",
-		Sink:         "device",
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:  "jellyfin",
+		AccountId: "acc-1",
+		NativeId:  "item-42",
+		Sink:      "device",
 	})
 	if err != nil {
 		t.Fatalf("StartDelivery: %v", err)
@@ -111,11 +111,11 @@ func TestStartDelivery_Unconfigured(t *testing.T) {
 	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
 
 	_, err := srv.StartDelivery(context.Background(), &apiv1.StartDeliveryRequest{
-		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
-		Provider:     "jellyfin",
-		AccountId:    "acc-1",
-		NativeId:     "item",
-		Sink:         "device",
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:  "jellyfin",
+		AccountId: "acc-1",
+		NativeId:  "item",
+		Sink:      "device",
 	})
 	if got := status.Code(err); got != codes.Unavailable {
 		t.Fatalf("code = %v, want Unavailable", got)

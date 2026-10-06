@@ -211,11 +211,11 @@ func TestM5RemoveAccountEndsLiveSessions(t *testing.T) {
 	defer stack.bus.Unsubscribe("m5-remove-jobs-alice")
 
 	play, err := client.StartDelivery(aliceCtx, &apiv1.StartDeliveryRequest{
-		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
-		Provider:     stack.ns,
-		AccountId:    "lnk_alice_home",
-		NativeId:     "movie-gondwana",
-		Sink:         "device",
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:  stack.ns,
+		AccountId: "lnk_alice_home",
+		NativeId:  "movie-gondwana",
+		Sink:      "device",
 	})
 	if err != nil {
 		t.Fatalf("StartDelivery: %v", err)

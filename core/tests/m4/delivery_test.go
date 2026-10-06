@@ -267,11 +267,11 @@ func TestM4PassthroughPlayToDeviceEndToEnd(t *testing.T) {
 	defer eng.Close()
 
 	resp, err := srv.StartDelivery(apiserver.WithUserID(context.Background(), "u1"), &apiv1.StartDeliveryRequest{
-		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
-		Provider:     "jellyfin",
-		AccountId:    "acc1",
-		NativeId:     "item1",
-		Sink:         "device",
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:  "jellyfin",
+		AccountId: "acc1",
+		NativeId:  "item1",
+		Sink:      "device",
 	})
 	if err != nil {
 		t.Fatalf("StartDelivery: %v", err)
@@ -336,11 +336,11 @@ func TestM4DRMRefusedNotSilentlyDelivered(t *testing.T) {
 	defer eng.Close()
 
 	_, err := srv.StartDelivery(apiserver.WithUserID(context.Background(), "u1"), &apiv1.StartDeliveryRequest{
-		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
-		Provider:     "jellyfin",
-		AccountId:    "acc1",
-		NativeId:     "item1",
-		Sink:         "device",
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:  "jellyfin",
+		AccountId: "acc1",
+		NativeId:  "item1",
+		Sink:      "device",
 	})
 	if status.Code(err) != codes.InvalidArgument || !strings.Contains(err.Error(), "DRM-encrypted") {
 		t.Fatalf("want a loud InvalidArgument DRM refusal, got code=%v err=%v", status.Code(err), err)

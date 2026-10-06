@@ -28,11 +28,11 @@ func TestM5JobStatusAnnouncedExactlyOnce(t *testing.T) {
 	defer stack.bus.Unsubscribe("m5-exactonce-alice")
 
 	play, err := client.StartDelivery(aliceCtx, &apiv1.StartDeliveryRequest{
-		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
-		Provider:     stack.ns,
-		AccountId:    "lnk_alice_home",
-		NativeId:     "movie-gondwana",
-		Sink:         "device",
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:  stack.ns,
+		AccountId: "lnk_alice_home",
+		NativeId:  "movie-gondwana",
+		Sink:      "device",
 	})
 	if err != nil {
 		t.Fatalf("StartDelivery: %v", err)
@@ -81,11 +81,11 @@ func TestM5PlayEndToEndProvesRelayNotes(t *testing.T) {
 	defer stack.bus.Unsubscribe("m5-play-alice")
 
 	play, err := client.StartDelivery(aliceCtx, &apiv1.StartDeliveryRequest{
-		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
-		Provider:     stack.ns,
-		AccountId:    "lnk_alice_home",
-		NativeId:     "movie-gondwana",
-		Sink:         "device",
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:  stack.ns,
+		AccountId: "lnk_alice_home",
+		NativeId:  "movie-gondwana",
+		Sink:      "device",
 	})
 	if err != nil {
 		t.Fatalf("StartDelivery: %v", err)
@@ -189,11 +189,11 @@ func TestM5PlayInfoCrossUserDenied(t *testing.T) {
 	aliceCtx := authedCtx(t.Context(), stack.aliceToken)
 
 	play, err := client.StartDelivery(aliceCtx, &apiv1.StartDeliveryRequest{
-		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
-		Provider:     stack.ns,
-		AccountId:    "lnk_alice_home",
-		NativeId:     "movie-gondwana",
-		Sink:         "device",
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:  stack.ns,
+		AccountId: "lnk_alice_home",
+		NativeId:  "movie-gondwana",
+		Sink:      "device",
 	})
 	if err != nil {
 		t.Fatalf("StartDelivery: %v", err)

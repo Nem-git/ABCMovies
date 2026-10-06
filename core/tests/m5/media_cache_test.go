@@ -25,11 +25,11 @@ func TestM5MediaBytesNeverReachAStore(t *testing.T) {
 	aliceCtx := authedCtx(t.Context(), stack.aliceToken)
 
 	play, err := client.StartDelivery(aliceCtx, &apiv1.StartDeliveryRequest{
-		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
-		Provider:     stack.ns,
-		AccountId:    "lnk_alice_home",
-		NativeId:     "movie-gondwana",
-		Sink:         "device",
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:  stack.ns,
+		AccountId: "lnk_alice_home",
+		NativeId:  "movie-gondwana",
+		Sink:      "device",
 	})
 	if err != nil {
 		t.Fatalf("StartDelivery: %v", err)

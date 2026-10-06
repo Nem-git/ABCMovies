@@ -37,32 +37,6 @@ func newWebStackConfig(t *testing.T, configPath string) (*Server, apiv1connect.C
 	return srv, client, ts
 }
 
-// signUpAndLoginID is signUpAndLogin plus the member user id, which the
-// play flow must carry (StartDeliveryRequest.member_user_id).
-func signUpAndLoginID(t *testing.T, ctx context.Context, client apiv1connect.CoreServiceClient) (token, userID string) {
-	t.Helper()
-
-	const password = "correct horse battery staple"
-	signUpRes, err := client.SignUp(ctx, connect.NewRequest(&apiv1.SignUpRequest{
-		Username:   "alice",
-		AuthMethod: &apiv1.SignUpRequest_Password{Password: &apiv1.PasswordSignUp{Password: []byte(password)}},
-	}))
-	if err != nil {
-		t.Fatalf("SignUp over gRPC-Web: %v", err)
-	}
-	loginRes, err := client.Login(ctx, connect.NewRequest(&apiv1.LoginRequest{
-		Username:   "alice",
-		AuthMethod: &apiv1.LoginRequest_Password{Password: &apiv1.PasswordLogin{Password: []byte(password)}},
-	}))
-	if err != nil {
-		t.Fatalf("Login over gRPC-Web: %v", err)
-	}
-	if loginRes.Msg.GetToken() == "" {
-		t.Fatal("Login returned no token")
-	}
-	return loginRes.Msg.GetToken(), signUpRes.Msg.GetUserId()
-}
-
 // writeJellyfinConfig writes a release-shaped config: one Jellyfin provider
 // slot declared by the operator with the test fake as its server, plus the
 // built-in device sink the play flow delivers into.
@@ -109,7 +83,7 @@ func TestWebBrowser_AccountsLibraryPlay(t *testing.T) {
 	ctx := t.Context()
 	baseURL := ts.URL
 
-	token, userID := signUpAndLoginID(t, ctx, client)
+	token := signUpAndLogin(t, ctx, client)
 	authed := authedClient(baseURL, token)
 
 	// Operator-declared account is visible to the caller (PLAN.md §5.1:
@@ -249,12 +223,11 @@ func TestWebBrowser_AccountsLibraryPlay(t *testing.T) {
 	// bus Subscribe reads) and announce the session before the job-status does
 	// — the order the engine fixes: menu staged, then the job recorded.
 	startRes, err := authed.StartDelivery(ctx, connect.NewRequest(&apiv1.StartDeliveryRequest{
-		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
-		Provider:     "jf",
-		AccountId:    "jf-op",
-		MemberUserId: userID,
-		NativeId:     "movie-gondwana",
-		Sink:         "device",
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:  "jf",
+		AccountId: "jf-op",
+		NativeId:  "movie-gondwana",
+		Sink:      "device",
 	}))
 	if err != nil {
 		t.Fatalf("StartDelivery over gRPC-Web: %v", err)
