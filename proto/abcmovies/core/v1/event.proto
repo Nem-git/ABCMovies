@@ -143,8 +143,8 @@ message EventEnvelope {
     ProviderSwitchedEvent provider_switched = 9;
     AccountSessionEvent account_session = 10;
     AvailabilityEvent availability = 11;
-    PlayMenuReadyEvent play_menu_ready = 13;
+    PlayMenuReadyEvent play_menu_ready = 12;
   }
   // When the event was emitted.
-  google.protobuf.Timestamp emitted_at = 12;
+  google.protobuf.Timestamp emitted_at = 13;
 }
