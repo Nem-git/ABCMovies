@@ -14,6 +14,7 @@ import (
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
+	"github.com/nem-git/abcmovies/core/internal/auth"
 	"github.com/nem-git/abcmovies/core/internal/library"
 )
 
@@ -250,5 +251,39 @@ func TestRemoveAccount_OwnerOnlyAndOperatorProtected(t *testing.T) {
 	// An unknown, unreachable account is NotFound.
 	if _, err := srv.RemoveAccount(ctxAs(session, "user-1"), &apiv1.RemoveAccountRequest{AccountId: "lnk_zzz"}); status.Code(err) != codes.NotFound {
 		t.Fatalf("unknown account code = %v, want NotFound", status.Code(err))
+	}
+}
+
+// The member-existence seam must distinguish a real user from a mistyped id,
+// a bare username (missing the id prefix), and the empty case — so a typo in
+// a share roster is refused with the user's name, never silently granted to
+// nobody.
+func TestUserDirectoryAcceptsOnlyRealUserIDs(t *testing.T) {
+	users := auth.NewMemoryUserStore()
+	if err := users.PutUser("alice", &auth.UserData{Salt: []byte{1, 2, 3}}); err != nil {
+		t.Fatalf("PutUser: %v", err)
+	}
+	dir := apiserver.NewUserDirectory(users)
+	if dir == nil {
+		t.Fatal("directory built over a real store is nil")
+	}
+	for id, want := range map[string]bool{
+		"user:alice":      true,
+		"user:bob":        false,
+		"alice":           false,
+		"user:":           false,
+		"":                false,
+		"user:user:alice": false,
+	} {
+		got, err := dir.HasUser(id)
+		if err != nil {
+			t.Fatalf("HasUser(%q): %v", id, err)
+		}
+		if got != want {
+			t.Errorf("HasUser(%q) = %v, want %v", id, got, want)
+		}
+	}
+	if dir := apiserver.NewUserDirectory(nil); dir != nil {
+		t.Fatal("directory over a nil store should be nil")
 	}
 }

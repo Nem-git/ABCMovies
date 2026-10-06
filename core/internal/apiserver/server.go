@@ -3,6 +3,7 @@ package apiserver
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync/atomic"
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
@@ -68,11 +69,12 @@ type Server struct {
 	// their vaulted sessions; it is always available over the vault. probers
 	// validate candidate linked-account credentials per provider (PLAN.md
 	// §3.5: nothing is vaulted that was not probed); armed by wiring.
-	library  LibrarySeam
-	accounts *accounts.Store
-	probers  map[string]CredentialProber
-	attacher AccountAttacher
-	dropper  AccountDropper
+	library       LibrarySeam
+	accounts      *accounts.Store
+	probers       map[string]CredentialProber
+	attacher      AccountAttacher
+	dropper       AccountDropper
+	userDirectory UserDirectory
 }
 
 // NewServer returns a CoreService backed by the given bus, stores, and auth.
@@ -117,6 +119,48 @@ func (s *Server) SetDropper(d AccountDropper) {
 		return
 	}
 	s.dropper = d
+}
+
+// UserDirectory answers whether a user id names a real account. Sharing with
+// a mistyped id would silently grant access to nobody, so the API refuses
+// before recording it — the error names the user, not a generic roster
+// rejection. Compose-time only, like SetProber/SetAttacher.
+type UserDirectory interface {
+	HasUser(userID string) (bool, error)
+}
+
+// userStoreDirectory adapts the auth user store to the UserDirectory seam.
+// User ids are "user:"+username and the store keys users by the same id, so
+// the check is a single lookup; any lookup failure reads as "no such user"
+// — a user whose record cannot be read could not log in anyway, so the
+// shares through it are nothing to grant.
+type userStoreDirectory struct{ users auth.UserStore }
+
+// NewUserDirectory adapts the given user store to the UserDirectory seam.
+func NewUserDirectory(users auth.UserStore) UserDirectory {
+	if users == nil {
+		return nil
+	}
+	return userStoreDirectory{users: users}
+}
+
+func (d userStoreDirectory) HasUser(userID string) (bool, error) {
+	uname, ok := strings.CutPrefix(userID, "user:")
+	if !ok || uname == "" {
+		return false, nil
+	}
+	if _, err := d.users.GetUser(uname); err != nil {
+		return false, nil
+	}
+	return true, nil
+}
+
+// SetUserDirectory arms the user-existence check used by the accounts RPCs.
+func (s *Server) SetUserDirectory(d UserDirectory) {
+	if d == nil {
+		return
+	}
+	s.userDirectory = d
 }
 
 // SetDelivery arms the delivery engine after construction — used when the

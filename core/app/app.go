@@ -99,6 +99,10 @@ func Build(configPath string, logger *slog.Logger) (*Stack, error) {
 
 	bus := apiserver.NewInMemoryBus()
 	srv := apiserver.NewServer(bus, stores, composite, session)
+	// The accounts RPCs validate named members against this: a share listed
+	// for someone who does not exist is refused, not silently granted to
+	// nobody.
+	srv.SetUserDirectory(apiserver.NewUserDirectory(users))
 
 	return &Stack{
 		service:         srv,
