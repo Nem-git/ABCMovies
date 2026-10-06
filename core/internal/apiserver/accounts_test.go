@@ -334,6 +334,10 @@ func TestLinkAccount_SharedRosterNamesRealUsers(t *testing.T) {
 // and to enforce a lowered cap the same way admission would. Nothing about
 // the sharing change leaks to members of the account — the member path
 // through ListAccounts shows no cap or policy fields.
+// capPolicyPtr takes the address of a proto enum value the way the
+// optional CapChangePolicy field does on UpdateAccountRequest.
+func capPolicyPtr(p apiv1.CapChangePolicy) *apiv1.CapChangePolicy { return &p }
+
 func TestUpdateAccount_OwnerChangesSharingAndCap(t *testing.T) {
 	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
@@ -371,7 +375,7 @@ func TestUpdateAccount_OwnerChangesSharingAndCap(t *testing.T) {
 			SharedWith: []string{"user:alice"},
 		},
 		MaxConcurrentStreams: proto.Uint32(2),
-		CapChangePolicy:      apiv1.CapChangePolicy_CAP_CHANGE_POLICY_ENFORCE_NOW,
+		CapChangePolicy:      capPolicyPtr(apiv1.CapChangePolicy_CAP_CHANGE_POLICY_ENFORCE_NOW),
 	})
 	if err != nil {
 		t.Fatalf("UpdateAccount: %v", err)

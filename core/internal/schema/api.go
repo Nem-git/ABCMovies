@@ -200,21 +200,22 @@ func ValidateUpdateAccountRequest(r *apiv1.UpdateAccountRequest) error {
 	if r.GetAccountId() == "" {
 		return fmt.Errorf("update_account_request: account_id is required")
 	}
-	switch r.GetCapChangePolicy() {
-	case apiv1.CapChangePolicy_CAP_CHANGE_POLICY_UNSPECIFIED,
-		apiv1.CapChangePolicy_CAP_CHANGE_POLICY_NEW_SESSIONS_ONLY,
-		apiv1.CapChangePolicy_CAP_CHANGE_POLICY_ENFORCE_NOW:
-	default:
-		return fmt.Errorf("update_account_request: unknown cap_change_policy %d", r.GetCapChangePolicy())
-	}
 	if r.GetSharing() != nil {
 		if err := ValidateAccountSharing(r.GetSharing()); err != nil {
 			return fmt.Errorf("update_account_request: %w", err)
 		}
 	}
-	if r.GetCapChangePolicy() == apiv1.CapChangePolicy_CAP_CHANGE_POLICY_UNSPECIFIED &&
-		r.GetSharing() == nil && r.MaxConcurrentStreams == nil {
+	if r.MaxConcurrentStreams == nil && r.GetSharing() == nil && r.CapChangePolicy == nil {
 		return fmt.Errorf("update_account_request: at least one setting must change")
+	}
+	if r.CapChangePolicy != nil {
+		switch *r.CapChangePolicy {
+		case apiv1.CapChangePolicy_CAP_CHANGE_POLICY_UNSPECIFIED,
+			apiv1.CapChangePolicy_CAP_CHANGE_POLICY_NEW_SESSIONS_ONLY,
+			apiv1.CapChangePolicy_CAP_CHANGE_POLICY_ENFORCE_NOW:
+		default:
+			return fmt.Errorf("update_account_request: unknown cap_change_policy %d", *r.CapChangePolicy)
+		}
 	}
 	return nil
 }

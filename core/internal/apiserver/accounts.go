@@ -135,8 +135,10 @@ func (s *Server) UpdateAccount(ctx context.Context, req *apiv1.UpdateAccountRequ
 			return nil, err
 		}
 	}
-	if err := validateCapChangePolicyValue(req.GetCapChangePolicy()); err != nil {
-		return nil, err
+	if req.CapChangePolicy != nil {
+		if err := validateCapChangePolicyValue(*req.CapChangePolicy); err != nil {
+			return nil, err
+		}
 	}
 
 	old := rec
@@ -152,8 +154,8 @@ func (s *Server) UpdateAccount(ctx context.Context, req *apiv1.UpdateAccountRequ
 			return nil, status.Error(codes.Internal, "failed to update the stream cap")
 		}
 	}
-	if req.GetCapChangePolicy() != apiv1.CapChangePolicy_CAP_CHANGE_POLICY_UNSPECIFIED {
-		if err := s.accounts.SetCapChangePolicy(ctx, rec.ID, apiCapChangePolicy(req.GetCapChangePolicy())); err != nil {
+	if req.CapChangePolicy != nil {
+		if err := s.accounts.SetCapChangePolicy(ctx, rec.ID, apiCapChangePolicy(*req.CapChangePolicy)); err != nil {
 			_ = s.accounts.SetSharing(ctx, rec.ID, old.Visibility, old.SharedWith)
 			_ = s.accounts.SetMaxConcurrentStreams(ctx, rec.ID, old.MaxConcurrentStreams)
 			return nil, status.Error(codes.Internal, "failed to update the cap policy")

@@ -281,9 +281,10 @@ message UpdateAccountRequest {
   AccountSharing sharing = 2;
   // Absent means unchanged; zero means unlimited.
   optional uint32 max_concurrent_streams = 3;
-  // Absent means "inherit the instance default"; present overrides it for
-  // this account.
-  CapChangePolicy cap_change_policy = 4;
+  // Absent means unchanged. When present it replaces the account's choice:
+  // a known mode sets the account onto it, UNSPECIFIED clears the
+  // override so the account follows the instance default again.
+  optional CapChangePolicy cap_change_policy = 4;
 }
 
 message AccountSharing {
