@@ -440,6 +440,26 @@ func TestUpdateAccount_OwnerChangesSharingAndCap(t *testing.T) {
 	}
 }
 
+// A member-visible but operator-declared account is read-only through
+// UpdateAccount: the caller may reach and use it, never rewrite its
+// sharing — the slot's config outlives any API edit.
+func TestUpdateAccount_OperatorDeclaredIsReadOnly(t *testing.T) {
+	bus := apiserver.NewInMemoryBus()
+	defer bus.Close()
+	authenticator, session := testAuth(t)
+	stores := testStores(t)
+	op := operatorReach("op-1")
+	srv := apiserver.NewServer(bus, stores, authenticator, session)
+	srv.SetLibrary(&stubLibrary{reachable: map[string][]string{"op-1": {"user-1"}}, reaches: []library.Reach{op}})
+
+	if _, err := srv.UpdateAccount(ctxAs(session, "user-1"), &apiv1.UpdateAccountRequest{
+		AccountId:            "op-1",
+		MaxConcurrentStreams: proto.Uint32(1),
+	}); status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("operator-declared update: err=%v, want PermissionDenied", err)
+	}
+}
+
 // The update gate is strict: only the owner, and only caller-linked
 // accounts. An unknown member is rejected and changes nothing, and a
 // request that changes nothing at all is rejected rather than treated as

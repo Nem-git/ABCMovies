@@ -243,3 +243,44 @@ func TestRevokeOthersOnAccountKillsOnlyLoseAccessMembers(t *testing.T) {
 		t.Errorf("narrowing was not recorded with its reason")
 	}
 }
+
+// A cap edit that keeps the running set within the effective allowance is
+// a quiet edit: enforce-now ends nothing, because only sessions *above* the
+// binding allowance get cut. (The binding allowance is min(instance policy,
+// the account's declared cap) — the same number admission uses.)
+func TestApplyAccountCapNeverKillsOnRaise(t *testing.T) {
+	now := time.Now()
+	e, res, _ := newTestEngine(Options{
+		SessionTTL:     24 * time.Hour,
+		InstancePolicy: policy.Set{"concurrentStreams": "5"},
+		Now:            func() time.Time { return now },
+		RecordJob:      func(*corev1.Job) {},
+		AccountConstraints: func(ctx context.Context, provider, accountID string) (policy.Set, policy.Set, error) {
+			return nil, policy.Set{"concurrentStreams": "1"}, nil
+		},
+	})
+	res.source = wholeMuxSource()
+	defer e.Close()
+
+	s, err := e.Start(context.Background(), StartRequest{
+		Goal: GoalDownload, MemberUserID: "u1", Provider: "jellyfin", AccountID: "acc1", Sink: "disk",
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	// One session is running through the account's cap of one — the live set
+	// exactly meets the effective allowance. Enforce-now must cut *nothing*:
+	// only sessions above the binding allowance get ended, and the allowance
+	// binds at 1 either way. A cap edit that moves the live count from
+	// "full" to "over" is the only case that ever kills.
+	killed, err := e.ApplyAccountCap(context.Background(), "jellyfin", "acc1", true)
+	if err != nil {
+		t.Fatalf("ApplyAccountCap: %v", err)
+	}
+	if killed != 0 {
+		t.Fatalf("killed %d, want 0", killed)
+	}
+	if got, _ := e.Get(s.ID); got == nil || got.Status != StatusRunning {
+		t.Fatalf("session should still be running, got %v", got)
+	}
+}
