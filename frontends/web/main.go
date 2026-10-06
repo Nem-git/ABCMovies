@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -19,7 +20,10 @@ import (
 func main() {
 	logger := slog.Default()
 
-	srv, err := serving.New("", logger)
+	configPath := flag.String("config", "config/instance.yaml", "path to instance configuration YAML")
+	flag.Parse()
+
+	srv, err := serving.New(*configPath, logger)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "web: %v\n", err)
 		os.Exit(1)
