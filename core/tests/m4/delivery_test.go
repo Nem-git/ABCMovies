@@ -200,7 +200,6 @@ func TestM4RemuxDownloadToDiskEndToEnd(t *testing.T) {
 		Goal:           apiv1.DeliveryGoal_DELIVERY_GOAL_DOWNLOAD,
 		Provider:       "jellyfin",
 		AccountId:      "acc1",
-		MemberUserId:   "u1",
 		NativeId:       "item1",
 		Sink:           "disk",
 		SelectedTarget: "Inception (2010)",
@@ -271,7 +270,6 @@ func TestM4PassthroughPlayToDeviceEndToEnd(t *testing.T) {
 		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
 		Provider:     "jellyfin",
 		AccountId:    "acc1",
-		MemberUserId: "u1",
 		NativeId:     "item1",
 		Sink:         "device",
 	})
@@ -341,7 +339,6 @@ func TestM4DRMRefusedNotSilentlyDelivered(t *testing.T) {
 		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
 		Provider:     "jellyfin",
 		AccountId:    "acc1",
-		MemberUserId: "u1",
 		NativeId:     "item1",
 		Sink:         "device",
 	})

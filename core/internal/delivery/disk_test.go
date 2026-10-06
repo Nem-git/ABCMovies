@@ -21,7 +21,6 @@ func TestDiskSinkDeliversAndFinalizes(t *testing.T) {
 		ID:   "del-1",
 		Goal: GoalDownload,
 		Context: corev1.DeliveryContext{
-			MemberUserId:   "u1",
 			Provider:       "jellyfin",
 			AccountId:      "acc1",
 			Sink:           "disk",

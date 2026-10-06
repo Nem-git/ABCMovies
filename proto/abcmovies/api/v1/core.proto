@@ -110,6 +110,10 @@ message SignUpResponse {
   // A one-time recovery key (128-bit base32, 26 chars). Shown once;
   // the server never stores it (PLAN.md §7.6).
   string recovery_key = 2;
+
+  // A session token for immediate use — signup logs the user in
+  // (TECHNICAL-DECISIONS §1.12).
+  string token = 3;
 }
 
 message LoginRequest {
@@ -132,6 +136,10 @@ message PasswordLogin {
 message LoginResponse {
   // An opaque bearer token for API authentication (TECHNICAL-DECISIONS §1.12).
   string token = 1;
+
+  // The authenticated user's ID, so a returning client can attribute
+  // deliveries without having been the one to sign up.
+  string user_id = 2;
 }
 
 // --- Library messages (PLAN.md §5, §8.1) ---
@@ -322,6 +330,10 @@ enum DeliveryGoal {
 }
 
 message StartDeliveryRequest {
+  // Field 4 (member_user_id) was removed: the delivery is attributed to the
+  // authenticated caller (the principal behind the bearer token).
+  reserved 4;
+
   // What to deliver and why.
   DeliveryGoal goal = 1;
 
@@ -330,9 +342,6 @@ message StartDeliveryRequest {
 
   // The account whose session is used. Required.
   string account_id = 3;
-
-  // The user the delivery is attributed to. Required.
-  string member_user_id = 4;
 
   // The provider-native item to deliver. Required.
   string native_id = 5;

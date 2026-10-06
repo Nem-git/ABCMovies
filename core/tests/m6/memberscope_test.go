@@ -25,9 +25,11 @@ import (
 
 type stubDelivery struct {
 	session *delivery.Session
+	lastReq delivery.StartRequest
 }
 
-func (s *stubDelivery) Start(context.Context, delivery.StartRequest) (*delivery.Session, error) {
+func (s *stubDelivery) Start(_ context.Context, r delivery.StartRequest) (*delivery.Session, error) {
+	s.lastReq = r
 	return s.session, nil
 }
 
@@ -71,33 +73,37 @@ var (
 	_ apiserver.LibrarySeam     = (*stubLibrary)(nil)
 )
 
-func newMemberscopeServer() (*apiserver.Server, *store.Store) {
+func newMemberscopeServer() (*apiserver.Server, *store.Store, *stubDelivery) {
 	bus := apiserver.NewInMemoryBus()
 	stores := config.Stores{Jobs: store.NewInMemory()}
-	srv := apiserver.NewServer(bus, stores, nil, nil, &stubDelivery{session: &delivery.Session{
+	dm := &stubDelivery{session: &delivery.Session{
 		ID: "del-1", Goal: delivery.GoalPlay, Status: delivery.StatusRunning,
 		Context: corev1.DeliveryContext{Provider: "jellyfin", AccountId: "acc1", MemberUserId: "u1"},
-	}})
+	}}
+	srv := apiserver.NewServer(bus, stores, nil, nil, dm)
 	srv.SetLibrary(&stubLibrary{reachable: map[string][]string{"acc1": {"u1"}}})
-	return srv, nil
+	return srv, nil, dm
 }
 
-func TestM6StartDeliveryRejectsMasqueradedMember(t *testing.T) {
-	srv, _ := newMemberscopeServer()
+func TestM6StartDeliveryAttributesTokenUser(t *testing.T) {
+	srv, _, dm := newMemberscopeServer()
 	_, err := srv.StartDelivery(apiserver.WithUserID(context.Background(), "u1"), &apiv1.StartDeliveryRequest{
 		Goal: apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY, Provider: "jellyfin", AccountId: "acc1",
-		MemberUserId: "someone-else", NativeId: "item1", Sink: "device",
+		NativeId: "item1", Sink: "device",
 	})
-	if status.Code(err) != codes.PermissionDenied {
-		t.Fatalf("member_user_id mismatch: got %v, want PermissionDenied", status.Code(err))
+	if err != nil {
+		t.Fatalf("start delivery: %v", err)
+	}
+	if dm.lastReq.MemberUserID != "u1" {
+		t.Fatalf("member attribution: got %q, want token user %q", dm.lastReq.MemberUserID, "u1")
 	}
 }
 
 func TestM6StartDeliveryRejectsUnreachableAccount(t *testing.T) {
-	srv, _ := newMemberscopeServer()
+	srv, _, _ := newMemberscopeServer()
 	_, err := srv.StartDelivery(apiserver.WithUserID(context.Background(), "u1"), &apiv1.StartDeliveryRequest{
 		Goal: apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY, Provider: "jellyfin", AccountId: "acc2",
-		MemberUserId: "u1", NativeId: "item1", Sink: "device",
+		NativeId: "item1", Sink: "device",
 	})
 	if status.Code(err) != codes.PermissionDenied {
 		t.Fatalf("account belonging to another member: got %v, want PermissionDenied", status.Code(err))
@@ -105,7 +111,7 @@ func TestM6StartDeliveryRejectsUnreachableAccount(t *testing.T) {
 }
 
 func TestM6GetJobRejectsNonOwner(t *testing.T) {
-	srv, _ := newMemberscopeServer()
+	srv, _, _ := newMemberscopeServer()
 	job := &corev1.Job{Id: "job-1", Kind: corev1.JobKind_JOB_KIND_REFRESH, Status: corev1.JobStatus_JOB_STATUS_QUEUED, OwnerUserId: "u1"}
 	if err := srv.CreateJob(context.Background(), job); err != nil {
 		t.Fatalf("CreateJob: %v", err)

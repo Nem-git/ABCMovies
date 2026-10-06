@@ -27,29 +27,23 @@ import {
 
 // tsEnum runtime objects carry a reverse name mapping (number -> name), so
 // labels derive from the generated contracts instead of being restated here.
-function enumLabel(tsEnum, prefix, value) {
+function enumLabel(tsEnum, value) {
   const name = tsEnum[value];
   if (name === undefined) return String(value);
-  return name.slice(prefix.length).toLowerCase().replaceAll('_', '-');
+  return name.toLowerCase().replaceAll('_', '-');
 }
 
-export const jobKindLabel = (v) => enumLabel(JobKind, 'JOB_KIND_', v);
-export const jobStatusLabel = (v) => enumLabel(JobStatus, 'JOB_STATUS_', v);
-export const actionTypeLabel = (v) => enumLabel(ActionType, 'ACTION_TYPE_', v);
-export const eventTypeLabel = (v) => enumLabel(EventType, 'EVENT_TYPE_', v);
-export const audienceLabel = (v) =>
-  enumLabel(EventAudience, 'EVENT_AUDIENCE_', v);
-export const accountStatusLabel = (v) =>
-  enumLabel(AccountStatus, 'ACCOUNT_STATUS_', v);
-export const accountVisibilityLabel = (v) =>
-  enumLabel(AccountVisibility, 'ACCOUNT_VISIBILITY_', v);
-export const capChangePolicyLabel = (v) =>
-  enumLabel(CapChangePolicy, 'CAP_CHANGE_POLICY_', v);
-export const entryKindLabel = (v) => enumLabel(EntryKind, 'ENTRY_KIND_', v);
-export const coverageVerdictLabel = (v) =>
-  enumLabel(CoverageVerdict, 'COVERAGE_VERDICT_', v);
-export const identityVerdictLabel = (v) =>
-  enumLabel(IdentityVerdict, 'IDENTITY_VERDICT_', v);
+export const jobKindLabel = (v) => enumLabel(JobKind, v);
+export const jobStatusLabel = (v) => enumLabel(JobStatus, v);
+export const actionTypeLabel = (v) => enumLabel(ActionType, v);
+export const eventTypeLabel = (v) => enumLabel(EventType, v);
+export const audienceLabel = (v) => enumLabel(EventAudience, v);
+export const accountStatusLabel = (v) => enumLabel(AccountStatus, v);
+export const accountVisibilityLabel = (v) => enumLabel(AccountVisibility, v);
+export const capChangePolicyLabel = (v) => enumLabel(CapChangePolicy, v);
+export const entryKindLabel = (v) => enumLabel(EntryKind, v);
+export const coverageVerdictLabel = (v) => enumLabel(CoverageVerdict, v);
+export const identityVerdictLabel = (v) => enumLabel(IdentityVerdict, v);
 
 export function fmtTimestamp(ts) {
   if (!ts) return '';

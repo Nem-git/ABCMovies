@@ -214,7 +214,6 @@ func TestM5RemoveAccountEndsLiveSessions(t *testing.T) {
 		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
 		Provider:     stack.ns,
 		AccountId:    "lnk_alice_home",
-		MemberUserId: stack.alice.UserID,
 		NativeId:     "movie-gondwana",
 		Sink:         "device",
 	})

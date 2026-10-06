@@ -84,9 +84,6 @@ func ValidateStartDeliveryRequest(r *apiv1.StartDeliveryRequest) error {
 	if r.GetAccountId() == "" {
 		return fmt.Errorf("start_delivery_request: account_id is required")
 	}
-	if r.GetMemberUserId() == "" {
-		return fmt.Errorf("start_delivery_request: member_user_id is required")
-	}
 	if r.GetNativeId() == "" {
 		return fmt.Errorf("start_delivery_request: native_id is required")
 	}

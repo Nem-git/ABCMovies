@@ -32,6 +32,7 @@ const base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
 type SignUpResult struct {
 	UserID      string
 	RecoveryKey string // 128-bit base32, shown once, never stored
+	DEK         []byte // unwrapped DEK, so the session caches usable key material
 }
 
 // LoginResult contains the output of a successful login.
@@ -127,6 +128,7 @@ func (a *PasswordAuthenticator) SignUp(username string, password []byte) (*SignU
 	return &SignUpResult{
 		UserID:      "user:" + username,
 		RecoveryKey: recoveryKey,
+		DEK:         dek,
 	}, nil
 }
 

@@ -242,16 +242,12 @@ func (s *Server) StartDelivery(ctx context.Context, req *apiv1.StartDeliveryRequ
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-	// The member the session is attributed to must be the authenticated
-	// caller — the quota and policy keys this delivery is counted against
-	// attach to that identity, and silent re-attribution would corrupt them
-	// (§2.2). Account reachability is verified against the caller next: an
+	// The member the session is attributed to is the authenticated caller —
+	// the quota and policy keys this delivery is counted against attach to
+	// that identity (§2.2). Account reachability is verified next: an
 	// authenticated user may only start a delivery through an account they
 	// may derive a library from.
 	uid, _ := UserIDFromContext(ctx)
-	if req.GetMemberUserId() != uid {
-		return nil, status.Error(codes.PermissionDenied, "member_user_id does not match the authenticated caller")
-	}
 	if s.library == nil {
 		return nil, status.Error(codes.Unavailable, "library engine not configured")
 	}
@@ -260,7 +256,7 @@ func (s *Server) StartDelivery(ctx context.Context, req *apiv1.StartDeliveryRequ
 	}
 	sess, err := s.delivery.Start(ctx, delivery.StartRequest{
 		Goal:           goal,
-		MemberUserID:   req.GetMemberUserId(),
+		MemberUserID:   uid,
 		Provider:       req.GetProvider(),
 		AccountID:      req.GetAccountId(),
 		NativeID:       req.GetNativeId(),
@@ -417,10 +413,29 @@ func (s *Server) SignUp(ctx context.Context, req *apiv1.SignUpRequest) (*apiv1.S
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
+	token, err := s.mintSession(result.UserID, result.DEK)
+	if err != nil {
+		return nil, err
+	}
 	return &apiv1.SignUpResponse{
 		UserId:      result.UserID,
 		RecoveryKey: result.RecoveryKey,
+		Token:       token,
 	}, nil
+}
+
+// mintSession issues a bearer token for uid and caches its unwrapped DEK
+// (IMPLEMENTATION.md §1.3). Both auth entry points share this: signup logs
+// the user in, and login re-issues the same shape of session.
+func (s *Server) mintSession(uid string, dek []byte) (string, error) {
+	token, err := s.session.Mint(uid)
+	if err != nil {
+		return "", status.Error(codes.Internal, "failed to create session")
+	}
+	if err := s.session.StoreDEK(token, dek); err != nil {
+		return "", status.Error(codes.Internal, "failed to cache session key material")
+	}
+	return token, nil
 }
 
 // Login authenticates a user and returns a session token. The auth method
@@ -438,18 +453,13 @@ func (s *Server) Login(ctx context.Context, req *apiv1.LoginRequest) (*apiv1.Log
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
 	}
-	token, err := s.session.Mint(result.UserID)
+	token, err := s.mintSession(result.UserID, result.DEK)
 	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to create session")
-	}
-	// Cache the DEK for this session: per-user blob stores decrypt with it
-	// until the session ends. The entry is keyed by the token and evicted
-	// with it (IMPLEMENTATION.md §1.3).
-	if err := s.session.StoreDEK(token, result.DEK); err != nil {
-		return nil, status.Error(codes.Internal, "failed to cache session key material")
+		return nil, err
 	}
 	return &apiv1.LoginResponse{
-		Token: token,
+		Token:  token,
+		UserId: result.UserID,
 	}, nil
 }
 

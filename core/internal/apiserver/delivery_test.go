@@ -73,7 +73,6 @@ func runningSession() *delivery.Session {
 		Context: corev1.DeliveryContext{
 			Provider:     "jellyfin",
 			AccountId:    "acc-1",
-			MemberUserId: "user-1",
 			Sink:         "device",
 		},
 	}
@@ -91,7 +90,6 @@ func TestStartDelivery_Success(t *testing.T) {
 		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
 		Provider:     "jellyfin",
 		AccountId:    "acc-1",
-		MemberUserId: "user-1",
 		NativeId:     "item-42",
 		Sink:         "device",
 	})
@@ -116,7 +114,6 @@ func TestStartDelivery_Unconfigured(t *testing.T) {
 		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
 		Provider:     "jellyfin",
 		AccountId:    "acc-1",
-		MemberUserId: "user-1",
 		NativeId:     "item",
 		Sink:         "device",
 	})
@@ -134,8 +131,6 @@ func TestStartDelivery_Validation(t *testing.T) {
 
 	cases := []*apiv1.StartDeliveryRequest{
 		{},
-		{Goal: apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY, Provider: "j", AccountId: "a", MemberUserId: "u", NativeId: "i"}, // missing sink
-		{Goal: apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY, Provider: "j", AccountId: "a", MemberUserId: "u", Sink: "s"},     // missing native
 	}
 	for i, r := range cases {
 		if _, err := srv.StartDelivery(context.Background(), r); status.Code(err) != codes.InvalidArgument {

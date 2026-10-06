@@ -52,11 +52,6 @@ const log = (line) => {
 let token = null;
 let username = null;
 
-// The member this client plays for. The API attributes deliveries to a
-// member user id (StartDeliveryRequest.member_user_id); that id is returned
-// by SignUp, not by Login, so the client binds it at signup and keeps it
-// only for this page's lifetime.
-let memberUserId = null;
 // The accounts the caller can deliver from, last seen from ListAccounts.
 let accounts = [];
 // The library's current page state.
@@ -160,7 +155,7 @@ $('linkAccount').addEventListener('click', async () => {
   const linkUser = $('linkUsername').value.trim();
   const linkPass = $('linkPassword').value;
   const visibilityName = $('linkVisibility').value.toUpperCase();
-  const visibility = AccountVisibility[`ACCOUNT_VISIBILITY_${visibilityName}`];
+  const visibility = AccountVisibility[visibilityName];
   if (!baseUrl || !linkUser || !linkPass) {
     log('link account: server url, username and password are required');
     return;
@@ -172,7 +167,7 @@ $('linkAccount').addEventListener('click', async () => {
         baseUrl,
         visibility,
         sharedWith:
-          visibility === AccountVisibility.ACCOUNT_VISIBILITY_SHARED
+          visibility === AccountVisibility.SHARED
             ? parseScopes($('linkSharedWith').value)
             : [],
         authMethod: {
@@ -196,28 +191,21 @@ async function updateAccount(accountId, spec) {
   try {
     const sharing = spec.visibility
       ? create(AccountSharingSchema, {
-          visibility:
-            AccountVisibility[
-              `ACCOUNT_VISIBILITY_${spec.visibility.toUpperCase()}`
-            ],
+          visibility: AccountVisibility[spec.visibility.toUpperCase()],
           sharedWith: spec.sharedWith,
         })
       : undefined;
-    if (
-      spec.visibility &&
-      sharing.visibility === undefined &&
-      sharing.visibility !== 0
-    ) {
+    if (spec.visibility && sharing.visibility === undefined) {
       log(`update account: unknown visibility ${spec.visibility}`);
       return;
     }
     const capChangePolicy =
       spec.capChangePolicy === 'inherit'
-        ? CapChangePolicy.CAP_CHANGE_POLICY_UNSPECIFIED
+        ? CapChangePolicy.UNSPECIFIED
         : spec.capChangePolicy === 'new-sessions-only'
-          ? CapChangePolicy.CAP_CHANGE_POLICY_NEW_SESSIONS_ONLY
+          ? CapChangePolicy.NEW_SESSIONS_ONLY
           : spec.capChangePolicy === 'enforce-now'
-            ? CapChangePolicy.CAP_CHANGE_POLICY_ENFORCE_NOW
+            ? CapChangePolicy.ENFORCE_NOW
             : undefined;
     const res = await client.updateAccount(
       create(UpdateAccountRequestSchema, {
@@ -257,9 +245,7 @@ async function removeAccount(accountId) {
 // declared ones.
 function accountForDelivery(provider) {
   const usable = accounts.filter(
-    (a) =>
-      a.provider === provider &&
-      a.status === AccountStatus.ACCOUNT_STATUS_LINKED,
+    (a) => a.provider === provider && a.status === AccountStatus.LINKED,
   );
   return (
     usable.find((a) => a.callerLinked) ??
@@ -357,12 +343,6 @@ $('nextPage').addEventListener('click', async () => {
 // --- Minimal play (PLAN.md §6, §9.1: menu-ready events, get-play-info, relay) ---
 
 async function startPlay(provider, nativeId) {
-  if (!memberUserId) {
-    log(
-      'start delivery: no member user id in this page session — sign up once so the client can attribute the delivery',
-    );
-    return;
-  }
   const account = accountForDelivery(provider);
   if (!account) {
     log(`start delivery: no deliverable account for provider ${provider}`);
@@ -371,18 +351,21 @@ async function startPlay(provider, nativeId) {
   try {
     const res = await client.startDelivery(
       create(StartDeliveryRequestSchema, {
-        goal: DeliveryGoal.DELIVERY_GOAL_PLAY,
+        goal: DeliveryGoal.PLAY,
         provider,
         accountId: account.accountId,
-        memberUserId,
         nativeId,
         sink: 'device',
       }),
     );
-    activeSessionId = res.sessionId;
+    activeSessionId = res.job?.id;
+    if (!activeSessionId) {
+      log('start delivery: response carried no job id');
+      return;
+    }
     $('player').classList.remove('hidden');
     log(
-      `delivery started: ${res.sessionId} (${provider}:${nativeId} via ${account.accountId}) — waiting for the play menu`,
+      `delivery started: ${activeSessionId} (${provider}:${nativeId} via ${account.accountId}) — waiting for the play menu`,
     );
     await refreshPlayInfo();
   } catch (err) {
@@ -451,11 +434,13 @@ $('signup').addEventListener('click', async () => {
         },
       }),
     );
-    memberUserId = res.userId;
+    token = res.token;
+    username = name;
     showRecoveryKey(res.recoveryKey);
-    log(`signed up: ${res.userId}`);
-    refreshAccounts();
-    refreshLibrary();
+    log(`signed up: ${res.userId} (session active)`);
+    await refreshAccounts();
+    await refreshLibrary();
+    updateSessionUI();
   } catch (err) {
     log(`sign up failed: ${describe(err)}`);
   }
@@ -587,8 +572,7 @@ const feed = $('eventFeed');
 let subAbort = null;
 
 for (const [name, value] of Object.entries(EventType)) {
-  if (typeof value !== 'number' || value === EventType.EVENT_TYPE_UNSPECIFIED)
-    continue;
+  if (typeof value !== 'number' || value === EventType.UNSPECIFIED) continue;
   const option = document.createElement('option');
   option.value = String(value);
   option.textContent = eventTypeLabel(value);

@@ -47,8 +47,13 @@ slots:
   # instance-local disk (must name a path) or the user's device (built-in).
   # The device sink needs no entry here — its config is the frontend's.
   # Each sink carries its own knobs under `options`.
-  sinks: []
-  #   # Example disk sink — copy into `sinks:` and enable.
+  # Each sink named here is reachable by its slot id. v1 has two sinks
+  # (TECHNICAL-DECISIONS.md §1.13): the user's device (built-in; one-line
+  # entry — no options needed) and instance-local disk (needs a path).
+  sinks:
+    - id: device
+      adapter: device
+      enabled: true
   #   - id: disk
   #     adapter: disk
   #     enabled: true

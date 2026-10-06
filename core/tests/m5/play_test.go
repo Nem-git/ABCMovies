@@ -31,7 +31,6 @@ func TestM5JobStatusAnnouncedExactlyOnce(t *testing.T) {
 		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
 		Provider:     stack.ns,
 		AccountId:    "lnk_alice_home",
-		MemberUserId: stack.alice.UserID,
 		NativeId:     "movie-gondwana",
 		Sink:         "device",
 	})
@@ -85,7 +84,6 @@ func TestM5PlayEndToEndProvesRelayNotes(t *testing.T) {
 		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
 		Provider:     stack.ns,
 		AccountId:    "lnk_alice_home",
-		MemberUserId: stack.alice.UserID,
 		NativeId:     "movie-gondwana",
 		Sink:         "device",
 	})
@@ -194,7 +192,6 @@ func TestM5PlayInfoCrossUserDenied(t *testing.T) {
 		Goal:         apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
 		Provider:     stack.ns,
 		AccountId:    "lnk_alice_home",
-		MemberUserId: stack.alice.UserID,
 		NativeId:     "movie-gondwana",
 		Sink:         "device",
 	})
