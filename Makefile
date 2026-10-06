@@ -46,10 +46,7 @@ secret-scan:
 lint: web-build pin-check
 	$(BUF) lint
 	git diff --exit-code -- proto
-	# Breaking-change detection is disabled until the first release
-	# (TECHNICAL-DECISIONS.md §1.24): contracts may evolve breaking-ly while
-	# every consumer is in-repo. Re-enable before any contract is published.
-	# $(BUF) breaking --against '.git#ref=refs/remotes/origin/main'
+	$(BUF) breaking --against '.git#ref=refs/remotes/origin/main'
 	$(GOLANGCI) run ./core/... ./adapters/... ./frontends/web/...
 	npx --no-install prettier . --check
 	npx --no-install markdownlint-cli2
