@@ -1,0 +1,11 @@
+{
+  "name": "update-account-valid-clear-policy",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {
+    "accountId": "lnk_0123456789abcdef0123456789abcdef",
+    "capChangePolicy": "CAP_CHANGE_POLICY_UNSPECIFIED"
+  },
+  "type": "UpdateAccountRequest"
+}

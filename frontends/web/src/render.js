@@ -4,6 +4,7 @@ import {
   AccountSchema,
   AccountStatus,
   AccountVisibility,
+  CapChangePolicy,
   GetPlayInfoResponseSchema,
   LibraryItemSchema,
 } from './gen/abcmovies/api/v1/core_pb.js';
@@ -42,6 +43,8 @@ export const accountStatusLabel = (v) =>
   enumLabel(AccountStatus, 'ACCOUNT_STATUS_', v);
 export const accountVisibilityLabel = (v) =>
   enumLabel(AccountVisibility, 'ACCOUNT_VISIBILITY_', v);
+export const capChangePolicyLabel = (v) =>
+  enumLabel(CapChangePolicy, 'CAP_CHANGE_POLICY_', v);
 export const entryKindLabel = (v) => enumLabel(EntryKind, 'ENTRY_KIND_', v);
 export const coverageVerdictLabel = (v) =>
   enumLabel(CoverageVerdict, 'COVERAGE_VERDICT_', v);
@@ -441,7 +444,87 @@ export function enrichmentPanel(data) {
 
 // --- Accounts, library and play (M5: "first real frontend on the core API") ---
 
-export function accountCard(account, { onRemove } = {}) {
+// A small in-place editor for the owner-facing settings of a linked
+// account: who it is shared with, its stream cap, and what lowering that
+// cap does to running sessions. All three edit the same account through the
+// same UpdateAccount call.
+function sharingEditor(account, onUpdate) {
+  const wrap = el('div', { class: 'card-body' });
+
+  const visibility = el('select', { id: undefined });
+  for (const v of ['private', 'shared', 'public']) {
+    visibility.append(
+      option(v, v, accountVisibilityLabel(account.visibility) === v),
+    );
+  }
+
+  const sharedWithInput = el('input', {
+    placeholder: 'shared with (comma-separated users)',
+    value: (account.sharedWith ?? []).join(', '),
+    size: '24',
+  });
+  const syncShared = () => {
+    sharedWithInput.style.display = visibility.value === 'shared' ? '' : 'none';
+  };
+  visibility.addEventListener('change', syncShared);
+
+  const capInput = el('input', {
+    placeholder: 'stream cap (blank = instance default)',
+    value: account.maxConcurrentStreams
+      ? String(account.maxConcurrentStreams)
+      : '',
+    size: '24',
+  });
+
+  const capPolicy = el('select');
+  const currentPolicy = capChangePolicyLabel(account.capChangePolicy); // 'unspecified'|'new-sessions-only'|'enforce-now'
+  const selectedPolicyValue =
+    currentPolicy === 'unspecified' ? 'inherit' : currentPolicy;
+  for (const [v, label] of [
+    ['inherit', 'inherit default'],
+    ['new-sessions-only', 'new sessions only'],
+    ['enforce-now', 'enforce now'],
+  ]) {
+    capPolicy.append(option(v, label, selectedPolicyValue === v));
+  }
+
+  const save = el('button', {
+    text: 'Save settings',
+    onclick: () => {
+      onUpdate({
+        visibility: visibility.value,
+        // An empty roster on a non-shared visibility is normalised away by
+        // the API validation; we only parse the input when sharing is on.
+        sharedWith:
+          visibility.value === 'shared'
+            ? sharedWithInput.value
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : [],
+        maxConcurrentStreams:
+          capInput.value.trim() === ''
+            ? undefined
+            : Number(capInput.value.trim()),
+        capChangePolicy: capPolicy.value,
+      });
+    },
+  });
+
+  wrap.append(visibility, sharedWithInput, capInput, capPolicy, save);
+  syncShared();
+  return wrap;
+}
+
+function option(value, text, selected = false) {
+  const node = document.createElement('option');
+  node.value = value;
+  node.textContent = text;
+  if (selected) node.selected = true;
+  return node;
+}
+
+export function accountCard(account, { onRemove, onUpdate } = {}) {
   const card = el('div', { class: 'card' });
   card.append(
     el(
@@ -462,10 +545,20 @@ export function accountCard(account, { onRemove } = {}) {
     row('caller-linked', account.callerLinked ? 'yes' : 'no'),
     row('owner', account.ownerUserId),
     listRow('shared with', account.sharedWith ?? []),
+    // Owner-only settings: the API carries them only on the owner's view.
+    account.callerLinked && account.maxConcurrentStreams
+      ? row('stream cap', String(account.maxConcurrentStreams))
+      : null,
+    account.callerLinked && account.capChangePolicy
+      ? row('cap policy', capChangePolicyLabel(account.capChangePolicy))
+      : null,
   ]) {
     if (r) body.append(r);
   }
   card.append(body);
+  if (account.callerLinked && onUpdate) {
+    card.append(sharingEditor(account, onUpdate));
+  }
   if (account.callerLinked && onRemove) {
     card.append(
       el(

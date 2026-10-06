@@ -4,8 +4,10 @@ import { createGrpcWebTransport } from '@connectrpc/connect-web';
 
 import {
   AccountPasswordSchema,
+  AccountSharingSchema,
   AccountStatus,
   AccountVisibility,
+  CapChangePolicy,
   CoreService,
   DeliveryGoal,
   GetJobRequestSchema,
@@ -20,6 +22,7 @@ import {
   SignUpRequestSchema,
   StartDeliveryRequestSchema,
   SubscribeRequestSchema,
+  UpdateAccountRequestSchema,
 } from './gen/abcmovies/api/v1/core_pb.js';
 import { EventType } from './gen/abcmovies/core/v1/event_pb.js';
 import {
@@ -135,6 +138,9 @@ async function refreshAccounts() {
           onRemove: acc.callerLinked
             ? () => removeAccount(acc.accountId)
             : undefined,
+          onUpdate: acc.callerLinked
+            ? (spec) => updateAccount(acc.accountId, spec)
+            : undefined,
         }),
       );
     }
@@ -185,6 +191,51 @@ $('linkAccount').addEventListener('click', async () => {
     log(`link account failed: ${describe(err)}`);
   }
 });
+
+async function updateAccount(accountId, spec) {
+  try {
+    const sharing = spec.visibility
+      ? create(AccountSharingSchema, {
+          visibility:
+            AccountVisibility[
+              `ACCOUNT_VISIBILITY_${spec.visibility.toUpperCase()}`
+            ],
+          sharedWith: spec.sharedWith,
+        })
+      : undefined;
+    if (
+      spec.visibility &&
+      sharing.visibility === undefined &&
+      sharing.visibility !== 0
+    ) {
+      log(`update account: unknown visibility ${spec.visibility}`);
+      return;
+    }
+    const capChangePolicy =
+      spec.capChangePolicy === 'inherit'
+        ? CapChangePolicy.CAP_CHANGE_POLICY_UNSPECIFIED
+        : spec.capChangePolicy === 'new-sessions-only'
+          ? CapChangePolicy.CAP_CHANGE_POLICY_NEW_SESSIONS_ONLY
+          : spec.capChangePolicy === 'enforce-now'
+            ? CapChangePolicy.CAP_CHANGE_POLICY_ENFORCE_NOW
+            : undefined;
+    const res = await client.updateAccount(
+      create(UpdateAccountRequestSchema, {
+        accountId,
+        sharing,
+        maxConcurrentStreams: spec.maxConcurrentStreams,
+        capChangePolicy,
+      }),
+    );
+    log(
+      `account updated: ${res.account?.accountId ?? accountId} (${spec.visibility}, cap ${spec.maxConcurrentStreams ?? 'unchanged'}, policy ${spec.capChangePolicy})`,
+    );
+    await refreshAccounts();
+    await refreshLibrary();
+  } catch (err) {
+    log(`update account failed: ${describe(err)}`);
+  }
+}
 
 async function removeAccount(accountId) {
   try {
