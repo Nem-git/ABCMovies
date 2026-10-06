@@ -668,6 +668,20 @@ func validateAPIMessage(msgType string, msg json.RawMessage) (bool, error) {
 		}
 		err := schema.ValidateRemoveAccountRequest(&m)
 		return err == nil, err
+	case "UpdateAccountRequest":
+		var m apiv1.UpdateAccountRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateUpdateAccountRequest(&m)
+		return err == nil, err
+	case "UpdateAccountResponse":
+		var m apiv1.UpdateAccountResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateUpdateAccountResponse(&m)
+		return err == nil, err
 	case "GetPlayInfoRequest":
 		var m apiv1.GetPlayInfoRequest
 		if err := protojson.Unmarshal(msg, &m); err != nil {

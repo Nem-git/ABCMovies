@@ -164,6 +164,72 @@ func ValidateLinkAccountRequest(r *apiv1.LinkAccountRequest) error {
 	return nil
 }
 
+// ValidateAccountSharing checks a wholesale sharing replacement: the
+// visibility must be one of the three real values, and the member list must
+// be present exactly when the visibility is shared — an orphan roster is an
+// ambiguous request, not a silently empty one.
+func ValidateAccountSharing(s *apiv1.AccountSharing) error {
+	if s == nil {
+		return fmt.Errorf("account_sharing: nil")
+	}
+	switch s.GetVisibility() {
+	case apiv1.AccountVisibility_ACCOUNT_VISIBILITY_PRIVATE,
+		apiv1.AccountVisibility_ACCOUNT_VISIBILITY_PUBLIC:
+		if len(s.GetSharedWith()) != 0 {
+			return fmt.Errorf("account_sharing: shared_with is only meaningful with shared visibility")
+		}
+	case apiv1.AccountVisibility_ACCOUNT_VISIBILITY_SHARED:
+		if len(s.GetSharedWith()) == 0 {
+			return fmt.Errorf("account_sharing: shared visibility requires shared_with users")
+		}
+	default:
+		return fmt.Errorf("account_sharing: visibility is required")
+	}
+	return nil
+}
+
+// ValidateUpdateAccountRequest checks an UpdateAccountRequest (PLAN.md §7.1,
+// §7.2): the account id is required, every present field is well-formed, the
+// policy value is one of the known choices, and at least one setting must
+// actually be changing — a call that changes nothing is a caller bug, and
+// the handler would otherwise be a no-op dressed as success.
+func ValidateUpdateAccountRequest(r *apiv1.UpdateAccountRequest) error {
+	if r == nil {
+		return fmt.Errorf("update_account_request: nil")
+	}
+	if r.GetAccountId() == "" {
+		return fmt.Errorf("update_account_request: account_id is required")
+	}
+	switch r.GetCapChangePolicy() {
+	case apiv1.CapChangePolicy_CAP_CHANGE_POLICY_UNSPECIFIED,
+		apiv1.CapChangePolicy_CAP_CHANGE_POLICY_NEW_SESSIONS_ONLY,
+		apiv1.CapChangePolicy_CAP_CHANGE_POLICY_ENFORCE_NOW:
+	default:
+		return fmt.Errorf("update_account_request: unknown cap_change_policy %d", r.GetCapChangePolicy())
+	}
+	if r.GetSharing() != nil {
+		if err := ValidateAccountSharing(r.GetSharing()); err != nil {
+			return fmt.Errorf("update_account_request: %w", err)
+		}
+	}
+	if r.GetCapChangePolicy() == apiv1.CapChangePolicy_CAP_CHANGE_POLICY_UNSPECIFIED &&
+		r.GetSharing() == nil && r.MaxConcurrentStreams == nil {
+		return fmt.Errorf("update_account_request: at least one setting must change")
+	}
+	return nil
+}
+
+// ValidateUpdateAccountResponse checks an UpdateAccountResponse.
+func ValidateUpdateAccountResponse(r *apiv1.UpdateAccountResponse) error {
+	if r == nil {
+		return fmt.Errorf("update_account_response: nil")
+	}
+	if r.GetAccount() == nil || r.GetAccount().GetAccountId() == "" {
+		return fmt.Errorf("update_account_response: account is required")
+	}
+	return nil
+}
+
 // ValidateListAccountsRequest checks a ListAccountsRequest (PLAN.md §7.5).
 func ValidateListAccountsRequest(r *apiv1.ListAccountsRequest) error {
 	if r == nil {

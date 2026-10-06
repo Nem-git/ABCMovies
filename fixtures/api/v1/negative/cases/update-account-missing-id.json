@@ -1,0 +1,10 @@
+{
+  "name": "update-account-missing-id",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {
+    "maxConcurrentStreams": 3
+  },
+  "type": "UpdateAccountRequest"
+}

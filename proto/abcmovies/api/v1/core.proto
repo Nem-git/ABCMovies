@@ -42,6 +42,11 @@ service CoreService {
   // Operator-declared accounts cannot be removed through the API.
   rpc RemoveAccount(RemoveAccountRequest) returns (RemoveAccountResponse);
 
+  // Accounts: change a linked account's settings after the fact — who may use
+  // it and the owner's usage settings on it. Owner-only; operator-declared
+  // accounts are read-only through the API (PLAN.md §7.1, §7.2, §7.5).
+  rpc UpdateAccount(UpdateAccountRequest) returns (UpdateAccountResponse);
+
   // Delivery: begin a play or download session and receive the delivery job
   // (PLAN.md §6, §9.1). Start is a plain "create" — each call makes a new
   // session; event idempotency is deferred (TECHNICAL-DECISIONS.md §1.30).
@@ -245,6 +250,15 @@ message Account {
   // The host user who linked this account; empty for operator-declared
   // accounts.
   string owner_user_id = 8;
+  // The owner's concurrent-stream cap; zero means unlimited. Owner-visible
+  // only — populated when the caller linked the account.
+  uint32 max_concurrent_streams = 9;
+  // This account's own choice for cap-change behaviour; UNSPECIFIED means it
+  // inherits the instance default. Owner-visible only.
+  CapChangePolicy cap_change_policy = 10;
+  // What actually applies, resolved by the core from the account's own choice
+  // and the instance default. Owner-visible only.
+  CapChangePolicy effective_cap_change_policy = 11;
 }
 
 message ListAccountsResponse {
@@ -257,6 +271,44 @@ message RemoveAccountRequest {
 }
 
 message RemoveAccountResponse {}
+
+message UpdateAccountRequest {
+  // The account to update; must be caller-linked. Required.
+  string account_id = 1;
+  // Absent means sharing is unchanged. Present replaces sharing wholesale —
+  // visibility and the member list always travel together, so a
+  // half-specified sharing change cannot be expressed.
+  AccountSharing sharing = 2;
+  // Absent means unchanged; zero means unlimited.
+  optional uint32 max_concurrent_streams = 3;
+  // Absent means "inherit the instance default"; present overrides it for
+  // this account.
+  CapChangePolicy cap_change_policy = 4;
+}
+
+message AccountSharing {
+  // How the account is shared after the update.
+  AccountVisibility visibility = 1;
+  // The host users allowed when visibility is SHARED; required there,
+  // ignored otherwise.
+  repeated string shared_with = 2;
+}
+
+// CapChangePolicy is what a change to an account's concurrent-stream cap does
+// to the sessions already running on it (docs/TECHNICAL-DECISIONS.md).
+enum CapChangePolicy {
+  // Inherit the instance default (delivery.on-cap-change).
+  CAP_CHANGE_POLICY_UNSPECIFIED = 0;
+  // Running streams finish; the new cap applies from the next session.
+  CAP_CHANGE_POLICY_NEW_SESSIONS_ONLY = 1;
+  // End the excess sessions now, oldest first.
+  CAP_CHANGE_POLICY_ENFORCE_NOW = 2;
+}
+
+message UpdateAccountResponse {
+  // The account as it now stands, as seen by its owner.
+  Account account = 1;
+}
 
 // --- Delivery messages (PLAN.md §6, §9.1) ---
 
