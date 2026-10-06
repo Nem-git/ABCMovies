@@ -7,6 +7,7 @@ import (
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/schema"
 	"google.golang.org/grpc/codes"
@@ -23,6 +24,7 @@ type LibrarySeam interface {
 	Metadata(ctx context.Context, ref string) (*corev1.TitleMetadata, bool, error)
 	ReachAuthorized(accountID, userID string) (library.Reach, bool)
 	ReachesForUser(userID string) []library.Reach
+	SetReachSharing(accountID string, visibility accounts.Visibility, members []string) error
 	RemoveReach(accountID string)
 }
 

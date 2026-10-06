@@ -508,3 +508,76 @@ func TestEnrichmentSeamsFillRefAndMarkMisses(t *testing.T) {
 		t.Fatalf("marked = %v, want exactly [%s]", marked, up.GetId())
 	}
 }
+
+// SetReachSharing swaps the live reach and invalidates the cached libraries
+// of the union of the old and new audiences: the users who lost access need
+// their stale copy gone, the users who just gained it need no stale copy to
+// begin with, and the users who were never authorized in either direction
+// are untouched.
+func TestSetReachSharingSweepsUnionOfAudiences(t *testing.T) {
+	ctx := context.Background()
+	cache := store.NewInMemory()
+	for _, u := range []string{"alice", "bob", "carol", "dave"} {
+		if err := cache.Put(ctx, userPrefix+u, []byte(`[]`)); err != nil {
+			t.Fatalf("seed cache: %v", err)
+		}
+	}
+	sync := &sourcecache.Synchronizer{}
+	svc := &Service{cache: cache, logger: slog.Default()}
+	svc.reaches = map[string]Reach{
+		"acct-1": {
+			Sync: sync, AccountID: "acct-1", Owner: "alice",
+			Visibility: accounts.VisibilityShared, Members: []string{"bob", "carol"},
+		},
+	}
+
+	// Narrow from shared-with-bob+carol to private: alice's copy still
+	// needs rebuilding (her audience changed shape), bob's and carol's must
+	// go, and dave — never authorized either way — keeps theirs.
+	if err := svc.SetReachSharing("acct-1", accounts.VisibilityPrivate, nil); err != nil {
+		t.Fatalf("SetReachSharing: %v", err)
+	}
+	for _, u := range []string{"alice", "bob", "carol"} {
+		if _, err := cache.Get(ctx, userPrefix+u); err == nil {
+			t.Errorf("cached library for %q survived a sharing narrowing", u)
+		}
+	}
+	if _, err := cache.Get(ctx, userPrefix+"dave"); err != nil {
+		t.Errorf("dave's unrelated cache was swept: %v", err)
+	}
+	r, ok := svc.reaches["acct-1"]
+	if !ok || r.Visibility != accounts.VisibilityPrivate || len(r.Members) != 0 {
+		t.Fatalf("reach = %+v, want private with cleared roster", r)
+	}
+
+	// Widening back to shared with bob must invalidate the same cache rows
+	// from the other side: alice's audience grows, bob regains access, and
+	// dave is still untouched.
+	if err := cache.Put(ctx, userPrefix+"alice", []byte(`[]`)); err != nil {
+		t.Fatalf("re-seed alice: %v", err)
+	}
+	if err := svc.SetReachSharing("acct-1", accounts.VisibilityShared, []string{"bob"}); err != nil {
+		t.Fatalf("SetReachSharing widen: %v", err)
+	}
+	if _, err := cache.Get(ctx, userPrefix+"alice"); err == nil {
+		t.Error("alice's cache survived a sharing widening")
+	}
+	if _, err := cache.Get(ctx, userPrefix+"bob"); err == nil {
+		t.Error("bob's stale cache survived a sharing widening")
+	}
+	if _, err := cache.Get(ctx, userPrefix+"dave"); err != nil {
+		t.Errorf("dave's unrelated cache was swept: %v", err)
+	}
+	if _, ok := svc.ReachAuthorized("acct-1", "carol"); ok {
+		t.Error("carol still authorized after narrowing")
+	}
+	if _, ok := svc.ReachAuthorized("acct-1", "bob"); !ok {
+		t.Error("bob lost authorization after re-sharing with him")
+	}
+	if _, ok := svc.ReachAuthorized("acct-1", "alice"); !ok {
+		t.Error("owner lost authorization")
+	}
+	if err := svc.SetReachSharing("no-such-account", accounts.VisibilityPublic, nil); err == nil {
+		t.Error("unknown reach should error")
+	}
+}

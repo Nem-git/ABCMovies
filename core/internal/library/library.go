@@ -154,6 +154,30 @@ func (s *Service) RemoveReach(accountID string) {
 	delete(s.reaches, accountID)
 }
 
+// SetReachSharing replaces the sharing fields of a registered reach — same
+// synchronizer, same account, new audience — and invalidates the derived
+// libraries of everyone who could derive this account *before or after* the
+// change. The two groups fail for different reasons (the removed must drop
+// their now-wrong cache; the newly granted would otherwise hold nothing),
+// so the sweep is over their union.
+func (s *Service) SetReachSharing(accountID string, visibility accounts.Visibility, members []string) error {
+	s.mu.Lock()
+	r, ok := s.reaches[accountID]
+	if !ok {
+		s.mu.Unlock()
+		return fmt.Errorf("library: reach %q not registered", accountID)
+	}
+	before := r
+	r.Visibility = visibility
+	r.Members = members
+	s.reaches[accountID] = r
+	s.mu.Unlock()
+
+	return s.sweepUserCaches(func(userID string) bool {
+		return before.authorized(userID) || r.authorized(userID)
+	})
+}
+
 // snapshot lists every registered reach in deterministic (account-id) order.
 func (s *Service) snapshot() []Reach {
 	s.mu.RLock()
@@ -432,6 +456,14 @@ func (s *Service) InvalidateAccount(provider, accountID string) error {
 		}
 		return false
 	}
+	return s.sweepUserCaches(affilter)
+}
+
+// sweepUserCaches drops the cached derived-library entries of exactly the
+// users the predicate names. This is the one place the per-user cache is
+// invalidated pointwise; InvalidateAccount and SetReachSharing both root
+// through it.
+func (s *Service) sweepUserCaches(invalidate func(userID string) bool) error {
 	keys, err := s.cache.List(context.Background(), userPrefix)
 	if err != nil {
 		return fmt.Errorf("library: list cached users: %w", err)
@@ -442,7 +474,7 @@ func (s *Service) InvalidateAccount(provider, accountID string) error {
 		if uerr != nil {
 			unescaped = uid
 		}
-		if !affilter(unescaped) {
+		if !invalidate(unescaped) {
 			continue
 		}
 		if err := s.cache.Delete(context.Background(), k); err != nil {

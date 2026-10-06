@@ -52,6 +52,9 @@ func (l *rosterLibrary) ReachesForUser(userID string) []library.Reach {
 }
 
 func (l *rosterLibrary) RemoveReach(string) {}
+func (l *rosterLibrary) SetReachSharing(string, accounts.Visibility, []string) error {
+	return nil
+}
 
 func newRosterServer(t *testing.T, lib *rosterLibrary) *apiserver.Server {
 	t.Helper()

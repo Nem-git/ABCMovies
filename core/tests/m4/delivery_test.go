@@ -162,8 +162,9 @@ func (trivialLibrary) Metadata(context.Context, string) (*corev1.TitleMetadata, 
 func (trivialLibrary) ReachAuthorized(accountID, userID string) (library.Reach, bool) {
 	return library.Reach{AccountID: accountID, Visibility: accounts.VisibilityPublic}, true
 }
-func (trivialLibrary) ReachesForUser(userID string) []library.Reach { return nil }
-func (trivialLibrary) RemoveReach(accountID string)                 {}
+func (trivialLibrary) ReachesForUser(userID string) []library.Reach                { return nil }
+func (trivialLibrary) RemoveReach(accountID string)                                {}
+func (trivialLibrary) SetReachSharing(string, accounts.Visibility, []string) error { return nil }
 
 // TestM4RemuxDownloadToDiskEndToEnd proves one remux download session
 // end-to-end: a whole-mux feature is resolved, the disk sink names it by the

@@ -62,6 +62,9 @@ func (l *stubLibrary) ReachAuthorized(accountID, userID string) (library.Reach, 
 }
 func (l *stubLibrary) ReachesForUser(string) []library.Reach { return nil }
 func (l *stubLibrary) RemoveReach(string)                    {}
+func (l *stubLibrary) SetReachSharing(string, accounts.Visibility, []string) error {
+	return nil
+}
 
 var (
 	_ apiserver.DeliveryManager = (*stubDelivery)(nil)

@@ -28,7 +28,12 @@ type stubLibrary struct {
 	reachable map[string][]string // account id -> users it is authorized for
 	reaches   []library.Reach
 	removed   []string
-	err       error
+	swaps     []struct {
+		accountID  string
+		visibility accounts.Visibility
+		members    []string
+	}
+	err error
 }
 
 func (l *stubLibrary) Library(context.Context, string) ([]*corev1.LibraryEntry, error) {
@@ -69,6 +74,15 @@ func (l *stubLibrary) ReachesForUser(userID string) []library.Reach {
 }
 
 func (l *stubLibrary) RemoveReach(accountID string) { l.removed = append(l.removed, accountID) }
+
+func (l *stubLibrary) SetReachSharing(accountID string, v accounts.Visibility, members []string) error {
+	l.swaps = append(l.swaps, struct {
+		accountID  string
+		visibility accounts.Visibility
+		members    []string
+	}{accountID, v, append([]string(nil), members...)})
+	return l.err
+}
 
 // noopClient satisfies the source-cache client surface; the handler never
 // syncs, so it is only a wrapper that makes a Synchronizer constructible.

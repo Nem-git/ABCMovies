@@ -351,6 +351,8 @@ func TestUpdateAccount_OwnerChangesSharingAndCap(t *testing.T) {
 	srv.SetUserDirectory(apiserver.NewUserDirectory(users))
 	dev := &stubDelivery{}
 	srv.SetDelivery(dev)
+	lib := &stubLibrary{}
+	srv.SetLibrary(lib)
 
 	ownerCtx := ctxAs(session, "user-1")
 	link, err := srv.LinkAccount(ownerCtx, &apiv1.LinkAccountRequest{
@@ -388,6 +390,11 @@ func TestUpdateAccount_OwnerChangesSharingAndCap(t *testing.T) {
 	}
 	if len(dev.applies) != 1 || !dev.applies[0].enforceNow {
 		t.Fatalf("applies = %+v, want one enforceNow", dev.applies)
+	}
+	// The live reach is swapped to the new audience through the same seam
+	// the delivery authorization gate reads.
+	if len(lib.swaps) != 1 || lib.swaps[0].accountID != link.GetAccountId() || lib.swaps[0].visibility != accounts.VisibilityShared || len(lib.swaps[0].members) != 1 || lib.swaps[0].members[0] != "user:alice" {
+		t.Fatalf("reach swaps = %+v, want one swap to shared [user:alice]", lib.swaps)
 	}
 	// The store carries the same values.
 	rec, err := accounts.NewStore(stores.Vault, nil).Get(context.Background(), link.GetAccountId())
@@ -446,7 +453,10 @@ func TestUpdateAccount_GatesAndNoOps(t *testing.T) {
 	srv := apiserver.NewServer(bus, stores, authenticator, session)
 	srv.SetProber("jellyfin", probe)
 	srv.SetUserDirectory(apiserver.NewUserDirectory(auth.NewMemoryUserStore()))
-	srv.SetDelivery(&stubDelivery{})
+	dev := &stubDelivery{}
+	srv.SetDelivery(dev)
+	lib := &stubLibrary{}
+	srv.SetLibrary(lib)
 
 	ownerCtx := ctxAs(session, "user-1")
 	link, err := srv.LinkAccount(ownerCtx, &apiv1.LinkAccountRequest{
@@ -487,5 +497,20 @@ func TestUpdateAccount_GatesAndNoOps(t *testing.T) {
 	rec, _ := accounts.NewStore(stores.Vault, nil).Get(context.Background(), link.GetAccountId())
 	if rec.Visibility != accounts.VisibilityPrivate || rec.MaxConcurrentStreams != 0 {
 		t.Fatalf("rejected update leaked into the record: %+v", rec)
+	}
+	// A cap-only change touches the record and, on enforce-now, the engine —
+	// never the live reach or the revoke sweep: nobody changed hands.
+	if _, err := srv.UpdateAccount(ownerCtx, &apiv1.UpdateAccountRequest{
+		AccountId:            link.GetAccountId(),
+		MaxConcurrentStreams: proto.Uint32(1),
+	}); err != nil {
+		t.Fatalf("cap-only update: %v", err)
+	}
+	if len(lib.swaps) != 0 || len(dev.revokes) != 0 || len(dev.applies) != 1 {
+		t.Fatalf("cap-only update churned live state: swaps=%v revokes=%v applies=%d", lib.swaps, dev.revokes, len(dev.applies))
+	}
+	rec, _ = accounts.NewStore(stores.Vault, nil).Get(context.Background(), link.GetAccountId())
+	if rec.MaxConcurrentStreams != 1 || rec.Visibility != accounts.VisibilityPrivate {
+		t.Fatalf("cap-only update leaked: %+v", rec)
 	}
 }

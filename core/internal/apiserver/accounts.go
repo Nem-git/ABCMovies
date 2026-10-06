@@ -159,17 +159,33 @@ func (s *Server) UpdateAccount(ctx context.Context, req *apiv1.UpdateAccountRequ
 			return nil, status.Error(codes.Internal, "failed to update the cap policy")
 		}
 	}
-	// Re-read the record so the view — and the revoke keep-set below — work
+	// Re-read the record so the view below, and the revoke keep-set, work
 	// from the canonicalised stored form, not the request's echo.
 	rec, err = s.accounts.Get(ctx, rec.ID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to re-read the account")
 	}
 
-	// Now the live side. Narrower than "everyone" means some members may have
-	// lost access: revoke exactly those sessions on this account. Public
-	// visibility reaches everyone again, so no sweep is needed.
-	if s.delivery != nil && rec.Visibility != accounts.VisibilityPublic {
+	sharingEdited := req.GetSharing() != nil &&
+		(rec.Visibility != old.Visibility || !sameMembers(old.SharedWith, rec.SharedWith))
+
+	// The live reach must match the record before anyone else can use it
+	// through the new audience — that is the API's only derivation and
+	// delivery gate. A failed swap rolls the store's sharing change back so
+	// the record and the reach can never disagree about who may use this.
+	if sharingEdited && s.library != nil {
+		if err := s.library.SetReachSharing(rec.ID, rec.Visibility, rec.SharedWith); err != nil {
+			_ = s.accounts.SetSharing(ctx, rec.ID, old.Visibility, old.SharedWith)
+			return nil, status.Error(codes.Internal, "failed to update account sharing live")
+		}
+	}
+
+	// Now the live revoke. Narrower than "everyone" means some members may
+	// have lost access: end exactly those sessions on this account. Public
+	// visibility reaches everyone again, so no sweep is needed, and a
+	// sharing edit that only widened the roster needed none either — the
+	// sweep is gated on an actual narrowing, not on any sharing edit.
+	if sharingEdited && s.delivery != nil && rec.Visibility != accounts.VisibilityPublic {
 		keep := append([]string{rec.OwnerUserID}, rec.SharedWith...)
 		s.delivery.RevokeOthersOnAccount(rec.Provider, rec.ID, keep)
 	}
@@ -194,6 +210,27 @@ func effectiveCapPolicy(rec accounts.Record, defaultPolicy accounts.CapChangePol
 		return rec.CapChangePolicy
 	}
 	return defaultPolicy
+}
+
+// sameMembers reports whether two canonicalised rosters name the same set
+// of users. Both inputs come from store records, so both are already sorted
+// and deduplicated; a set check against one and a length compare keeps the
+// handler's sharing-changed gate exact.
+func sameMembers(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	counts := make(map[string]int, len(a))
+	for _, m := range a {
+		counts[m]++
+	}
+	for _, m := range b {
+		counts[m]--
+		if counts[m] < 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // accountView builds the API view of one account for its caller. The cap
