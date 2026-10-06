@@ -281,3 +281,62 @@ func TestNewIDPrefixesLinkedNamespace(t *testing.T) {
 		t.Fatal("NewID returned a duplicate")
 	}
 }
+
+// SetSharing keeps the same shape rules Add applies, but as a mutation: a
+// widened roster is stored canonically, a narrowed one replaces it, and
+// leaving SHARED clears the roster. Shared with nobody is refused.
+func TestSetSharingCanonicalisesAndClears(t *testing.T) {
+	st := NewStore(store.NewInMemory(), nil)
+	ctx := context.Background()
+	rec := Record{ID: NewID(), Provider: "jellyfin", BaseURL: "http://jf", Username: "u", OwnerUserID: "user-1"}
+	if err := st.Add(ctx, rec); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if err := st.SetSharing(ctx, rec.ID, VisibilityShared, []string{"user:z", "user:a", "user:a", " "}); err != nil {
+		t.Fatalf("SetSharing shared: %v", err)
+	}
+	got, _ := st.Get(ctx, rec.ID)
+	if got.Visibility != VisibilityShared || len(got.SharedWith) != 2 || got.SharedWith[0] != "user:a" || got.SharedWith[1] != "user:z" {
+		t.Fatalf("sharing = %v %v, want shared [user:a user:z]", got.Visibility, got.SharedWith)
+	}
+	if err := st.SetSharing(ctx, rec.ID, VisibilityShared, nil); err == nil {
+		t.Fatal("shared with no members must be refused")
+	}
+	if err := st.SetSharing(ctx, rec.ID, VisibilityPrivate, nil); err != nil {
+		t.Fatalf("SetSharing private: %v", err)
+	}
+	got, _ = st.Get(ctx, rec.ID)
+	if got.Visibility != VisibilityPrivate || len(got.SharedWith) != 0 {
+		t.Fatalf("sharing = %v %v, want private and roster cleared", got.Visibility, got.SharedWith)
+	}
+	if err := st.SetSharing(ctx, rec.ID, "friends", nil); err == nil {
+		t.Fatal("unknown visibility must be refused")
+	}
+	if err := st.SetSharing(ctx, "lnk_missing", VisibilityPrivate, nil); err == nil {
+		t.Fatal("unknown record must surface as not found")
+	}
+}
+
+// SetMaxConcurrentStreams and SetCapChangePolicy mutate only their own field;
+// the policy value must be one of the known choices.
+func TestSetSettingsLeaveOtherFields(t *testing.T) {
+	st := NewStore(store.NewInMemory(), nil)
+	ctx := context.Background()
+	rec := Record{ID: NewID(), Provider: "jellyfin", BaseURL: "http://jf", Username: "u", OwnerUserID: "user-1", Visibility: VisibilityPublic, MaxConcurrentStreams: 2}
+	if err := st.Add(ctx, rec); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if err := st.SetMaxConcurrentStreams(ctx, rec.ID, 0); err != nil {
+		t.Fatalf("SetMaxConcurrentStreams: %v", err)
+	}
+	if err := st.SetCapChangePolicy(ctx, rec.ID, CapChangePolicyEnforceNow); err != nil {
+		t.Fatalf("SetCapChangePolicy: %v", err)
+	}
+	got, _ := st.Get(ctx, rec.ID)
+	if got.MaxConcurrentStreams != 0 || got.CapChangePolicy != CapChangePolicyEnforceNow || got.Visibility != VisibilityPublic || got.OwnerUserID != "user-1" {
+		t.Fatalf("record = %+v, want cap 0, enforce-now, public, owner intact", got)
+	}
+	if err := st.SetCapChangePolicy(ctx, rec.ID, "explode"); err == nil {
+		t.Fatal("unknown policy must be refused")
+	}
+}

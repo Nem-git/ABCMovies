@@ -47,9 +47,8 @@ const (
 )
 
 // Visibility is who may derive a linked account's items into a library
-// (PLAN.md §5.1). Owner-only is the default; an owner may widen their slot to
-// named users or to everyone at link time. M6 introduces mutable sharing; M5
-// fixes the choice at link time.
+// (PLAN.md §5.1). Owner-only is the default; the owner may widen or narrow
+// it at link time or later (see Store.SetSharing).
 type Visibility string
 
 const (
@@ -63,11 +62,37 @@ const (
 	VisibilityPublic Visibility = "public"
 )
 
+// CapChangePolicy is what a change to this account's concurrent-stream cap
+// does to the sessions already running on it. The empty value inherits the
+// instance default (delivery.on-cap-change).
+type CapChangePolicy string
+
+const (
+	// CapChangePolicyDefault means the account follows the instance's
+	// configured default.
+	CapChangePolicyDefault CapChangePolicy = ""
+	// CapChangePolicyNewSessionsOnly leaves running sessions alone; the new
+	// cap applies from the next session.
+	CapChangePolicyNewSessionsOnly CapChangePolicy = "new-sessions-only"
+	// CapChangePolicyEnforceNow ends the excess sessions immediately,
+	// oldest first.
+	CapChangePolicyEnforceNow CapChangePolicy = "enforce-now"
+)
+
+// ValidPolicy reports whether p is a known cap-change policy.
+func ValidPolicy(p CapChangePolicy) bool {
+	switch p {
+	case CapChangePolicyDefault, CapChangePolicyNewSessionsOnly, CapChangePolicyEnforceNow:
+		return true
+	}
+	return false
+}
+
 // Record is one linked account. It is not secret: the session credential
 // lives separately, sealed in the vault under the account id. OwnerUserID
 // names the host user who linked the account — the only principal allowed to
 // re-link or remove it, and the only principal able to see it when it is
-// private (PLAN.md §7.5, §5.1). Sharing is fixed at link time for M5.
+// private (PLAN.md §7.5, §5.1).
 type Record struct {
 	ID          string `json:"id"`
 	Provider    string `json:"provider"`
@@ -81,10 +106,12 @@ type Record struct {
 	// (canonicalized: sorted, deduplicated). Ignored otherwise.
 	SharedWith []string `json:"shared_with,omitempty"`
 	// MaxConcurrentStreams caps simultaneous delivery streams through this
-	// account (0 = unlimited). The delivery quota gate enforces it; M6 makes
-	// the value editable, M5 pins it at link time.
-	MaxConcurrentStreams uint32    `json:"max_concurrent_streams,omitempty"`
-	CreatedAt            time.Time `json:"created_at"`
+	// account (0 = unlimited). The delivery quota gate enforces it.
+	MaxConcurrentStreams uint32 `json:"max_concurrent_streams,omitempty"`
+	// CapChangePolicy selects what a lowering of MaxConcurrentStreams does to
+	// running sessions; empty inherits the instance default.
+	CapChangePolicy CapChangePolicy `json:"cap_change_policy,omitempty"`
+	CreatedAt       time.Time       `json:"created_at"`
 }
 
 // metaPrefix scopes linked-account records below any other vault state. The
@@ -187,22 +214,79 @@ func (s *Store) Get(ctx context.Context, id string) (Record, error) {
 	return rec, nil
 }
 
-// SetStatus updates a record's lifecycle status, leaving every other field
-// untouched. Unknown ids are an error.
-func (s *Store) SetStatus(ctx context.Context, id string, status Status) error {
+// update re-reads one record, applies the mutation, and persists it. Every
+// field-level setter goes through the same path, so the canonical form Add
+// produced is the only form ever written back.
+func (s *Store) update(ctx context.Context, id string, mutate func(*Record) error) error {
 	rec, err := s.Get(ctx, id)
 	if err != nil {
 		return err
 	}
-	rec.Status = status
+	if err := mutate(&rec); err != nil {
+		return err
+	}
 	blob, err := json.Marshal(rec)
 	if err != nil {
 		return fmt.Errorf("accounts: encode %q: %w", id, err)
 	}
 	if err := s.vault.Put(ctx, s.metaKey(id), blob); err != nil {
-		return fmt.Errorf("accounts: set status %q: %w", id, err)
+		return fmt.Errorf("accounts: update %q: %w", id, err)
 	}
 	return nil
+}
+
+// SetStatus updates a record's lifecycle status, leaving every other field
+// untouched. Unknown ids are an error.
+func (s *Store) SetStatus(ctx context.Context, id string, status Status) error {
+	return s.update(ctx, id, func(rec *Record) error {
+		rec.Status = status
+		return nil
+	})
+}
+
+// SetSharing replaces a record's visibility and member list, applying the
+// same normalisation Add does: a roster is canonical (sorted, deduplicated)
+// and only meaningful for shared visibility — it is cleared otherwise, and a
+// shared account must name at least one member. An empty or unknown
+// visibility is an error.
+func (s *Store) SetSharing(ctx context.Context, id string, visibility Visibility, sharedWith []string) error {
+	return s.update(ctx, id, func(rec *Record) error {
+		switch visibility {
+		case VisibilityPrivate, VisibilityPublic:
+			rec.Visibility = visibility
+			rec.SharedWith = nil
+		case VisibilityShared:
+			if len(sharedWith) == 0 {
+				return fmt.Errorf("accounts: %q: shared visibility requires at least one shared_with user", id)
+			}
+			rec.Visibility = visibility
+			rec.SharedWith = canonUsers(sharedWith)
+		default:
+			return fmt.Errorf("accounts: %q: invalid visibility %q", id, visibility)
+		}
+		return nil
+	})
+}
+
+// SetMaxConcurrentStreams replaces the account's concurrent-stream cap;
+// zero means unlimited.
+func (s *Store) SetMaxConcurrentStreams(ctx context.Context, id string, n uint32) error {
+	return s.update(ctx, id, func(rec *Record) error {
+		rec.MaxConcurrentStreams = n
+		return nil
+	})
+}
+
+// SetCapChangePolicy selects what a lowering of the account's cap does to
+// running sessions; the empty policy inherits the instance default.
+func (s *Store) SetCapChangePolicy(ctx context.Context, id string, p CapChangePolicy) error {
+	if !ValidPolicy(p) {
+		return fmt.Errorf("accounts: %q: invalid cap_change_policy %q", id, p)
+	}
+	return s.update(ctx, id, func(rec *Record) error {
+		rec.CapChangePolicy = p
+		return nil
+	})
 }
 
 // Delete removes a linked account: both its record and its session blob. The

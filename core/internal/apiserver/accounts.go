@@ -42,7 +42,9 @@ func (s *Server) SetProber(provider string, p CredentialProber) {
 // under a freshly minted account id. The record is persisted alongside the
 // session, so the link survives the widget's own session lifetime and is
 // usable by slot provisioning at the next boot without a re-login
-// (vault-first custody model). Sharing is fixed at link time for M5.
+// (vault-first custody model). Sharing starts at link time and can change
+// afterwards through UpdateAccount (§7.1: the owner can revoke a member at
+// any time).
 func (s *Server) LinkAccount(ctx context.Context, req *apiv1.LinkAccountRequest) (*apiv1.LinkAccountResponse, error) {
 	if err := schema.ValidateLinkAccountRequest(req); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -56,6 +58,10 @@ func (s *Server) LinkAccount(ctx context.Context, req *apiv1.LinkAccountRequest)
 	}
 	uid, _ := UserIDFromContext(ctx)
 	baseURL := strings.TrimRight(req.GetBaseUrl(), "/")
+	vis := apiVisibility(req.GetVisibility())
+	if err := s.validateSharing(ctx, vis, req.GetSharedWith()); err != nil {
+		return nil, err
+	}
 	blob, err := prober.Probe(ctx, baseURL, req.GetPassword().GetUsername(), req.GetPassword().GetPassword())
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "provider rejected the credentials")
@@ -71,7 +77,7 @@ func (s *Server) LinkAccount(ctx context.Context, req *apiv1.LinkAccountRequest)
 		Username:             req.GetPassword().GetUsername(),
 		OwnerUserID:          uid,
 		Status:               accounts.StatusLinked,
-		Visibility:           apiVisibility(req.GetVisibility()),
+		Visibility:           vis,
 		SharedWith:           req.GetSharedWith(),
 		MaxConcurrentStreams: req.GetMaxConcurrentStreams(),
 		CreatedAt:            time.Now().UTC(),

@@ -287,3 +287,42 @@ func TestUserDirectoryAcceptsOnlyRealUserIDs(t *testing.T) {
 		t.Fatal("directory over a nil store should be nil")
 	}
 }
+
+// A roster naming someone who does not exist is refused at link time, by
+// name, and the provider is never probed — sharing cannot be granted to a
+// ghost.
+func TestLinkAccount_SharedRosterNamesRealUsers(t *testing.T) {
+	bus := apiserver.NewInMemoryBus()
+	defer bus.Close()
+	authenticator, session := testAuth(t)
+	stores := testStores(t)
+	probe := &stubProber{accept: true, blob: []byte(`{"AccessToken":"t"}`)}
+	srv := apiserver.NewServer(bus, stores, authenticator, session)
+	srv.SetProber("jellyfin", probe)
+
+	users := auth.NewMemoryUserStore()
+	if err := users.PutUser("alice", &auth.UserData{Salt: []byte{1}}); err != nil {
+		t.Fatalf("PutUser: %v", err)
+	}
+	srv.SetUserDirectory(apiserver.NewUserDirectory(users))
+
+	ctx := ctxAs(session, "user-1")
+	pw := &apiv1.LinkAccountRequest_Password{Password: &apiv1.AccountPassword{Username: "bob", Password: []byte("sekret")}}
+	if _, err := srv.LinkAccount(ctx, &apiv1.LinkAccountRequest{
+		Provider: "jellyfin", BaseUrl: "https://jf.example/", AuthMethod: pw,
+		Visibility: apiv1.AccountVisibility_ACCOUNT_VISIBILITY_SHARED,
+		SharedWith: []string{"user:does-not-exist"},
+	}); status.Code(err) != codes.InvalidArgument || !strings.Contains(err.Error(), "user:does-not-exist") {
+		t.Fatalf("unknown member: err = %v, want InvalidArgument naming the user", err)
+	}
+	if probe.calls != 0 {
+		t.Fatalf("probe ran %d times for a rejected roster", probe.calls)
+	}
+	if _, err := srv.LinkAccount(ctx, &apiv1.LinkAccountRequest{
+		Provider: "jellyfin", BaseUrl: "https://jf.example/", AuthMethod: pw,
+		Visibility: apiv1.AccountVisibility_ACCOUNT_VISIBILITY_SHARED,
+		SharedWith: []string{"user:alice"},
+	}); err != nil {
+		t.Fatalf("real member should link: %v", err)
+	}
+}
