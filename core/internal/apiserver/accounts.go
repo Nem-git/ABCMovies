@@ -100,6 +100,124 @@ func (s *Server) LinkAccount(ctx context.Context, req *apiv1.LinkAccountRequest)
 	return &apiv1.LinkAccountResponse{AccountId: id}, nil
 }
 
+// UpdateAccount changes a linked account's owner-owned settings after the
+// fact (PLAN.md §7.1, §7.2): who may use it, the owner's concurrent-stream
+// cap, and what lowering that cap does to running sessions. Only the owner
+// may call it; operator-declared accounts are read-only through the API.
+// The store is updated first — it is the record of truth — then the live
+// side is brought into line: narrower sharing ends the de-authorized
+// members' sessions on this account, and a lowered cap is enforced through
+// the same allowance computation admission uses. A store failure changes
+// nothing; the live effects are idempotent and re-run on the next edit.
+func (s *Server) UpdateAccount(ctx context.Context, req *apiv1.UpdateAccountRequest) (*apiv1.UpdateAccountResponse, error) {
+	if err := schema.ValidateUpdateAccountRequest(req); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	uid, _ := UserIDFromContext(ctx)
+	rec, err := s.accounts.Get(ctx, req.GetAccountId())
+	if err != nil {
+		if !errors.Is(err, accounts.ErrNotFound) {
+			return nil, status.Error(codes.Internal, "failed to read the account")
+		}
+		if s.reachableFor(uid, req.GetAccountId()) {
+			return nil, status.Error(codes.PermissionDenied, "operator-declared accounts cannot be updated through the API")
+		}
+		return nil, status.Error(codes.NotFound, "account not found")
+	}
+	if rec.OwnerUserID != uid {
+		return nil, status.Error(codes.PermissionDenied, "only the account owner may update a linked account")
+	}
+
+	// Validate everything before anything changes: a rejected request must
+	// leave the account as it was, never half-applied.
+	if sh := req.GetSharing(); sh != nil {
+		if err := s.validateSharing(ctx, apiVisibility(sh.GetVisibility()), sh.GetSharedWith()); err != nil {
+			return nil, err
+		}
+	}
+	if err := validateCapChangePolicyValue(req.GetCapChangePolicy()); err != nil {
+		return nil, err
+	}
+
+	old := rec
+	if sh := req.GetSharing(); sh != nil {
+		if err := s.accounts.SetSharing(ctx, rec.ID, apiVisibility(sh.GetVisibility()), sh.GetSharedWith()); err != nil {
+			return nil, status.Error(codes.Internal, "failed to update sharing")
+		}
+	}
+	if req.MaxConcurrentStreams != nil {
+		if err := s.accounts.SetMaxConcurrentStreams(ctx, rec.ID, req.GetMaxConcurrentStreams()); err != nil {
+			// Never half-apply: put the earlier field back.
+			_ = s.accounts.SetSharing(ctx, rec.ID, old.Visibility, old.SharedWith)
+			return nil, status.Error(codes.Internal, "failed to update the stream cap")
+		}
+	}
+	if req.GetCapChangePolicy() != apiv1.CapChangePolicy_CAP_CHANGE_POLICY_UNSPECIFIED {
+		if err := s.accounts.SetCapChangePolicy(ctx, rec.ID, apiCapChangePolicy(req.GetCapChangePolicy())); err != nil {
+			_ = s.accounts.SetSharing(ctx, rec.ID, old.Visibility, old.SharedWith)
+			_ = s.accounts.SetMaxConcurrentStreams(ctx, rec.ID, old.MaxConcurrentStreams)
+			return nil, status.Error(codes.Internal, "failed to update the cap policy")
+		}
+	}
+	// Re-read the record so the view — and the revoke keep-set below — work
+	// from the canonicalised stored form, not the request's echo.
+	rec, err = s.accounts.Get(ctx, rec.ID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to re-read the account")
+	}
+
+	// Now the live side. Narrower than "everyone" means some members may have
+	// lost access: revoke exactly those sessions on this account. Public
+	// visibility reaches everyone again, so no sweep is needed.
+	if s.delivery != nil && rec.Visibility != accounts.VisibilityPublic {
+		keep := append([]string{rec.OwnerUserID}, rec.SharedWith...)
+		s.delivery.RevokeOthersOnAccount(rec.Provider, rec.ID, keep)
+	}
+	if s.delivery != nil && req.MaxConcurrentStreams != nil {
+		enforceNow := rec.CapChangePolicy == accounts.CapChangePolicyEnforceNow
+		if rec.CapChangePolicy == accounts.CapChangePolicyDefault {
+			enforceNow = s.capChangeDefault == accounts.CapChangePolicyEnforceNow
+		}
+		// The stored cap governs the next session regardless; the sweep over
+		// the live set is idempotent and re-runs on the next edit.
+		_, _ = s.delivery.ApplyAccountCap(ctx, rec.Provider, rec.ID, enforceNow)
+	}
+
+	return &apiv1.UpdateAccountResponse{Account: accountView(rec, uid, s.capChangeDefault)}, nil
+}
+
+// effectiveCapPolicy resolves an account's own choice with the instance
+// default the composition root armed. An account that carries no choice
+// follows the instance default; anything else is the account's own.
+func effectiveCapPolicy(rec accounts.Record, defaultPolicy accounts.CapChangePolicy) accounts.CapChangePolicy {
+	if rec.CapChangePolicy != accounts.CapChangePolicyDefault {
+		return rec.CapChangePolicy
+	}
+	return defaultPolicy
+}
+
+// accountView builds the API view of one account for its caller. The cap
+// and policy fields are owner-only: a member learns that the account is
+// shared, not the owner's usage budget.
+func accountView(rec accounts.Record, uid string, defaultPolicy accounts.CapChangePolicy) *apiv1.Account {
+	a := &apiv1.Account{
+		AccountId:    rec.ID,
+		Provider:     rec.Provider,
+		BaseUrl:      rec.BaseURL,
+		CallerLinked: rec.OwnerUserID == uid,
+		Status:       apiStatus(rec.Status),
+		Visibility:   apiVisibilityAPI(rec.Visibility),
+		SharedWith:   rosterFor(rec, uid),
+		OwnerUserId:  rec.OwnerUserID,
+	}
+	if rec.OwnerUserID == uid {
+		a.MaxConcurrentStreams = rec.MaxConcurrentStreams
+		a.CapChangePolicy = accountCapChangePolicy(rec.CapChangePolicy)
+		a.EffectiveCapChangePolicy = accountCapChangePolicy(effectiveCapPolicy(rec, defaultPolicy))
+	}
+	return a
+}
+
 // ListAccounts returns every account the caller can deliver from (PLAN.md
 // §7.5). The view is the union of the caller's linked accounts and the
 // accounts reachable by them: an operator-declared account the caller cannot
@@ -121,16 +239,7 @@ func (s *Server) ListAccounts(ctx context.Context, req *apiv1.ListAccountsReques
 		if rec.OwnerUserID != uid && !s.reachableFor(uid, rec.ID) {
 			continue
 		}
-		add(&apiv1.Account{
-			AccountId:    rec.ID,
-			Provider:     rec.Provider,
-			BaseUrl:      rec.BaseURL,
-			CallerLinked: rec.OwnerUserID == uid,
-			Status:       apiStatus(rec.Status),
-			Visibility:   apiVisibilityAPI(rec.Visibility),
-			SharedWith:   rosterFor(rec, uid),
-			OwnerUserId:  rec.OwnerUserID,
-		})
+		add(accountView(rec, uid, s.capChangeDefault))
 	}
 	for _, r := range s.reachesFor(uid) {
 		if seen := containsAccount(out, r.AccountID); seen {

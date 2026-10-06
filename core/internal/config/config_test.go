@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/auth"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/store"
@@ -521,5 +522,28 @@ func TestValidateSlots_Rejections(t *testing.T) {
 				t.Fatalf("want error containing %q, got %v", tt.wantErr, err)
 			}
 		})
+	}
+}
+
+// The instance cap-change default parses loudly: the named modes resolve, an
+// empty value is the shipped default (new sessions only — running playback
+// is never interrupted out of the box), and anything else is a startup
+// failure rather than a silent fallback.
+func TestParseCapChangeDefault(t *testing.T) {
+	for raw, want := range map[string]accounts.CapChangePolicy{
+		"":                  accounts.CapChangePolicyNewSessionsOnly,
+		"new-sessions-only": accounts.CapChangePolicyNewSessionsOnly,
+		"enforce-now":       accounts.CapChangePolicyEnforceNow,
+	} {
+		got, err := config.ParseCapChangeDefault(raw)
+		if err != nil {
+			t.Fatalf("config.ParseCapChangeDefault(%q): %v", raw, err)
+		}
+		if got != want {
+			t.Errorf("config.ParseCapChangeDefault(%q) = %q, want %q", raw, got, want)
+		}
+	}
+	if _, err := config.ParseCapChangeDefault("explode"); err == nil {
+		t.Fatal("unknown value should fail")
 	}
 }

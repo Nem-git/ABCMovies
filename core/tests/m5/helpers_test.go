@@ -471,6 +471,14 @@ func (m m5Delivery) RevokeAllOnAccount(accountID string) int {
 	return m.eng.RevokeAllOnAccount(accountID)
 }
 
+func (m m5Delivery) RevokeOthersOnAccount(provider, accountID string, keepMembers []string) int {
+	return m.eng.RevokeOthersOnAccount(provider, accountID, keepMembers)
+}
+
+func (m m5Delivery) ApplyAccountCap(ctx context.Context, provider, accountID string, enforceNow bool) (int, error) {
+	return m.eng.ApplyAccountCap(ctx, provider, accountID, enforceNow)
+}
+
 func (m m5Delivery) PlayMenu(sessionID string) (*apiserver.PlayMenu, error) {
 	sess, ok := m.eng.Get(sessionID)
 	if !ok {

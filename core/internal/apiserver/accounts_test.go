@@ -9,6 +9,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
@@ -324,5 +325,167 @@ func TestLinkAccount_SharedRosterNamesRealUsers(t *testing.T) {
 		SharedWith: []string{"user:alice"},
 	}); err != nil {
 		t.Fatalf("real member should link: %v", err)
+	}
+}
+
+// The owner can update a linked account's settings live: the record
+// carries the new values, the response view shows them, and the delivery
+// engine is told to end sessions who lost access (narrower than public)
+// and to enforce a lowered cap the same way admission would. Nothing about
+// the sharing change leaks to members of the account — the member path
+// through ListAccounts shows no cap or policy fields.
+func TestUpdateAccount_OwnerChangesSharingAndCap(t *testing.T) {
+	bus := apiserver.NewInMemoryBus()
+	defer bus.Close()
+	authenticator, session := testAuth(t)
+	stores := testStores(t)
+	probe := &stubProber{accept: true, blob: []byte(`{"AccessToken":"t"}`)}
+	srv := apiserver.NewServer(bus, stores, authenticator, session)
+	srv.SetProber("jellyfin", probe)
+	users := auth.NewMemoryUserStore()
+	for _, u := range []string{"alice", "carol"} {
+		if err := users.PutUser(u, &auth.UserData{Salt: []byte{1}}); err != nil {
+			t.Fatalf("PutUser: %v", err)
+		}
+	}
+	srv.SetUserDirectory(apiserver.NewUserDirectory(users))
+	dev := &stubDelivery{}
+	srv.SetDelivery(dev)
+
+	ownerCtx := ctxAs(session, "user-1")
+	link, err := srv.LinkAccount(ownerCtx, &apiv1.LinkAccountRequest{
+		Provider: "jellyfin", BaseUrl: "https://jf.example/",
+		AuthMethod: &apiv1.LinkAccountRequest_Password{Password: &apiv1.AccountPassword{Username: "bob", Password: []byte("x")}},
+		Visibility: apiv1.AccountVisibility_ACCOUNT_VISIBILITY_PUBLIC,
+	})
+	if err != nil {
+		t.Fatalf("LinkAccount: %v", err)
+	}
+
+	res, err := srv.UpdateAccount(ownerCtx, &apiv1.UpdateAccountRequest{
+		AccountId: link.GetAccountId(),
+		Sharing: &apiv1.AccountSharing{
+			Visibility: apiv1.AccountVisibility_ACCOUNT_VISIBILITY_SHARED,
+			SharedWith: []string{"user:alice"},
+		},
+		MaxConcurrentStreams: proto.Uint32(2),
+		CapChangePolicy:      apiv1.CapChangePolicy_CAP_CHANGE_POLICY_ENFORCE_NOW,
+	})
+	if err != nil {
+		t.Fatalf("UpdateAccount: %v", err)
+	}
+	got := res.GetAccount()
+	if got.GetVisibility() != apiv1.AccountVisibility_ACCOUNT_VISIBILITY_SHARED || len(got.GetSharedWith()) != 1 || got.GetSharedWith()[0] != "user:alice" {
+		t.Fatalf("sharing = %v %v, want shared [user:alice]", got.GetVisibility(), got.GetSharedWith())
+	}
+	if got.GetMaxConcurrentStreams() != 2 || got.GetCapChangePolicy() != apiv1.CapChangePolicy_CAP_CHANGE_POLICY_ENFORCE_NOW || got.GetEffectiveCapChangePolicy() != apiv1.CapChangePolicy_CAP_CHANGE_POLICY_ENFORCE_NOW {
+		t.Fatalf("cap/policy = %d/%v/%v, want 2/enforce-now/enforce-now", got.GetMaxConcurrentStreams(), got.GetCapChangePolicy(), got.GetEffectiveCapChangePolicy())
+	}
+	// The live effects: exactly one revoke sweep keeping the owner and the
+	// newly named member, and one cap-enforcement call in enforce-now mode.
+	if len(dev.revokes) != 1 || dev.revokes[0].accountID != link.GetAccountId() || len(dev.revokes[0].keep) != 2 || dev.revokes[0].keep[0] != "user-1" || dev.revokes[0].keep[1] != "user:alice" {
+		t.Fatalf("revokes = %+v, want one with keep=[user-1 user:alice]", dev.revokes)
+	}
+	if len(dev.applies) != 1 || !dev.applies[0].enforceNow {
+		t.Fatalf("applies = %+v, want one enforceNow", dev.applies)
+	}
+	// The store carries the same values.
+	rec, err := accounts.NewStore(stores.Vault, nil).Get(context.Background(), link.GetAccountId())
+	if err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	if rec.Visibility != accounts.VisibilityShared || len(rec.SharedWith) != 1 || rec.MaxConcurrentStreams != 2 || rec.CapChangePolicy != accounts.CapChangePolicyEnforceNow {
+		t.Fatalf("record = %+v", rec)
+	}
+
+	// The member-visible view hides the owner's cap and policy fields — the
+	// roster tells a member the account is shared, never the owner's budget.
+	// The reach itself still carries the link-time sharing until the live
+	// swap lands with the library change; arming the stub view as the member
+	// sees it pins what the API leaks across that boundary now.
+	srv.SetLibrary(&stubLibrary{
+		reachable: map[string][]string{link.GetAccountId(): {"user-1", "user:alice"}},
+		reaches: []library.Reach{{
+			AccountID:  link.GetAccountId(),
+			Owner:      "user-1",
+			Visibility: accounts.VisibilityShared,
+			Members:    []string{"user:alice"},
+		}},
+	})
+	aliCtx := ctxAs(session, "user:alice")
+	list, err := srv.ListAccounts(aliCtx, &apiv1.ListAccountsRequest{})
+	if err != nil {
+		t.Fatalf("ListAccounts: %v", err)
+	}
+	var member *apiv1.Account
+	for _, a := range list.GetAccounts() {
+		if a.GetAccountId() == link.GetAccountId() {
+			member = a
+		}
+	}
+	if member == nil {
+		t.Fatal("member does not see the shared account")
+	}
+	if member.GetVisibility() != apiv1.AccountVisibility_ACCOUNT_VISIBILITY_SHARED || len(member.GetSharedWith()) != 0 ||
+		member.GetMaxConcurrentStreams() != 0 || member.GetCapChangePolicy() != apiv1.CapChangePolicy_CAP_CHANGE_POLICY_UNSPECIFIED ||
+		member.GetEffectiveCapChangePolicy() != apiv1.CapChangePolicy_CAP_CHANGE_POLICY_UNSPECIFIED {
+		t.Fatalf("member view = %+v, want shared, no roster, no owner settings", member)
+	}
+}
+
+// The update gate is strict: only the owner, and only caller-linked
+// accounts. An unknown member is rejected and changes nothing, and a
+// request that changes nothing at all is rejected rather than treated as
+// a no-op success.
+func TestUpdateAccount_GatesAndNoOps(t *testing.T) {
+	bus := apiserver.NewInMemoryBus()
+	defer bus.Close()
+	authenticator, session := testAuth(t)
+	stores := testStores(t)
+	probe := &stubProber{accept: true, blob: []byte(`{"AccessToken":"t"}`)}
+	srv := apiserver.NewServer(bus, stores, authenticator, session)
+	srv.SetProber("jellyfin", probe)
+	srv.SetUserDirectory(apiserver.NewUserDirectory(auth.NewMemoryUserStore()))
+	srv.SetDelivery(&stubDelivery{})
+
+	ownerCtx := ctxAs(session, "user-1")
+	link, err := srv.LinkAccount(ownerCtx, &apiv1.LinkAccountRequest{
+		Provider: "jellyfin", BaseUrl: "https://jf.example/",
+		AuthMethod: &apiv1.LinkAccountRequest_Password{Password: &apiv1.AccountPassword{Username: "bob", Password: []byte("x")}},
+	})
+	if err != nil {
+		t.Fatalf("LinkAccount: %v", err)
+	}
+	// Not the owner.
+	if _, err := srv.UpdateAccount(ctxAs(session, "user-2"), &apiv1.UpdateAccountRequest{
+		AccountId:            link.GetAccountId(),
+		MaxConcurrentStreams: proto.Uint32(1),
+	}); status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("non-owner: err=%v, want PermissionDenied", err)
+	}
+	// Unknown id.
+	if _, err := srv.UpdateAccount(ownerCtx, &apiv1.UpdateAccountRequest{
+		AccountId:            "lnk_missing",
+		MaxConcurrentStreams: proto.Uint32(1),
+	}); status.Code(err) != codes.NotFound {
+		t.Fatalf("unknown: err=%v, want NotFound", err)
+	}
+	// Nothing to change.
+	if _, err := srv.UpdateAccount(ownerCtx, &apiv1.UpdateAccountRequest{AccountId: link.GetAccountId()}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("no-op: err=%v, want InvalidArgument", err)
+	}
+	// An unknown member name in the roster is refused, and the record is untouched.
+	if _, err := srv.UpdateAccount(ownerCtx, &apiv1.UpdateAccountRequest{
+		AccountId: link.GetAccountId(),
+		Sharing: &apiv1.AccountSharing{
+			Visibility: apiv1.AccountVisibility_ACCOUNT_VISIBILITY_SHARED,
+			SharedWith: []string{"user:nobody"},
+		},
+	}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("unknown member: err=%v, want InvalidArgument", err)
+	}
+	rec, _ := accounts.NewStore(stores.Vault, nil).Get(context.Background(), link.GetAccountId())
+	if rec.Visibility != accounts.VisibilityPrivate || rec.MaxConcurrentStreams != 0 {
+		t.Fatalf("rejected update leaked into the record: %+v", rec)
 	}
 }

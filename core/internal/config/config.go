@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"go.yaml.in/yaml/v4"
 
+	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/auth"
 	"github.com/nem-git/abcmovies/core/internal/policy"
 	"github.com/nem-git/abcmovies/core/internal/store"
@@ -125,6 +127,21 @@ type Config struct {
 	// Enrichment tunes the background metadata pipeline. Absent keys fall
 	// back to the defaults the enrichment package declares.
 	Enrichment EnrichmentConfig `yaml:"enrichment"`
+	// Delivery tunes session admission and the cap-change behaviour
+	// (TECHNICAL-DECISIONS.md). Absent keys fall back to the shipped
+	// defaults.
+	Delivery DeliveryConfig `yaml:"delivery"`
+}
+
+// DeliveryConfig carries the delivery engine's operator knobs.
+type DeliveryConfig struct {
+	// OnCapChange selects what lowering an account's concurrent-stream cap
+	// does to the sessions already running on it: "new-sessions-only"
+	// (default) lets running streams finish and applies the new cap from
+	// the next session; "enforce-now" ends the excess sessions immediately,
+	// oldest first. An account may override this with its own
+	// cap_change_policy.
+	OnCapChange string `yaml:"on-cap-change"`
 }
 
 // EnrichmentConfig carries the enrichment pipeline's operator knobs.
@@ -457,6 +474,21 @@ func auditDurability(cfg *Config, logger *slog.Logger) {
 	}
 	if cfg.Stores.Jobs.Backend == "in-memory" {
 		logger.Warn("stores: jobs are in-memory — a restart restarts in-flight work instead of continuing it")
+	}
+}
+
+// ParseCapChangeDefault resolves the operator's delivery.on-cap-change
+// setting into the accounts vocabulary. An empty value resolves to the
+// shipped default, "new-sessions-only": a lowered cap never kills a running
+// session. Unknown values are a startup failure, never a silent fallback.
+func ParseCapChangeDefault(raw string) (accounts.CapChangePolicy, error) {
+	switch strings.TrimSpace(raw) {
+	case "", "new-sessions-only":
+		return accounts.CapChangePolicyNewSessionsOnly, nil
+	case "enforce-now":
+		return accounts.CapChangePolicyEnforceNow, nil
+	default:
+		return accounts.CapChangePolicyDefault, fmt.Errorf("delivery: unknown on-cap-change %q (want \"new-sessions-only\" or \"enforce-now\")", raw)
 	}
 }
 

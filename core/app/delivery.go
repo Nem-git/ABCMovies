@@ -56,6 +56,14 @@ func (m managedDelivery) RevokeAllOnAccount(accountID string) int {
 	return m.eng.RevokeAllOnAccount(accountID)
 }
 
+func (m managedDelivery) RevokeOthersOnAccount(provider, accountID string, keepMembers []string) int {
+	return m.eng.RevokeOthersOnAccount(provider, accountID, keepMembers)
+}
+
+func (m managedDelivery) ApplyAccountCap(ctx context.Context, provider, accountID string, enforceNow bool) (int, error) {
+	return m.eng.ApplyAccountCap(ctx, provider, accountID, enforceNow)
+}
+
 // PlayMenu recovers a session's staged play menu, attaching each
 // location-bearing track's relay token (PLAN.md §6.2). A download session,
 // an unknown session, or a play session that never staged a menu (no sink,

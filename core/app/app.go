@@ -103,6 +103,15 @@ func Build(configPath string, logger *slog.Logger) (*Stack, error) {
 	// for someone who does not exist is refused, not silently granted to
 	// nobody.
 	srv.SetUserDirectory(apiserver.NewUserDirectory(users))
+	// The instance-wide default for what lowering a cap does to running
+	// sessions; an account with no choice of its own inherits it.
+	capDefault, err := config.ParseCapChangeDefault(cfg.Delivery.OnCapChange)
+	if err != nil {
+		r.Close()
+		_ = closeStores(stores)
+		return nil, err
+	}
+	srv.SetCapChangeDefault(capDefault)
 
 	return &Stack{
 		service:         srv,

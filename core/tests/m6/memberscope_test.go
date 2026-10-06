@@ -146,3 +146,8 @@ func TestM6WithUserIDIdentityPropagates(t *testing.T) {
 		t.Fatalf("uid = (%q, %v), want (alice, true)", uid, ok)
 	}
 }
+
+func (s *stubDelivery) RevokeOthersOnAccount(string, string, []string) int { return 0 }
+func (s *stubDelivery) ApplyAccountCap(context.Context, string, string, bool) (int, error) {
+	return 0, nil
+}

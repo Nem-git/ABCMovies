@@ -51,6 +51,14 @@ type DeliveryManager interface {
 	// (all members): removal of the record is a full revocation
 	// (PLAN.md §7.5).
 	RevokeAllOnAccount(accountID string) int
+	// RevokeOthersOnAccount ends every session on the account whose member
+	// is not in keepMembers: narrowing sharing revokes exactly the members
+	// who lost access (§7.1).
+	RevokeOthersOnAccount(provider, accountID string, keepMembers []string) int
+	// ApplyAccountCap re-evaluates the account's effective stream allowance
+	// and, on enforce-now, ends the excess sessions; it never touches a
+	// session when the policy is new-sessions-only.
+	ApplyAccountCap(ctx context.Context, provider, accountID string, enforceNow bool) (int, error)
 }
 
 // Server implements the CoreService (PLAN.md §8).
@@ -75,6 +83,23 @@ type Server struct {
 	attacher      AccountAttacher
 	dropper       AccountDropper
 	userDirectory UserDirectory
+	// capChangeDefault is the instance-wide cap-change behaviour accounts
+	// inherit when they carry no choice of their own; armed by the
+	// composition root from the delivery config, defaulting to
+	// new-sessions-only.
+	capChangeDefault accounts.CapChangePolicy
+}
+
+// SetCapChangeDefault arms the instance-wide default for what lowering an
+// account's concurrent-stream cap does to running sessions (PLAN.md §7.2).
+// An empty value is deliberately accepted and means "new-sessions-only":
+// the shipped default never kills a running session.
+func (s *Server) SetCapChangeDefault(p accounts.CapChangePolicy) {
+	if p == accounts.CapChangePolicyDefault {
+		s.capChangeDefault = accounts.CapChangePolicyNewSessionsOnly
+		return
+	}
+	s.capChangeDefault = p
 }
 
 // NewServer returns a CoreService backed by the given bus, stores, and auth.
@@ -97,6 +122,9 @@ func NewServer(bus Bus, stores config.Stores, authenticator *auth.CompositeAuthe
 		// account would be (PLAN.md §3.5).
 		accounts: accounts.NewStore(stores.Vault, nil),
 		probers:  map[string]CredentialProber{},
+		// The shipped default never kills a running session: a cap change
+		// applies from the next session (TECHNICAL-DECISIONS.md).
+		capChangeDefault: accounts.CapChangePolicyNewSessionsOnly,
 	}
 }
 

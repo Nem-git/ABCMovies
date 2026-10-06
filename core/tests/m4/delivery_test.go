@@ -120,6 +120,14 @@ func (m engineManager) RevokeAllOnAccount(accountID string) int {
 	return m.eng.RevokeAllOnAccount(accountID)
 }
 
+func (m engineManager) RevokeOthersOnAccount(provider, accountID string, keepMembers []string) int {
+	return m.eng.RevokeOthersOnAccount(provider, accountID, keepMembers)
+}
+
+func (m engineManager) ApplyAccountCap(ctx context.Context, provider, accountID string, enforceNow bool) (int, error) {
+	return m.eng.ApplyAccountCap(ctx, provider, accountID, enforceNow)
+}
+
 // buildServer wires the delivery engine over the given resolver and sink
 // factory and returns an armed CoreService together with the engine its
 // harness drives.

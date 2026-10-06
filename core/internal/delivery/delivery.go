@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sort"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -491,6 +492,100 @@ func (e *Engine) RevokeAllOnAccount(accountID string) int {
 	}
 	e.mu.Unlock()
 	return killed
+}
+
+// RevokeOthersOnAccount ends every session on (provider, accountID) whose
+// member is not in keepMembers. Changing an account's sharing to something
+// narrower uses this: whoever no longer holds the account loses their live
+// sessions on it, and only they do — the owner and the newly shared-with
+// members keep theirs.
+func (e *Engine) RevokeOthersOnAccount(provider, accountID string, keepMembers []string) int {
+	keep := make(map[string]bool, len(keepMembers))
+	for _, m := range keepMembers {
+		keep[m] = true
+	}
+	e.mu.Lock()
+	var killed int
+	for id, s := range e.sessions {
+		if s.Context.GetProvider() != provider || s.Context.GetAccountId() != accountID || !s.isActive() {
+			continue
+		}
+		if keep[s.Context.GetMemberUserId()] {
+			continue
+		}
+		s.Status = StatusRevoked
+		s.Error = "account sharing narrowed"
+		if s.Sink != nil {
+			s.Sink.Abort(context.Background(), s)
+		}
+		e.recordJob(s.toJob())
+		delete(e.byAccount[accountKey{provider, accountID, s.Context.GetMemberUserId()}], id)
+		killed++
+	}
+	e.mu.Unlock()
+	return killed
+}
+
+// ApplyAccountCap re-evaluates one account's effective concurrent-stream
+// allowance (the lesser of its policy and the provider's declared cap, the
+// same computation admission uses) and, when enforceNow is set, ends the
+// excess sessions on that account, oldest first. The zero allowance — an
+// account whose recorded or provider cap was just lowered to zero — ends all
+// of them. New-sessions-only behaviour never ends anything here.
+func (e *Engine) ApplyAccountCap(ctx context.Context, provider, accountID string, enforceNow bool) (int, error) {
+	override, capSet, err := e.resolveConstraints(ctx, StartRequest{Provider: provider, AccountID: accountID})
+	if err != nil {
+		return 0, err
+	}
+	effectivePolicy := e.instancePolicy.With(override)
+	accountLimit := policy.EffectiveAccountLimit(effectivePolicy, capSet)
+
+	type liveSession struct {
+		sess *Session
+		id   string
+	}
+	var active []liveSession
+	e.mu.Lock()
+	for id, s := range e.sessions {
+		if !s.isActive() || s.Context.GetProvider() != provider || s.Context.GetAccountId() != accountID {
+			continue
+		}
+		active = append(active, liveSession{sess: s, id: id})
+	}
+	e.mu.Unlock()
+	if !enforceNow || len(active) <= accountLimit {
+		return 0, nil
+	}
+	// Deterministic eviction: the session that started first loses first; ties
+	// break on session id so the same state yields the same cut.
+	sort.Slice(active, func(i, j int) bool {
+		a, b := active[i].sess, active[j].sess
+		if a.createdAt.Equal(b.createdAt) {
+			return active[i].id < active[j].id
+		}
+		return a.createdAt.Before(b.createdAt)
+	})
+
+	kill := len(active) - accountLimit
+	var killed int
+	for _, ls := range active[:kill] {
+		e.mu.Lock()
+		s, ok := e.sessions[ls.id]
+		if !ok || !s.isActive() {
+			e.mu.Unlock()
+			continue
+		}
+		s.Status = StatusRevoked
+		s.Error = "stream limit lowered by the account owner"
+		if s.Sink != nil {
+			s.Sink.Abort(context.Background(), s)
+		}
+		e.recordJob(s.toJob())
+		delete(e.byAccount[accountKey{provider, accountID, s.Context.GetMemberUserId()}], ls.id)
+		killed++
+		e.mu.Unlock()
+	}
+	return killed, nil
 }
 
 // Complete marks a session done and finalizes its sink.

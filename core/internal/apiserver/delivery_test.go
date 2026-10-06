@@ -24,6 +24,14 @@ type stubDelivery struct {
 	heartErr   error
 	playmenu   *apiserver.PlayMenu
 	menuErr    error
+	revokes    []struct {
+		provider, accountID string
+		keep                []string
+	}
+	applies []struct {
+		provider, accountID string
+		enforceNow          bool
+	}
 }
 
 func (s *stubDelivery) Start(ctx context.Context, req delivery.StartRequest) (*delivery.Session, error) {
@@ -40,6 +48,22 @@ func (s *stubDelivery) PlayMenu(sessionID string) (*apiserver.PlayMenu, error) {
 }
 
 func (s *stubDelivery) RevokeAllOnAccount(accountID string) int { return 0 }
+
+func (s *stubDelivery) RevokeOthersOnAccount(provider, accountID string, keepMembers []string) int {
+	s.revokes = append(s.revokes, struct {
+		provider, accountID string
+		keep                []string
+	}{provider, accountID, keepMembers})
+	return 0
+}
+
+func (s *stubDelivery) ApplyAccountCap(ctx context.Context, provider, accountID string, enforceNow bool) (int, error) {
+	s.applies = append(s.applies, struct {
+		provider, accountID string
+		enforceNow          bool
+	}{provider, accountID, enforceNow})
+	return 0, nil
+}
 
 func runningSession() *delivery.Session {
 	return &delivery.Session{
