@@ -89,7 +89,7 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 - **Decision:** GitHub Actions. The worked example that CI-CD.md §7 used to carry is recorded here so CI-CD.md stays vendor-neutral; the pipeline stages and gates are vendor-neutral and the platform is interchangeable.
 - **Stage mapping:**
   - **lint, typecheck/build** — a job per stage on a fresh runner from the pinned toolchain (the same Containerfile as ENVIRONMENT.md §3). The lint job also runs the secret-leak scan (`make secret-scan`) — the "CI secret-leak gate" THREAT-MODEL.md T12 and CI-CD.md §4 promise.
-  - **schema checks** — a dedicated job running the schema lint; breaking-change detection is disabled until the first release (§1.24).
+  - **schema checks** — a dedicated job running the schema lint; breaking-change detection is enabled as of the v1 release (§1.24).
   - **unit + round-trip** — a job running the fast hermetic suites.
   - **fixtures** — the load-bearing job: runs the fixture suites for every built-in adapter; a required check on every PR.
   - **integration** — the cross-layer job, including the vault/secrets suite (never skippable).
@@ -109,7 +109,7 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 
 ### 1.10 Contract schema format — **Protobuf, compiled by buf**
 
-- **Decision:** the contracts (§2.1 of PLAN.md) are encoded as Protobuf schemas; the `.proto` definitions are the single source of truth. Codegen and schema checks run through the **buf** toolchain: `buf generate` (invoking the pinned per-language plugins below), `buf lint`, `buf breaking` (against the last approved state — satisfies the schema gate in CI-CD.md §3 when enabled; disabled until first release, §1.24), and `buf format`.
+- **Decision:** the contracts (§2.1 of PLAN.md) are encoded as Protobuf schemas; the `.proto` definitions are the single source of truth. Codegen and schema checks run through the **buf** toolchain: `buf generate` (invoking the pinned per-language plugins below), `buf lint`, `buf breaking` (against the last approved state — satisfies the schema gate in CI-CD.md §3; re-enabled as of v1, §1.24), and `buf format`.
 - **Rationale:** unknown-field preservation makes the additive-versioning rule (§3.4 of PLAN.md) native; first-class support in the core language (§1.1); buf carries its own compiler, so no system `protoc` binary is pinned or required, and lint + breaking-change detection ship with the same pinned tool. Per-language plugins (`protoc-gen-go`, `protoc-gen-go-grpc`) are invoked by buf as local executables pinned via the core manifest's tool mechanism (§1.4).
 - **Consequence:** the reference documents (PLAN.md, IMPLEMENTATION.md, TESTING.md, CI-CD.md, ENVIRONMENT.md) speak of "schemas" generically; the concrete encoding is recorded here.
 
@@ -166,7 +166,7 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 
 ### 1.18 Schema lint and breaking config — **buf**
 
-- **Decision:** `buf lint` runs the **STANDARD** rule set, with no disabled rules; `buf breaking` runs the **FILE** rule set but is disabled until first release (§1.24). The proto directory tree mirrors package paths (`abcmovies.<kind>.v1`, §1.3), so the lint rule that demands a file's directory match its package name passes by construction.
+- **Decision:** `buf lint` runs the **STANDARD** rule set, with no disabled rules; `buf breaking` runs the **FILE** rule set against `origin/main` (enabled as of v1, §1.24). The proto directory tree mirrors package paths (`abcmovies.<kind>.v1`, §1.3), so the lint rule that demands a file's directory match its package name passes by construction.
 - **Rationale:** a schema gate without exceptions (CI-CD.md §3) needs lint config that a contributor cannot silently widen; mirroring directories to packages removes the one rule that would otherwise need a carve-out.
 - **Consequence:** the proto files' package name and their directory path are locked together; moving either one is a schema change (IMPLEMENTATION.md §8.1).
 
@@ -209,9 +209,10 @@ Each decision records the choice, the rationale, and the constraint it satisfies
 - **Rationale:** exactly one policy exists today (§1.22's sync cadence). Typing every future key up front turns adapter evolution into contract ceremony and accumulates fields whose validity depends on which capability a slot speaks; the map ties each key to whoever declares it.
 - **Consequence:** well-known key names live beside their adapters (wiring + decision entries), never in a shared registry; the core must never branch on key names — the moment it wants to is the moment to revisit this entry and promote the key instead.
 
-### 1.24 Pre-release contract-evolution policy — **breaking allowed, gate off**
+### 1.24 Pre-release contract-evolution policy — **breaking allowed, gate off** *(closed at v1)*
 
 - **Decision:** until the first release ships (SCOPE.md), built-in slot contracts may evolve **breaking-ly without a version bump**: every consumer is in-repo and is updated atomically in the same change, so version-bump ceremony (new suite, new handshake, per-break log entries) buys nothing while no external consumers exist. The `buf breaking` stage is disabled for this period — commented out of the Makefile's lint recipe rather than scoped per package. The exemption ends at first release: before any contract is published, the gate returns and PLAN.md's versioning rule applies without exception.
+- **Closed at v1:** the gate is re-enabled in the Makefile (`buf breaking --against '.git#ref=refs/remotes/origin/main'`) as of the v1 release. The v1 proto tree — including the final hygiene pass (dense renumbering of `StartDeliveryRequest`, `EventEnvelope`; the former `reserved 4` / stale `member_user_id` removed field) — is the published baseline; from v1 on, a breaking schema change needs a new contract version and a new handshake (PLAN.md §3.4).
 - **First use:** the whole-catalogue sync item (`CatalogueItem`) dropped its top-level `title`/`year` fields; all content metadata — including those two matching-evidence values — now travels inside an embedded `TitleMetadata` (`metadata`). Which fields drive a merge is decided by the core's matching engine, never by the schema.
 - **First use:** `CoverageRow.via` became **repeated**: one coverage claim can be observed by several linked accounts of one provider slot, and last-writer-wins attribution silently lost that fact. Each element keeps the documented `account:provider:host` form; derivations sort elements so rebuilds are deterministic.
 - **Rationale:** single-operator pre-release project; the load-bearing freeze exists to protect external consumers that do not yet exist.
