@@ -153,6 +153,17 @@ func (a *coreServiceAdapter) RemoveAccount(
 	return connect.NewResponse(resp), nil
 }
 
+func (a *coreServiceAdapter) UpdateAccount(
+	ctx context.Context,
+	req *connect.Request[apiv1.UpdateAccountRequest],
+) (*connect.Response[apiv1.UpdateAccountResponse], error) {
+	resp, err := a.srv.UpdateAccount(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
 func (a *coreServiceAdapter) GetPlayInfo(
 	ctx context.Context,
 	req *connect.Request[apiv1.GetPlayInfoRequest],
