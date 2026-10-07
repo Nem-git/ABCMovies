@@ -33,6 +33,12 @@ service CoreService {
   // (PLAN.md §5.4: explicit and user-triggered, never a background sweep).
   rpc RefreshAvailability(RefreshAvailabilityRequest) returns (RefreshAvailabilityResponse);
 
+  // Library: explicit, user-triggered live refresh of lazy providers
+  // (PLAN.md §5.4: browse/search against the provider is the refresh).
+  // Results feed the source-cache reconciler exactly like an idempotent
+  // sync page, and availability-changed events fire per new item.
+  rpc LiveSearch(LiveSearchRequest) returns (LiveSearchResponse);
+
   // Accounts: link a provider account by submitting credentials. The core
   // validates them by probing the provider before storing anything — it never
   // vaults material it has not confirmed works (PLAN.md §3.5).
@@ -83,6 +89,31 @@ message RefreshAvailabilityResponse {
   // Requested items the provider no longer answers for (deleted from the
   // source cache, availability-changed events emitted).
   int32 removed = 2;
+}
+
+message LiveSearchRequest {
+  // The user's text query. Required.
+  string query = 1;
+  // Optional slot ids; empty = every enabled lazy provider.
+  repeated string providers = 2;
+  // Max pages fetched per provider account. 0 means 2; over budget 429's fail one call, not the set.
+  int32 page_limit = 3;
+}
+
+message LiveSearchResponse {
+  repeated LiveSearchHit hits = 1;
+  // provider slot id -> error when one provider failed mid-batch (partial
+  // results, never downgrade).
+  map<string, string> rejected = 2;
+}
+
+message LiveSearchHit {
+  string provider = 1;
+  string account_id = 2;
+  string native_id = 3;
+  string title = 4;
+  string kind = 5;
+  uint32 year = 6;
 }
 
 message GetJobRequest {

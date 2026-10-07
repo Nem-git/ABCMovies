@@ -85,7 +85,7 @@ func wireStremio(entry config.SlotEntry, deps Deps) (*BuiltSlot, error) {
 	for _, rec := range deps.LinkedBySlot[entry.ID] {
 		reachesMeta = append(reachesMeta, reachMeta{owner: rec.OwnerUserID, visibility: rec.Visibility, members: rec.SharedWith})
 	}
-	pc := newPacedClient(entry, slot, slot, slot)
+	pc := newPacedClient(entry, slot, slot, slot, slot)
 	reaches := make([]library.Reach, 0, len(ids))
 	for i, accountID := range ids {
 		syncer, reach, job, err := accountSyncMachine(providerNamespace(entry), accountID, pc, 0, reachesMeta[i], deps)
@@ -97,9 +97,10 @@ func wireStremio(entry config.SlotEntry, deps Deps) (*BuiltSlot, error) {
 		_ = syncer // kept alive via the reach's Sync field; RefreshItems runs on it
 	}
 	return &BuiltSlot{
-		Entry:    entry,
-		Impl:     slot,
-		Reaches:  reaches,
-		Resolver: producesResolver{pc: pc},
+		Entry:      entry,
+		Impl:       slot,
+		Reaches:    reaches,
+		Resolver:   producesResolver{pc: pc},
+		LazySearch: pc,
 	}, nil
 }

@@ -270,6 +270,46 @@ func (s *Synchronizer) SyncAccount(ctx context.Context, accountID string) (Stats
 // (PLAN.md §5.4: availability refresh is a pure lookup; it changes presence,
 // never identity). The refresh validates every returned item before any of
 // them land: a contract violation reconciles nothing, never downgrades.
+// IngestItems runs the lazy-search half of the same operation: provider
+// results (from a usage-triggered SearchCatalog/BrowseCatalog call) are
+// upserted into the source cache and resolved exactly like synced page
+// items, emitting arrival events. It upserts only — it never removes, so
+// searching for "x" cannot wipe what the user added via "y" (the prune side
+// is RefreshItems' job). Contract validation still aborts the whole batch,
+// reject, never downgrade.
+func (s *Synchronizer) IngestItems(ctx context.Context, accountID string, items []*slotsv1.CatalogueItem) (Stats, error) {
+	stats := Stats{}
+	if len(items) == 0 {
+		return stats, nil
+	}
+	for _, item := range items {
+		if err := schema.ValidateCatalogueItem(item); err != nil {
+			return stats, fmt.Errorf("sourcecache: ingest: contract violation: %w", err)
+		}
+	}
+	for _, item := range items {
+		key := s.provider + "/" + accountID + "/" + item.GetNativeId()
+		_, getErr := s.cache.Get(ctx, key)
+		blob, err := protojson.Marshal(item)
+		if err != nil {
+			return stats, fmt.Errorf("sourcecache: encode %q: %w", item.GetNativeId(), err)
+		}
+		if err := s.cache.Put(ctx, key, blob); err != nil {
+			return stats, fmt.Errorf("sourcecache: write %q: %w", item.GetNativeId(), err)
+		}
+		if s.resolver != nil {
+			if err := s.resolver.Resolve(ctx, s.provider, item); err != nil {
+				return stats, fmt.Errorf("sourcecache: resolve %q: %w", item.GetNativeId(), err)
+			}
+		}
+		if getErr != nil {
+			s.notifyAvailability(ctx, accountID, item.GetNativeId(), true)
+		}
+		stats.Items++
+	}
+	return stats, nil
+}
+
 func (s *Synchronizer) RefreshItems(ctx context.Context, accountID string, nativeIDs []string) (Stats, error) {
 	stats := Stats{}
 	if s.refresh == nil {

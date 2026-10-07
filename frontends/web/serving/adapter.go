@@ -229,3 +229,14 @@ func (a *coreServiceAdapter) RefreshAvailability(
 	}
 	return connect.NewResponse(resp), nil
 }
+
+func (a *coreServiceAdapter) LiveSearch(
+	ctx context.Context,
+	req *connect.Request[apiv1.LiveSearchRequest],
+) (*connect.Response[apiv1.LiveSearchResponse], error) {
+	resp, err := a.srv.LiveSearch(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}

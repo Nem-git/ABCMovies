@@ -23,6 +23,7 @@ import (
 	"time"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
@@ -80,7 +81,23 @@ type BuiltSlot struct {
 	// refresh job takes the slot's cadence so it stays in step with the
 	// slot's other accounts.
 	Cadence time.Duration
+	// LazySearch exposes the lazy catalogue surface when the adapter
+	// implements it (search/browse/produce-sources/refresh — never
+	// catalogue-sync). Always the paced wrapper, so this call obeys the
+	// per-account budget and the slot-wide governor. Nil for
+	// whole-catalogue-only providers.
+	LazySearch LazyProviderService
 }
+
+// LazyProviderService is the lazy catalogue-surface subset of a provider
+// slot: exactly what the slot's pacedClient satisfies for lazy adapters.
+type LazyProviderService interface {
+	SearchCatalog(ctx context.Context, req *slotsv1.SearchCatalogRequest) (*slotsv1.SearchCatalogResponse, error)
+	RefreshAvailability(ctx context.Context, req *slotsv1.RefreshAvailabilityRequest) (*slotsv1.RefreshAvailabilityResponse, error)
+	ProduceSources(ctx context.Context, req *slotsv1.ProduceSourcesRequest) (*slotsv1.ProduceSourcesResponse, error)
+}
+
+var _ LazyProviderService = (*pacedClient)(nil)
 
 // Namespace is the source-cache namespace the slot's accounts sync under —
 // whatever produced its entry id (config or the derived server namespace).

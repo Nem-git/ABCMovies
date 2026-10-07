@@ -20,12 +20,17 @@ import (
 // draw from the same per-account Budget as user traffic — background can
 // never exceed the limits user requests obey (PLAN.md §7.2).
 type pacedClient struct {
-	innerCatalogue sourcecacheClient
+	innerCatalogue  sourcecacheClient
 	innerRefresh   sourcecache.RefreshClient
 	innerProducer  produces
+	innerSearcher  searcher
 	byAccount      map[string]*pacing.Limiter
 	budgetAccount  map[string]pacing.Budget
 	governor       *pacing.Governor
+}
+
+type searcher interface {
+	SearchCatalog(ctx context.Context, req *slotsv1.SearchCatalogRequest) (*slotsv1.SearchCatalogResponse, error)
 }
 
 type sourcecacheClient interface {
@@ -49,6 +54,23 @@ func (p *pacedClient) CatalogueSync(ctx context.Context, req *slotsv1.CatalogueS
 	err := pacing.Gate(ctx, p.limiter(req.GetAccountId()), p.governor, p.budget(req.GetAccountId()), func(ctx context.Context) error {
 		var err error
 		resp, err = p.innerCatalogue.CatalogueSync(ctx, req)
+		return err
+	})
+	return resp, err
+}
+
+// HasSearch reports whether the paced client has a real search surface.
+func (p *pacedClient) HasSearch() bool { return p.innerSearcher != nil }
+
+// SearchCatalog gates through the account limiter, then the shared governor.
+func (p *pacedClient) SearchCatalog(ctx context.Context, req *slotsv1.SearchCatalogRequest) (*slotsv1.SearchCatalogResponse, error) {
+	if p.innerSearcher == nil {
+		return nil, fmt.Errorf("pacedClient: provider does not implement catalog search")
+	}
+	var resp *slotsv1.SearchCatalogResponse
+	err := pacing.Gate(ctx, p.limiter(req.GetAccountId()), p.governor, p.budget(req.GetAccountId()), func(ctx context.Context) error {
+		var err error
+		resp, err = p.innerSearcher.SearchCatalog(ctx, req)
 		return err
 	})
 	return resp, err
@@ -146,7 +168,7 @@ func governorFromOptions(entry config.SlotEntry) *pacing.Governor {
 // newPacedClient builds the shared slot pacing material: a governor per slot
 // and a limiter+budget per operator-declared account (linked accounts get a
 // zero budget until their own pacing vocabulary is linked in).
-func newPacedClient(entry config.SlotEntry, innerCatalogue sourcecacheClient, innerRefresh sourcecache.RefreshClient, innerProduces produces) *pacedClient {
+func newPacedClient(entry config.SlotEntry, innerCatalogue sourcecacheClient, innerRefresh sourcecache.RefreshClient, innerProduces produces, innerSearcher searcher) *pacedClient {
 	if innerProduces == nil {
 		return nil
 	}
@@ -154,6 +176,7 @@ func newPacedClient(entry config.SlotEntry, innerCatalogue sourcecacheClient, in
 		innerCatalogue: innerCatalogue,
 		innerRefresh:   innerRefresh,
 		innerProducer:  innerProduces,
+		innerSearcher:  innerSearcher,
 		byAccount:      map[string]*pacing.Limiter{},
 		budgetAccount:  map[string]pacing.Budget{},
 		governor:       governorFromOptions(entry),

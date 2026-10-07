@@ -206,6 +206,7 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 	go eng.Watch(context.Background())
 	srv.SetDelivery(managedDelivery{eng: eng, relay: rt.Relay})
 	srv.SetLibrary(rt.Library)
+	srv.SetLiveSearcher(liveSlotsFromBuilt(rt.Providers, rt.Library, logger))
 	for provider, prober := range rt.Probers {
 		srv.SetProber(provider, prober)
 	}
