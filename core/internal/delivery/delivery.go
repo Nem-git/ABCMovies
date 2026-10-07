@@ -338,11 +338,11 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 	}
 	if memberActive >= memberLimit {
 		e.mu.Unlock()
-		return nil, errQuota("member %s is at its concurrent-stream cap (%d)", req.MemberUserID, memberLimit)
+		return nil, &deliveryError{code: codeQuota, msg: fmt.Sprintf("member %s is at its concurrent-stream cap (%d); position %d", req.MemberUserID, memberLimit, memberActive), Position: memberActive}
 	}
 	if accountActive >= accountLimit {
 		e.mu.Unlock()
-		return nil, errQuota("account %s/%s is at its concurrent-stream cap (%d)", req.Provider, req.AccountID, accountLimit)
+		return nil, &deliveryError{code: codeQuota, msg: fmt.Sprintf("account %s/%s is at its concurrent-stream cap (%d); position %d", req.Provider, req.AccountID, accountLimit, accountActive), Position: accountActive}
 	}
 	e.sessions[sess.ID] = sess
 	if e.byAccount[key] == nil {
@@ -784,9 +784,23 @@ func RejectUnsupportedDRM(ms *corev1.MediaSource) error {
 type deliveryError struct {
 	code int
 	msg  string
+	// Position is carried on quota errors (§6.5 interim decision A): the
+	// number of active sessions the requester would wait behind, so a busy
+	// account is never a dead end — the caller knows a position.
+	Position int
 }
 
 func (e *deliveryError) Error() string { return e.msg }
+
+// QuotaPosition reports the queue-position hint carried by a quota error
+// (§6.5 interim decision A): how many active sessions the requester would
+// wait behind. Zero when the error is not a quota error.
+func QuotaPosition(err error) int {
+	if e, ok := err.(*deliveryError); ok && e.code == codeQuota {
+		return e.Position
+	}
+	return 0
+}
 
 const (
 	codeInvalid  = 3
@@ -801,10 +815,6 @@ func errInvalid(format string, a ...any) error {
 
 func errNotFound(format string, a ...any) error {
 	return &deliveryError{code: codeNotFound, msg: fmt.Sprintf(format, a...)}
-}
-
-func errQuota(format string, a ...any) error {
-	return &deliveryError{code: codeQuota, msg: fmt.Sprintf(format, a...)}
 }
 
 // Code returns the gRPC-style status code for a delivery error.

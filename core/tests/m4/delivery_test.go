@@ -25,6 +25,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/policy"
 	"github.com/nem-git/abcmovies/core/internal/slotwiring"
+	"github.com/nem-git/abcmovies/core/internal/sourcecache"
 	"github.com/nem-git/abcmovies/core/internal/store"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -351,4 +352,8 @@ func TestM4DRMRefusedNotSilentlyDelivered(t *testing.T) {
 	if factory.calls != 0 {
 		t.Fatalf("refusal reached the sink factory %d times, want 0", factory.calls)
 	}
+}
+
+func (trivialLibrary) RefreshAvailability(context.Context, string, []string) (sourcecache.Stats, error) {
+	return sourcecache.Stats{}, nil
 }

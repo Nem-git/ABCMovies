@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/nem-git/abcmovies/adapters/stremio"
-	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
-	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/library"
@@ -87,9 +85,10 @@ func wireStremio(entry config.SlotEntry, deps Deps) (*BuiltSlot, error) {
 	for _, rec := range deps.LinkedBySlot[entry.ID] {
 		reachesMeta = append(reachesMeta, reachMeta{owner: rec.OwnerUserID, visibility: rec.Visibility, members: rec.SharedWith})
 	}
+	pc := newPacedClient(entry, slot, slot, slot)
 	reaches := make([]library.Reach, 0, len(ids))
 	for i, accountID := range ids {
-		syncer, reach, job, err := accountSyncMachine(providerNamespace(entry), accountID, slot, 0, reachesMeta[i], deps)
+		syncer, reach, job, err := accountSyncMachine(providerNamespace(entry), accountID, pc, 0, reachesMeta[i], deps)
 		if err != nil {
 			return nil, err
 		}
@@ -101,19 +100,6 @@ func wireStremio(entry config.SlotEntry, deps Deps) (*BuiltSlot, error) {
 		Entry:    entry,
 		Impl:     slot,
 		Reaches:  reaches,
-		Resolver: stremioResolver{slot: slot},
+		Resolver: producesResolver{pc: pc},
 	}, nil
-}
-
-// stremioResolver bridges ProduceSources to the delivery engine.
-type stremioResolver struct {
-	slot *stremio.Slot
-}
-
-func (r stremioResolver) ProduceSources(ctx context.Context, provider, accountID, nativeID string) (*corev1.MediaSource, error) {
-	resp, err := r.slot.ProduceSources(ctx, &slotsv1.ProduceSourcesRequest{AccountId: accountID, NativeId: nativeID})
-	if err != nil {
-		return nil, err
-	}
-	return resp.GetSource(), nil
 }

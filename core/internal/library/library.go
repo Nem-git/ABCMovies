@@ -232,6 +232,23 @@ func (s *Service) Reaches() []Reach {
 	return s.snapshot()
 }
 
+// RefreshAvailability runs the explicit, user-triggered availability lookup
+// for one account and applies it to that account's source cache
+// (PLAN.md §5.4: never a background sweep). Returns the stats of the
+// applied refresh. The reach must have a refresh-capable synchronizer;
+// operator-declared lazy accounts do, and library-class accounts do too
+// (their catalogue-sync item resolution registers the refresh surface
+// additively).
+func (s *Service) RefreshAvailability(ctx context.Context, accountID string, nativeIDs []string) (sourcecache.Stats, error) {
+	s.mu.RLock()
+	r, ok := s.reaches[accountID]
+	s.mu.RUnlock()
+	if !ok || r.Sync == nil {
+		return sourcecache.Stats{}, fmt.Errorf("library: no registered source cache for account %q", accountID)
+	}
+	return r.Sync.RefreshItems(ctx, accountID, nativeIDs)
+}
+
 func (s *Service) userKey(userID string) string {
 	return userPrefix + url.PathEscape(userID)
 }

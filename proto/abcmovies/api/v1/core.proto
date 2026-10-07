@@ -29,6 +29,10 @@ service CoreService {
   // query returns the whole library.
   rpc GetLibrary(GetLibraryRequest) returns (GetLibraryResponse);
 
+  // Library: refresh the availability of specific items on one account
+  // (PLAN.md §5.4: explicit and user-triggered, never a background sweep).
+  rpc RefreshAvailability(RefreshAvailabilityRequest) returns (RefreshAvailabilityResponse);
+
   // Accounts: link a provider account by submitting credentials. The core
   // validates them by probing the provider before storing anything — it never
   // vaults material it has not confirmed works (PLAN.md §3.5).
@@ -61,6 +65,24 @@ service CoreService {
   // once the menu is staged; this RPC is the recovery query for subscribers
   // that missed the event or loaded late (PLAN.md §9.2).
   rpc GetPlayInfo(GetPlayInfoRequest) returns (GetPlayInfoResponse);
+}
+
+// GetJobResponse is one job's current state.
+message RefreshAvailabilityRequest {
+  // The account whose items to re-check. Required; must be reachable by the
+  // caller (same reach gate as GetLibrary/StartDelivery).
+  string account_id = 1;
+  // Provider-native item ids to re-check. An empty list is an error: a lazy
+  // provider has no catalogue to enumerate, so a call must be bounded.
+  repeated string native_ids = 2;
+}
+
+message RefreshAvailabilityResponse {
+  // Items the provider confirmed it still carries.
+  int32 present = 1;
+  // Requested items the provider no longer answers for (deleted from the
+  // source cache, availability-changed events emitted).
+  int32 removed = 2;
 }
 
 message GetJobRequest {

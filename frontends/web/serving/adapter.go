@@ -218,3 +218,14 @@ func (s *subscribeStream) SendHeader(md metadata.MD) error {
 func (s *subscribeStream) SetTrailer(md metadata.MD) {
 	mergeMetadata(s.stream.ResponseTrailer(), md)
 }
+
+func (a *coreServiceAdapter) RefreshAvailability(
+	ctx context.Context,
+	req *connect.Request[apiv1.RefreshAvailabilityRequest],
+) (*connect.Response[apiv1.RefreshAvailabilityResponse], error) {
+	resp, err := a.srv.RefreshAvailability(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}

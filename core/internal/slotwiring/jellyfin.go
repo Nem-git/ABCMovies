@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/nem-git/abcmovies/adapters/jellyfin"
-	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
@@ -153,9 +152,13 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) (*BuiltSlot, error) {
 
 	jobs := make([]scheduler.Job, 0, len(ids))
 	reaches := make([]library.Reach, 0, len(ids))
+	// A provider slot's calls to the upstream server are paced through one
+	// Gate composition: the slot-wide governor (§7.2) plus the per-account
+	// budget derived from each account's policy map (§1.35).
+	pc := newPacedClient(entry, slot, nil, slot)
 	namespace := providerNamespace(entry)
 	for i, accountID := range ids {
-		syncer, reach, job, err := accountSyncMachine(namespace, accountID, slot, cadence, reachesMeta[i], deps)
+		syncer, reach, job, err := accountSyncMachine(namespace, accountID, pc, cadence, reachesMeta[i], deps)
 		if err != nil {
 			return nil, err
 		}
@@ -171,7 +174,7 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) (*BuiltSlot, error) {
 		Impl:     slot,
 		Jobs:     jobs,
 		Reaches:  reaches,
-		Resolver: jellyfinResolver{slot: slot},
+		Resolver: producesResolver{pc: pc},
 		Cadence:  cadence,
 	}, nil
 }
@@ -196,9 +199,11 @@ func accountSyncMachine(namespace, accountID string, client sourcecache.Client, 
 	}
 	// Lazy provider slots implement the refresh surface too; wiring it in lets
 	// every provider, catalogue-sync or lazy, serve RefreshItems through the
-	// same synchronizer.
-	if rc, ok := client.(sourcecache.RefreshClient); ok {
-		opts = append(opts, sourcecache.WithRefreshClient(rc))
+	// same synchronizer. A slot whose paced wrapper has no real refresh
+	// backend is left unwired rather than failing on a nil surface.
+	if rc, ok := client.(interface{ HasRefresh() bool }); ok && rc.HasRefresh() {
+		rcClient, _ := client.(sourcecache.RefreshClient)
+		opts = append(opts, sourcecache.WithRefreshClient(rcClient))
 	}
 	syncer, err := sourcecache.New(namespace, client, deps.SourceCache, deps.Logger, opts...)
 	if err != nil {
@@ -220,24 +225,6 @@ func accountSyncMachine(namespace, accountID string, client sourcecache.Client, 
 		},
 	}
 	return syncer, reach, job, nil
-}
-
-// jellyfinResolver adapts the Jellyfin slot's ProduceSources to the delivery
-// engine's Resolver surface. The provider identity is assigned by the caller
-// (the slot id, §1.25); here we only bridge account + native id to the adapter.
-type jellyfinResolver struct {
-	slot *jellyfin.Slot
-}
-
-func (r jellyfinResolver) ProduceSources(ctx context.Context, provider, accountID, nativeID string) (*corev1.MediaSource, error) {
-	resp, err := r.slot.ProduceSources(ctx, &slotsv1.ProduceSourcesRequest{
-		AccountId: accountID,
-		NativeId:  nativeID,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return resp.GetSource(), nil
 }
 
 // jellyfinProber validates a linked-account credential against any Jellyfin

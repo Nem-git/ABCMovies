@@ -117,6 +117,22 @@ slots:
 #   A user may override this per account. An unknown value fails startup.
 # delivery:
 #   on-cap-change: new-sessions-only
+#
+# M7 pacing (PLAN.md §7.2, TECHNICAL-DECISIONS.md §1.35): per-account budget
+# keys in the account's policy map; the per-provider aggregate governor cap
+# lives in the slot's options bag.
+#   providers:
+#     - adapter: stremio
+#       id: stremio-archiveorg
+#       options:
+#         pacingRequestsPerSecond: "5"   # total ceiling across its accounts
+#       accounts:
+#         - id: archiveorg
+#           policy:
+#             pacingRequestsPerSecond: "2"
+#             pacingMaxConcurrentPulls: "2"
+#             pacingInterRequestDelay: 200ms
+#             pacingRetries: "2"
 
 stores:
   # One backend per store class (docs/PLAN.md §2.4). Classes whose loss costs

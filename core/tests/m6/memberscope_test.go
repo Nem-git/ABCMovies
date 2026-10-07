@@ -15,6 +15,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/library"
+	"github.com/nem-git/abcmovies/core/internal/sourcecache"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
@@ -159,4 +160,8 @@ func TestM6WithUserIDIdentityPropagates(t *testing.T) {
 func (s *stubDelivery) RevokeOthersOnAccount(string, string, []string) int { return 0 }
 func (s *stubDelivery) ApplyAccountCap(context.Context, string, string, bool) (int, error) {
 	return 0, nil
+}
+
+func (l *stubLibrary) RefreshAvailability(context.Context, string, []string) (sourcecache.Stats, error) {
+	return sourcecache.Stats{}, nil
 }
