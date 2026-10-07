@@ -312,7 +312,7 @@ func (s *Slot) getJSON(ctx context.Context, u string, out interface{}) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode/100 != 2 {
 		_, _ = io.Copy(io.Discard, resp.Body)
 		return fmt.Errorf("stremio: GET %s: status %d", u, resp.StatusCode)
@@ -340,7 +340,9 @@ func asUint32(v interface{}) uint32 {
 		return uint32(n)
 	case string:
 		var y int
-		fmt.Sscanf(n, "%d", &y)
+		if _, err := fmt.Sscanf(n, "%d", &y); err != nil {
+			return 0
+		}
 		return uint32(y)
 	default:
 		return 0
