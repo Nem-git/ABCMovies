@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/pacing"
+	"github.com/nem-git/abcmovies/core/internal/policy"
 	"github.com/nem-git/abcmovies/core/internal/sourcecache"
 )
 
@@ -24,9 +26,14 @@ type pacedClient struct {
 	innerRefresh   sourcecache.RefreshClient
 	innerProducer  produces
 	innerSearcher  searcher
-	byAccount      map[string]*pacing.Limiter
-	budgetAccount  map[string]pacing.Budget
-	governor       *pacing.Governor
+
+	// mu guards byAccount and budgetAccount: a runtime account link can
+	// register a budget while other goroutines route provider calls
+	// through the limiters.
+	mu            sync.Mutex
+	byAccount     map[string]*pacing.Limiter
+	budgetAccount map[string]pacing.Budget
+	governor      *pacing.Governor
 }
 
 type searcher interface {
@@ -107,6 +114,8 @@ func (p *pacedClient) ProduceSources(ctx context.Context, req *slotsv1.ProduceSo
 func (p *pacedClient) HasRefresh() bool { return p.innerRefresh != nil }
 
 func (p *pacedClient) limiter(accountID string) *pacing.Limiter {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if l, ok := p.byAccount[accountID]; ok {
 		return l
 	}
@@ -116,10 +125,20 @@ func (p *pacedClient) limiter(accountID string) *pacing.Limiter {
 }
 
 func (p *pacedClient) budget(accountID string) pacing.Budget {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if b, ok := p.budgetAccount[accountID]; ok {
 		return b
 	}
 	return pacing.Budget{}
+}
+
+// setBudget registers (or replaces) one account's budget from the runtime
+// attach path, where the operator-declared boot set didn't know the account.
+func (p *pacedClient) setBudget(accountID string, b pacing.Budget) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.budgetAccount[accountID] = b
 }
 
 // budgetFromPolicy maps the pacing vocabulary keys (TECHNICAL-DECISIONS.md
@@ -166,9 +185,12 @@ func governorFromOptions(entry config.SlotEntry) *pacing.Governor {
 }
 
 // newPacedClient builds the shared slot pacing material: a governor per slot
-// and a limiter+budget per operator-declared account (linked accounts get a
-// zero budget until their own pacing vocabulary is linked in).
-func newPacedClient(entry config.SlotEntry, innerCatalogue sourcecacheClient, innerRefresh sourcecache.RefreshClient, innerProduces produces, innerSearcher searcher) *pacedClient {
+// and a limiter+budget per operator-declared account. The account budget is
+// the instance pacing default overlaid with the account's own pacing keys —
+// the same merge delivery admission uses for the quotas (§7.2) — so a
+// host-wide pacing key is enforced on every account, not just recorded.
+// Runtime-linked accounts get their budget registered at AttachAccount.
+func newPacedClient(entry config.SlotEntry, instance policy.Set, innerCatalogue sourcecacheClient, innerRefresh sourcecache.RefreshClient, innerProduces produces, innerSearcher searcher) *pacedClient {
 	if innerProduces == nil {
 		return nil
 	}
@@ -182,7 +204,16 @@ func newPacedClient(entry config.SlotEntry, innerCatalogue sourcecacheClient, in
 		governor:       governorFromOptions(entry),
 	}
 	for _, a := range entry.Accounts {
-		pc.budgetAccount[a.ID] = budgetFromPolicy(a.Policy)
+		overlay, err := policy.ParseOverlay(a.Policy)
+		if err != nil {
+			// validatePolicies already rejected malformed overrides at
+			// load; reaching this means a hand-built SlotEntry skips
+			// config validation — treat it as a build error's worth of
+			// loudness and keep the instance budget rather than panic.
+			pc.budgetAccount[a.ID] = budgetFromPolicy(instance)
+			continue
+		}
+		pc.budgetAccount[a.ID] = budgetFromPolicy(instance.With(overlay))
 	}
 	return pc
 }

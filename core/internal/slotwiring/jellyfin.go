@@ -156,7 +156,7 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) (*BuiltSlot, error) {
 	// A provider slot's calls to the upstream server are paced through one
 	// Gate composition: the slot-wide governor (§7.2) plus the per-account
 	// budget derived from each account's policy map (§1.35).
-	pc := newPacedClient(entry, slot, nil, slot, nil)
+	pc := newPacedClient(entry, deps.InstancePolicy, slot, nil, slot, nil)
 	namespace := providerNamespace(entry)
 	for i, accountID := range ids {
 		syncer, reach, job, err := accountSyncMachine(namespace, accountID, pc, cadence, reachesMeta[i], deps)

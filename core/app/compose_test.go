@@ -117,7 +117,7 @@ func TestComposeSlotsAvailabilityEventInvalidatesCache(t *testing.T) {
 	cache := store.NewInMemory()
 	bus := apiserver.NewInMemoryBus()
 	rt, err := ComposeSlots(ctx, config.SlotsConfig{}, config.EnrichmentConfig{}, config.LibraryConfig{}, reg,
-		sourceCache, store.NewInMemory(), store.NewInMemory(), cache, bus, slog.Default())
+		sourceCache, store.NewInMemory(), store.NewInMemory(), cache, bus, slog.Default(), nil)
 	if err != nil {
 		t.Fatalf("compose: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestComposeSlotsDerivedCacheLivesInTheCacheStore(t *testing.T) {
 	cache := store.NewInMemory()
 
 	rt, err := ComposeSlots(context.Background(), config.SlotsConfig{}, config.EnrichmentConfig{}, config.LibraryConfig{}, reg,
-		sourceCache, store.NewInMemory(), store.NewInMemory(), cache, apiserver.NewInMemoryBus(), slog.Default())
+		sourceCache, store.NewInMemory(), store.NewInMemory(), cache, apiserver.NewInMemoryBus(), slog.Default(), nil)
 	if err != nil {
 		t.Fatalf("compose: %v", err)
 	}
@@ -183,7 +183,7 @@ func TestComposeSlotsEmptyConfig(t *testing.T) {
 	defer reg.Close()
 
 	rt, err := ComposeSlots(context.Background(), config.SlotsConfig{}, config.EnrichmentConfig{}, config.LibraryConfig{}, reg,
-		store.NewInMemory(), store.NewInMemory(), store.NewInMemory(), store.NewInMemory(), apiserver.NewInMemoryBus(), slog.Default())
+		store.NewInMemory(), store.NewInMemory(), store.NewInMemory(), store.NewInMemory(), apiserver.NewInMemoryBus(), slog.Default(), nil)
 	if err != nil {
 		t.Fatalf("compose: %v", err)
 	}

@@ -62,6 +62,52 @@ func TestProviderBackoffIsShared(t *testing.T) {
 	}
 }
 
+// A degraded provider fails fast, and the busy answer carries a position:
+// the number of parked peers the caller would be queued behind (§6.5).
+func TestDegradedBusyAnswerCarriesPosition(t *testing.T) {
+	g := NewGovernor(1e9, time.Minute, time.Minute, nil)
+	g.NoteError()
+	err := Gate(context.Background(), NewLimiter(Budget{}, nil), g, Budget{MaxRetries: 0}, func(context.Context) error {
+		return nil
+	})
+	if !errors.Is(err, ErrDegraded) {
+		t.Fatalf("err = %v, want ErrDegraded", err)
+	}
+	if got := Position(err); got != 0 {
+		t.Fatalf("quiet governor position = %d, want 0", got)
+	}
+
+	// One caller parked in the rate gate, then a second caller fails on the
+	// shared backoff and reports the parked peer as its position.
+	g2 := NewGovernor(1e-9, time.Minute, time.Minute, nil) // ~31 years: every second caller parks
+	_ = g2.Allow(context.Background())                     // first call owns the slot
+	parked := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		close(parked)
+		_ = g2.Allow(ctx)
+	}()
+	<-parked
+	for { // wait until the waiter has actually registered
+		g2.mu.Lock()
+		n := g2.waiters
+		g2.mu.Unlock()
+		if n == 1 {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	g2.NoteError()
+	err2 := g2.Allow(context.Background())
+	if !errors.Is(err2, ErrDegraded) {
+		t.Fatalf("err2 = %v, want ErrDegraded", err2)
+	}
+	if got := Position(err2); got != 1 {
+		t.Fatalf("position = %d, want 1 (the parked peer)", got)
+	}
+}
+
 // The account budget and the provider governor compose: background work can
 // never exceed the limits user traffic obeys, because both draw on the same
 // per-account Limiter (§7.2).

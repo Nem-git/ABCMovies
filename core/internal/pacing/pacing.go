@@ -28,6 +28,28 @@ var (
 	ErrGovernorBusy = errors.New("pacing: per-provider aggregate governor at capacity")
 )
 
+// BusyError carries a queue-position hint on a pacing busy answer, mirroring
+// delivery's quota error (§6.5): the number of peer requests queued ahead of
+// the caller, so "busy" is never a dead end. Unwrap keeps errors.Is
+// matching the sentinel (ErrDegraded etc.) intact.
+type BusyError struct {
+	Err      error
+	Position int
+}
+
+func (e *BusyError) Error() string { return fmt.Sprintf("%s (position %d)", e.Err, e.Position) }
+func (e *BusyError) Unwrap() error { return e.Err }
+
+// Position reports the queue-position hint carried by a busy answer; zero
+// when the error is not a pacing busy error.
+func Position(err error) int {
+	var b *BusyError
+	if errors.As(err, &b) {
+		return b.Position
+	}
+	return 0
+}
+
 // Limiter admits requests one at a time against a Budget. The pacing budget
 // is shared, so background refresh and enrichment draw from — and can never
 // exceed — the same allowance as user traffic.
@@ -122,6 +144,9 @@ type Governor struct {
 	backoffT time.Time
 	base     time.Duration
 	max      time.Duration
+	// waiters counts callers currently parked inside Allow waiting for a
+	// rate slot — the position basis for a busy answer.
+	waiters int
 }
 
 // NewGovernor builds a Governor. base and max bound the per-provider backoff.
@@ -135,35 +160,43 @@ func NewGovernor(rps float64, base, max time.Duration, now func() time.Time) *Go
 // Allow blocks until the aggregate cap admits one more request, or fails fast
 // while the provider is in backoff.
 func (g *Governor) Allow(ctx context.Context) error {
-	for {
-		g.mu.Lock()
-		if g.now().Before(g.backoffT) {
-			g.mu.Unlock()
-			return ErrDegraded
-		}
-		var wait time.Duration
-		now := g.now()
-		if g.RequestsPerSec > 0 {
-			interval := time.Duration(float64(time.Second) / g.RequestsPerSec)
-			if now.Before(g.nextOK) {
-				wait = g.nextOK.Sub(now)
-				g.nextOK = g.nextOK.Add(interval)
-			} else {
-				g.nextOK = now.Add(interval)
-			}
-		}
-		if wait <= 0 {
-			g.mu.Unlock()
-			return nil
-		}
+	g.mu.Lock()
+	if g.now().Before(g.backoffT) {
+		// Failers aren't parked, so waiters counts only parked peers —
+		// exactly the queue the caller would wait behind.
+		pos := g.waiters
 		g.mu.Unlock()
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(wait):
-			return nil
+		return &BusyError{Err: ErrDegraded, Position: pos}
+	}
+	var wait time.Duration
+	now := g.now()
+	if g.RequestsPerSec > 0 {
+		interval := time.Duration(float64(time.Second) / g.RequestsPerSec)
+		if now.Before(g.nextOK) {
+			wait = g.nextOK.Sub(now)
+			g.nextOK = g.nextOK.Add(interval)
+		} else {
+			g.nextOK = now.Add(interval)
 		}
 	}
+	if wait <= 0 {
+		g.mu.Unlock()
+		return nil
+	}
+	g.waiters++
+	g.mu.Unlock()
+	select {
+	case <-ctx.Done():
+		g.mu.Lock()
+		g.waiters--
+		g.mu.Unlock()
+		return ctx.Err()
+	case <-time.After(wait):
+	}
+	g.mu.Lock()
+	g.waiters--
+	g.mu.Unlock()
+	return nil // the slot we reserved while parking is ours
 }
 
 // NoteError grows the shared backoff — a per-provider signal (§5.4): one

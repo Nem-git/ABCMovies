@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -321,6 +322,41 @@ func validateSlots(slots SlotsConfig) error {
 						return fmt.Errorf("slot %q: account entry missing id", e.ID)
 					}
 				}
+			}
+			if err := validateSlotOptions(e); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// validateSlotOptions fails the load when a slot's pacing knobs in the
+// options bag are mis-typed: a silent fallback would run the instance with
+// no aggregate bound, the opposite of what the operator asked for (§2.5;
+// mirrors the strict policy-key validation in validatePolicies).
+func validateSlotOptions(e SlotEntry) error {
+	for k, v := range e.Options {
+		switch k {
+		case policy.KeyPacingRequestsPerSec:
+			f, err := strconv.ParseFloat(v, 64)
+			if err != nil || f <= 0 {
+				return fmt.Errorf("slot %q: options %q must be a positive number, got %q", e.ID, k, v)
+			}
+		case policy.KeyPacingMaxPulls:
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 1 {
+				return fmt.Errorf("slot %q: options %q must be a positive integer, got %q", e.ID, k, v)
+			}
+		case policy.KeyPacingDelay:
+			d, err := time.ParseDuration(v)
+			if err != nil || d <= 0 {
+				return fmt.Errorf("slot %q: options %q must be a positive duration, got %q", e.ID, k, v)
+			}
+		case policy.KeyPacingRetries:
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 0 {
+				return fmt.Errorf("slot %q: options %q must be a non-negative integer, got %q", e.ID, k, v)
 			}
 		}
 	}

@@ -30,6 +30,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/enrichment"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/library"
+	"github.com/nem-git/abcmovies/core/internal/policy"
 	"github.com/nem-git/abcmovies/core/internal/registry"
 	"github.com/nem-git/abcmovies/core/internal/scheduler"
 	"github.com/nem-git/abcmovies/core/internal/sourcecache"
@@ -62,6 +63,11 @@ type Deps struct {
 	// changed a mapping, its entry becomes an enrichment candidate. Nil
 	// disables the trigger (no catalogue slots configured).
 	Enqueue func(entryID string)
+	// InstancePolicy is the parsed instance usage policy (ParseInstance):
+	// per-account budgets merge it under the account's own overlay, so a
+	// host-wide pacing key is enforced on every account (§7.2). Nil means
+	// no instance-level overrides — per-account keys only.
+	InstancePolicy policy.Set
 }
 
 // builtSlot is a provider slot fully assembled by its factory but not yet
@@ -135,7 +141,19 @@ func AttachAccount(b *BuiltSlot, rec accounts.Record, deps Deps) (*sourcecache.S
 		return nil, nil, nil, fmt.Errorf("slot %q: add account: %w", b.Entry.ID, err)
 	}
 	meta := reachMeta{owner: rec.OwnerUserID, visibility: rec.Visibility, members: rec.SharedWith}
-	syncer, reach, job, err := accountSyncMachine(providerNamespace(b.Entry), rec.ID, attachable, b.Cadence, meta, deps)
+	var syncer *sourcecache.Synchronizer
+	var reach *library.Reach
+	var job *scheduler.Job
+	var err error
+	if pc != nil {
+		// The runtime-linked account inherits the instance pacing policy
+		// (§7.2): it had no operator-declared policy block at boot. Route
+		// its catalogue sync through the shared Gate like boot accounts.
+		pc.setBudget(rec.ID, budgetFromPolicy(deps.InstancePolicy))
+		syncer, reach, job, err = accountSyncMachine(providerNamespace(b.Entry), rec.ID, pc, b.Cadence, meta, deps)
+	} else {
+		syncer, reach, job, err = accountSyncMachine(providerNamespace(b.Entry), rec.ID, attachable, b.Cadence, meta, deps)
+	}
 	if err != nil {
 		// The account must not be half-wired: the slot accepted it but its
 		// machinery did not build, so take it back before anyone sees it.
@@ -180,6 +198,9 @@ func attachLazyAccount(b *BuiltSlot, rec accounts.Record, deps Deps, pc *pacedCl
 	var reach *library.Reach
 	var err error
 	if pc != nil {
+		// The runtime-linked account inherits the instance pacing policy
+		// (§7.2): it had no operator-declared policy block at boot.
+		pc.setBudget(rec.ID, budgetFromPolicy(deps.InstancePolicy))
 		syncer, reach, _, err = accountSyncMachine(providerNamespace(b.Entry), rec.ID, pc, 0, meta, deps)
 	} else if ic, ok := innerImpl.(sourcecache.Client); ok {
 		syncer, reach, _, err = accountSyncMachine(providerNamespace(b.Entry), rec.ID, ic, 0, meta, deps)

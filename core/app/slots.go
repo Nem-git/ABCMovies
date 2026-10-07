@@ -21,6 +21,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/metadatacache"
+	"github.com/nem-git/abcmovies/core/internal/policy"
 	"github.com/nem-git/abcmovies/core/internal/registry"
 	"github.com/nem-git/abcmovies/core/internal/scheduler"
 	"github.com/nem-git/abcmovies/core/internal/slotwiring"
@@ -261,7 +262,7 @@ func (e registryEvidence) Evidence(ctx context.Context, entryID string) (enrichm
 // instance is resolved here and injected into both the item registry and
 // the enrichment engine, so every normalization in the process runs on the
 // same article list.
-func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.EnrichmentConfig, lib config.LibraryConfig, reg *registry.InProcessRegistry, sourceCache, metaCache, vault, cache store.Store, apiBus *apiserver.InMemoryBus, logger *slog.Logger) (*SlotRuntime, error) {
+func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.EnrichmentConfig, lib config.LibraryConfig, reg *registry.InProcessRegistry, sourceCache, metaCache, vault, cache store.Store, apiBus *apiserver.InMemoryBus, logger *slog.Logger, instancePolicy map[string]string) (*SlotRuntime, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -281,15 +282,20 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 	mux := &eventMux{bus: rt.Bus, log: logger}
 	rt.eventMux = mux
 	rt.Relay = delivery.NewRelay()
+	instanceSet, err := policy.ParseInstance(instancePolicy)
+	if err != nil {
+		return nil, fmt.Errorf("policy: %w", err)
+	}
 	deps := slotwiring.Deps{
-		Ctx:          ctx,
-		Registry:     reg,
-		Accounts:     accounts.NewStore(vault, logger),
-		SourceCache:  sourceCache,
-		Logger:       logger,
-		ItemRegistry: itemReg,
-		EventSink:    mux,
-		Enqueue:      queue.Enqueue,
+		Ctx:            ctx,
+		Registry:       reg,
+		Accounts:       accounts.NewStore(vault, logger),
+		SourceCache:    sourceCache,
+		Logger:         logger,
+		ItemRegistry:   itemReg,
+		EventSink:      mux,
+		Enqueue:        queue.Enqueue,
+		InstancePolicy: instanceSet,
 	}
 	jobs, reaches, cats, resolvers, built, err := slotwiring.SetupAll(ctx, slots, deps)
 	if err != nil {

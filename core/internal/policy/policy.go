@@ -8,11 +8,12 @@
 // Keys are strings; values parse to their limit's type (concurrentStreams is
 // a positive integer, bandwidth is "unlimited" or "<N>Mbps").
 //
-// In v1 only concurrentStreams is *enforced*. Every other recognised key is
-// validated, then stamped on the delivery's recorded policy so auditing and
-// future milestones (pacing in M7, quotas) see exactly what was in effect,
-// without claiming an enforcement the core cannot honestly perform yet (no
-// manifest bitrate is available to police bandwidth, and window/quota
+// In v1 only concurrentStreams and the pacing keys are *enforced*. Every
+// other recognised key is validated, then stamped on the delivery's recorded
+// policy so auditing and future milestones (quotas) see exactly what was in
+// effect, without claiming an enforcement the core cannot honestly perform
+// yet (no manifest bitrate is available to police bandwidth, and
+// window/quota
 // semantics belong to later milestones). An unknown key is always a startup
 // failure, never silently ignored: an operator who typos a key should hear
 // about it immediately rather than discover it means no limit.
@@ -22,6 +23,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Limit-type keys recognised by the policy map. Only KeyConcurrentStreams is
@@ -148,10 +150,29 @@ func validate(raw map[string]string) error {
 			if v != "enabled" && v != "disabled" {
 				return fmt.Errorf(`policy %q: encode must be "enabled" or "disabled", got %q`, k, v)
 			}
-		case KeyTimeWindow, KeyMemberMonthlyQuota, KeyPacingRequestsPerSec,
-			KeyPacingMaxPulls, KeyPacingDelay, KeyPacingRetries:
+		case KeyTimeWindow, KeyMemberMonthlyQuota:
 			if strings.TrimSpace(v) == "" {
 				return fmt.Errorf("policy %q: value may not be empty", k)
+			}
+		case KeyPacingRequestsPerSec:
+			f, err := strconv.ParseFloat(v, 64)
+			if err != nil || f <= 0 {
+				return fmt.Errorf("policy %q: pacingRequestsPerSecond must be a positive number, got %q", k, v)
+			}
+		case KeyPacingMaxPulls:
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 1 {
+				return fmt.Errorf("policy %q: pacingMaxConcurrentPulls must be a positive integer, got %q", k, v)
+			}
+		case KeyPacingDelay:
+			d, err := time.ParseDuration(v)
+			if err != nil || d <= 0 {
+				return fmt.Errorf("policy %q: pacingInterRequestDelay must be a positive duration, got %q", k, v)
+			}
+		case KeyPacingRetries:
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 0 {
+				return fmt.Errorf("policy %q: pacingRetries must be a non-negative integer, got %q", k, v)
 			}
 		default:
 			return fmt.Errorf("policy: unknown limit type %q — refusing to start rather than ignore it silently", k)

@@ -33,7 +33,7 @@ func TestLinkStremioAccountNarratesAttachPath(t *testing.T) {
 		Accounts: []config.AccountConfig{{ID: "archiveorg"}},
 	}}}, config.EnrichmentConfig{}, config.LibraryConfig{}, reg,
 		store.NewInMemory(), store.NewInMemory(), store.NewInMemory(),
-		store.NewInMemory(), bus, nil)
+		store.NewInMemory(), bus, nil, nil)
 	if err != nil {
 		t.Fatalf("compose: %v", err)
 	}
