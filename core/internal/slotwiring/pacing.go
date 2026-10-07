@@ -164,27 +164,6 @@ func newPacedClient(entry config.SlotEntry, innerCatalogue sourcecacheClient, in
 	return pc
 }
 
-// fromSlot builds the pacing wrapper for a slot impl: a paced sourcecache
-// sync/refresh client and a produces-wrapper for the delivery resolver.
-// A nil pacedClient means the slot does not implement the lazy-refresh or
-// catalogue-sync part — in practice every provider implements at least the
-// catalogue side, so this is a defect rather than a supported path; callers
-// should fail loudly if it ever trips.
-func fromSlot(entry config.SlotEntry, inner any) (*pacedClient, produces) {
-	syncer, ok := inner.(interface {
-		CatalogueSync(ctx context.Context, req *slotsv1.CatalogueSyncRequest) (*slotsv1.CatalogueSyncResponse, error)
-	})
-	var refresh sourcecache.RefreshClient
-	if r, ok2 := inner.(sourcecache.RefreshClient); ok2 {
-		refresh = r
-	}
-	produce, ok3 := inner.(produces)
-	if !ok || !ok3 || syncer == nil {
-		return nil, nil
-	}
-	return newPacedClient(entry, syncer, refresh, produce), produce
-}
-
 // producesResolver bridges a pacedClient to the delivery.Resolver surface.
 type producesResolver struct{ pc *pacedClient }
 

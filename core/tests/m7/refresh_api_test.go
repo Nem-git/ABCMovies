@@ -19,7 +19,6 @@ import (
 
 type reachableLibrary struct {
 	library.Service
-	codes accounts.Visibility
 }
 
 func (r *reachableLibrary) ReachAuthorized(accountID, userID string) (library.Reach, bool) {
