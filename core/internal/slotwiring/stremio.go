@@ -9,6 +9,7 @@ import (
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/config"
+	"github.com/nem-git/abcmovies/core/internal/library"
 )
 
 func init() {
@@ -79,9 +80,27 @@ func wireStremio(entry config.SlotEntry, deps Deps) (*BuiltSlot, error) {
 	if _, err := deps.Registry.Describe(entry.ID, slot); err != nil {
 		return nil, fmt.Errorf("handshake: %w", err)
 	}
+	reachesMeta := make([]reachMeta, 0, len(ids))
+	for range entry.Accounts {
+		reachesMeta = append(reachesMeta, reachMeta{visibility: accounts.VisibilityPublic})
+	}
+	for _, rec := range deps.LinkedBySlot[entry.ID] {
+		reachesMeta = append(reachesMeta, reachMeta{owner: rec.OwnerUserID, visibility: rec.Visibility, members: rec.SharedWith})
+	}
+	reaches := make([]library.Reach, 0, len(ids))
+	for i, accountID := range ids {
+		syncer, reach, job, err := accountSyncMachine(providerNamespace(entry), accountID, slot, 0, reachesMeta[i], deps)
+		if err != nil {
+			return nil, err
+		}
+		_ = job // lazy providers never run a catalogue-sync job
+		reaches = append(reaches, *reach)
+		_ = syncer // kept alive via the reach's Sync field; RefreshItems runs on it
+	}
 	return &BuiltSlot{
 		Entry:    entry,
 		Impl:     slot,
+		Reaches:  reaches,
 		Resolver: stremioResolver{slot: slot},
 	}, nil
 }

@@ -194,6 +194,12 @@ func accountSyncMachine(namespace, accountID string, client sourcecache.Client, 
 	if deps.EventSink != nil {
 		opts = append(opts, sourcecache.WithEventsSink(deps.EventSink))
 	}
+	// Lazy provider slots implement the refresh surface too; wiring it in lets
+	// every provider, catalogue-sync or lazy, serve RefreshItems through the
+	// same synchronizer.
+	if rc, ok := client.(sourcecache.RefreshClient); ok {
+		opts = append(opts, sourcecache.WithRefreshClient(rc))
+	}
 	syncer, err := sourcecache.New(namespace, client, deps.SourceCache, deps.Logger, opts...)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("source cache: %w", err)
