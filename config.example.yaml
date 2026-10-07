@@ -93,7 +93,7 @@ slots:
   #   - adapter: stremio
   #     id: stremio-archiveorg
   #     enabled: true
-  #     server: 'https://stremio-archive-org-addon.fly.dev/manifest.json'
+  #     server: 'https://dev.nebulawp.org/stremio/archive.org-addon/manifest.json'
   #     accounts:
   #       - id: archiveorg
 

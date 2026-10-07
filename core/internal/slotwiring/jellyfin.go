@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/nem-git/abcmovies/adapters/jellyfin"
+	"github.com/nem-git/abcmovies/adapters/stremio"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
@@ -246,6 +247,8 @@ func ProberForAdapter(adapter string) apiserver.CredentialProber {
 	switch adapter {
 	case "jellyfin":
 		return jellyfinProber{}
+	case "stremio":
+		return stremio.Prober{}
 	default:
 		return nil
 	}

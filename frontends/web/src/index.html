@@ -226,7 +226,8 @@
         object-fit: cover;
         border-radius: 4px;
       }
-      #libraryGrid {
+      #libraryGrid,
+      #liveResults {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
         gap: 1rem;
@@ -313,7 +314,27 @@
         <button id="browse" disabled>Browse library</button>
         <button id="nextPage" class="hidden">Next page</button>
       </div>
+      <p class="hint">
+        Browsing the library is served from the local cache. Use live search to
+        query lazy providers directly; the results feed the library cache just
+        like a catalogue sync.
+      </p>
       <div id="libraryGrid"></div>
+    </section>
+
+    <section id="livesearch">
+      <h2>Live search (lazy providers)</h2>
+      <div class="controls">
+        <input id="liveQuery" placeholder="search providers" size="22" />
+        <input
+          id="liveProviders"
+          placeholder="providers (comma-separated, optional)"
+          size="30"
+        />
+        <input id="livePageLimit" placeholder="pages (0=2)" size="10" />
+        <button id="liveSearch" disabled>Live search</button>
+      </div>
+      <div id="liveResults"></div>
     </section>
 
     <section id="player" class="hidden">

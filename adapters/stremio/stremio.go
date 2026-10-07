@@ -65,6 +65,8 @@ type Slot struct {
 }
 
 type manifest struct {
+	ID       string          `json:"id"`
+	Name     string          `json:"name"`
 	Types    []string        `json:"types"`
 	Catalogs []catalogRecord `json:"catalogs"`
 	base     string          // manifest URL directory, no trailing slash
@@ -268,6 +270,40 @@ func (s *Slot) ProduceSources(ctx context.Context, req *slotsv1.ProduceSourcesRe
 }
 
 // manifestFor fetches and caches one account's manifest.
+// AddAccount makes the slot serve one more account by validating it resolves
+// through the AccountSource (a linked account's record must point at this
+// addon). Lazy slots advertise themselves via IsLazy so the attach path does
+// not build a catalogue-sync machine.
+func (s *Slot) AddAccount(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ids[id] {
+		return nil
+	}
+	acct, err := s.src.Lookup(context.Background(), id)
+	if err != nil {
+		return fmt.Errorf("stremio: account %q does not resolve: %w", id, err)
+	}
+	if acct.ManifestURL == "" {
+		return fmt.Errorf("stremio: account %q has no manifest url", id)
+	}
+	s.ids[id] = true
+	return nil
+}
+
+// DropAccount retires one account and any session metadata cached for it.
+func (s *Slot) DropAccount(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.ids, id)
+	delete(s.man, id)
+}
+
+// IsLazy marks this slot as a lazy streaming-service provider: attach and
+// refresh paths must not build the catalogue-sync machine that a
+// library-class slot requires (PLAN.md §5.4).
+func (s *Slot) IsLazy() bool { return true }
+
 func (s *Slot) manifestFor(ctx context.Context, accountID string) (*manifest, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

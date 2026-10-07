@@ -151,10 +151,15 @@ func (rt *SlotRuntime) AttachAccount(rec accounts.Record) error {
 		if attachable, ok := b.Impl.(slotwiring.AttachableSlot); ok {
 			attachable.DropAccount(rec.ID)
 		}
+		if l, ok := b.Impl.(interface{ DropAccount(string) }); ok {
+			l.DropAccount(rec.ID)
+		}
 		return fmt.Errorf("publish reach: %w", err)
 	}
-	rt.Scheduler.Register(*job)
-	slotwiring.FirstSync(syncer, rec.ID, rt.deps)
+	if job != nil {
+		rt.Scheduler.Register(*job)
+		slotwiring.FirstSync(syncer, rec.ID, rt.deps)
+	}
 	return nil
 }
 

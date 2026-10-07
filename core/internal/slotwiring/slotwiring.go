@@ -123,6 +123,10 @@ type AttachableSlot interface {
 // sync, so a half-wired account never feeds a library. If anything fails,
 // the caller owns error cleanup (drop the record and session; DropAccount).
 func AttachAccount(b *BuiltSlot, rec accounts.Record, deps Deps) (*sourcecache.Synchronizer, *library.Reach, *scheduler.Job, error) {
+	pc, innerImpl := pacedImpl(b)
+	if isLazy, ok := innerImpl.(interface{ IsLazy() bool }); ok && isLazy.IsLazy() {
+		return attachLazyAccount(b, rec, deps, pc, innerImpl)
+	}
 	attachable, ok := b.Impl.(AttachableSlot)
 	if !ok {
 		return nil, nil, nil, fmt.Errorf("slot %q (adapter %q): does not accept a runtime-linked account", b.Entry.ID, b.Entry.Adapter)
@@ -139,6 +143,54 @@ func AttachAccount(b *BuiltSlot, rec accounts.Record, deps Deps) (*sourcecache.S
 		return nil, nil, nil, err
 	}
 	return syncer, reach, job, nil
+}
+
+// pacedImpl returns the paced wrapper for the entry and the raw impl, so a
+// runtime attach can route every provider call through the Gate while the
+// registry continues to wake the raw impl for the handshake.
+func pacedImpl(b *BuiltSlot) (*pacedClient, interface{}) {
+	if b.LazySearch == nil {
+		return nil, b.Impl
+	}
+	if pc, ok := b.LazySearch.(*pacedClient); ok {
+		return pc, b.Impl
+	}
+	return nil, b.Impl
+}
+
+// attachLazyAccount is the lazy counterpart of the attach path: it still
+// creates one synchronizer and one reach — because the reach feeds the
+// per-user derived library and the synchronizer owns the availability-event
+// fanout — but it never builds a catalogue-sync job and never schedules an
+// initial sync. A lazy provider earns its rows through LiveSearch and
+// RefreshAvailability, not background sync.
+func attachLazyAccount(b *BuiltSlot, rec accounts.Record, deps Deps, pc *pacedClient, innerImpl interface{}) (*sourcecache.Synchronizer, *library.Reach, *scheduler.Job, error) {
+	attacher, ok := innerImpl.(interface {
+		AddAccount(id string) error
+		DropAccount(id string)
+	})
+	if !ok {
+		return nil, nil, nil, fmt.Errorf("slot %q (adapter %q): lazy slot does not accept runtime link", b.Entry.ID, b.Entry.Adapter)
+	}
+	if err := attacher.AddAccount(rec.ID); err != nil {
+		return nil, nil, nil, fmt.Errorf("slot %q: add account: %w", b.Entry.ID, err)
+	}
+	meta := reachMeta{owner: rec.OwnerUserID, visibility: rec.Visibility, members: rec.SharedWith}
+	var syncer *sourcecache.Synchronizer
+	var reach *library.Reach
+	var err error
+	if pc != nil {
+		syncer, reach, _, err = accountSyncMachine(providerNamespace(b.Entry), rec.ID, pc, 0, meta, deps)
+	} else if ic, ok := innerImpl.(sourcecache.Client); ok {
+		syncer, reach, _, err = accountSyncMachine(providerNamespace(b.Entry), rec.ID, ic, 0, meta, deps)
+	} else {
+		err = fmt.Errorf("slot %q: lazy attach requires a catalogue/refresh client", b.Entry.ID)
+	}
+	if err != nil {
+		attacher.DropAccount(rec.ID)
+		return nil, nil, nil, err
+	}
+	return syncer, reach, nil, nil
 }
 
 // FirstSync starts the initial source-cache fill for an account whose reach is

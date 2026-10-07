@@ -7,6 +7,7 @@ import {
   CapChangePolicy,
   GetPlayInfoResponseSchema,
   LibraryItemSchema,
+  LiveSearchHitSchema,
 } from './gen/abcmovies/api/v1/core_pb.js';
 import {
   CoverageVerdict,
@@ -685,6 +686,55 @@ export function libraryCard(item, { onPlay, payload } = {}) {
       {},
       el('summary', { text: 'raw JSON' }),
       el('pre', { text: toJsonString(LibraryItemSchema, item) }),
+    ),
+  );
+  return card;
+}
+
+export function liveSearchHitCard(hit, { onPlay } = {}) {
+  // The contract carries the enum's String() form (e.g. "ITEM_KIND_MOVIE");
+  // strip the noise for display.
+  const kindLabel = (hit.kind ?? '')
+    .replace(/^item_kind_/i, '')
+    .toLowerCase()
+    .replaceAll('_', '-');
+  const card = el('div', { class: 'card' });
+  card.append(
+    el(
+      'div',
+      { class: 'card-head' },
+      kindLabel ? badge(kindLabel, 'kind') : undefined,
+      el('span', { class: 'title', text: hit.title || hit.nativeId }),
+    ),
+  );
+  const body = el('div', { class: 'card-body' });
+  if (hit.year)
+    body.append(el('div', { class: 'meta', text: `(${hit.year})` }));
+  for (const r of [
+    row('provider', hit.provider),
+    row('account', hit.accountId),
+    row('native id', hit.nativeId),
+  ]) {
+    if (r) body.append(r);
+  }
+  card.append(body);
+  card.append(
+    el(
+      'div',
+      { class: 'card-body' },
+      el('button', {
+        class: 'play-item',
+        text: 'Play',
+        onclick: onPlay,
+      }),
+    ),
+  );
+  card.append(
+    el(
+      'details',
+      {},
+      el('summary', { text: 'raw JSON' }),
+      el('pre', { text: toJsonString(LiveSearchHitSchema, hit) }),
     ),
   );
   return card;

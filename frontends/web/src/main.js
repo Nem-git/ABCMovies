@@ -15,6 +15,7 @@ import {
   GetPlayInfoRequestSchema,
   LinkAccountRequestSchema,
   ListAccountsRequestSchema,
+  LiveSearchRequestSchema,
   LoginRequestSchema,
   PasswordLoginSchema,
   PasswordSignUpSchema,
@@ -33,6 +34,7 @@ import {
   jobCard,
   jobStatusLabel,
   libraryCard,
+  liveSearchHitCard,
   metadataPanel,
   playMenu,
   registryPanel,
@@ -102,6 +104,7 @@ function updateSessionUI() {
     'linkAccount',
     'listAccounts',
     'browse',
+    'liveSearch',
   ]) {
     $(id).disabled = !loggedIn;
   }
@@ -337,6 +340,52 @@ $('nextPage').addEventListener('click', async () => {
     log(`library: page of ${(res.items ?? []).length} more items`);
   } catch (err) {
     log(`browse library failed: ${describe(err)}`);
+  }
+});
+
+// --- Live search (PLAN.md §5.4: explicit, user-triggered lazy-provider refresh) ---
+
+$('liveSearch').addEventListener('click', async () => {
+  const query = $('liveQuery').value.trim();
+  if (!query) {
+    log('live search: query is required');
+    return;
+  }
+  const providers = parseScopes($('liveProviders').value);
+  const rawLimit = $('livePageLimit').value.trim();
+  const pageLimit = rawLimit === '' ? 0 : Number(rawLimit);
+  if (rawLimit !== '' && (!Number.isInteger(pageLimit) || pageLimit < 0)) {
+    log('live search: page limit must be a non-negative integer');
+    return;
+  }
+  const busy = $('liveSearch');
+  busy.disabled = true;
+  try {
+    const res = await client.liveSearch(
+      create(LiveSearchRequestSchema, { query, providers, pageLimit }),
+    );
+    const results = $('liveResults');
+    results.innerHTML = '';
+    for (const hit of res.hits ?? []) {
+      results.append(
+        liveSearchHitCard(hit, {
+          onPlay: () => startPlay(hit.provider, hit.nativeId),
+        }),
+      );
+    }
+    if ((res.hits ?? []).length === 0) {
+      results.append(emptyHint(`no live hits for "${query}"`));
+    }
+    for (const [slotId, err] of Object.entries(res.rejected ?? {})) {
+      log(`live search: ${slotId} rejected: ${err}`);
+    }
+    log(
+      `live search: ${(res.hits ?? []).length} hits; results ingested into the library cache`,
+    );
+  } catch (err) {
+    log(`live search failed: ${describe(err)}`);
+  } finally {
+    busy.disabled = !token;
   }
 });
 
