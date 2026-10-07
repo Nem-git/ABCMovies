@@ -1,0 +1,17 @@
+{
+  "name": "browse-catalog-response-one-page",
+  "type": "BrowseCatalogResponse",
+  "message": {
+    "items": [
+      {
+        "native_id": "archive-bigbuckbunny",
+        "kind": "ITEM_KIND_MOVIE",
+        "metadata": { "title": "Big Buck Bunny", "year": 2008 }
+      }
+    ],
+    "next_page_token": "next/archive-2"
+  },
+  "expected": {
+    "valid": true
+  }
+}

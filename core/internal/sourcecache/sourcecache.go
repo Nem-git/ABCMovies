@@ -36,6 +36,14 @@ type Client interface {
 	CatalogueSync(ctx context.Context, req *slotsv1.CatalogueSyncRequest) (*slotsv1.CatalogueSyncResponse, error)
 }
 
+// RefreshClient is the lazy-provider counterpart of Client (PLAN.md §5.4):
+// the explicit, user-triggered availability lookup that replaces a
+// whole-catalogue sweep. Every provider slot implements it additively; lazy
+// slots implement only this.
+type RefreshClient interface {
+	RefreshAvailability(ctx context.Context, req *slotsv1.RefreshAvailabilityRequest) (*slotsv1.RefreshAvailabilityResponse, error)
+}
+
 // Stats reports what one account sync did.
 type Stats struct {
 	Items int
@@ -89,6 +97,11 @@ func WithItemResolver(res ItemResolver) Option {
 	return func(s *Synchronizer) { s.resolver = res }
 }
 
+// WithRefreshClient wires the lazy availability-refresh path.
+func WithRefreshClient(r RefreshClient) Option {
+	return func(s *Synchronizer) { s.refresh = r }
+}
+
 // manifest is the per-account completion marker. Consumers read it to know
 // whether the cached index is complete and how fresh it is.
 type manifest struct {
@@ -100,6 +113,7 @@ type manifest struct {
 type Synchronizer struct {
 	provider string // capability namespace, e.g. "jellyfin"
 	client   Client
+	refresh  RefreshClient // optional lazy path
 	cache    store.Store
 	logger   *slog.Logger
 	entries  EntryLookup  // optional
@@ -245,6 +259,110 @@ func (s *Synchronizer) SyncAccount(ctx context.Context, accountID string) (Stats
 	s.logger.Info("source cache synced",
 		"provider", s.provider, "account", accountID, "items", stats.Items,
 		"pages", stats.Pages, "removed", stats.Removed)
+	return stats, nil
+}
+
+// RefreshItems runs the lazy-provider availability check for one account and
+// applies its result to the source cache. Items the provider still carries are
+// upserted (and resolved, like a synced page); requested items the provider
+// no longer answers for are deleted — and both arrivals and departures emit
+// the same account-scoped availability-changed events as a catalogue sync
+// (PLAN.md §5.4: availability refresh is a pure lookup; it changes presence,
+// never identity). The refresh validates every returned item before any of
+// them land: a contract violation reconciles nothing, never downgrades.
+// IngestItems runs the lazy-search half of the same operation: provider
+// results (from a usage-triggered SearchCatalog/BrowseCatalog call) are
+// upserted into the source cache and resolved exactly like synced page
+// items, emitting arrival events. It upserts only — it never removes, so
+// searching for "x" cannot wipe what the user added via "y" (the prune side
+// is RefreshItems' job). Contract validation still aborts the whole batch,
+// reject, never downgrade.
+func (s *Synchronizer) IngestItems(ctx context.Context, accountID string, items []*slotsv1.CatalogueItem) (Stats, error) {
+	stats := Stats{}
+	if len(items) == 0 {
+		return stats, nil
+	}
+	for _, item := range items {
+		if err := schema.ValidateCatalogueItem(item); err != nil {
+			return stats, fmt.Errorf("sourcecache: ingest: contract violation: %w", err)
+		}
+	}
+	for _, item := range items {
+		key := s.provider + "/" + accountID + "/" + item.GetNativeId()
+		_, getErr := s.cache.Get(ctx, key)
+		blob, err := protojson.Marshal(item)
+		if err != nil {
+			return stats, fmt.Errorf("sourcecache: encode %q: %w", item.GetNativeId(), err)
+		}
+		if err := s.cache.Put(ctx, key, blob); err != nil {
+			return stats, fmt.Errorf("sourcecache: write %q: %w", item.GetNativeId(), err)
+		}
+		if s.resolver != nil {
+			if err := s.resolver.Resolve(ctx, s.provider, item); err != nil {
+				return stats, fmt.Errorf("sourcecache: resolve %q: %w", item.GetNativeId(), err)
+			}
+		}
+		if getErr != nil {
+			s.notifyAvailability(ctx, accountID, item.GetNativeId(), true)
+		}
+		stats.Items++
+	}
+	return stats, nil
+}
+
+func (s *Synchronizer) RefreshItems(ctx context.Context, accountID string, nativeIDs []string) (Stats, error) {
+	stats := Stats{}
+	if s.refresh == nil {
+		return stats, fmt.Errorf("sourcecache: no refresh client wired")
+	}
+	if len(nativeIDs) == 0 {
+		return stats, nil
+	}
+	resp, err := s.refresh.RefreshAvailability(ctx, &slotsv1.RefreshAvailabilityRequest{
+		AccountId: accountID, NativeIds: nativeIDs,
+	})
+	if err != nil {
+		return stats, fmt.Errorf("sourcecache: refresh: %w", err)
+	}
+	present := make(map[string]struct{}, len(resp.GetItems()))
+	arrived := map[string]bool{}
+	for _, item := range resp.GetItems() {
+		if err := schema.ValidateCatalogueItem(item); err != nil {
+			return stats, fmt.Errorf("sourcecache: refresh: contract violation: %w", err)
+		}
+		key := s.provider + "/" + accountID + "/" + item.GetNativeId()
+		_, getErr := s.cache.Get(ctx, key)
+		blob, err := protojson.Marshal(item)
+		if err != nil {
+			return stats, fmt.Errorf("sourcecache: encode %q: %w", item.GetNativeId(), err)
+		}
+		if err := s.cache.Put(ctx, key, blob); err != nil {
+			return stats, fmt.Errorf("sourcecache: write %q: %w", item.GetNativeId(), err)
+		}
+		if s.resolver != nil {
+			if err := s.resolver.Resolve(ctx, s.provider, item); err != nil {
+				return stats, fmt.Errorf("sourcecache: resolve %q: %w", item.GetNativeId(), err)
+			}
+		}
+		present[item.GetNativeId()] = struct{}{}
+		arrived[item.GetNativeId()] = getErr != nil // absent from cache before this refresh
+		stats.Items++
+	}
+	for _, nativeID := range nativeIDs {
+		if _, ok := present[nativeID]; ok {
+			continue
+		}
+		if err := s.cache.Delete(ctx, s.provider+"/"+accountID+"/"+nativeID); err != nil {
+			return stats, fmt.Errorf("sourcecache: delete %q: %w", nativeID, err)
+		}
+		stats.Removed++
+		s.notifyAvailability(ctx, accountID, nativeID, false)
+	}
+	for _, item := range resp.GetItems() {
+		if arrived[item.GetNativeId()] {
+			s.notifyAvailability(ctx, accountID, item.GetNativeId(), true)
+		}
+	}
 	return stats, nil
 }
 

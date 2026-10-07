@@ -17,9 +17,11 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/enrichment"
+	"github.com/nem-git/abcmovies/core/internal/identity"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/metadatacache"
+	"github.com/nem-git/abcmovies/core/internal/policy"
 	"github.com/nem-git/abcmovies/core/internal/registry"
 	"github.com/nem-git/abcmovies/core/internal/scheduler"
 	"github.com/nem-git/abcmovies/core/internal/slotwiring"
@@ -151,10 +153,15 @@ func (rt *SlotRuntime) AttachAccount(rec accounts.Record) error {
 		if attachable, ok := b.Impl.(slotwiring.AttachableSlot); ok {
 			attachable.DropAccount(rec.ID)
 		}
+		if l, ok := b.Impl.(interface{ DropAccount(string) }); ok {
+			l.DropAccount(rec.ID)
+		}
 		return fmt.Errorf("publish reach: %w", err)
 	}
-	rt.Scheduler.Register(*job)
-	slotwiring.FirstSync(syncer, rec.ID, rt.deps)
+	if job != nil {
+		rt.Scheduler.Register(*job)
+		slotwiring.FirstSync(syncer, rec.ID, rt.deps)
+	}
 	return nil
 }
 
@@ -250,11 +257,18 @@ func (e registryEvidence) Evidence(ctx context.Context, entryID string) (enrichm
 // No owner id goes into the item registry yet: operator-facing
 // merge-conflict notifications arrive with the operator surface, until then
 // the registry suppresses those envelopes.
-func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.EnrichmentConfig, reg *registry.InProcessRegistry, sourceCache, metaCache, vault, cache store.Store, apiBus *apiserver.InMemoryBus, logger *slog.Logger) (*SlotRuntime, error) {
+//
+// lib carries the matching knobs (PLAN.md §5.3): one identity.Options
+// instance is resolved here and injected into both the item registry and
+// the enrichment engine, so every normalization in the process runs on the
+// same article list.
+func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.EnrichmentConfig, lib config.LibraryConfig, reg *registry.InProcessRegistry, sourceCache, metaCache, vault, cache store.Store, apiBus *apiserver.InMemoryBus, logger *slog.Logger, instancePolicy map[string]string) (*SlotRuntime, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	itemReg, err := itemregistry.New(sourceCache, "")
+	identityOpts := identity.Options{Articles: lib.Articles}
+	logger.Info("library: matching drops leading articles", "articles", identityOpts.ArticlesList())
+	itemReg, err := itemregistry.New(sourceCache, "", identityOpts)
 	if err != nil {
 		return nil, fmt.Errorf("item registry: %w", err)
 	}
@@ -268,15 +282,20 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 	mux := &eventMux{bus: rt.Bus, log: logger}
 	rt.eventMux = mux
 	rt.Relay = delivery.NewRelay()
+	instanceSet, err := policy.ParseInstance(instancePolicy)
+	if err != nil {
+		return nil, fmt.Errorf("policy: %w", err)
+	}
 	deps := slotwiring.Deps{
-		Ctx:          ctx,
-		Registry:     reg,
-		Accounts:     accounts.NewStore(vault, logger),
-		SourceCache:  sourceCache,
-		Logger:       logger,
-		ItemRegistry: itemReg,
-		EventSink:    mux,
-		Enqueue:      queue.Enqueue,
+		Ctx:            ctx,
+		Registry:       reg,
+		Accounts:       accounts.NewStore(vault, logger),
+		SourceCache:    sourceCache,
+		Logger:         logger,
+		ItemRegistry:   itemReg,
+		EventSink:      mux,
+		Enqueue:        queue.Enqueue,
+		InstancePolicy: instanceSet,
 	}
 	jobs, reaches, cats, resolvers, built, err := slotwiring.SetupAll(ctx, slots, deps)
 	if err != nil {
@@ -304,7 +323,7 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 
 	// The enrichment pipeline drains whatever the T1/T2 triggers collect;
 	// with no catalogue slots enabled the queue simply stays empty.
-	engine := enrichment.NewEngine(registryEvidence{r: itemReg}, meta, cats, logger)
+	engine := enrichment.NewEngine(registryEvidence{r: itemReg}, meta, cats, logger, identityOpts)
 	drainCadence, err := enrichment.DrainCadence(enrich.DrainCadence)
 	if err != nil {
 		rt.Bus.Close()

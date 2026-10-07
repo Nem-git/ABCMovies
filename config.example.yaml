@@ -87,6 +87,15 @@ slots:
   #         # the keys written here override; everything else inherits.
   #         policy:
   #           concurrentStreams: 2
+  #
+  #   # Generic Stremio-addon provider: server is the addon's manifest URL.
+  #   # No sync-cadence — a lazy provider refreshes on usage only.
+  #   - adapter: stremio
+  #     id: stremio-archiveorg
+  #     enabled: true
+  #     server: 'https://dev.nebulawp.org/stremio/archive.org-addon/manifest.json'
+  #     accounts:
+  #       - id: archiveorg
 
 # Instance-wide usage policy (docs/PLAN.md §7.2, the enforcement vocabulary
 # from docs/TECHNICAL-DECISIONS.md §1.34): a limit-type => value map. Absent
@@ -99,7 +108,9 @@ slots:
 #   bandwidth: unlimited
 #   encode: disabled
 
-# Delivery engine knobs (docs/PLAN.md §7.2):
+# Delivery engine knobs (docs/PLAN.md §7.2, §9.1). Absent keys inherit the
+# shipped defaults recorded in TECHNICAL-DECISIONS.md §1.14; a malformed or
+# non-positive duration aborts startup with the key named.
 #   on-cap-change: what lowering an account's concurrent-stream cap does to
 #     the sessions already running on it.
 #     new-sessions-only (default) — running streams finish, and the new cap
@@ -108,6 +119,39 @@ slots:
 #   A user may override this per account. An unknown value fails startup.
 # delivery:
 #   on-cap-change: new-sessions-only
+#   # Zombie cap: a session with no liveness proof ends after this.
+#   session-ttl: 24h
+#   heartbeat:
+#     # How often a play session's frontend must prove liveness. Published
+#     # to clients via GetInstanceInfo — clients never hardcode it.
+#     interval: 30s
+#     # Server-side slack before a missed heartbeat ends the session.
+#     grace: 90s
+#
+# Library matching (docs/PLAN.md §5.3).
+# library:
+#   # Leading articles dropped when titles are normalized for matching.
+#   # Set this BEFORE the first sync: the item registry's normalized-title
+#   # index is built with the list in effect at write time, so changing it
+#   # on a populated instance requires rebuilding the identity store.
+#   # An explicit empty list (articles: []) drops no articles.
+#   articles: [the, a, an]
+#
+# M7 pacing (PLAN.md §7.2, TECHNICAL-DECISIONS.md §1.35): per-account budget
+# keys in the account's policy map; the per-provider aggregate governor cap
+# lives in the slot's options bag.
+#   providers:
+#     - adapter: stremio
+#       id: stremio-archiveorg
+#       options:
+#         pacingRequestsPerSecond: "5"   # total ceiling across its accounts
+#       accounts:
+#         - id: archiveorg
+#           policy:
+#             pacingRequestsPerSecond: "2"
+#             pacingMaxConcurrentPulls: "2"
+#             pacingInterRequestDelay: 200ms
+#             pacingRetries: "2"
 
 stores:
   # One backend per store class (docs/PLAN.md §2.4). Classes whose loss costs

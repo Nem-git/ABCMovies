@@ -10,11 +10,14 @@ import {
   CapChangePolicy,
   CoreService,
   DeliveryGoal,
+  GetInstanceInfoRequestSchema,
   GetJobRequestSchema,
   GetLibraryRequestSchema,
   GetPlayInfoRequestSchema,
+  HeartbeatRequestSchema,
   LinkAccountRequestSchema,
   ListAccountsRequestSchema,
+  LiveSearchRequestSchema,
   LoginRequestSchema,
   PasswordLoginSchema,
   PasswordSignUpSchema,
@@ -33,6 +36,7 @@ import {
   jobCard,
   jobStatusLabel,
   libraryCard,
+  liveSearchHitCard,
   metadataPanel,
   playMenu,
   registryPanel,
@@ -59,6 +63,12 @@ let libraryQuery = '';
 let nextPageToken = '';
 // The delivery session the player is currently attached to.
 let activeSessionId = null;
+
+// Instance parameters published by GetInstanceInfo (PLAN.md §9.1): the core
+// tells clients how often a play session must heartbeat — never hardcode it.
+// The fallback applies only if the public call itself fails.
+let heartbeatIntervalMs = 30000;
+let heartbeatTimer = null;
 
 const describe = (err) => {
   const name = typeof err?.code === 'number' ? Code[err.code] : undefined;
@@ -102,6 +112,7 @@ function updateSessionUI() {
     'linkAccount',
     'listAccounts',
     'browse',
+    'liveSearch',
   ]) {
     $(id).disabled = !loggedIn;
   }
@@ -340,6 +351,96 @@ $('nextPage').addEventListener('click', async () => {
   }
 });
 
+// --- Live search (PLAN.md §5.4: explicit, user-triggered lazy-provider refresh) ---
+
+$('liveSearch').addEventListener('click', async () => {
+  const query = $('liveQuery').value.trim();
+  if (!query) {
+    log('live search: query is required');
+    return;
+  }
+  const providers = parseScopes($('liveProviders').value);
+  const rawLimit = $('livePageLimit').value.trim();
+  const pageLimit = rawLimit === '' ? 0 : Number(rawLimit);
+  if (rawLimit !== '' && (!Number.isInteger(pageLimit) || pageLimit < 0)) {
+    log('live search: page limit must be a non-negative integer');
+    return;
+  }
+  const busy = $('liveSearch');
+  busy.disabled = true;
+  try {
+    const res = await client.liveSearch(
+      create(LiveSearchRequestSchema, { query, providers, pageLimit }),
+    );
+    const results = $('liveResults');
+    results.innerHTML = '';
+    for (const hit of res.hits ?? []) {
+      results.append(
+        liveSearchHitCard(hit, {
+          onPlay: () => startPlay(hit.provider, hit.nativeId),
+        }),
+      );
+    }
+    if ((res.hits ?? []).length === 0) {
+      results.append(emptyHint(`no live hits for "${query}"`));
+    }
+    for (const [slotId, err] of Object.entries(res.rejected ?? {})) {
+      log(`live search: ${slotId} rejected: ${err}`);
+    }
+    log(
+      `live search: ${(res.hits ?? []).length} hits; results ingested into the library cache`,
+    );
+  } catch (err) {
+    log(`live search failed: ${describe(err)}`);
+  } finally {
+    busy.disabled = !token;
+  }
+});
+
+// --- Instance info (public; TECHNICAL-DECISIONS.md §1.43) ---
+
+async function loadInstanceInfo() {
+  try {
+    const res = await client.getInstanceInfo(
+      create(GetInstanceInfoRequestSchema, {}),
+    );
+    const d = res.heartbeatInterval;
+    if (d) {
+      heartbeatIntervalMs =
+        Number(d.seconds) * 1000 + Math.round((d.nanos ?? 0) / 1e6);
+    }
+    log(
+      `instance: contract ${res.contractVersion}; auth methods: ${(res.authMethods ?? []).join(', ')}; heartbeat every ${heartbeatIntervalMs / 1000}s`,
+    );
+  } catch (err) {
+    log(
+      `get instance info failed: ${describe(err)} — heartbeat stays at ${heartbeatIntervalMs / 1000}s`,
+    );
+  }
+}
+
+// A play session stays alive only while heartbeated (PLAN.md §9.1); a paused
+// video still heartbeats. The loop stops on the first failed beat — the
+// session is gone or the token is — and on logout.
+function startHeartbeat(sessionId) {
+  stopHeartbeat();
+  heartbeatTimer = setInterval(async () => {
+    try {
+      await client.heartbeat(create(HeartbeatRequestSchema, { sessionId }));
+    } catch (err) {
+      log(`heartbeat failed: ${describe(err)} — stopping`);
+      stopHeartbeat();
+    }
+  }, heartbeatIntervalMs);
+}
+
+function stopHeartbeat() {
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+}
+
 // --- Minimal play (PLAN.md §6, §9.1: menu-ready events, get-play-info, relay) ---
 
 async function startPlay(provider, nativeId) {
@@ -364,6 +465,7 @@ async function startPlay(provider, nativeId) {
       return;
     }
     $('player').classList.remove('hidden');
+    startHeartbeat(activeSessionId);
     log(
       `delivery started: ${activeSessionId} (${provider}:${nativeId} via ${account.accountId}) — waiting for the play menu`,
     );
@@ -403,6 +505,7 @@ async function refreshPlayInfo() {
 
 $('logout').addEventListener('click', () => {
   stopSubscription();
+  stopHeartbeat();
   token = null;
   username = null;
   activeSessionId = null;
@@ -647,3 +750,4 @@ $('clearFeed').addEventListener('click', () => {
 });
 
 updateSessionUI();
+loadInstanceInfo();

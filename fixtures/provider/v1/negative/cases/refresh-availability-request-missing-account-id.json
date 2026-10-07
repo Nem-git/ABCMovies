@@ -1,0 +1,10 @@
+{
+  "name": "refresh-availability-request-missing-account-id",
+  "type": "RefreshAvailabilityRequest",
+  "message": {
+    "native_ids": ["archive-sintel"]
+  },
+  "expected": {
+    "valid": false
+  }
+}

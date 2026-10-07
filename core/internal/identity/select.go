@@ -18,12 +18,17 @@ import (
 // none; callers fetch details for survivors and let Adopt decide on full
 // records (TECHNICAL-DECISIONS §1.28).
 func Screen(entry Item, candidates []Item) []int {
+	return Options{}.Screen(entry, candidates)
+}
+
+// Screen is Screen under the configured normalization options.
+func (o Options) Screen(entry Item, candidates []Item) []int {
 	out := []int{}
 	for i, c := range candidates {
 		if !sameKind(entry.Kind, c.Kind) {
 			continue
 		}
-		if !titlesAgree(entry, c) {
+		if !o.titlesAgree(entry, c) {
 			continue
 		}
 		// Year gates movies only, compared exactly, unknown failing closed
@@ -72,9 +77,14 @@ func contradicts(as, bs []*slotsv1.ExternalId) bool {
 // cast, language, runtime), which is why the engine fetches details for
 // near-ties before calling Adopt.
 func Select(entry Item, candidates []Item) []Verdict {
+	return Options{}.Select(entry, candidates)
+}
+
+// Select is Select under the configured normalization options.
+func (o Options) Select(entry Item, candidates []Item) []Verdict {
 	verdicts := make([]Verdict, len(candidates))
 	for i, c := range candidates {
-		verdicts[i] = Decide(entry, c)
+		verdicts[i] = o.Decide(entry, c)
 	}
 	return verdicts
 }
@@ -90,7 +100,12 @@ func Select(entry Item, candidates []Item) []Verdict {
 //   - anything else — zero survivors, ties after scoring — abstains: never
 //     guess stays absolute (PLAN.md §5.3).
 func Adopt(entry Item, candidates []Item) (picked int, ok bool) {
-	verdicts := Select(entry, candidates)
+	return Options{}.Adopt(entry, candidates)
+}
+
+// Adopt is Adopt under the configured normalization options.
+func (o Options) Adopt(entry Item, candidates []Item) (picked int, ok bool) {
+	verdicts := o.Select(entry, candidates)
 
 	corroborated := -1
 	for i, v := range verdicts {

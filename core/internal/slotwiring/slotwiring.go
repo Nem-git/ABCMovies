@@ -23,12 +23,14 @@ import (
 	"time"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/enrichment"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/library"
+	"github.com/nem-git/abcmovies/core/internal/policy"
 	"github.com/nem-git/abcmovies/core/internal/registry"
 	"github.com/nem-git/abcmovies/core/internal/scheduler"
 	"github.com/nem-git/abcmovies/core/internal/sourcecache"
@@ -61,6 +63,11 @@ type Deps struct {
 	// changed a mapping, its entry becomes an enrichment candidate. Nil
 	// disables the trigger (no catalogue slots configured).
 	Enqueue func(entryID string)
+	// InstancePolicy is the parsed instance usage policy (ParseInstance):
+	// per-account budgets merge it under the account's own overlay, so a
+	// host-wide pacing key is enforced on every account (§7.2). Nil means
+	// no instance-level overrides — per-account keys only.
+	InstancePolicy policy.Set
 }
 
 // builtSlot is a provider slot fully assembled by its factory but not yet
@@ -80,7 +87,23 @@ type BuiltSlot struct {
 	// refresh job takes the slot's cadence so it stays in step with the
 	// slot's other accounts.
 	Cadence time.Duration
+	// LazySearch exposes the lazy catalogue surface when the adapter
+	// implements it (search/browse/produce-sources/refresh — never
+	// catalogue-sync). Always the paced wrapper, so this call obeys the
+	// per-account budget and the slot-wide governor. Nil for
+	// whole-catalogue-only providers.
+	LazySearch LazyProviderService
 }
+
+// LazyProviderService is the lazy catalogue-surface subset of a provider
+// slot: exactly what the slot's pacedClient satisfies for lazy adapters.
+type LazyProviderService interface {
+	SearchCatalog(ctx context.Context, req *slotsv1.SearchCatalogRequest) (*slotsv1.SearchCatalogResponse, error)
+	RefreshAvailability(ctx context.Context, req *slotsv1.RefreshAvailabilityRequest) (*slotsv1.RefreshAvailabilityResponse, error)
+	ProduceSources(ctx context.Context, req *slotsv1.ProduceSourcesRequest) (*slotsv1.ProduceSourcesResponse, error)
+}
+
+var _ LazyProviderService = (*pacedClient)(nil)
 
 // Namespace is the source-cache namespace the slot's accounts sync under —
 // whatever produced its entry id (config or the derived server namespace).
@@ -106,6 +129,10 @@ type AttachableSlot interface {
 // sync, so a half-wired account never feeds a library. If anything fails,
 // the caller owns error cleanup (drop the record and session; DropAccount).
 func AttachAccount(b *BuiltSlot, rec accounts.Record, deps Deps) (*sourcecache.Synchronizer, *library.Reach, *scheduler.Job, error) {
+	pc, innerImpl := pacedImpl(b)
+	if isLazy, ok := innerImpl.(interface{ IsLazy() bool }); ok && isLazy.IsLazy() {
+		return attachLazyAccount(b, rec, deps, pc, innerImpl)
+	}
 	attachable, ok := b.Impl.(AttachableSlot)
 	if !ok {
 		return nil, nil, nil, fmt.Errorf("slot %q (adapter %q): does not accept a runtime-linked account", b.Entry.ID, b.Entry.Adapter)
@@ -114,7 +141,19 @@ func AttachAccount(b *BuiltSlot, rec accounts.Record, deps Deps) (*sourcecache.S
 		return nil, nil, nil, fmt.Errorf("slot %q: add account: %w", b.Entry.ID, err)
 	}
 	meta := reachMeta{owner: rec.OwnerUserID, visibility: rec.Visibility, members: rec.SharedWith}
-	syncer, reach, job, err := accountSyncMachine(providerNamespace(b.Entry), rec.ID, attachable, b.Cadence, meta, deps)
+	var syncer *sourcecache.Synchronizer
+	var reach *library.Reach
+	var job *scheduler.Job
+	var err error
+	if pc != nil {
+		// The runtime-linked account inherits the instance pacing policy
+		// (§7.2): it had no operator-declared policy block at boot. Route
+		// its catalogue sync through the shared Gate like boot accounts.
+		pc.setBudget(rec.ID, budgetFromPolicy(deps.InstancePolicy))
+		syncer, reach, job, err = accountSyncMachine(providerNamespace(b.Entry), rec.ID, pc, b.Cadence, meta, deps)
+	} else {
+		syncer, reach, job, err = accountSyncMachine(providerNamespace(b.Entry), rec.ID, attachable, b.Cadence, meta, deps)
+	}
 	if err != nil {
 		// The account must not be half-wired: the slot accepted it but its
 		// machinery did not build, so take it back before anyone sees it.
@@ -122,6 +161,57 @@ func AttachAccount(b *BuiltSlot, rec accounts.Record, deps Deps) (*sourcecache.S
 		return nil, nil, nil, err
 	}
 	return syncer, reach, job, nil
+}
+
+// pacedImpl returns the paced wrapper for the entry and the raw impl, so a
+// runtime attach can route every provider call through the Gate while the
+// registry continues to wake the raw impl for the handshake.
+func pacedImpl(b *BuiltSlot) (*pacedClient, interface{}) {
+	if b.LazySearch == nil {
+		return nil, b.Impl
+	}
+	if pc, ok := b.LazySearch.(*pacedClient); ok {
+		return pc, b.Impl
+	}
+	return nil, b.Impl
+}
+
+// attachLazyAccount is the lazy counterpart of the attach path: it still
+// creates one synchronizer and one reach — because the reach feeds the
+// per-user derived library and the synchronizer owns the availability-event
+// fanout — but it never builds a catalogue-sync job and never schedules an
+// initial sync. A lazy provider earns its rows through LiveSearch and
+// RefreshAvailability, not background sync.
+func attachLazyAccount(b *BuiltSlot, rec accounts.Record, deps Deps, pc *pacedClient, innerImpl interface{}) (*sourcecache.Synchronizer, *library.Reach, *scheduler.Job, error) {
+	attacher, ok := innerImpl.(interface {
+		AddAccount(id string) error
+		DropAccount(id string)
+	})
+	if !ok {
+		return nil, nil, nil, fmt.Errorf("slot %q (adapter %q): lazy slot does not accept runtime link", b.Entry.ID, b.Entry.Adapter)
+	}
+	if err := attacher.AddAccount(rec.ID); err != nil {
+		return nil, nil, nil, fmt.Errorf("slot %q: add account: %w", b.Entry.ID, err)
+	}
+	meta := reachMeta{owner: rec.OwnerUserID, visibility: rec.Visibility, members: rec.SharedWith}
+	var syncer *sourcecache.Synchronizer
+	var reach *library.Reach
+	var err error
+	if pc != nil {
+		// The runtime-linked account inherits the instance pacing policy
+		// (§7.2): it had no operator-declared policy block at boot.
+		pc.setBudget(rec.ID, budgetFromPolicy(deps.InstancePolicy))
+		syncer, reach, _, err = accountSyncMachine(providerNamespace(b.Entry), rec.ID, pc, 0, meta, deps)
+	} else if ic, ok := innerImpl.(sourcecache.Client); ok {
+		syncer, reach, _, err = accountSyncMachine(providerNamespace(b.Entry), rec.ID, ic, 0, meta, deps)
+	} else {
+		err = fmt.Errorf("slot %q: lazy attach requires a catalogue/refresh client", b.Entry.ID)
+	}
+	if err != nil {
+		attacher.DropAccount(rec.ID)
+		return nil, nil, nil, err
+	}
+	return syncer, reach, nil, nil
 }
 
 // FirstSync starts the initial source-cache fill for an account whose reach is

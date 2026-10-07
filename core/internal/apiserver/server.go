@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
@@ -83,11 +84,26 @@ type Server struct {
 	attacher      AccountAttacher
 	dropper       AccountDropper
 	userDirectory UserDirectory
+	// liveSearcher runs the explicit, user-triggered provider refresh
+	// (PLAN.md §5.4) behind reach authorization; nil means the instance
+	// has no lazy providers, and the RPC returns Unavailable rather than
+	// pretending to search a paged catalogue.
+	liveSearcher LiveSearcher
 	// capChangeDefault is the instance-wide cap-change behaviour accounts
 	// inherit when they carry no choice of their own; armed by the
 	// composition root from the delivery config, defaulting to
 	// new-sessions-only.
 	capChangeDefault accounts.CapChangePolicy
+	// heartbeatInterval is the play-session liveness cadence published by
+	// GetInstanceInfo; armed from the same parsed config the delivery
+	// engine enforces.
+	heartbeatInterval time.Duration
+}
+
+// LiveSearcher runs one explicit user-triggered refresh of the lazy
+// providers. The concrete closure is armed by the composition root.
+type LiveSearcher interface {
+	Run(ctx context.Context, req *apiv1.LiveSearchRequest) (*apiv1.LiveSearchResponse, error)
 }
 
 // SetCapChangeDefault arms the instance-wide default for what lowering an
@@ -125,6 +141,9 @@ func NewServer(bus Bus, stores config.Stores, authenticator *auth.CompositeAuthe
 		// The shipped default never kills a running session: a cap change
 		// applies from the next session (TECHNICAL-DECISIONS.md).
 		capChangeDefault: accounts.CapChangePolicyNewSessionsOnly,
+		// A server built without the composition root still publishes the
+		// shipped liveness cadence; composition overrides it from config.
+		heartbeatInterval: defaultHeartbeatInterval(),
 	}
 }
 
@@ -196,6 +215,25 @@ func (s *Server) SetUserDirectory(d UserDirectory) {
 // time. Until SetDelivery is called the delivery RPCs return Unavailable.
 func (s *Server) SetDelivery(dm DeliveryManager) {
 	s.delivery = dm
+}
+
+// SetLiveSearcher arms the explicit lazy-provider refresh seam.
+func (s *Server) SetLiveSearcher(ls LiveSearcher) {
+	s.liveSearcher = ls
+}
+
+// LiveSearch runs one explicit, user-triggered refresh of the lazy
+// providers (PLAN.md §5.4: browse/search against the provider is the
+// refresh). Search itself never queries providers by default; this is the
+// opt-in live path, gated per account by the caller's reach.
+func (s *Server) LiveSearch(ctx context.Context, req *apiv1.LiveSearchRequest) (*apiv1.LiveSearchResponse, error) {
+	if strings.TrimSpace(req.GetQuery()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "query is required")
+	}
+	if s.liveSearcher == nil {
+		return nil, status.Error(codes.Unavailable, "no lazy providers configured")
+	}
+	return s.liveSearcher.Run(ctx, req)
 }
 
 // Delivery returns the currently armed delivery engine, or nil.

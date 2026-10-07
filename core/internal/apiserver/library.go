@@ -10,6 +10,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/schema"
+	"github.com/nem-git/abcmovies/core/internal/sourcecache"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -26,6 +27,7 @@ type LibrarySeam interface {
 	ReachesForUser(userID string) []library.Reach
 	SetReachSharing(accountID string, visibility accounts.Visibility, members []string) error
 	RemoveReach(accountID string)
+	RefreshAvailability(ctx context.Context, accountID string, nativeIDs []string) (sourcecache.Stats, error)
 }
 
 // SetLibrary arms the library seam used by every library and account RPC.
@@ -43,6 +45,30 @@ const libraryPageSize = 100
 // surface matches the derived display surface (see the search-surface decision
 // in TECHNICAL-DECISIONS.md; pagination uses a fixed page bound, recorded for
 // the P6 docs pass).
+// RefreshAvailability is the user-triggered availability re-check
+// (PLAN.md §5.4): never a background sweep, and behind the same reach
+// authorization as GetLibrary/StartDelivery.
+func (s *Server) RefreshAvailability(ctx context.Context, req *apiv1.RefreshAvailabilityRequest) (*apiv1.RefreshAvailabilityResponse, error) {
+	if req.GetAccountId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "account_id is required")
+	}
+	if len(req.GetNativeIds()) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "native_ids must be non-empty")
+	}
+	if s.library == nil {
+		return nil, status.Error(codes.Unavailable, "library engine not configured")
+	}
+	uid, _ := UserIDFromContext(ctx)
+	if _, ok := s.library.ReachAuthorized(req.GetAccountId(), uid); !ok {
+		return nil, status.Error(codes.PermissionDenied, "account not reachable by this caller")
+	}
+	stats, err := s.library.RefreshAvailability(ctx, req.GetAccountId(), req.GetNativeIds())
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &apiv1.RefreshAvailabilityResponse{Present: int32(stats.Items), Removed: int32(stats.Removed)}, nil
+}
+
 func (s *Server) GetLibrary(ctx context.Context, req *apiv1.GetLibraryRequest) (*apiv1.GetLibraryResponse, error) {
 	if err := schema.ValidateGetLibraryRequest(req); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())

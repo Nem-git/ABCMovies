@@ -10,6 +10,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/library"
+	"github.com/nem-git/abcmovies/core/internal/sourcecache"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
@@ -134,4 +135,8 @@ func TestM6AccountRosterIsOwnerOnly(t *testing.T) {
 	if len(carol.GetAccounts()[0].GetSharedWith()) != 0 {
 		t.Errorf("host-provided account carries roster %v on carol's view, want none", carol.GetAccounts()[0].GetSharedWith())
 	}
+}
+
+func (l *rosterLibrary) RefreshAvailability(context.Context, string, []string) (sourcecache.Stats, error) {
+	return sourcecache.Stats{}, nil
 }

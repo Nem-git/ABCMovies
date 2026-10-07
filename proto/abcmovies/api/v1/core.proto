@@ -6,6 +6,7 @@ import "abcmovies/core/v1/event.proto";
 import "abcmovies/core/v1/job.proto";
 import "abcmovies/core/v1/library_entry.proto";
 import "abcmovies/core/v1/media_source.proto";
+import "google/protobuf/duration.proto";
 
 // The inbound API service surface (docs/TECHNICAL-DECISIONS §1.3, PLAN.md §8).
 // Clients reach in; the core never reaches out. Two communication styles:
@@ -28,6 +29,16 @@ service CoreService {
   // §8). The optional query narrows the page to matching titles; an empty
   // query returns the whole library.
   rpc GetLibrary(GetLibraryRequest) returns (GetLibraryResponse);
+
+  // Library: refresh the availability of specific items on one account
+  // (PLAN.md §5.4: explicit and user-triggered, never a background sweep).
+  rpc RefreshAvailability(RefreshAvailabilityRequest) returns (RefreshAvailabilityResponse);
+
+  // Library: explicit, user-triggered live refresh of lazy providers
+  // (PLAN.md §5.4: browse/search against the provider is the refresh).
+  // Results feed the source-cache reconciler exactly like an idempotent
+  // sync page, and availability-changed events fire per new item.
+  rpc LiveSearch(LiveSearchRequest) returns (LiveSearchResponse);
 
   // Accounts: link a provider account by submitting credentials. The core
   // validates them by probing the provider before storing anything — it never
@@ -61,6 +72,70 @@ service CoreService {
   // once the menu is staged; this RPC is the recovery query for subscribers
   // that missed the event or loaded late (PLAN.md §9.2).
   rpc GetPlayInfo(GetPlayInfoRequest) returns (GetPlayInfoResponse);
+
+  // Instance: non-sensitive instance parameters a client needs before it
+  // can behave correctly — which auth methods to render at login, how often
+  // to heartbeat a play session. Public (no token required) and
+  // instance-wide by contract: this response must never carry anything
+  // member-scoped or operator-sensitive. Grows additively as clients need
+  // to discover more (TECHNICAL-DECISIONS.md §1.43).
+  rpc GetInstanceInfo(GetInstanceInfoRequest) returns (GetInstanceInfoResponse);
+}
+
+message GetInstanceInfoRequest {}
+
+message GetInstanceInfoResponse {
+  // The api/v1 package version the core speaks (e.g. "v1").
+  string contract_version = 1;
+  // Enabled authentication methods (config: auth.methods); drives the login
+  // form a client renders before it has a token.
+  repeated string auth_methods = 2;
+  // How often a play session's owner must call Heartbeat (PLAN.md §9.1).
+  // Clients never hardcode this; the operator can change it in config.
+  google.protobuf.Duration heartbeat_interval = 3;
+}
+
+// GetJobResponse is one job's current state.
+message RefreshAvailabilityRequest {
+  // The account whose items to re-check. Required; must be reachable by the
+  // caller (same reach gate as GetLibrary/StartDelivery).
+  string account_id = 1;
+  // Provider-native item ids to re-check. An empty list is an error: a lazy
+  // provider has no catalogue to enumerate, so a call must be bounded.
+  repeated string native_ids = 2;
+}
+
+message RefreshAvailabilityResponse {
+  // Items the provider confirmed it still carries.
+  int32 present = 1;
+  // Requested items the provider no longer answers for (deleted from the
+  // source cache, availability-changed events emitted).
+  int32 removed = 2;
+}
+
+message LiveSearchRequest {
+  // The user's text query. Required.
+  string query = 1;
+  // Optional slot ids; empty = every enabled lazy provider.
+  repeated string providers = 2;
+  // Max pages fetched per provider account. 0 means 2; over budget 429's fail one call, not the set.
+  int32 page_limit = 3;
+}
+
+message LiveSearchResponse {
+  repeated LiveSearchHit hits = 1;
+  // provider slot id -> error when one provider failed mid-batch (partial
+  // results, never downgrade).
+  map<string, string> rejected = 2;
+}
+
+message LiveSearchHit {
+  string provider = 1;
+  string account_id = 2;
+  string native_id = 3;
+  string title = 4;
+  string kind = 5;
+  uint32 year = 6;
 }
 
 message GetJobRequest {

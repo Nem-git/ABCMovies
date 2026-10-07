@@ -218,3 +218,36 @@ func (s *subscribeStream) SendHeader(md metadata.MD) error {
 func (s *subscribeStream) SetTrailer(md metadata.MD) {
 	mergeMetadata(s.stream.ResponseTrailer(), md)
 }
+
+func (a *coreServiceAdapter) GetInstanceInfo(
+	ctx context.Context,
+	req *connect.Request[apiv1.GetInstanceInfoRequest],
+) (*connect.Response[apiv1.GetInstanceInfoResponse], error) {
+	resp, err := a.srv.GetInstanceInfo(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (a *coreServiceAdapter) RefreshAvailability(
+	ctx context.Context,
+	req *connect.Request[apiv1.RefreshAvailabilityRequest],
+) (*connect.Response[apiv1.RefreshAvailabilityResponse], error) {
+	resp, err := a.srv.RefreshAvailability(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (a *coreServiceAdapter) LiveSearch(
+	ctx context.Context,
+	req *connect.Request[apiv1.LiveSearchRequest],
+) (*connect.Response[apiv1.LiveSearchResponse], error) {
+	resp, err := a.srv.LiveSearch(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}

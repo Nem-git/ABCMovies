@@ -15,6 +15,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/library"
+	"github.com/nem-git/abcmovies/core/internal/sourcecache"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
@@ -328,4 +329,8 @@ func TestM6UpdateAccountSharingEditedGatesLiveSwap(t *testing.T) {
 	if del.revokeCalls != 1 {
 		t.Fatalf("narrowing to private should revoke removed members, revokeCalls=%d want 1", del.revokeCalls)
 	}
+}
+
+func (l *updLibrary) RefreshAvailability(context.Context, string, []string) (sourcecache.Stats, error) {
+	return sourcecache.Stats{}, nil
 }

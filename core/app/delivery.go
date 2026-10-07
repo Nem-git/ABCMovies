@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
-	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -162,11 +161,16 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("delivery: policy already valid at load; this means memory corruption: %w", err)
 	}
+	// Validated at config load; a broken value never reaches this point.
+	timing, err := config.ParseDeliveryTiming(s.cfg.Delivery)
+	if err != nil {
+		return fmt.Errorf("delivery: timing already valid at load; this means memory corruption: %w", err)
+	}
 	accountStore := accounts.NewStore(s.stores.Vault, logger)
 	eng := delivery.New(delivery.Options{
-		SessionTTL:        24 * time.Hour,
-		HeartbeatInterval: 30 * time.Second,
-		HeartbeatGrace:    90 * time.Second,
+		SessionTTL:        timing.SessionTTL,
+		HeartbeatInterval: timing.HeartbeatInterval,
+		HeartbeatGrace:    timing.HeartbeatGrace,
 		InstancePolicy:    instancePolicy,
 		AccountConstraints: func(ctx context.Context, provider, accountID string) (policy.Set, policy.Set, error) {
 			return resolveAccountConstraints(ctx, s.cfg, accountStore, provider, accountID)
@@ -204,8 +208,12 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 	})
 	s.delivery = eng
 	go eng.Watch(context.Background())
+	// The liveness interval the engine enforces is the one clients must
+	// heartbeat on — publish the same value, never a second copy of it.
+	srv.SetHeartbeatInterval(timing.HeartbeatInterval)
 	srv.SetDelivery(managedDelivery{eng: eng, relay: rt.Relay})
 	srv.SetLibrary(rt.Library)
+	srv.SetLiveSearcher(liveSlotsFromBuilt(rt.Providers, rt.Library, logger))
 	for provider, prober := range rt.Probers {
 		srv.SetProber(provider, prober)
 	}

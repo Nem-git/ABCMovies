@@ -263,8 +263,8 @@ func (s *Stack) BuildSlots(ctx context.Context, logger *slog.Logger) (*SlotRunti
 			return nil, err
 		}
 	}
-	rt, err := ComposeSlots(ctx, cfg.Slots, cfg.Enrichment,
-		s.registry, s.stores.SourceCache, s.stores.MetadataCache, s.stores.Vault, s.stores.Cache, s.bus, logger)
+	rt, err := ComposeSlots(ctx, cfg.Slots, cfg.Enrichment, cfg.Library,
+		s.registry, s.stores.SourceCache, s.stores.MetadataCache, s.stores.Vault, s.stores.Cache, s.bus, logger, cfg.Policy)
 	if err != nil {
 		return nil, err
 	}

@@ -10,6 +10,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"fmt"
+	"sort"
 	"strings"
 
 	"golang.org/x/crypto/argon2"
@@ -305,6 +306,17 @@ type CompositeAuthenticator struct {
 func (c *CompositeAuthenticator) Get(method string) (Authenticator, bool) {
 	a, ok := c.methods[method]
 	return a, ok
+}
+
+// Methods returns the enabled method names, sorted, for instance discovery
+// (GetInstanceInfo publishes them so a client can render its login form).
+func (c *CompositeAuthenticator) Methods() []string {
+	out := make([]string, 0, len(c.methods))
+	for name := range c.methods {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // NewAuthenticators creates a CompositeAuthenticator from the configured

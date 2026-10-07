@@ -1,0 +1,10 @@
+{
+  "name": "search-catalog-request-missing-account-id",
+  "type": "SearchCatalogRequest",
+  "message": {
+    "query": "sintel"
+  },
+  "expected": {
+    "valid": false
+  }
+}

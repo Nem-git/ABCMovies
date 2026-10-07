@@ -80,13 +80,19 @@ type Item struct {
 // (PLAN.md §5.3). Merging is never destructive: callers record the verdict
 // as proof in the provider item registry.
 func Decide(a, b Item) Verdict {
+	return Options{}.Decide(a, b)
+}
+
+// Decide is Decide under the configured normalization options (PLAN.md §5.3:
+// the leading-article list is configurable).
+func (o Options) Decide(a, b Item) Verdict {
 	if !sameKind(a.Kind, b.Kind) {
 		return Verdict{}
 	}
 	if corroborationMatch(a.ExternalIDs, b.ExternalIDs) {
 		return Verdict{Merge: true, Corroborated: true}
 	}
-	if !titlesAgree(a, b) {
+	if !o.titlesAgree(a, b) {
 		return Verdict{}
 	}
 	// Year gates movies only: compared exactly, unknown years fail. Series
@@ -133,24 +139,24 @@ func sameKind(a, b slotsv1.ItemKind) bool {
 // localized display title must still agree with the catalogue's
 // original-language form (TECHNICAL-DECISIONS.md §1.29). Empty titles never
 // match.
-func titlesAgree(a, b Item) bool {
+func (o Options) titlesAgree(a, b Item) bool {
 	pa, pb := a.Metadata.GetTitle(), b.Metadata.GetTitle()
-	if titleEq(pa, pb) {
+	if o.titleEq(pa, pb) {
 		return true
 	}
 	for _, at := range a.AltTitles {
-		if titleEq(at, pb) {
+		if o.titleEq(at, pb) {
 			return true
 		}
 	}
 	for _, bt := range b.AltTitles {
-		if titleEq(pa, bt) {
+		if o.titleEq(pa, bt) {
 			return true
 		}
 	}
 	for _, at := range a.AltTitles {
 		for _, bt := range b.AltTitles {
-			if titleEq(at, bt) {
+			if o.titleEq(at, bt) {
 				return true
 			}
 		}
@@ -159,8 +165,8 @@ func titlesAgree(a, b Item) bool {
 }
 
 // titleEq compares one title pair under normalization.
-func titleEq(x, y string) bool {
-	nx, ny := NormalizeTitle(x), NormalizeTitle(y)
+func (o Options) titleEq(x, y string) bool {
+	nx, ny := o.NormalizeTitle(x), o.NormalizeTitle(y)
 	return nx != "" && ny != "" && nx == ny
 }
 

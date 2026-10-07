@@ -1,0 +1,17 @@
+{
+  "name": "search-catalog-response-one-page",
+  "type": "SearchCatalogResponse",
+  "message": {
+    "items": [
+      {
+        "native_id": "archive-sintel",
+        "kind": "ITEM_KIND_MOVIE",
+        "metadata": { "title": "Sintel", "year": 2010 }
+      }
+    ],
+    "next_page_token": ""
+  },
+  "expected": {
+    "valid": true
+  }
+}

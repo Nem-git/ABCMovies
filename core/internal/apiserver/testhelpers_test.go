@@ -128,3 +128,7 @@ func videoTrack(id string) *corev1.Track {
 		Media: &corev1.Track_Video{Video: &corev1.VideoTrack{Codec: "hevc", Width: 3840, Height: 2160}},
 	}
 }
+
+func (l *stubLibrary) RefreshAvailability(context.Context, string, []string) (sourcecache.Stats, error) {
+	return sourcecache.Stats{}, nil
+}
