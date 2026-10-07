@@ -87,6 +87,15 @@ slots:
   #         # the keys written here override; everything else inherits.
   #         policy:
   #           concurrentStreams: 2
+  #
+  #   # Generic Stremio-addon provider: server is the addon's manifest URL.
+  #   # No sync-cadence — a lazy provider refreshes on usage only.
+  #   - adapter: stremio
+  #     id: stremio-archiveorg
+  #     enabled: true
+  #     server: 'https://stremio-archive-org-addon.fly.dev/manifest.json'
+  #     accounts:
+  #       - id: archiveorg
 
 # Instance-wide usage policy (docs/PLAN.md §7.2, the enforcement vocabulary
 # from docs/TECHNICAL-DECISIONS.md §1.34): a limit-type => value map. Absent
