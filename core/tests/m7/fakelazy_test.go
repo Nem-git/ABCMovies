@@ -1,10 +1,8 @@
-// Package mocklazy is M7's built-in lazy streaming-service provider: a
-// scriptable in-process slot. It models the streaming-service shape PLAN.md
-// §5.4 describes — no whole-catalogue index, browse/search as the only
-// catalogue probe, produce-sources at click/play — so the lazy-refresh
-// fixtures are deterministic. A real (Archive.org) adapter exercises the same
-// contract over HTTP.
-package mocklazy
+// fakeLazy is M7's in-test lazy provider: a scriptable in-process slot that
+// models the streaming-service shape PLAN.md §5.4 describes. Like
+// fakeJellyfin in the M1 suite, it lives in the test files, never in a
+// shipped package.
+package m7_test
 
 import (
 	"context"
@@ -28,7 +26,7 @@ type Item struct {
 }
 
 // Slot implements the meta handshake and the lazy provider capability set.
-type Slot struct {
+type FakeLazySlot struct {
 	corev1.UnimplementedMetaServiceServer
 	slotsv1.UnimplementedProviderServiceServer
 
@@ -40,17 +38,17 @@ type Slot struct {
 }
 
 // New builds the slot from a fixture catalogue.
-func New(items []Item) *Slot {
+func newFakeLazy(items []Item) *FakeLazySlot {
 	m := make(map[string]Item, len(items))
 	for _, it := range items {
 		m[it.NativeID] = it
 	}
-	return &Slot{items: m, calls: map[string]int{}}
+	return &FakeLazySlot{items: m, calls: map[string]int{}}
 }
 
 // Calls reports how many times one RPC has been invoked — the no-background-
 // probing assertion reads this.
-func (s *Slot) Calls(rpc string) int {
+func (s *FakeLazySlot) Calls(rpc string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.calls[rpc]
@@ -58,21 +56,21 @@ func (s *Slot) Calls(rpc string) int {
 
 // SetDegraded marks the provider unusable (PLAN.md §4): RefreshAvailability
 // fails and no background probing may start.
-func (s *Slot) SetDegraded(d bool) {
+func (s *FakeLazySlot) SetDegraded(d bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.degraded = d
 }
 
 // AddItem inserts a new item the provider now carries.
-func (s *Slot) AddItem(it Item) {
+func (s *FakeLazySlot) AddItem(it Item) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.items[it.NativeID] = it
 }
 
 // RemoveItem delists an item from the provider.
-func (s *Slot) RemoveItem(nativeID string) {
+func (s *FakeLazySlot) RemoveItem(nativeID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if it, ok := s.items[nativeID]; ok {
@@ -81,7 +79,7 @@ func (s *Slot) RemoveItem(nativeID string) {
 	}
 }
 
-func (s *Slot) record(rpc string) {
+func (s *FakeLazySlot) record(rpc string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.calls[rpc]++
@@ -89,7 +87,7 @@ func (s *Slot) record(rpc string) {
 
 // CapabilityQuery declares the lazy capability set — never "browse" as
 // whole-catalogue sync: a lazy provider has no such operation.
-func (s *Slot) CapabilityQuery(_ context.Context, _ *corev1.CapabilityQueryRequest) (*corev1.CapabilityQueryResponse, error) {
+func (s *FakeLazySlot) CapabilityQuery(_ context.Context, _ *corev1.CapabilityQueryRequest) (*corev1.CapabilityQueryResponse, error) {
 	return &corev1.CapabilityQueryResponse{
 		Capabilities: []*corev1.Capability{
 			{Name: "meta", Version: 1},
@@ -104,7 +102,7 @@ func (s *Slot) CapabilityQuery(_ context.Context, _ *corev1.CapabilityQueryReque
 // CatalogueSync a lazy provider refuses outright (PLAN.md §5.4): it has no
 // index to enumerate. A core that calls it has misclassified the provider —
 // reject, never downgrade.
-func (s *Slot) CatalogueSync(_ context.Context, req *slotsv1.CatalogueSyncRequest) (*slotsv1.CatalogueSyncResponse, error) {
+func (s *FakeLazySlot) CatalogueSync(_ context.Context, req *slotsv1.CatalogueSyncRequest) (*slotsv1.CatalogueSyncResponse, error) {
 	s.record("CatalogueSync")
 	if req.GetAccountId() == "" {
 		return nil, fmt.Errorf("catalogue sync request: account_id is required")
@@ -113,7 +111,7 @@ func (s *Slot) CatalogueSync(_ context.Context, req *slotsv1.CatalogueSyncReques
 }
 
 // SearchCatalog returns items whose title contains the query (case-insensitive).
-func (s *Slot) SearchCatalog(_ context.Context, req *slotsv1.SearchCatalogRequest) (*slotsv1.SearchCatalogResponse, error) {
+func (s *FakeLazySlot) SearchCatalog(_ context.Context, req *slotsv1.SearchCatalogRequest) (*slotsv1.SearchCatalogResponse, error) {
 	s.record("SearchCatalog")
 	if req.GetAccountId() == "" {
 		return nil, fmt.Errorf("search catalog request: account_id is required")
@@ -132,7 +130,7 @@ func (s *Slot) SearchCatalog(_ context.Context, req *slotsv1.SearchCatalogReques
 }
 
 // BrowseCatalog returns the full available catalogue (a "landing" listing).
-func (s *Slot) BrowseCatalog(_ context.Context, req *slotsv1.BrowseCatalogRequest) (*slotsv1.BrowseCatalogResponse, error) {
+func (s *FakeLazySlot) BrowseCatalog(_ context.Context, req *slotsv1.BrowseCatalogRequest) (*slotsv1.BrowseCatalogResponse, error) {
 	s.record("BrowseCatalog")
 	if req.GetAccountId() == "" {
 		return nil, fmt.Errorf("browse catalog request: account_id is required")
@@ -150,7 +148,7 @@ func (s *Slot) BrowseCatalog(_ context.Context, req *slotsv1.BrowseCatalogReques
 // RefreshAvailability is the explicit, user-triggered availability check
 // (PLAN.md §5.4): a pure lookup that changes presence only. While degraded it
 // fails rather than probing.
-func (s *Slot) RefreshAvailability(_ context.Context, req *slotsv1.RefreshAvailabilityRequest) (*slotsv1.RefreshAvailabilityResponse, error) {
+func (s *FakeLazySlot) RefreshAvailability(_ context.Context, req *slotsv1.RefreshAvailabilityRequest) (*slotsv1.RefreshAvailabilityResponse, error) {
 	s.record("RefreshAvailability")
 	if req.GetAccountId() == "" {
 		return nil, fmt.Errorf("refresh availability request: account_id is required")
@@ -172,7 +170,7 @@ func (s *Slot) RefreshAvailability(_ context.Context, req *slotsv1.RefreshAvaila
 
 // ProduceSources resolves one item to a manifest — the click/play availability
 // confirmation (PLAN.md §5.4).
-func (s *Slot) ProduceSources(_ context.Context, req *slotsv1.ProduceSourcesRequest) (*slotsv1.ProduceSourcesResponse, error) {
+func (s *FakeLazySlot) ProduceSources(_ context.Context, req *slotsv1.ProduceSourcesRequest) (*slotsv1.ProduceSourcesResponse, error) {
 	s.record("ProduceSources")
 	if req.GetAccountId() == "" || req.GetNativeId() == "" {
 		return nil, fmt.Errorf("produce sources request: account_id and native_id are required")
@@ -196,7 +194,7 @@ func (s *Slot) ProduceSources(_ context.Context, req *slotsv1.ProduceSourcesRequ
 	}}, nil
 }
 
-func (s *Slot) snapshot() []Item {
+func (s *FakeLazySlot) snapshot() []Item {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make([]Item, 0, len(s.items))
@@ -206,7 +204,7 @@ func (s *Slot) snapshot() []Item {
 	return out
 }
 
-func (s *Slot) lookup(id string) (Item, bool) {
+func (s *FakeLazySlot) lookup(id string) (Item, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	it, ok := s.items[id]

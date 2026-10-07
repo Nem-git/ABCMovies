@@ -10,12 +10,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nem-git/abcmovies/adapters/mocklazy"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 )
 
-func catalogue() []mocklazy.Item {
-	return []mocklazy.Item{
+func catalogue() []Item {
+	return []Item{
 		{NativeID: "m1", Title: "Big Buck Bunny", Kind: slotsv1.ItemKind_ITEM_KIND_MOVIE, Year: 2008, Available: true},
 		{NativeID: "m2", Title: "Sintel", Kind: slotsv1.ItemKind_ITEM_KIND_MOVIE, Year: 2010, Available: true},
 		{NativeID: "s1", Title: "Tears of Steel", Kind: slotsv1.ItemKind_ITEM_KIND_MOVIE, Year: 2012, Available: false},
@@ -26,7 +25,7 @@ func catalogue() []mocklazy.Item {
 // Any core that requests one has misclassified the provider, and the adapter
 // rejects loudly rather than degrading to an empty catalogue (§2.5).
 func TestCatalogueSyncIsRefused(t *testing.T) {
-	s := mocklazy.New(catalogue())
+	s := newFakeLazy(catalogue())
 	_, err := s.CatalogueSync(context.Background(), &slotsv1.CatalogueSyncRequest{AccountId: "acct"})
 	if err == nil || !strings.Contains(err.Error(), "not a lazy-provider capability") {
 		t.Fatalf("CatalogueSync = %v, want lazy refusal", err)
@@ -37,7 +36,7 @@ func TestCatalogueSyncIsRefused(t *testing.T) {
 // diff against the registry. Nothing probes the provider in the background
 // (§5.4): the only calls this milestone issues are the ones a user made.
 func TestUsageIsTheRefresh(t *testing.T) {
-	s := mocklazy.New(catalogue())
+	s := newFakeLazy(catalogue())
 	for name := range map[string]bool{"CatalogueSync": true, "SearchCatalog": true, "BrowseCatalog": true, "RefreshAvailability": true} {
 		if n := s.Calls(name); n != 0 {
 			t.Fatalf("precondition: %s called %d times before any user action", name, n)
@@ -62,7 +61,7 @@ func TestUsageIsTheRefresh(t *testing.T) {
 // which requested items are still present, and while the provider is marked
 // degraded it fails rather than probing (§5.4 scheduler rules).
 func TestRefreshAvailabilityIsManualAndPausesWhenDegraded(t *testing.T) {
-	s := mocklazy.New(catalogue())
+	s := newFakeLazy(catalogue())
 	s.RemoveItem("m2")
 	res, err := s.RefreshAvailability(context.Background(), &slotsv1.RefreshAvailabilityRequest{
 		AccountId: "acct", NativeIds: []string{"m1", "m2", "m3"},
@@ -84,7 +83,7 @@ func TestRefreshAvailabilityIsManualAndPausesWhenDegraded(t *testing.T) {
 // produce-sources is the click/play confirmation: playing an item confirms
 // its availability and returns the manifest.
 func TestProduceSourcesConfirmsAtClick(t *testing.T) {
-	s := mocklazy.New(catalogue())
+	s := newFakeLazy(catalogue())
 	res, err := s.ProduceSources(context.Background(), &slotsv1.ProduceSourcesRequest{AccountId: "acct", NativeId: "m1"})
 	if err != nil {
 		t.Fatal(err)
@@ -100,7 +99,7 @@ func TestProduceSourcesConfirmsAtClick(t *testing.T) {
 // Negative: requests without account_id are rejected outright (§5.4: an
 // unknown account is a runtime error, never an implicit page).
 func TestMissingAccountRejected(t *testing.T) {
-	s := mocklazy.New(catalogue())
+	s := newFakeLazy(catalogue())
 	if _, err := s.SearchCatalog(context.Background(), &slotsv1.SearchCatalogRequest{Query: "x"}); err == nil {
 		t.Fatal("search without account_id must fail")
 	}
