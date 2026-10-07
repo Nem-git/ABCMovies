@@ -100,7 +100,63 @@ message ProduceSourcesResponse {
 // declares only capabilities whose fixture suite it has passed (PLAN.md §2.5,
 // §3.4); whole-catalogue sync is declared as capability "browse" version 1 and
 // produce-sources as capability "produce-sources" version 1 (§1.21).
+// Lazy providers (PLAN.md §5.4) have no whole-catalogue index: search and
+// browse are their probe surface, and RefreshAvailability is the explicit
+// user-triggered re-check seam — never a background sweep.
 service ProviderService {
   rpc CatalogueSync(CatalogueSyncRequest) returns (CatalogueSyncResponse);
   rpc ProduceSources(ProduceSourcesRequest) returns (ProduceSourcesResponse);
+  rpc SearchCatalog(SearchCatalogRequest) returns (SearchCatalogResponse);
+  rpc BrowseCatalog(BrowseCatalogRequest) returns (BrowseCatalogResponse);
+  rpc RefreshAvailability(RefreshAvailabilityRequest) returns (RefreshAvailabilityResponse);
+}
+
+// SearchCatalogRequest asks a lazy provider to search its catalogue.
+message SearchCatalogRequest {
+  // The linked streaming-provider account whose session answers.
+  string account_id = 1;
+  // The user's text query.
+  string query = 2;
+  // Opaque continuation token; empty for the first page.
+  string page_token = 3;
+}
+
+// SearchCatalogResponse is one page of matches.
+message SearchCatalogResponse {
+  repeated CatalogueItem items = 1;
+  string next_page_token = 2;
+}
+
+// BrowseCatalogRequest asks a lazy provider for a browse listing (rows,
+// sections, or a provider-native path).
+message BrowseCatalogRequest {
+  // The linked streaming-provider account whose session answers.
+  string account_id = 1;
+  // A provider-native section or path; empty for the default landing.
+  string path = 2;
+  // Opaque continuation token; empty for the first page.
+  string page_token = 3;
+}
+
+// BrowseCatalogResponse is one page of the listing.
+message BrowseCatalogResponse {
+  repeated CatalogueItem items = 1;
+  string next_page_token = 2;
+}
+
+// RefreshAvailabilityRequest is a pure availability lookup (PLAN.md §5.3,
+// §5.4): it changes presence and per-account availability, never identity.
+message RefreshAvailabilityRequest {
+  // The linked streaming-provider account whose session answers.
+  string account_id = 1;
+  // Provider-native item ids to re-check; empty means the provider's notion
+  // of "what the caller just browsed/searched" — an adapter is free to
+  // require at least one id so the call is always bounded.
+  repeated string native_ids = 2;
+}
+
+// RefreshAvailabilityResponse reports which of the requested items are still
+// available on the provider.
+message RefreshAvailabilityResponse {
+  repeated CatalogueItem items = 1;
 }
