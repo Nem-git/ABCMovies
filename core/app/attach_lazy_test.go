@@ -31,7 +31,7 @@ func TestLinkStremioAccountNarratesAttachPath(t *testing.T) {
 		Adapter: "stremio", ID: "stremio-test", Enabled: true,
 		Server:   fsrv.URL + "/manifest.json",
 		Accounts: []config.AccountConfig{{ID: "archiveorg"}},
-	}}}, config.EnrichmentConfig{}, reg,
+	}}}, config.EnrichmentConfig{}, config.LibraryConfig{}, reg,
 		store.NewInMemory(), store.NewInMemory(), store.NewInMemory(),
 		store.NewInMemory(), bus, nil)
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
+	"github.com/nem-git/abcmovies/core/internal/identity"
 	"github.com/nem-git/abcmovies/core/internal/schema"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
@@ -72,6 +73,48 @@ func TestFirstSeenCreatesEntryThenPureLookup(t *testing.T) {
 	}
 	if same.Status != StatusUnchanged || same.EntryID != out.EntryID {
 		t.Fatalf("inert change reopened identity: %+v", same)
+	}
+}
+
+// The configured leading-article list drives the registry's matching
+// (PLAN.md §5.3): with "les" configured, "Les Misérables" and "Misérables"
+// normalize equal and merge on the corroborating signal; with the shipped
+// defaults the same pair stays separate. One Options instance governs every
+// normalization the registry runs.
+func TestConfiguredArticlesDriveMerging(t *testing.T) {
+	ctx := context.Background()
+	jean := dir("Jean Valjean")
+
+	custom, err := New(store.NewInMemory(), "", identity.Options{Articles: []string{"les"}})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	first, err := custom.Resolve(ctx, "jellyfin", movie("m1", "Les Misérables", 1994, jean))
+	if err != nil || first.Status != StatusCreated {
+		t.Fatalf("first: %+v err=%v", first, err)
+	}
+	second, err := custom.Resolve(ctx, "emby", movie("e1", "Misérables", 1994, jean))
+	if err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	if second.EntryID != first.EntryID || second.Status != StatusAttached {
+		t.Fatalf("custom articles: %+v, want attached to %s", second, first.EntryID)
+	}
+
+	defaults, err := New(store.NewInMemory(), "")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	dFirst, err := defaults.Resolve(ctx, "jellyfin", movie("m1", "Les Misérables", 1994, jean))
+	if err != nil || dFirst.Status != StatusCreated {
+		t.Fatalf("first: %+v err=%v", dFirst, err)
+	}
+	dSecond, err := defaults.Resolve(ctx, "emby", movie("e1", "Misérables", 1994, jean))
+	if err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	if dSecond.EntryID == dFirst.EntryID {
+		t.Fatalf("default articles merged distinct titles into %s", dFirst.EntryID)
 	}
 }
 

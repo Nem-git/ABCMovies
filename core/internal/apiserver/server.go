@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
@@ -93,6 +94,10 @@ type Server struct {
 	// composition root from the delivery config, defaulting to
 	// new-sessions-only.
 	capChangeDefault accounts.CapChangePolicy
+	// heartbeatInterval is the play-session liveness cadence published by
+	// GetInstanceInfo; armed from the same parsed config the delivery
+	// engine enforces.
+	heartbeatInterval time.Duration
 }
 
 // LiveSearcher runs one explicit user-triggered refresh of the lazy
@@ -136,6 +141,9 @@ func NewServer(bus Bus, stores config.Stores, authenticator *auth.CompositeAuthe
 		// The shipped default never kills a running session: a cap change
 		// applies from the next session (TECHNICAL-DECISIONS.md).
 		capChangeDefault: accounts.CapChangePolicyNewSessionsOnly,
+		// A server built without the composition root still publishes the
+		// shipped liveness cadence; composition overrides it from config.
+		heartbeatInterval: defaultHeartbeatInterval(),
 	}
 }
 

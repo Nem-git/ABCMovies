@@ -325,17 +325,26 @@ func (e *entryRecord) item() identity.Item {
 type Registry struct {
 	st      store.Store
 	ownerID string
+	opts    identity.Options
 	mu      sync.Mutex
 }
 
 // New returns a registry backed by st. ownerID, when non-empty, is placed on
 // OWNER-audience merge-conflict events so the operator sees recycled IDs;
-// leave it empty to suppress emission.
-func New(st store.Store, ownerID string) (*Registry, error) {
+// leave it empty to suppress emission. opts carries the configured
+// normalization options (PLAN.md §5.3: the leading-article list is
+// configurable); absent means the identity package's defaults. The same
+// options must govern every normalization in the process — two different
+// article lists in different components would silently split matching.
+func New(st store.Store, ownerID string, opts ...identity.Options) (*Registry, error) {
 	if st == nil {
 		return nil, fmt.Errorf("itemregistry: nil store")
 	}
-	return &Registry{st: st, ownerID: ownerID}, nil
+	var o identity.Options
+	if len(opts) > 0 {
+		o = opts[0]
+	}
+	return &Registry{st: st, ownerID: ownerID, opts: o}, nil
 }
 
 // Resolve maps one provider-native catalogue item onto a LibraryEntry,
@@ -360,7 +369,7 @@ func (r *Registry) Resolve(ctx context.Context, provider string, item *slotsv1.C
 	if err != nil {
 		return nil, err
 	}
-	if cur != nil && identity.SameProof(cur.Proof, proof) {
+	if cur != nil && r.opts.SameProof(cur.Proof, proof) {
 		return &Outcome{EntryID: cur.EntryID, Status: StatusUnchanged}, nil
 	}
 
@@ -496,7 +505,7 @@ func (r *Registry) findTarget(ctx context.Context, item *slotsv1.CatalogueItem) 
 
 	order = order[:0]
 	clear(seen)
-	keys, err := r.st.List(ctx, titleIndexPrefix(identity.NormalizeTitle(item.GetMetadata().GetTitle()), item.GetKind()))
+	keys, err := r.st.List(ctx, titleIndexPrefix(r.opts.NormalizeTitle(item.GetMetadata().GetTitle()), item.GetKind()))
 	if err != nil {
 		return "", err
 	}
@@ -523,7 +532,7 @@ func (r *Registry) mergesInto(ctx context.Context, entryID string, live identity
 	if rec == nil {
 		return false, nil // dangling index row; treat as absent
 	}
-	return identity.Decide(live, rec.item()).Merge, nil
+	return r.opts.Decide(live, rec.item()).Merge, nil
 }
 
 // absorb unions the item's provider-supplied external IDs and corroborating
@@ -561,7 +570,7 @@ func (r *Registry) putEntry(ctx context.Context, rec *entryRecord) error {
 	if err := r.st.Put(ctx, entryKey(rec.ID), blob); err != nil {
 		return err
 	}
-	if norm := identity.NormalizeTitle(rec.Title); norm != "" {
+	if norm := r.opts.NormalizeTitle(rec.Title); norm != "" {
 		if err := r.st.Put(ctx, titleIndexPrefix(norm, rec.Kind)+rec.ID, []byte{}); err != nil {
 			return err
 		}

@@ -76,6 +76,29 @@ func authedClient(baseURL, token string) apiv1connect.CoreServiceClient {
 	return apiv1connect.NewCoreServiceClient(hc, baseURL, connect.WithGRPCWeb())
 }
 
+// GetInstanceInfo crosses the gRPC-Web termination with no token: it sits on
+// the public allowlist of both the core interceptors and this serving
+// layer's mirror of them, and a client learns the liveness cadence and auth
+// methods before it can log in (TECHNICAL-DECISIONS.md §1.43).
+func TestWebClient_GetInstanceInfoIsPublic(t *testing.T) {
+	_, client, _ := newWebStack(t)
+	ctx := t.Context()
+
+	resp, err := client.GetInstanceInfo(ctx, connect.NewRequest(&apiv1.GetInstanceInfoRequest{}))
+	if err != nil {
+		t.Fatalf("GetInstanceInfo over gRPC-Web without token: %v", err)
+	}
+	if resp.Msg.GetContractVersion() != "v1" {
+		t.Errorf("contract version = %q, want v1", resp.Msg.GetContractVersion())
+	}
+	if got := resp.Msg.GetAuthMethods(); len(got) != 1 || got[0] != "password" {
+		t.Errorf("auth methods = %v, want [password]", got)
+	}
+	if got := resp.Msg.GetHeartbeatInterval().AsDuration(); got != 30*time.Second {
+		t.Errorf("heartbeat interval = %v, want shipped default 30s", got)
+	}
+}
+
 // TestWebClient_FullFlow drives the served mux exactly as the browser page
 // does — over the gRPC-Web protocol: sign up, log in, receive a live
 // job-status event through Subscribe, and read the job back with GetJob.

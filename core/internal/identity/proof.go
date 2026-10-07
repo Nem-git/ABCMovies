@@ -33,7 +33,13 @@ func ProofOf(kind slotsv1.ItemKind, md *corev1.TitleMetadata, externalIDs []*slo
 // not an identity change), exactly equal years, and identical external-ID
 // sets — order and duplicates ignored.
 func SameProof(a, b Proof) bool {
-	if a.Kind != b.Kind || NormalizeTitle(a.Title) != NormalizeTitle(b.Title) || a.Year != b.Year {
+	return Options{}.SameProof(a, b)
+}
+
+// SameProof is SameProof under the configured normalization options
+// (PLAN.md §5.3: the leading-article list is configurable).
+func (o Options) SameProof(a, b Proof) bool {
+	if a.Kind != b.Kind || o.NormalizeTitle(a.Title) != o.NormalizeTitle(b.Title) || a.Year != b.Year {
 		return false
 	}
 	return sameIDSet(a.ExternalIDs, b.ExternalIDs)

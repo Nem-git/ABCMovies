@@ -64,7 +64,7 @@ func TestLiveSearchComposedEndToEnd(t *testing.T) {
 		Server:   fsrv.URL + "/manifest.json",
 		Accounts: []config.AccountConfig{{ID: "archiveorg"}},
 	}}}
-	rt, err := ComposeSlots(ctx, cfg, config.EnrichmentConfig{}, reg, sourceCache, metaCache, vault, cache, bus, nil)
+	rt, err := ComposeSlots(ctx, cfg, config.EnrichmentConfig{}, config.LibraryConfig{}, reg, sourceCache, metaCache, vault, cache, bus, nil)
 	if err != nil {
 		t.Fatalf("compose: %v", err)
 	}

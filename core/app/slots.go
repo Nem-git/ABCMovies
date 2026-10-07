@@ -17,6 +17,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/enrichment"
+	"github.com/nem-git/abcmovies/core/internal/identity"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/metadatacache"
@@ -255,11 +256,18 @@ func (e registryEvidence) Evidence(ctx context.Context, entryID string) (enrichm
 // No owner id goes into the item registry yet: operator-facing
 // merge-conflict notifications arrive with the operator surface, until then
 // the registry suppresses those envelopes.
-func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.EnrichmentConfig, reg *registry.InProcessRegistry, sourceCache, metaCache, vault, cache store.Store, apiBus *apiserver.InMemoryBus, logger *slog.Logger) (*SlotRuntime, error) {
+//
+// lib carries the matching knobs (PLAN.md §5.3): one identity.Options
+// instance is resolved here and injected into both the item registry and
+// the enrichment engine, so every normalization in the process runs on the
+// same article list.
+func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.EnrichmentConfig, lib config.LibraryConfig, reg *registry.InProcessRegistry, sourceCache, metaCache, vault, cache store.Store, apiBus *apiserver.InMemoryBus, logger *slog.Logger) (*SlotRuntime, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	itemReg, err := itemregistry.New(sourceCache, "")
+	identityOpts := identity.Options{Articles: lib.Articles}
+	logger.Info("library: matching drops leading articles", "articles", identityOpts.ArticlesList())
+	itemReg, err := itemregistry.New(sourceCache, "", identityOpts)
 	if err != nil {
 		return nil, fmt.Errorf("item registry: %w", err)
 	}
@@ -309,7 +317,7 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 
 	// The enrichment pipeline drains whatever the T1/T2 triggers collect;
 	// with no catalogue slots enabled the queue simply stays empty.
-	engine := enrichment.NewEngine(registryEvidence{r: itemReg}, meta, cats, logger)
+	engine := enrichment.NewEngine(registryEvidence{r: itemReg}, meta, cats, logger, identityOpts)
 	drainCadence, err := enrichment.DrainCadence(enrich.DrainCadence)
 	if err != nil {
 		rt.Bus.Close()

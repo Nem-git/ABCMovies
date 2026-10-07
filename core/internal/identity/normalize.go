@@ -33,6 +33,13 @@ func (o Options) articles() []string {
 	return o.Articles
 }
 
+// ArticlesList returns the effective leading-article list — the configured
+// one, or DefaultArticles when none was configured. For observability
+// (boot logging), not for matching.
+func (o Options) ArticlesList() []string {
+	return o.articles()
+}
+
 // NormalizeTitle normalizes a title with default options.
 func NormalizeTitle(title string) string {
 	return Options{}.NormalizeTitle(title)

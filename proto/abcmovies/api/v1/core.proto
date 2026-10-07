@@ -6,6 +6,7 @@ import "abcmovies/core/v1/event.proto";
 import "abcmovies/core/v1/job.proto";
 import "abcmovies/core/v1/library_entry.proto";
 import "abcmovies/core/v1/media_source.proto";
+import "google/protobuf/duration.proto";
 
 // The inbound API service surface (docs/TECHNICAL-DECISIONS §1.3, PLAN.md §8).
 // Clients reach in; the core never reaches out. Two communication styles:
@@ -71,6 +72,27 @@ service CoreService {
   // once the menu is staged; this RPC is the recovery query for subscribers
   // that missed the event or loaded late (PLAN.md §9.2).
   rpc GetPlayInfo(GetPlayInfoRequest) returns (GetPlayInfoResponse);
+
+  // Instance: non-sensitive instance parameters a client needs before it
+  // can behave correctly — which auth methods to render at login, how often
+  // to heartbeat a play session. Public (no token required) and
+  // instance-wide by contract: this response must never carry anything
+  // member-scoped or operator-sensitive. Grows additively as clients need
+  // to discover more (TECHNICAL-DECISIONS.md §1.43).
+  rpc GetInstanceInfo(GetInstanceInfoRequest) returns (GetInstanceInfoResponse);
+}
+
+message GetInstanceInfoRequest {}
+
+message GetInstanceInfoResponse {
+  // The api/v1 package version the core speaks (e.g. "v1").
+  string contract_version = 1;
+  // Enabled authentication methods (config: auth.methods); drives the login
+  // form a client renders before it has a token.
+  repeated string auth_methods = 2;
+  // How often a play session's owner must call Heartbeat (PLAN.md §9.1).
+  // Clients never hardcode this; the operator can change it in config.
+  google.protobuf.Duration heartbeat_interval = 3;
 }
 
 // GetJobResponse is one job's current state.

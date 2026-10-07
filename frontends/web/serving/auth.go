@@ -16,10 +16,12 @@ import (
 // token. It mirrors the gRPC interceptors' allowlist in the apiserver —
 // the two lists must stay in sync, since both terminations of the same
 // service enforce the same rule: account creation and login are how a
-// caller obtains a token.
+// caller obtains a token, and GetInstanceInfo carries only the
+// non-sensitive parameters a client needs before it can log in.
 var publicMethods = map[string]bool{
-	apiv1connect.CoreServiceSignUpProcedure: true,
-	apiv1connect.CoreServiceLoginProcedure:  true,
+	apiv1connect.CoreServiceSignUpProcedure:          true,
+	apiv1connect.CoreServiceLoginProcedure:           true,
+	apiv1connect.CoreServiceGetInstanceInfoProcedure: true,
 }
 
 // authInterceptor enforces bearer-token authentication for the connect

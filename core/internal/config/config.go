@@ -127,10 +127,13 @@ type Config struct {
 	// Enrichment tunes the background metadata pipeline. Absent keys fall
 	// back to the defaults the enrichment package declares.
 	Enrichment EnrichmentConfig `yaml:"enrichment"`
-	// Delivery tunes session admission and the cap-change behaviour
-	// (TECHNICAL-DECISIONS.md). Absent keys fall back to the shipped
-	// defaults.
+	// Delivery tunes session admission, session liveness and the
+	// cap-change behaviour (TECHNICAL-DECISIONS.md §1.14). Absent keys
+	// fall back to the shipped defaults.
 	Delivery DeliveryConfig `yaml:"delivery"`
+	// Library tunes matching (PLAN.md §5.3). Absent keys fall back to the
+	// shipped defaults.
+	Library LibraryConfig `yaml:"library"`
 }
 
 // DeliveryConfig carries the delivery engine's operator knobs.
@@ -142,6 +145,34 @@ type DeliveryConfig struct {
 	// oldest first. An account may override this with its own
 	// cap_change_policy.
 	OnCapChange string `yaml:"on-cap-change"`
+	// SessionTTL is the zombie cap: a session with no liveness proof ends
+	// after this (PLAN.md §9.1). Go duration string; empty means the
+	// shipped default.
+	SessionTTL string `yaml:"session-ttl"`
+	// Heartbeat is the play-session liveness contract (PLAN.md §9.1).
+	Heartbeat HeartbeatConfig `yaml:"heartbeat"`
+}
+
+// HeartbeatConfig carries the play-session liveness knobs. The interval is
+// published to clients via GetInstanceInfo, so clients never hardcode it.
+type HeartbeatConfig struct {
+	// Interval is how often a play session's frontend must prove liveness.
+	// Go duration string; empty means the shipped default.
+	Interval string `yaml:"interval"`
+	// Grace is the server-side slack before a missed heartbeat ends the
+	// session. Go duration string; empty means the shipped default.
+	Grace string `yaml:"grace"`
+}
+
+// LibraryConfig carries matching knobs (PLAN.md §5.3).
+type LibraryConfig struct {
+	// Articles are the leading articles dropped when titles are normalized
+	// for matching. Absent means the shipped default list; an explicit
+	// empty list drops no articles. Set before the first sync: the item
+	// registry's normalized-title index is built with the list in effect
+	// at write time, so changing it on a populated instance requires
+	// rebuilding the identity store.
+	Articles []string `yaml:"articles"`
 }
 
 // EnrichmentConfig carries the enrichment pipeline's operator knobs.
@@ -213,6 +244,15 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("config: slots: %w", err)
 	}
 	if err := validatePolicies(c); err != nil {
+		return nil, err
+	}
+	// Timing and matching knobs fail the load the same way policy keys do:
+	// a mis-typed value refuses boot rather than running on a silent
+	// fallback.
+	if _, err := ParseDeliveryTiming(c.Delivery); err != nil {
+		return nil, err
+	}
+	if err := ValidateArticles(c.Library.Articles); err != nil {
 		return nil, err
 	}
 	return c, nil
@@ -490,6 +530,71 @@ func ParseCapChangeDefault(raw string) (accounts.CapChangePolicy, error) {
 	default:
 		return accounts.CapChangePolicyDefault, fmt.Errorf("delivery: unknown on-cap-change %q (want \"new-sessions-only\" or \"enforce-now\")", raw)
 	}
+}
+
+// Shipped delivery-timing defaults (TECHNICAL-DECISIONS.md §1.14). The
+// values' single home is here; every consumer resolves through
+// ParseDeliveryTiming rather than restating them.
+const (
+	DefaultSessionTTL        = 24 * time.Hour
+	DefaultHeartbeatInterval = 30 * time.Second
+	DefaultHeartbeatGrace    = 90 * time.Second
+)
+
+// DeliveryTiming is the resolved delivery-engine timing: the zombie cap and
+// the play-session liveness contract (PLAN.md §9.1).
+type DeliveryTiming struct {
+	SessionTTL        time.Duration
+	HeartbeatInterval time.Duration
+	HeartbeatGrace    time.Duration
+}
+
+// ParseDeliveryTiming resolves the delivery timing knobs: an absent key
+// falls back to the shipped default; a malformed or non-positive duration
+// is an error naming the key, never a silent fallback.
+func ParseDeliveryTiming(c DeliveryConfig) (DeliveryTiming, error) {
+	t := DeliveryTiming{
+		SessionTTL:        DefaultSessionTTL,
+		HeartbeatInterval: DefaultHeartbeatInterval,
+		HeartbeatGrace:    DefaultHeartbeatGrace,
+	}
+	var err error
+	if t.SessionTTL, err = durationOr(c.SessionTTL, t.SessionTTL, "delivery.session-ttl"); err != nil {
+		return t, err
+	}
+	if t.HeartbeatInterval, err = durationOr(c.Heartbeat.Interval, t.HeartbeatInterval, "delivery.heartbeat.interval"); err != nil {
+		return t, err
+	}
+	if t.HeartbeatGrace, err = durationOr(c.Heartbeat.Grace, t.HeartbeatGrace, "delivery.heartbeat.grace"); err != nil {
+		return t, err
+	}
+	return t, nil
+}
+
+// durationOr parses a config duration, returning fallback when the value is
+// absent and an error naming the key when it is broken.
+func durationOr(raw string, fallback time.Duration, key string) (time.Duration, error) {
+	if raw == "" {
+		return fallback, nil
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d <= 0 {
+		return 0, fmt.Errorf("config: %s %q is not a positive duration", key, raw)
+	}
+	return d, nil
+}
+
+// ValidateArticles rejects article entries that can never fire: title
+// normalization compares lowercase whitespace-separated tokens, so an entry
+// that is empty, uppercased, or contains whitespace is a typo the operator
+// should hear about at startup, not a silent no-op.
+func ValidateArticles(articles []string) error {
+	for _, a := range articles {
+		if a == "" || strings.ContainsAny(a, " \t\n") || a != strings.ToLower(a) {
+			return fmt.Errorf("config: library.articles entry %q is not a single lowercase word", a)
+		}
+	}
+	return nil
 }
 
 // ParseTokenTTL parses the token TTL from the config string.

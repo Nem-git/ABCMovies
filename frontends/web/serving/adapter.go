@@ -219,6 +219,17 @@ func (s *subscribeStream) SetTrailer(md metadata.MD) {
 	mergeMetadata(s.stream.ResponseTrailer(), md)
 }
 
+func (a *coreServiceAdapter) GetInstanceInfo(
+	ctx context.Context,
+	req *connect.Request[apiv1.GetInstanceInfoRequest],
+) (*connect.Response[apiv1.GetInstanceInfoResponse], error) {
+	resp, err := a.srv.GetInstanceInfo(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
 func (a *coreServiceAdapter) RefreshAvailability(
 	ctx context.Context,
 	req *connect.Request[apiv1.RefreshAvailabilityRequest],

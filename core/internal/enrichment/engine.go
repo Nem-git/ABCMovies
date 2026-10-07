@@ -60,16 +60,25 @@ type Engine struct {
 	store    MetadataStore
 	catalogs []Catalogue
 	logger   *slog.Logger
+	opts     identity.Options
 	now      func() time.Time
 }
 
 // NewEngine builds an engine. Catalogues may be empty — the instance then
-// enriches nothing until operators enable slots.
-func NewEngine(src EntrySource, st MetadataStore, catalogs []Catalogue, logger *slog.Logger) *Engine {
+// enriches nothing until operators enable slots. opts carries the configured
+// normalization options (PLAN.md §5.3: the leading-article list is
+// configurable); absent means the identity package's defaults. It must be
+// the same options instance the item registry runs on — matching has one
+// semantics per instance.
+func NewEngine(src EntrySource, st MetadataStore, catalogs []Catalogue, logger *slog.Logger, opts ...identity.Options) *Engine {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Engine{source: src, store: st, catalogs: catalogs, logger: logger, now: time.Now}
+	var o identity.Options
+	if len(opts) > 0 {
+		o = opts[0]
+	}
+	return &Engine{source: src, store: st, catalogs: catalogs, logger: logger, opts: o, now: time.Now}
 }
 
 // Enrich resolves one entry to a cached record. A missing entry or an
@@ -121,7 +130,7 @@ func (e *Engine) Enrich(ctx context.Context, entryID string) error {
 	// 3. Hard gates over summaries; details decide the rest. Summaries
 	// carry no corroborating signals, so survivors get their full records
 	// fetched and Adopt adjudicates on those (TECHNICAL-DECISIONS §1.28).
-	survivors := identity.Screen(entryItem, candidateItems(pool))
+	survivors := e.opts.Screen(entryItem, candidateItems(pool))
 	if len(survivors) == 0 {
 		e.logger.Info("enrichment abstained: no catalogue candidate passed screening",
 			"entry", entryID, "candidates", len(pool))
@@ -154,7 +163,7 @@ func (e *Engine) Enrich(ctx context.Context, entryID string) error {
 		return fmt.Errorf("enrichment: every detail fetch failed for entry %q (%d survivors)",
 			entryID, len(survivors))
 	}
-	picked, ok := identity.Adopt(entryItem, fullItems(full))
+	picked, ok := e.opts.Adopt(entryItem, fullItems(full))
 	if !ok {
 		e.logger.Info("enrichment abstained: no unambiguous catalogue match",
 			"entry", entryID, "survivors", len(full))

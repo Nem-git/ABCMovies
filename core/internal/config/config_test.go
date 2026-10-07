@@ -547,3 +547,127 @@ func TestParseCapChangeDefault(t *testing.T) {
 		t.Fatal("unknown value should fail")
 	}
 }
+
+// The delivery timing knobs resolve like every other operator knob: absent
+// keys inherit the shipped defaults, explicit values win, and a malformed or
+// non-positive duration is a startup error naming the key — never a silent
+// fallback (TECHNICAL-DECISIONS.md §1.14).
+func TestParseDeliveryTiming(t *testing.T) {
+	def, err := config.ParseDeliveryTiming(config.DeliveryConfig{})
+	if err != nil {
+		t.Fatalf("defaults: %v", err)
+	}
+	if def.SessionTTL != 24*time.Hour ||
+		def.HeartbeatInterval != 30*time.Second ||
+		def.HeartbeatGrace != 90*time.Second {
+		t.Fatalf("defaults = %+v, want 24h/30s/90s", def)
+	}
+
+	over, err := config.ParseDeliveryTiming(config.DeliveryConfig{
+		SessionTTL: "48h",
+		Heartbeat: config.HeartbeatConfig{
+			Interval: "45s",
+			Grace:    "2m",
+		},
+	})
+	if err != nil {
+		t.Fatalf("overrides: %v", err)
+	}
+	if over.SessionTTL != 48*time.Hour ||
+		over.HeartbeatInterval != 45*time.Second ||
+		over.HeartbeatGrace != 2*time.Minute {
+		t.Fatalf("overrides = %+v, want 48h/45s/2m", over)
+	}
+
+	// A key left absent inside a present block still inherits its default.
+	partial, err := config.ParseDeliveryTiming(config.DeliveryConfig{
+		Heartbeat: config.HeartbeatConfig{Interval: "45s"},
+	})
+	if err != nil {
+		t.Fatalf("partial: %v", err)
+	}
+	if partial.HeartbeatInterval != 45*time.Second || partial.HeartbeatGrace != 90*time.Second {
+		t.Fatalf("partial = %+v, want interval 45s with grace default 90s", partial)
+	}
+}
+
+func TestParseDeliveryTimingRejectsBrokenValues(t *testing.T) {
+	for name, cfg := range map[string]config.DeliveryConfig{
+		"session-ttl malformed":  {SessionTTL: "banana"},
+		"session-ttl zero":       {SessionTTL: "0s"},
+		"interval malformed":     {Heartbeat: config.HeartbeatConfig{Interval: "soon"}},
+		"interval negative":      {Heartbeat: config.HeartbeatConfig{Interval: "-5s"}},
+		"grace malformed":        {Heartbeat: config.HeartbeatConfig{Grace: "90"}},
+		"grace non-positive":     {Heartbeat: config.HeartbeatConfig{Grace: "0s"}},
+	} {
+		if _, err := config.ParseDeliveryTiming(cfg); err == nil {
+			t.Errorf("%s: broken value should fail", name)
+		}
+	}
+}
+
+// The matching article list fails loudly on entries that can never fire:
+// normalization compares lowercase single tokens, so anything else is a typo
+// the operator must hear about at startup.
+func TestValidateArticles(t *testing.T) {
+	for _, ok := range [][]string{nil, {}, {"the", "a", "an"}, {"le", "la", "les"}, {"der"}} {
+		if err := config.ValidateArticles(ok); err != nil {
+			t.Errorf("ValidateArticles(%v): %v", ok, err)
+		}
+	}
+	for _, bad := range [][]string{{"The"}, {"le "}, {""}, {"a b"}} {
+		if err := config.ValidateArticles(bad); err == nil {
+			t.Errorf("ValidateArticles(%v) should fail", bad)
+		}
+	}
+}
+
+// Broken delivery/library values refuse the whole config load, not just the
+// parse helper — boot must never run on a silently-fallen-back timing or a
+// dead article entry.
+func TestLoadRejectsBrokenDeliveryAndLibrary(t *testing.T) {
+	for name, yaml := range map[string]string{
+		"bad session-ttl":   "delivery:\n  session-ttl: banana\n",
+		"bad grace":         "delivery:\n  heartbeat:\n    grace: \"0s\"\n",
+		"uppercase article": "library:\n  articles: [The, le]\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.yaml")
+			if err := os.WriteFile(path, []byte(yaml), 0o644); err != nil {
+				t.Fatalf("write config: %v", err)
+			}
+			if _, err := config.Load(path); err == nil {
+				t.Fatalf("%s: broken value should fail the load", name)
+			}
+		})
+	}
+}
+
+// Valid delivery and library blocks parse into the config struct.
+func TestLoadDeliveryAndLibrary(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	yaml := `delivery:
+  on-cap-change: enforce-now
+  session-ttl: 12h
+  heartbeat:
+    interval: 20s
+    grace: 1m
+library:
+  articles: [le, la, les]
+`
+	if err := os.WriteFile(path, []byte(yaml), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	c, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if c.Delivery.SessionTTL != "12h" ||
+		c.Delivery.Heartbeat.Interval != "20s" ||
+		c.Delivery.Heartbeat.Grace != "1m" {
+		t.Fatalf("delivery = %+v", c.Delivery)
+	}
+	if len(c.Library.Articles) != 3 || c.Library.Articles[2] != "les" {
+		t.Fatalf("articles = %v", c.Library.Articles)
+	}
+}

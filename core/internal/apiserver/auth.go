@@ -43,10 +43,13 @@ func DEKFromContext(ctx context.Context) []byte {
 }
 
 // publicMethods are the inbound-API methods reachable without a session
-// token: account creation and login are how a caller obtains one.
+// token: account creation and login are how a caller obtains one, and
+// GetInstanceInfo carries only the non-sensitive parameters a client needs
+// before it can log in (TECHNICAL-DECISIONS.md §1.43).
 var publicMethods = map[string]bool{
-	"/abcmovies.api.v1.CoreService/SignUp": true,
-	"/abcmovies.api.v1.CoreService/Login":  true,
+	"/abcmovies.api.v1.CoreService/SignUp":          true,
+	"/abcmovies.api.v1.CoreService/Login":           true,
+	"/abcmovies.api.v1.CoreService/GetInstanceInfo": true,
 }
 
 // AuthContext returns ctx carrying the authenticated principal's identity:
