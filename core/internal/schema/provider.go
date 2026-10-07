@@ -97,3 +97,87 @@ func ValidateProduceSourcesResponse(resp *slotsv1.ProduceSourcesResponse) error 
 	}
 	return ValidateMediaSource(resp.GetSource())
 }
+
+// ValidateSearchCatalogRequest checks a SearchCatalogRequest: the account
+// and the user's query are required (PLAN.md §5.4 — the live path is
+// always user-triggered, never a background probe).
+func ValidateSearchCatalogRequest(req *slotsv1.SearchCatalogRequest) error {
+	if req == nil {
+		return fmt.Errorf("search catalog request: nil")
+	}
+	if req.GetAccountId() == "" {
+		return fmt.Errorf("search catalog request: account_id is required")
+	}
+	if req.GetQuery() == "" {
+		return fmt.Errorf("search catalog request: query is required")
+	}
+	return nil
+}
+
+// ValidateSearchCatalogResponse checks one page of search matches.
+func ValidateSearchCatalogResponse(resp *slotsv1.SearchCatalogResponse) error {
+	if resp == nil {
+		return fmt.Errorf("search catalog response: nil")
+	}
+	for _, item := range resp.GetItems() {
+		if err := ValidateCatalogueItem(item); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ValidateBrowseCatalogRequest checks a BrowseCatalogRequest: the account is
+// required; the path may be empty (provider default landing).
+func ValidateBrowseCatalogRequest(req *slotsv1.BrowseCatalogRequest) error {
+	if req == nil {
+		return fmt.Errorf("browse catalog request: nil")
+	}
+	if req.GetAccountId() == "" {
+		return fmt.Errorf("browse catalog request: account_id is required")
+	}
+	return nil
+}
+
+// ValidateBrowseCatalogResponse checks one page of a browse listing.
+func ValidateBrowseCatalogResponse(resp *slotsv1.BrowseCatalogResponse) error {
+	if resp == nil {
+		return fmt.Errorf("browse catalog response: nil")
+	}
+	for _, item := range resp.GetItems() {
+		if err := ValidateCatalogueItem(item); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ValidateRefreshAvailabilityRequest checks a RefreshAvailabilityRequest:
+// both the account and at least one native id are required (PLAN.md §5.4 —
+// the lookup is always bounded and explicit).
+func ValidateRefreshAvailabilityRequest(req *slotsv1.RefreshAvailabilityRequest) error {
+	if req == nil {
+		return fmt.Errorf("refresh availability request: nil")
+	}
+	if req.GetAccountId() == "" {
+		return fmt.Errorf("refresh availability request: account_id is required")
+	}
+	if len(req.GetNativeIds()) == 0 {
+		return fmt.Errorf("refresh availability request: native_ids must be non-empty")
+	}
+	return nil
+}
+
+// ValidateRefreshAvailabilityResponse checks the availability answer: the
+// carried items are the items still present on the provider.
+func ValidateRefreshAvailabilityResponse(resp *slotsv1.RefreshAvailabilityResponse) error {
+	if resp == nil {
+		return fmt.Errorf("refresh availability response: nil")
+	}
+	for _, item := range resp.GetItems() {
+		if err := ValidateCatalogueItem(item); err != nil {
+			return err
+		}
+	}
+	return nil
+}

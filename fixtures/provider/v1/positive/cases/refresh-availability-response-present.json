@@ -1,0 +1,16 @@
+{
+  "name": "refresh-availability-response-present",
+  "type": "RefreshAvailabilityResponse",
+  "message": {
+    "items": [
+      {
+        "native_id": "archive-sintel",
+        "kind": "ITEM_KIND_MOVIE",
+        "metadata": { "title": "Sintel", "year": 2010 }
+      }
+    ]
+  },
+  "expected": {
+    "valid": true
+  }
+}

@@ -483,6 +483,48 @@ func validateProviderMessage(msgType string, msg json.RawMessage) (bool, error) 
 		}
 		err := schema.ValidateProduceSourcesResponse(&m)
 		return err == nil, err
+	case "SearchCatalogRequest":
+		var m slotsv1.SearchCatalogRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateSearchCatalogRequest(&m)
+		return err == nil, err
+	case "SearchCatalogResponse":
+		var m slotsv1.SearchCatalogResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateSearchCatalogResponse(&m)
+		return err == nil, err
+	case "BrowseCatalogRequest":
+		var m slotsv1.BrowseCatalogRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateBrowseCatalogRequest(&m)
+		return err == nil, err
+	case "BrowseCatalogResponse":
+		var m slotsv1.BrowseCatalogResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateBrowseCatalogResponse(&m)
+		return err == nil, err
+	case "RefreshAvailabilityRequest":
+		var m slotsv1.RefreshAvailabilityRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateRefreshAvailabilityRequest(&m)
+		return err == nil, err
+	case "RefreshAvailabilityResponse":
+		var m slotsv1.RefreshAvailabilityResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateRefreshAvailabilityResponse(&m)
+		return err == nil, err
 	default:
 		return false, fmt.Errorf("unknown provider message type %q", msgType)
 	}

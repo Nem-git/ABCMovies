@@ -1,0 +1,10 @@
+{
+  "name": "browse-catalog-request-missing-account-id",
+  "type": "BrowseCatalogRequest",
+  "message": {
+    "path": "featured"
+  },
+  "expected": {
+    "valid": false
+  }
+}

@@ -1,8 +1,9 @@
 // Package scheduler is M1's minimal refresh-cadence slice (IMPLEMENTATION.md
 // §3): periodic account source-cache syncs with jitter so a fleet of accounts
 // never fires as one spike, and exponential backoff when a provider is
-// failing. The aggregate governor that coordinates across providers is a
-// later milestone and deliberately absent here.
+// failing. The per-provider aggregate governor now lives in the pacing
+// package and is composed at slot wiring time; the scheduler itself only
+// schedules recurring jobs and deliberately holds no cross-provider state.
 package scheduler
 
 import (
