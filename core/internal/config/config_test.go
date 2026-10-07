@@ -593,12 +593,12 @@ func TestParseDeliveryTiming(t *testing.T) {
 
 func TestParseDeliveryTimingRejectsBrokenValues(t *testing.T) {
 	for name, cfg := range map[string]config.DeliveryConfig{
-		"session-ttl malformed":  {SessionTTL: "banana"},
-		"session-ttl zero":       {SessionTTL: "0s"},
-		"interval malformed":     {Heartbeat: config.HeartbeatConfig{Interval: "soon"}},
-		"interval negative":      {Heartbeat: config.HeartbeatConfig{Interval: "-5s"}},
-		"grace malformed":        {Heartbeat: config.HeartbeatConfig{Grace: "90"}},
-		"grace non-positive":     {Heartbeat: config.HeartbeatConfig{Grace: "0s"}},
+		"session-ttl malformed": {SessionTTL: "banana"},
+		"session-ttl zero":      {SessionTTL: "0s"},
+		"interval malformed":    {Heartbeat: config.HeartbeatConfig{Interval: "soon"}},
+		"interval negative":     {Heartbeat: config.HeartbeatConfig{Interval: "-5s"}},
+		"grace malformed":       {Heartbeat: config.HeartbeatConfig{Grace: "90"}},
+		"grace non-positive":    {Heartbeat: config.HeartbeatConfig{Grace: "0s"}},
 	} {
 		if _, err := config.ParseDeliveryTiming(cfg); err == nil {
 			t.Errorf("%s: broken value should fail", name)
