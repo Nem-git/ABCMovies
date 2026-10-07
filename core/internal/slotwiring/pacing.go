@@ -20,7 +20,7 @@ import (
 // draw from the same per-account Budget as user traffic — background can
 // never exceed the limits user requests obey (PLAN.md §7.2).
 type pacedClient struct {
-	innerCatalogue  sourcecacheClient
+	innerCatalogue sourcecacheClient
 	innerRefresh   sourcecache.RefreshClient
 	innerProducer  produces
 	innerSearcher  searcher
