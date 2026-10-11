@@ -688,3 +688,107 @@ library:
 		t.Fatalf("articles = %v", c.Library.Articles)
 	}
 }
+
+// The shipped instance-settings default is the values an instance runs on with
+// no stored record and no config override: the drama the timing-default block
+// names, the shipped auth methods, and owner-id visibility off (A1, A7).
+func TestDefaultInstanceSettings(t *testing.T) {
+	snap := config.DefaultInstanceSettings()
+	if len(snap.AuthMethods) != 1 || snap.AuthMethods[0] != "password" {
+		t.Errorf("auth methods = %v, want [password]", snap.AuthMethods)
+	}
+	if snap.HeartbeatInterval != config.DefaultHeartbeatInterval ||
+		snap.HeartbeatGrace != config.DefaultHeartbeatGrace ||
+		snap.SessionTTL != config.DefaultSessionTTL {
+		t.Errorf("timing = %v/%v/%v, want shipped defaults",
+			snap.HeartbeatInterval, snap.HeartbeatGrace, snap.SessionTTL)
+	}
+	if snap.OwnerUserIDVisible {
+		t.Errorf("owner_user_id_visible = true, want default off")
+	}
+}
+
+// The boot-time override carries only the settings the operator actually
+// wrote: an absent key stays absent so the pipeline keeps the stored value
+// rather than pinning the shipped default over it (E1). This is what makes
+// config an override and not a full rewrite on every boot.
+func TestInstanceSettingsPatch_OnlyPresentKeys(t *testing.T) {
+	bare := config.Default()
+	p, err := bare.InstanceSettingsPatch()
+	if err != nil {
+		t.Fatalf("InstanceSettingsPatch: %v", err)
+	}
+	if p.AuthMethods != nil {
+		t.Errorf("bare config set auth_methods = %v, want absent (shipped default is not an override)", *p.AuthMethods)
+	}
+	if p.SessionTTL != nil || p.HeartbeatInterval != nil || p.HeartbeatGrace != nil {
+		t.Errorf("bare config set delivery timing, want all absent")
+	}
+
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	yaml := `auth:
+  methods: [password]
+delivery:
+  session-ttl: 12h
+  heartbeat:
+    interval: 20s
+    grace: 1m
+`
+	if err := os.WriteFile(path, []byte(yaml), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	c, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	p, err = c.InstanceSettingsPatch()
+	if err != nil {
+		t.Fatalf("InstanceSettingsPatch: %v", err)
+	}
+	if p.AuthMethods == nil || len(*p.AuthMethods) != 1 || (*p.AuthMethods)[0] != "password" {
+		t.Errorf("auth_methods override = %v, want [password]", p.AuthMethods)
+	}
+	if p.SessionTTL == nil || *p.SessionTTL != 12*time.Hour {
+		t.Errorf("session_ttl override = %v, want 12h", p.SessionTTL)
+	}
+	if p.HeartbeatInterval == nil || *p.HeartbeatInterval != 20*time.Second {
+		t.Errorf("heartbeat_interval override = %v, want 20s", p.HeartbeatInterval)
+	}
+	if p.HeartbeatGrace == nil || *p.HeartbeatGrace != time.Minute {
+		t.Errorf("heartbeat_grace override = %v, want 1m", p.HeartbeatGrace)
+	}
+}
+
+// The settings store class is part of the built set (PLAN.md §2.4): a plain,
+// unsealed backend like every other non-secret class.
+func TestBuildStores_SettingsClass(t *testing.T) {
+	c := config.Default()
+	stores, err := config.BuildStores(t.Context(), c, nil)
+	if err != nil {
+		t.Fatalf("BuildStores: %v", err)
+	}
+	if stores.Settings == nil {
+		t.Fatal("Settings store is nil")
+	}
+	if err := config.CloseStores(stores); err != nil {
+		t.Fatalf("CloseStores: %v", err)
+	}
+}
+
+// A local-file settings store opens (and creates its parent directory) like
+// the other durable classes.
+func TestBuildStores_SettingsLocalFile(t *testing.T) {
+	dir := t.TempDir()
+	c := config.Default()
+	c.Stores.Settings = config.StoreConfig{Backend: "local-file", Path: filepath.Join(dir, "nested", "settings.db")}
+	stores, err := config.BuildStores(t.Context(), c, nil)
+	if err != nil {
+		t.Fatalf("BuildStores: %v", err)
+	}
+	if stores.Settings == nil {
+		t.Fatal("Settings store is nil")
+	}
+	if err := config.CloseStores(stores); err != nil {
+		t.Fatalf("CloseStores: %v", err)
+	}
+}

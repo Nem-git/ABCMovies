@@ -742,6 +742,27 @@ func (e *Engine) LiveSessions() int {
 	return n
 }
 
+// SetTiming replaces the liveness timing at runtime: the instance-settings
+// pipeline applies a changed session TTL or heartbeat contract to the running
+// engine without a restart (TECHNICAL-DECISIONS.md §1.45). The watchdog reads
+// the values under e.mu, so a change takes effect on the next sweep; the
+// ticker's own period is fixed when Watch starts, so an eviction can be at
+// most one old-tick late. Non-positive values are ignored: the settings
+// pipeline rejects them before they reach here.
+func (e *Engine) SetTiming(ttl, interval, grace time.Duration) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if ttl > 0 {
+		e.ttl = ttl
+	}
+	if interval > 0 {
+		e.interval = interval
+	}
+	if grace > 0 {
+		e.grace = grace
+	}
+}
+
 // Watch runs the liveness watchdog until Close. The watchdog evicts sessions
 // whose heartbeat timed out (play) or whose TTL expired (any session), so no
 // phantom session lingers (PLAN.md §9.1).
@@ -750,7 +771,9 @@ func (e *Engine) Watch(ctx context.Context) {
 	defer e.watchWG.Done()
 	e.watched.Store(true)
 	defer close(e.done)
+	e.mu.Lock()
 	tick := e.ttl
+	e.mu.Unlock()
 	if tick <= 0 {
 		tick = time.Minute
 	}

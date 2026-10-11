@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -298,12 +299,22 @@ func (s *MemoryUserStore) PutUser(username string, data *UserData) error {
 
 // CompositeAuthenticator routes auth requests to method-specific
 // authenticators via a map-based registry. No ordering or fallback.
+//
+// The set of enabled methods can be replaced live through SetMethods: the
+// enabled methods are an instance setting (PLAN.md §8), and the delivery of a
+// changed set must not require a restart. A reader takes the read lock; a swap
+// takes the write lock, so a request either sees the old set or the new one,
+// never a torn map.
 type CompositeAuthenticator struct {
+	mu      sync.RWMutex
+	store   UserStore
 	methods map[string]Authenticator
 }
 
 // Get returns the Authenticator for the given method, or nil if not found.
 func (c *CompositeAuthenticator) Get(method string) (Authenticator, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	a, ok := c.methods[method]
 	return a, ok
 }
@@ -311,6 +322,8 @@ func (c *CompositeAuthenticator) Get(method string) (Authenticator, bool) {
 // Methods returns the enabled method names, sorted, for instance discovery
 // (GetInstanceInfo publishes them so a client can render its login form).
 func (c *CompositeAuthenticator) Methods() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	out := make([]string, 0, len(c.methods))
 	for name := range c.methods {
 		out = append(out, name)
@@ -319,9 +332,24 @@ func (c *CompositeAuthenticator) Methods() []string {
 	return out
 }
 
-// NewAuthenticators creates a CompositeAuthenticator from the configured
-// method names. Currently only "password" is supported.
-func NewAuthenticators(methods []string, userStore UserStore) (*CompositeAuthenticator, error) {
+// SetMethods replaces the enabled method set. An unknown method is rejected
+// and the current set is left untouched, so a bad settings value cannot
+// silently disable logins. An empty set is structurally allowed here; the
+// settings pipeline refuses it before it ever reaches this call.
+func (c *CompositeAuthenticator) SetMethods(methods []string) error {
+	m, err := buildMethods(methods, c.store)
+	if err != nil {
+		return err
+	}
+	c.mu.Lock()
+	c.methods = m
+	c.mu.Unlock()
+	return nil
+}
+
+// buildMethods maps method names to authenticators. Currently only "password"
+// is supported.
+func buildMethods(methods []string, userStore UserStore) (map[string]Authenticator, error) {
 	m := make(map[string]Authenticator, len(methods))
 	for _, name := range methods {
 		switch name {
@@ -331,5 +359,15 @@ func NewAuthenticators(methods []string, userStore UserStore) (*CompositeAuthent
 			return nil, fmt.Errorf("auth: unknown method %q", name)
 		}
 	}
-	return &CompositeAuthenticator{methods: m}, nil
+	return m, nil
+}
+
+// NewAuthenticators creates a CompositeAuthenticator from the configured
+// method names. Currently only "password" is supported.
+func NewAuthenticators(methods []string, userStore UserStore) (*CompositeAuthenticator, error) {
+	m, err := buildMethods(methods, userStore)
+	if err != nil {
+		return nil, err
+	}
+	return &CompositeAuthenticator{store: userStore, methods: m}, nil
 }

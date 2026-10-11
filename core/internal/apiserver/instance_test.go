@@ -12,6 +12,8 @@ import (
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
+	"github.com/nem-git/abcmovies/core/internal/settings"
+	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
 // GetInstanceInfo publishes the non-sensitive instance parameters: the
@@ -47,6 +49,94 @@ func TestGetInstanceInfo(t *testing.T) {
 	}
 }
 
+// When the server is armed with a settings provider, GetInstanceInfo reads
+// live from the settings store (the single source of truth), so values never
+// drift from what the pipeline enforces (TECHNICAL-DECISIONS.md §1.45).
+func TestGetInstanceInfoReadsLiveSettings(t *testing.T) {
+	authenticator, session := testAuth(t)
+	stores := testStores(t)
+	// testStores() currently omits Settings; add an in-memory one for this test.
+	stores.Settings = store.NewInMemory()
+	srv := apiserver.NewServer(apiserver.Settings{Bus: apiserver.NewInMemoryBus(), Stores: stores, Authenticator: authenticator, Session: session})
+	// Cast back to the concrete Server to arm settings.
+	as := srv
+	def := settings.Snapshot{
+		AuthMethods:        []string{"password"},
+		HeartbeatInterval:  60 * time.Second,
+		HeartbeatGrace:     120 * time.Second,
+		SessionTTL:         2 * time.Hour,
+		OwnerUserIDVisible: true,
+	}
+	prov, err := settings.New(stores.Settings, def)
+	if err != nil {
+		t.Fatalf("settings.New: %v", err)
+	}
+	as.SetInstanceSettings(prov)
+
+	resp, err := as.GetInstanceInfo(context.Background(), &apiv1.GetInstanceInfoRequest{})
+	if err != nil {
+		t.Fatalf("GetInstanceInfo: %v", err)
+	}
+	if got := resp.GetHeartbeatInterval().AsDuration(); got != 60*time.Second {
+		t.Errorf("heartbeat interval = %v, want 60s", got)
+	}
+}
+
+// GetInstanceSettings is an authenticated surface that returns the full
+// effective settings (superset of the public info), including the non-public
+// fields: heartbeat grace, session TTL and owner-id visibility. It is not on
+// the public allowlist.
+func TestGetInstanceSettings_ReturnsEffectiveValues(t *testing.T) {
+	authenticator, session := testAuth(t)
+	stores := testStores(t)
+	stores.Settings = store.NewInMemory()
+	srv := apiserver.NewServer(apiserver.Settings{Bus: apiserver.NewInMemoryBus(), Stores: stores, Authenticator: authenticator, Session: session})
+	def := settings.Snapshot{
+		AuthMethods:        []string{"password"},
+		HeartbeatInterval:  60 * time.Second,
+		HeartbeatGrace:     120 * time.Second,
+		SessionTTL:         2 * time.Hour,
+		OwnerUserIDVisible: true,
+	}
+	prov, err := settings.New(stores.Settings, def)
+	if err != nil {
+		t.Fatalf("settings.New: %v", err)
+	}
+	srv.SetInstanceSettings(prov)
+
+	pwd := getPasswordAuth(t, authenticator)
+	_, err = pwd.SignUp("alice", []byte("password123"))
+	if err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+	result, err := pwd.Login("alice", []byte("password123"))
+	if err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	token, err := session.Mint(result.UserID)
+	if err != nil {
+		t.Fatalf("mint: %v", err)
+	}
+
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+token))
+	resp, err := srv.GetInstanceSettings(ctx, &apiv1.GetInstanceSettingsRequest{})
+	if err != nil {
+		t.Fatalf("GetInstanceSettings: %v", err)
+	}
+	if got := resp.GetHeartbeatInterval().AsDuration(); got != 60*time.Second {
+		t.Errorf("heartbeat interval = %v, want 60s", got)
+	}
+	if got := resp.GetHeartbeatGrace().AsDuration(); got != 120*time.Second {
+		t.Errorf("heartbeat grace = %v, want 120s", got)
+	}
+	if got := resp.GetSessionTtl().AsDuration(); got != 2*time.Hour {
+		t.Errorf("session ttl = %v, want 2h", got)
+	}
+	if !resp.GetOwnerUserIdVisible() {
+		t.Errorf("owner_user_id_visible = false, want true")
+	}
+}
+
 // GetInstanceInfo sits on the public allowlist: a client must learn the auth
 // methods and the liveness cadence before it owns a token — but a
 // non-public method without a token is still rejected.
@@ -60,6 +150,11 @@ func TestGetInstanceInfoIsPublic(t *testing.T) {
 		FullMethod: "/abcmovies.api.v1.CoreService/GetInstanceInfo",
 	}, handler); err != nil {
 		t.Fatalf("GetInstanceInfo without token: %v", err)
+	}
+	if _, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{
+		FullMethod: "/abcmovies.api.v1.CoreService/GetInstanceSettings",
+	}, handler); status.Code(err) != codes.Unauthenticated {
+		t.Fatalf("GetInstanceSettings without token = %v, want Unauthenticated", err)
 	}
 	if _, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{
 		FullMethod: "/abcmovies.api.v1.CoreService/GetJob",

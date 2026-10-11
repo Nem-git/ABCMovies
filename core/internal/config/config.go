@@ -17,6 +17,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/auth"
 	"github.com/nem-git/abcmovies/core/internal/policy"
+	"github.com/nem-git/abcmovies/core/internal/settings"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
@@ -118,6 +119,7 @@ type Config struct {
 		Users         StoreConfig `yaml:"users"`
 		SourceCache   StoreConfig `yaml:"source-cache"`
 		MetadataCache StoreConfig `yaml:"metadata-cache"`
+		Settings      StoreConfig `yaml:"settings"`
 	} `yaml:"stores"`
 	// Policy is the instance-wide usage policy — a limit-type → value map
 	// (PLAN.md §7.2). Absent keys inherit the shipped defaults; unknown
@@ -135,6 +137,14 @@ type Config struct {
 	// Library tunes matching (PLAN.md §5.3). Absent keys fall back to the
 	// shipped defaults.
 	Library LibraryConfig `yaml:"library"`
+
+	// authMethodsFromConfig records whether the operator named the enabled
+	// auth methods explicitly. Default() pre-seeds the shipped method list so
+	// a bare config still authenticates; that pre-seeding would otherwise be
+	// indistinguishable from an explicit choice, and the instance-settings
+	// pipeline would treat the default as a boot override and clobber a
+	// stored method set. Only an explicit list counts as an override.
+	authMethodsFromConfig bool
 }
 
 // DeliveryConfig carries the delivery engine's operator knobs.
@@ -196,13 +206,14 @@ type Stores struct {
 	Users         store.Store
 	SourceCache   store.Store
 	MetadataCache store.Store
+	Settings      store.Store
 	VaultAEAD     cipher.AEAD
 }
 
 func Default() *Config {
 	c := &Config{}
 	c.Core.API.Bind = "127.0.0.1:8443"
-	c.Auth.Methods = []string{"password"}
+	c.Auth.Methods = append([]string(nil), DefaultAuthMethods...)
 	c.Auth.TokenTTL = "168h"
 	c.Auth.DEKCache = "memory"
 	c.Stores.Caches = StoreConfig{Backend: "in-memory"}
@@ -220,6 +231,10 @@ func Default() *Config {
 	// metadata cache from catalogue slots, so dev loses nothing by staying
 	// in-memory.
 	c.Stores.MetadataCache = StoreConfig{Backend: "in-memory"}
+	// Instance settings are re-seedable from config, so an in-memory dev
+	// default is honest: the operator's config re-establishes them at boot.
+	// The example config recommends local-file for a durable record.
+	c.Stores.Settings = StoreConfig{Backend: "in-memory"}
 	// The built-in reference slot is part of every instance; kind lists start
 	// empty and grow through operator config.
 	c.Slots.Builtin.Enabled = true
@@ -238,8 +253,17 @@ func Load(path string) (*Config, error) {
 		}
 		return nil, fmt.Errorf("config: read %s: %w", path, err)
 	}
+	// Clear the pre-seeded method list so an explicit auth.methods in the
+	// document is detectable: absent means the shipped default, present means
+	// an operator override the settings pipeline records.
+	c.Auth.Methods = nil
 	if err := yaml.Unmarshal(b, c); err != nil {
 		return nil, fmt.Errorf("config: parse %s: %w", path, err)
+	}
+	if c.Auth.Methods == nil {
+		c.Auth.Methods = append([]string(nil), DefaultAuthMethods...)
+	} else {
+		c.authMethodsFromConfig = true
 	}
 	if err := validateSlots(c.Slots); err != nil {
 		return nil, fmt.Errorf("config: slots: %w", err)
@@ -409,6 +433,13 @@ func BuildStores(ctx context.Context, cfg *Config, logger *slog.Logger) (Stores,
 		return s, fmt.Errorf("stores.metadata-cache: %w", err)
 	}
 
+	// Instance settings are not secrets: the store holds the operator's
+	// effective values, so a plain backend is right (no sealing).
+	s.Settings, err = buildStore(ctx, cfg.Stores.Settings, "data/settings.db")
+	if err != nil {
+		return s, fmt.Errorf("stores.settings: %w", err)
+	}
+
 	// The instance key is resolved exactly once and shared by everything that
 	// must be sealed at rest: the vault store, the sealed login store, and an
 	// encrypted data-key cache. Resolving it per consumer would, with a
@@ -453,7 +484,7 @@ func BuildStores(ctx context.Context, cfg *Config, logger *slog.Logger) (Stores,
 // all stores get closed regardless.
 func CloseStores(s Stores) error {
 	var firstErr error
-	for _, c := range []store.Store{s.Cache, s.Vault, s.WatchHistory, s.Jobs, s.Sessions, s.Users, s.SourceCache, s.MetadataCache} {
+	for _, c := range []store.Store{s.Cache, s.Vault, s.WatchHistory, s.Jobs, s.Sessions, s.Users, s.SourceCache, s.MetadataCache, s.Settings} {
 		if err := c.Close(); err != nil && firstErr == nil {
 			firstErr = err
 		}
@@ -576,6 +607,61 @@ const (
 	DefaultHeartbeatInterval = 30 * time.Second
 	DefaultHeartbeatGrace    = 90 * time.Second
 )
+
+// DefaultAuthMethods is the shipped authentication method list. It is a
+// variable because slices cannot be constants; callers always copy it so one
+// holder cannot mutate the shipped value another sees.
+var DefaultAuthMethods = []string{"password"}
+
+// DefaultInstanceSettings is the shipped instance-settings snapshot: the
+// values an instance runs with when neither the config nor a stored record
+// supplies one. The durations' single home is the block above; the method
+// list's is DefaultAuthMethods.
+func DefaultInstanceSettings() settings.Snapshot {
+	return settings.Snapshot{
+		AuthMethods:        append([]string(nil), DefaultAuthMethods...),
+		HeartbeatInterval:  DefaultHeartbeatInterval,
+		HeartbeatGrace:     DefaultHeartbeatGrace,
+		SessionTTL:         DefaultSessionTTL,
+		OwnerUserIDVisible: false,
+	}
+}
+
+// InstanceSettingsPatch resolves the boot-time settings override from config:
+// only the settings the operator actually wrote are included. An absent key
+// stays absent, so the instance-settings pipeline keeps the stored value (or
+// the shipped default) rather than pinning the default over it. This is why
+// an explicit auth.methods list is tracked separately from the shipped
+// default Default() pre-seeds: only an explicit list counts as an override.
+func (c *Config) InstanceSettingsPatch() (settings.Patch, error) {
+	var p settings.Patch
+	if c.authMethodsFromConfig {
+		m := append([]string(nil), c.Auth.Methods...)
+		p.AuthMethods = &m
+	}
+	if c.Delivery.SessionTTL != "" {
+		d, err := durationOr(c.Delivery.SessionTTL, 0, "delivery.session-ttl")
+		if err != nil {
+			return p, err
+		}
+		p.SessionTTL = &d
+	}
+	if c.Delivery.Heartbeat.Interval != "" {
+		d, err := durationOr(c.Delivery.Heartbeat.Interval, 0, "delivery.heartbeat.interval")
+		if err != nil {
+			return p, err
+		}
+		p.HeartbeatInterval = &d
+	}
+	if c.Delivery.Heartbeat.Grace != "" {
+		d, err := durationOr(c.Delivery.Heartbeat.Grace, 0, "delivery.heartbeat.grace")
+		if err != nil {
+			return p, err
+		}
+		p.HeartbeatGrace = &d
+	}
+	return p, nil
+}
 
 // DeliveryTiming is the resolved delivery-engine timing: the zombie cap and
 // the play-session liveness contract (PLAN.md §9.1).

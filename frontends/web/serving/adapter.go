@@ -175,6 +175,17 @@ func (a *coreServiceAdapter) GetPlayInfo(
 	return connect.NewResponse(resp), nil
 }
 
+func (a *coreServiceAdapter) GetInstanceSettings(
+	ctx context.Context,
+	req *connect.Request[apiv1.GetInstanceSettingsRequest],
+) (*connect.Response[apiv1.GetInstanceSettingsResponse], error) {
+	resp, err := a.srv.GetInstanceSettings(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
 func (a *coreServiceAdapter) Subscribe(
 	ctx context.Context,
 	req *connect.Request[apiv1.SubscribeRequest],

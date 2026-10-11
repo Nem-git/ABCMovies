@@ -80,6 +80,15 @@ service CoreService {
   // member-scoped or operator-sensitive. Grows additively as clients need
   // to discover more (TECHNICAL-DECISIONS.md §1.43).
   rpc GetInstanceInfo(GetInstanceInfoRequest) returns (GetInstanceInfoResponse);
+
+  // Instance: the effective instance settings (PLAN.md §8). Superset of the
+  // public GetInstanceInfo, for an authenticated caller: it adds the
+  // heartbeat grace and session TTL the delivery engine enforces and whether
+  // a shared account's owner id is visible to non-owner members. The values
+  // are read live from the settings store, so they never drift from what the
+  // instance enforces. Read-only; changing settings is a future, separately
+  // gated surface (TECHNICAL-DECISIONS.md §1.45).
+  rpc GetInstanceSettings(GetInstanceSettingsRequest) returns (GetInstanceSettingsResponse);
 }
 
 message GetInstanceInfoRequest {}
@@ -93,6 +102,24 @@ message GetInstanceInfoResponse {
   // How often a play session's owner must call Heartbeat (PLAN.md §9.1).
   // Clients never hardcode this; the operator can change it in config.
   google.protobuf.Duration heartbeat_interval = 3;
+}
+
+message GetInstanceSettingsRequest {}
+
+message GetInstanceSettingsResponse {
+  // Enabled authentication methods (config: auth.methods).
+  repeated string auth_methods = 1;
+  // How often a play session's owner must call Heartbeat (PLAN.md §9.1).
+  google.protobuf.Duration heartbeat_interval = 2;
+  // Server-side slack before a missed heartbeat ends a play session
+  // (PLAN.md §9.1).
+  google.protobuf.Duration heartbeat_grace = 3;
+  // Zombie cap: a session with no liveness proof ends after this (PLAN.md
+  // §9.1).
+  google.protobuf.Duration session_ttl = 4;
+  // Whether a shared account's owner id is revealed to non-owner members and
+  // guests (PLAN.md §11). Off by default: only the owner sees their own id.
+  bool owner_user_id_visible = 5;
 }
 
 // GetJobResponse is one job's current state.

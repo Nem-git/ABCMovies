@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
@@ -25,6 +26,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/registry"
+	"github.com/nem-git/abcmovies/core/internal/settings"
 	"google.golang.org/grpc"
 )
 
@@ -53,6 +55,16 @@ type Stack struct {
 	stores   config.Stores
 	registry *registry.InProcessRegistry
 	bus      *apiserver.InMemoryBus
+
+	// settings is the instance-settings provider: the single write path for
+	// instance settings and the live source the API reads
+	// (TECHNICAL-DECISIONS.md §1.45). settingsPatch is the boot-time override
+	// resolved from config, applied once when the stack is composed.
+	// composite is the authenticator, retained so the pipeline can swap its
+	// method set live. All three are nil/zero on a stack built without them.
+	settings      *settings.Provider
+	settingsPatch settings.Patch
+	composite     *auth.CompositeAuthenticator
 
 	// cfg is the loaded instance config, retained so buildSlots and the
 	// delivery wiring compose exactly what build loaded.
@@ -91,6 +103,22 @@ func build(configPath string, logger *slog.Logger) (*Stack, error) {
 	stores, err := config.BuildStores(context.Background(), cfg, logger)
 	if err != nil {
 		return nil, fmt.Errorf("stores: %w", err)
+	}
+
+	// Instance settings get their own store class: the effective values are
+	// seeded from the shipped defaults and overridden by whatever config
+	// names, then persisted. The provider is the single write path and the
+	// live source the API reads, so a published or enforced value can never
+	// drift from the stored one (TECHNICAL-DECISIONS.md §1.45).
+	settingsProvider, err := settings.New(stores.Settings, config.DefaultInstanceSettings())
+	if err != nil {
+		_ = closeStores(stores)
+		return nil, fmt.Errorf("settings: %w", err)
+	}
+	settingsPatch, err := cfg.InstanceSettingsPatch()
+	if err != nil {
+		_ = closeStores(stores)
+		return nil, err
 	}
 
 	users, tokens, deks, err := config.BuildAuth(stores.Users, stores.Sessions, cfg.Auth.DEKCache, stores.VaultAEAD)
@@ -137,6 +165,10 @@ func build(configPath string, logger *slog.Logger) (*Stack, error) {
 		CapChangeDefault: capDefault,
 		UserDirectory:    apiserver.NewUserDirectory(users),
 	})
+	// The API reads the effective settings live: GetInstanceInfo,
+	// GetInstanceSettings and the owner-id visibility projection always see
+	// what the instance enforces, never a boot-frozen copy.
+	srv.SetInstanceSettings(settingsProvider)
 
 	return &Stack{
 		service:         srv,
@@ -147,6 +179,9 @@ func build(configPath string, logger *slog.Logger) (*Stack, error) {
 		registry:        r,
 		bus:             bus,
 		cfg:             cfg,
+		settings:        settingsProvider,
+		settingsPatch:   settingsPatch,
+		composite:       composite,
 	}, nil
 }
 
@@ -324,8 +359,46 @@ func (s *Stack) buildSlots(ctx context.Context, logger *slog.Logger) (*SlotRunti
 		rt.Bus.Close()
 		return nil, err
 	}
+	if err := s.applyInstanceSettings(ctx); err != nil {
+		rt.Bus.Close()
+		return nil, err
+	}
 	s.slots = rt
 	return rt, nil
+}
+
+// applyInstanceSettings runs the instance-settings pipeline once, now that
+// every consumer exists: it resolves the boot-time config override over the
+// stored record and the shipped defaults, validates the result, hands each
+// value to its live consumer (the delivery engine's timing, the
+// authenticator's method set), and only then persists it
+// (TECHNICAL-DECISIONS.md §1.45). The same pipeline is the single write path
+// the future UpdateInstanceSettings RPC will call. A rejection refuses boot —
+// never a silent fallback to defaults (PLAN.md §2.5). It is a no-op on a
+// stack composed without a settings provider (a bare test stack).
+func (s *Stack) applyInstanceSettings(ctx context.Context) error {
+	if s.settings == nil {
+		return nil
+	}
+	live := settings.LiveApply{
+		AuthMethods: s.composite.SetMethods,
+		HeartbeatInterval: func(d time.Duration) error {
+			s.delivery.SetTiming(0, d, 0)
+			return nil
+		},
+		HeartbeatGrace: func(d time.Duration) error {
+			s.delivery.SetTiming(0, 0, d)
+			return nil
+		},
+		SessionTTL: func(d time.Duration) error {
+			s.delivery.SetTiming(d, 0, 0)
+			return nil
+		},
+	}
+	if _, err := s.settings.Apply(ctx, s.settingsPatch, live); err != nil {
+		return fmt.Errorf("settings: %w", err)
+	}
+	return nil
 }
 
 // Start launches the stack's periodic work: the shared scheduler and the

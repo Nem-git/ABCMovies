@@ -311,7 +311,7 @@ func (s *Server) UpdateAccount(ctx context.Context, req *apiv1.UpdateAccountRequ
 		_, _ = s.delivery.ApplyAccountCap(ctx, rec.Provider, rec.ID, enforceNow)
 	}
 
-	return &apiv1.UpdateAccountResponse{Account: accountView(rec, uid, s.capChangeDefault)}, nil
+	return &apiv1.UpdateAccountResponse{Account: accountView(rec, uid, s.capChangeDefault, s.ownerUserIDVisible(ctx))}, nil
 }
 
 // effectiveCapPolicy resolves an account's own choice with the instance
@@ -347,24 +347,42 @@ func sameMembers(a, b []string) bool {
 
 // accountView builds the API view of one account for its caller. The cap
 // and policy fields are owner-only: a member learns that the account is
-// shared, not the owner's usage budget.
-func accountView(rec accounts.Record, uid string, defaultPolicy accounts.CapChangePolicy) *apiv1.Account {
+// shared, not the owner's usage budget. The owner id is likewise withheld
+// from non-owners unless the instance setting reveals it: an owner always
+// sees their own id, but a member or guest sees it only when
+// owner_user_id_visible is set (PLAN.md §11, TECHNICAL-DECISIONS.md §1.45).
+func accountView(rec accounts.Record, uid string, defaultPolicy accounts.CapChangePolicy, ownerVisible bool) *apiv1.Account {
+	owner := rec.OwnerUserID == uid
 	a := &apiv1.Account{
 		AccountId:    rec.ID,
 		Provider:     rec.Provider,
 		BaseUrl:      rec.BaseURL,
-		CallerLinked: rec.OwnerUserID == uid,
+		CallerLinked: owner,
 		Status:       apiStatus(rec.Status),
 		Visibility:   apiVisibilityAPI(rec.Visibility),
 		SharedWith:   rosterFor(rec, uid),
-		OwnerUserId:  rec.OwnerUserID,
 	}
-	if rec.OwnerUserID == uid {
+	if owner || ownerVisible {
+		a.OwnerUserId = rec.OwnerUserID
+	}
+	if owner {
 		a.MaxConcurrentStreams = rec.MaxConcurrentStreams
 		a.CapChangePolicy = accountCapChangePolicy(rec.CapChangePolicy)
 		a.EffectiveCapChangePolicy = accountCapChangePolicy(effectiveCapPolicy(rec, defaultPolicy))
 	}
 	return a
+}
+
+// ownerUserIDVisible reports whether a non-owner may see which user owns a
+// shared account (PLAN.md §11). It reads the effective settings; any read
+// failure hides the id — a projection must fail closed, never widen access on
+// error.
+func (s *Server) ownerUserIDVisible(ctx context.Context) bool {
+	snap, err := s.instanceSnapshot(ctx)
+	if err != nil {
+		return false
+	}
+	return snap.OwnerUserIDVisible
 }
 
 // ListAccounts returns every account the caller can deliver from (PLAN.md
@@ -384,11 +402,12 @@ func (s *Server) ListAccounts(ctx context.Context, req *apiv1.ListAccountsReques
 	}
 	out := make([]*apiv1.Account, 0, len(records))
 	add := func(a *apiv1.Account) { out = append(out, a) }
+	ownerVisible := s.ownerUserIDVisible(ctx)
 	for _, rec := range records {
 		if rec.OwnerUserID != uid && !s.reachableFor(uid, rec.ID) {
 			continue
 		}
-		add(accountView(rec, uid, s.capChangeDefault))
+		add(accountView(rec, uid, s.capChangeDefault, ownerVisible))
 	}
 	for _, r := range s.reachesFor(uid) {
 		if seen := containsAccount(out, r.AccountID); seen {

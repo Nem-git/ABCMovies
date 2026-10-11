@@ -14,6 +14,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/schema"
+	"github.com/nem-git/abcmovies/core/internal/settings"
 	"github.com/nem-git/abcmovies/core/internal/store"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -71,6 +72,13 @@ const jobKeyPrefix = "job:"
 // jobKey returns the jobs-store key for one job id.
 func jobKey(id string) string { return jobKeyPrefix + id }
 
+// InstanceSettings reads the effective, live instance settings
+// (TECHNICAL-DECISIONS.md §1.45). The settings Provider implements it; the
+// interface keeps the API layer free of the Provider's write pipeline.
+type InstanceSettings interface {
+	Get(ctx context.Context) (settings.Snapshot, error)
+}
+
 // Server implements the CoreService (PLAN.md §8).
 type Server struct {
 	apiv1.UnimplementedCoreServiceServer
@@ -107,6 +115,13 @@ type Server struct {
 	// GetInstanceInfo; armed from the same parsed config the delivery
 	// engine enforces.
 	heartbeatInterval time.Duration
+	// instanceSettings is the live source of the effective instance settings
+	// (TECHNICAL-DECISIONS.md §1.45). When armed it is authoritative for
+	// GetInstanceInfo, GetInstanceSettings and the owner-id visibility
+	// projection, so a published or enforced value can never drift from the
+	// stored one. Nil until armed: a server built without the composition
+	// root falls back to the construction-time auth and heartbeatInterval.
+	instanceSettings InstanceSettings
 }
 
 // LiveSearcher runs one explicit user-triggered refresh of the lazy
