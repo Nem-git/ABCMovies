@@ -21,7 +21,7 @@ import (
 // the delivery engine enforces (TECHNICAL-DECISIONS.md §1.43).
 func TestGetInstanceInfo(t *testing.T) {
 	authenticator, session := testAuth(t)
-	srv := apiserver.NewServer(apiserver.NewInMemoryBus(), testStores(t), authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: apiserver.NewInMemoryBus(), Stores: testStores(t), Authenticator: authenticator, Session: session})
 
 	resp, err := srv.GetInstanceInfo(context.Background(), &apiv1.GetInstanceInfoRequest{})
 	if err != nil {

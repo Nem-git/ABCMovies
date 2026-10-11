@@ -1,5 +1,6 @@
 // Enrichment work queue (TECHNICAL-DECISIONS §1.28): producers enqueue
-// entry IDs; one paced worker drains. The seam mirrors the event-bus
+// entry IDs; one worker drains, and each catalogue's declared pace spaces
+// that catalogue's calls. The seam mirrors the event-bus
 // pattern — a small interface, an in-memory implementation first, injected
 // at composition time — so heavier backends (durable SQLite, Kafka) swap in
 // without producers, engine, or worker ever learning which transport runs.

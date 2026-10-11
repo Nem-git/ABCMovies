@@ -3,8 +3,10 @@
 // enrichment fallback, full records keyed on the native tmdb:{id} ref, and
 // foreign-ID resolution through the /find bridge. Like every adapter it
 // stays pure — HTTP plus generated protos only; wiring lives in the core's
-// slotwiring package. Pacing keeps requests well under the soft rate limit;
-// a 429 backs off once per Retry-After before failing.
+// slotwiring package. Politeness is declared, not enforced, here: the
+// handshake policy channel carries this adapter's pace bound and the core's
+// wrapper enforces it (one pacing system, operator override honored in both
+// directions); a 429 backs off once per Retry-After before failing.
 package tmdb
 
 import (
@@ -25,7 +27,6 @@ import (
 
 const (
 	defaultBase   = "https://api.themoviedb.org/3"
-	defaultPace   = 200 * time.Millisecond // ~5 req/s ceiling (§1.27)
 	language      = "en-US"
 	imageBase     = "https://image.tmdb.org/t/p/"
 	posterSize    = "w500"
@@ -39,7 +40,10 @@ type Slot struct {
 	token string // v3 API key or v4 read-access bearer token
 	base  string
 	hc    *http.Client
-	pace  <-chan time.Time
+	// pace is a test-only inter-request ticker (WithPace). Production is
+	// unpaced: the core's declared-pace wrapper enforces the bound this
+	// adapter publishes on the handshake policy channel.
+	pace <-chan time.Time
 }
 
 // Option customizes the slot at construction.
@@ -56,8 +60,9 @@ func WithBaseURL(base string) Option {
 	return func(s *Slot) { s.base = strings.TrimRight(base, "/") }
 }
 
-// WithPace overrides the inter-request spacing (tests only; production uses
-// the declared default).
+// WithPace installs an inter-request ticker (tests that drive the adapter
+// directly; production is unpaced — the core's wrapper enforces the
+// declared bound).
 func WithPace(d time.Duration) Option {
 	return func(s *Slot) { s.pace = ticker(d) }
 }
@@ -84,7 +89,6 @@ func New(tokenEnv string, opts ...Option) (*Slot, error) {
 		token: token,
 		base:  defaultBase,
 		hc:    &http.Client{Timeout: 30 * time.Second},
-		pace:  ticker(defaultPace),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -94,13 +98,20 @@ func New(tokenEnv string, opts ...Option) (*Slot, error) {
 
 // CapabilityQuery answers the meta-contract: the slot speaks the catalogue
 // capabilities whose fixture suites it passes (contract header; PLAN.md
-// §2.5: nothing assumed, everything asked, nothing declared untested).
+// §2.5: nothing assumed, everything asked, nothing declared untested). The
+// policy map carries this adapter's own politeness bound: TMDB's public API
+// rate limit is the shipped default the core would apply anyway, so declaring
+// it makes the number live with the thing it protects — and lets an operator
+// lower it per slot without a code change.
 func (s *Slot) CapabilityQuery(_ context.Context, _ *corev1.CapabilityQueryRequest) (*corev1.CapabilityQueryResponse, error) {
 	return &corev1.CapabilityQueryResponse{
 		Capabilities: []*corev1.Capability{
 			{Name: "meta", Version: 1},
 			{Name: "lookup-title", Version: 1},
 			{Name: "get-metadata", Version: 1},
+		},
+		Policy: map[string]string{
+			"catalogue.pace-interval": "200ms",
 		},
 	}, nil
 }
@@ -458,10 +469,12 @@ func (s *Slot) get(ctx context.Context, path string, params url.Values, into any
 }
 
 func (s *Slot) fetch(ctx context.Context, path string, params url.Values) (io.ReadCloser, error) {
-	select {
-	case <-s.pace:
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	if s.pace != nil { // test-only ticker; production paces in the core wrapper
+		select {
+		case <-s.pace:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
 	u := s.base + path
 	if len(params) > 0 {

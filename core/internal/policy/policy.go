@@ -99,6 +99,68 @@ func (s Set) With(overlay Set) Set {
 	return out
 }
 
+// ProviderCaps is the provider-declared ceiling on one account's concurrent
+// streams: the second operand of admission's min(policy, provider_cap)
+// (PLAN.md §7.2). It is deliberately a distinct type from Set. A Set is the
+// operator's policy vocabulary — many keys, defaults, overlays, optional —
+// while a cap is a single declared number that can only ever pull the limit
+// down, so the two operands must not be swappable at a call site without the
+// compiler noticing. No wire change: provider_cap stays a Policy on the
+// contract, rendered back through Limits.
+type ProviderCaps struct {
+	// streams is the declared ceiling. declared distinguishes "no cap was
+	// declared" from "a cap of zero", which would mean admit nothing —
+	// only the former is the unbound answer.
+	streams  int
+	declared bool
+}
+
+// CapsFor builds caps from a declared max-concurrent-streams value: zero is
+// the documented "unbound" spelling (TECHNICAL-DECISIONS.md §1.42), so it
+// yields undeclared caps and the instance policy governs alone.
+func CapsFor(n uint32) ProviderCaps {
+	if n == 0 {
+		return ProviderCaps{}
+	}
+	return ProviderCaps{streams: int(n), declared: true}
+}
+
+// ParseCaps parses the map spelling of a cap — the shape config extensions
+// and the provider_cap round-trip both use — into caps. Unlike ParseInstance
+// it carries no defaults and accepts no other key: a provider cap declares
+// what the provider allows, not how the instance runs, so a map that tries
+// to smuggle a policy key into it is refused rather than silently ignored.
+func ParseCaps(raw map[string]string) (ProviderCaps, error) {
+	var c ProviderCaps
+	for k, v := range raw {
+		switch k {
+		case KeyConcurrentStreams:
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 1 {
+				return ProviderCaps{}, fmt.Errorf("provider cap %q: concurrentStreams must be a positive integer, got %q", k, v)
+			}
+			c = ProviderCaps{streams: n, declared: true}
+		default:
+			return ProviderCaps{}, fmt.Errorf("provider cap: %q is a policy key, not a cap — refusing rather than ignore it", k)
+		}
+	}
+	return c, nil
+}
+
+// Streams reads the declared ceiling; the bool is false when no cap was
+// declared, which callers map to "the other operand decides".
+func (c ProviderCaps) Streams() (int, bool) { return c.streams, c.declared }
+
+// Limits renders caps back to the contract's limit map for the recorded
+// provider_cap (PLAN.md §2.4 storage shape); undeclared caps render nil, so
+// an unbound account records exactly what it is.
+func (c ProviderCaps) Limits() map[string]string {
+	if !c.declared {
+		return nil
+	}
+	return map[string]string{KeyConcurrentStreams: strconv.Itoa(c.streams)}
+}
+
 // Streams reads the enforced concurrent-streams ceiling. The returned bool is
 // false when the key is absent, which the engine maps to "no declared limit"
 // rather than zero. The invariant "instance sets and overlays are
@@ -119,10 +181,12 @@ func (s Set) Streams() (int, bool) {
 // the provider-declared cap: an account admits no more concurrent sessions
 // than the lesser of the two (PLAN.md §7.2: min(policy, provider_cap)).
 // accountPolicy is the instance default already flattened with the account's
-// override (`defaults.With(override)`).
-func EffectiveAccountLimit(accountPolicy, providerCap Set) int {
+// override (`defaults.With(override)`); caps is the provider's own declared
+// ceiling, whose absence means the policy decides alone. The parameter types
+// keep the two operands distinct: Set is policy, ProviderCaps is a cap.
+func EffectiveAccountLimit(accountPolicy Set, caps ProviderCaps) int {
 	limit, hasLimit := accountPolicy.Streams()
-	if capLimit, hasCap := providerCap.Streams(); hasCap && (!hasLimit || capLimit < limit) {
+	if capLimit, hasCap := caps.Streams(); hasCap && (!hasLimit || capLimit < limit) {
 		return capLimit
 	}
 	if !hasLimit {

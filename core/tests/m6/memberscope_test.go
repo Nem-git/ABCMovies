@@ -81,7 +81,8 @@ func newMemberscopeServer() (*apiserver.Server, *store.Store, *stubDelivery) {
 		ID: "del-1", Goal: delivery.GoalPlay, Status: delivery.StatusRunning,
 		Context: corev1.DeliveryContext{Provider: "jellyfin", AccountId: "acc1", MemberUserId: "u1"},
 	}}
-	srv := apiserver.NewServer(bus, stores, nil, nil, dm)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: stores})
+	srv.SetDelivery(dm)
 	srv.SetLibrary(&stubLibrary{reachable: map[string][]string{"acc1": {"u1"}}})
 	return srv, nil, dm
 }

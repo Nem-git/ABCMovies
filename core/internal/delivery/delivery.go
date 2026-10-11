@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
@@ -132,9 +133,10 @@ type Options struct {
 	InstancePolicy policy.Set
 	// AccountConstraints resolves one account's declared constraints: the
 	// policy override the owner set (applied here onto the instance policy)
-	// and the provider-declared concurrency cap. Nil admits the account with
-	// the instance policy only.
-	AccountConstraints func(ctx context.Context, provider, accountID string) (override policy.Set, cap policy.Set, err error)
+	// and the provider-declared concurrency cap, kept as its own type so the
+	// min(policy, provider_cap) rule reads as two different things
+	// (PLAN.md §7.2). Nil admits the account with the instance policy only.
+	AccountConstraints func(ctx context.Context, provider, accountID string) (override policy.Set, caps policy.ProviderCaps, err error)
 	SourceResolver     Resolver
 	SinkFactory        SinkFactory
 	RecordJob          func(*corev1.Job)
@@ -166,7 +168,7 @@ type Engine struct {
 	logger    *slog.Logger
 
 	instancePolicy     policy.Set
-	accountConstraints func(ctx context.Context, provider, accountID string) (override policy.Set, cap policy.Set, err error)
+	accountConstraints func(ctx context.Context, provider, accountID string) (override policy.Set, caps policy.ProviderCaps, err error)
 
 	stopCh  chan struct{}
 	done    chan struct{}
@@ -280,15 +282,19 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 		return nil, errInvalid("cannot satisfy delivery: %v", err)
 	}
 	now := e.now()
-	override, capSet, err := e.resolveConstraints(ctx, req)
+	override, caps, err := e.resolveConstraints(ctx, req)
 	if err != nil {
 		return nil, errInvalid("account constraints: %v", err)
 	}
-	// The policy in effect for this account folds the operator's instance
-	// defaults with the account's override, and §7.2's min() rule folds in
-	// the provider-declared cap.
+	// Admission folds two different things (PLAN.md §7.2), and the types say
+	// so: effectivePolicy is what the operator's instance policy plus this
+	// account's override allow; caps is what the provider itself declared.
+	// The account admits no more sessions than the lesser of the two, so
+	// "policy allows 4, provider allows 2" never fails at the source. Neither
+	// operand is invented here — both are resolved above, and an absent cap
+	// simply leaves the policy in charge.
 	effectivePolicy := e.instancePolicy.With(override)
-	accountLimit := policy.EffectiveAccountLimit(effectivePolicy, capSet)
+	accountLimit := policy.EffectiveAccountLimit(effectivePolicy, caps)
 	memberLimit, _ := e.instancePolicy.Streams()
 
 	sess := &Session{
@@ -307,7 +313,7 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 			SelectedTarget: req.SelectedTarget,
 			Container:      req.Container,
 			Policy:         &corev1.Policy{Limits: effectivePolicy},
-			ProviderCap:    &corev1.Policy{Limits: capSet},
+			ProviderCap:    &corev1.Policy{Limits: caps.Limits()},
 		},
 	}
 
@@ -338,11 +344,11 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 	}
 	if memberActive >= memberLimit {
 		e.mu.Unlock()
-		return nil, &deliveryError{code: codeQuota, msg: fmt.Sprintf("member %s is at its concurrent-stream cap (%d); position %d", req.MemberUserID, memberLimit, memberActive), Position: memberActive}
+		return nil, &deliveryError{code: codeQuota, msg: fmt.Sprintf("member %s is at its concurrent-stream cap (%d)", req.MemberUserID, memberLimit)}
 	}
 	if accountActive >= accountLimit {
 		e.mu.Unlock()
-		return nil, &deliveryError{code: codeQuota, msg: fmt.Sprintf("account %s/%s is at its concurrent-stream cap (%d); position %d", req.Provider, req.AccountID, accountLimit, accountActive), Position: accountActive}
+		return nil, &deliveryError{code: codeQuota, msg: fmt.Sprintf("account %s/%s is at its concurrent-stream cap (%d)", req.Provider, req.AccountID, accountLimit)}
 	}
 	e.sessions[sess.ID] = sess
 	if e.byAccount[key] == nil {
@@ -379,9 +385,9 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 	return sess, nil
 }
 
-func (e *Engine) resolveConstraints(ctx context.Context, req StartRequest) (override policy.Set, cap policy.Set, err error) {
+func (e *Engine) resolveConstraints(ctx context.Context, req StartRequest) (override policy.Set, caps policy.ProviderCaps, err error) {
 	if e.accountConstraints == nil {
-		return nil, nil, nil
+		return nil, policy.ProviderCaps{}, nil
 	}
 	return e.accountConstraints(ctx, req.Provider, req.AccountID)
 }
@@ -533,12 +539,14 @@ func (e *Engine) RevokeOthersOnAccount(provider, accountID string, keepMembers [
 // account whose recorded or provider cap was just lowered to zero — ends all
 // of them. New-sessions-only behaviour never ends anything here.
 func (e *Engine) ApplyAccountCap(ctx context.Context, provider, accountID string, enforceNow bool) (int, error) {
-	override, capSet, err := e.resolveConstraints(ctx, StartRequest{Provider: provider, AccountID: accountID})
+	override, caps, err := e.resolveConstraints(ctx, StartRequest{Provider: provider, AccountID: accountID})
 	if err != nil {
 		return 0, err
 	}
+	// The same two operands and the same min() as admission, so a cap lowered
+	// here ends exactly the sessions admission would now refuse (PLAN.md §7.2).
 	effectivePolicy := e.instancePolicy.With(override)
-	accountLimit := policy.EffectiveAccountLimit(effectivePolicy, capSet)
+	accountLimit := policy.EffectiveAccountLimit(effectivePolicy, caps)
 
 	type liveSession struct {
 		sess *Session
@@ -588,8 +596,12 @@ func (e *Engine) ApplyAccountCap(ctx context.Context, provider, accountID string
 	return killed, nil
 }
 
-// Complete marks a session done and finalizes its sink.
-func (e *Engine) Complete(id string) error {
+// Complete marks a session done and finalizes its sink. A sink that refuses
+// to finalize did not complete: the session is marked failed with the sink's
+// error rather than announced done (a downloaded file that would not close is
+// not a finished download). The context bounds the finalize so a hung sink
+// cannot pin the session.
+func (e *Engine) Complete(ctx context.Context, id string) error {
 	e.mu.Lock()
 	s, ok := e.sessions[id]
 	if !ok {
@@ -598,7 +610,8 @@ func (e *Engine) Complete(id string) error {
 	}
 	s.Status = StatusDone
 	if s.Sink != nil {
-		if err := s.Sink.Finalize(context.Background(), s); err != nil {
+		if err := s.Sink.Finalize(ctx, s); err != nil {
+			s.Status = StatusFailed
 			s.Error = err.Error()
 		}
 	}
@@ -782,31 +795,21 @@ func RejectUnsupportedDRM(ms *corev1.MediaSource) error {
 }
 
 type deliveryError struct {
-	code int
+	code codes.Code
 	msg  string
-	// Position is carried on quota errors (§6.5 interim decision A): the
-	// number of active sessions the requester would wait behind, so a busy
-	// account is never a dead end — the caller knows a position.
-	Position int
 }
 
 func (e *deliveryError) Error() string { return e.msg }
 
-// QuotaPosition reports the queue-position hint carried by a quota error
-// (§6.5 interim decision A): how many active sessions the requester would
-// wait behind. Zero when the error is not a quota error.
-func QuotaPosition(err error) int {
-	if e, ok := err.(*deliveryError); ok && e.code == codeQuota {
-		return e.Position
-	}
-	return 0
-}
-
+// codeInvalid, codeNotFound, codeQuota, and codeDenied are the gRPC status
+// codes delivery errors carry. They are named constants from the canonical
+// set rather than bare integers, so a reader — and the apiserver, which
+// re-raises them verbatim — sees the same vocabulary everywhere.
 const (
-	codeInvalid  = 3
-	codeNotFound = 5
-	codeQuota    = 8
-	codeDenied   = 7
+	codeInvalid  = codes.InvalidArgument
+	codeNotFound = codes.NotFound
+	codeQuota    = codes.ResourceExhausted
+	codeDenied   = codes.PermissionDenied
 )
 
 func errInvalid(format string, a ...any) error {
@@ -825,5 +828,5 @@ func Code(err error) int32 {
 	if err == nil {
 		return 0
 	}
-	return 2 // Unknown
+	return int32(codes.Unknown)
 }

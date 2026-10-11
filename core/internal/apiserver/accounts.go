@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -100,6 +101,24 @@ func (s *Server) LinkAccount(ctx context.Context, req *apiv1.LinkAccountRequest)
 	return &apiv1.LinkAccountResponse{AccountId: id}, nil
 }
 
+// visibleTo reports whether an account's existence is already knowable to a
+// caller. It is the dividing line for the NotFound rule: an account the
+// caller can see (public, or shared with them) answers PermissionDenied when
+// they attempt a forbidden action — the refusal is about the action, and
+// lying about existence would be wrong. An account the caller cannot see
+// answers NotFound instead, so the API never confirms that a private account
+// of another user exists (an existence oracle).
+func visibleTo(rec accounts.Record, uid string) bool {
+	switch rec.Visibility {
+	case accounts.VisibilityPublic:
+		return true
+	case accounts.VisibilityShared:
+		return slices.Contains(rec.SharedWith, uid)
+	default: // VisibilityPrivate
+		return false
+	}
+}
+
 // UpdateAccount changes a linked account's owner-owned settings after the
 // fact (PLAN.md §7.1, §7.2): who may use it, the owner's concurrent-stream
 // cap, and what lowering that cap does to running sessions. Only the owner
@@ -125,6 +144,9 @@ func (s *Server) UpdateAccount(ctx context.Context, req *apiv1.UpdateAccountRequ
 		return nil, status.Error(codes.NotFound, "account not found")
 	}
 	if rec.OwnerUserID != uid {
+		if !visibleTo(rec, uid) {
+			return nil, status.Error(codes.NotFound, "account not found")
+		}
 		return nil, status.Error(codes.PermissionDenied, "only the account owner may update a linked account")
 	}
 
@@ -321,6 +343,9 @@ func (s *Server) RemoveAccount(ctx context.Context, req *apiv1.RemoveAccountRequ
 		return nil, status.Error(codes.NotFound, "account not found")
 	}
 	if rec.OwnerUserID != uid {
+		if !visibleTo(rec, uid) {
+			return nil, status.Error(codes.NotFound, "account not found")
+		}
 		return nil, status.Error(codes.PermissionDenied, "only the account owner may remove a linked account")
 	}
 	if err := s.accounts.Delete(ctx, rec.ID); err != nil {

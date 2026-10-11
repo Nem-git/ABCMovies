@@ -98,9 +98,12 @@ func WithRange(v string) OpenOption {
 
 // Open resolves a token to a provider response. It validates the ticket is
 // live (granted and not expired), then pulls the bytes — forwarding any Range
-// the caller requested. A consumed ticket stays valid until it expires or the
-// session is revoked, so a frontend may re-pull a track.
-func (r *Relay) Open(token string, opts ...OpenOption) (FetchResult, error) {
+// the caller requested. The pull runs under the caller's context: when the
+// caller goes away (a browser tab closes, a seeking player gives up), the
+// provider fetch is cancelled rather than left running to completion. A
+// consumed ticket stays valid until it expires or the session is revoked, so
+// a frontend may re-pull a track.
+func (r *Relay) Open(ctx context.Context, token string, opts ...OpenOption) (FetchResult, error) {
 	r.mu.Lock()
 	t, ok := r.tickets[token]
 	if !ok {
@@ -117,7 +120,7 @@ func (r *Relay) Open(token string, opts ...OpenOption) (FetchResult, error) {
 	for _, opt := range opts {
 		opt(&o)
 	}
-	res, err := t.fetch(context.Background(), o.rangeHeader)
+	res, err := t.fetch(ctx, o.rangeHeader)
 	if err != nil {
 		return FetchResult{}, fmt.Errorf("relay: fetch: %w", err)
 	}

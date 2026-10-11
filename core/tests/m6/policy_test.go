@@ -28,7 +28,7 @@ func muxSource() *corev1.MediaSource {
 	}
 }
 
-func newPolicyEngine(instance policy.Set, constraints func(ctx context.Context, provider, accountID string) (policy.Set, policy.Set, error), record func(*corev1.Job)) *delivery.Engine {
+func newPolicyEngine(instance policy.Set, constraints func(ctx context.Context, provider, accountID string) (policy.Set, policy.ProviderCaps, error), record func(*corev1.Job)) *delivery.Engine {
 	e := delivery.New(delivery.Options{
 		SessionTTL:         24 * time.Hour,
 		InstancePolicy:     instance,
@@ -50,8 +50,8 @@ func ctx() context.Context { return context.Background() }
 func TestM6ProviderCapIsTheAccountCeiling(t *testing.T) {
 	e := newPolicyEngine(
 		policy.Set{"concurrentStreams": "4"},
-		func(context.Context, string, string) (policy.Set, policy.Set, error) {
-			return nil, policy.Set{"concurrentStreams": "2"}, nil
+		func(context.Context, string, string) (policy.Set, policy.ProviderCaps, error) {
+			return nil, policy.CapsFor(2), nil
 		},
 		func(*corev1.Job) {},
 	)
@@ -73,8 +73,8 @@ func TestM6ProviderCapIsTheAccountCeiling(t *testing.T) {
 func TestM6MemberLimitSpansAccounts(t *testing.T) {
 	e := newPolicyEngine(
 		policy.Set{"concurrentStreams": "2"},
-		func(context.Context, string, string) (policy.Set, policy.Set, error) {
-			return nil, nil, nil // no caps; instance policy alone
+		func(context.Context, string, string) (policy.Set, policy.ProviderCaps, error) {
+			return nil, policy.ProviderCaps{}, nil // no caps; instance policy alone
 		},
 		func(*corev1.Job) {},
 	)
@@ -100,8 +100,8 @@ func TestM6JobRecordsEffectivePolicyAndCap(t *testing.T) {
 	var recordCalls []*corev1.Job
 	e := newPolicyEngine(
 		policy.Set{"concurrentStreams": "4"},
-		func(context.Context, string, string) (policy.Set, policy.Set, error) {
-			return policy.Set{"concurrentStreams": "3"}, policy.Set{"concurrentStreams": "2"}, nil
+		func(context.Context, string, string) (policy.Set, policy.ProviderCaps, error) {
+			return policy.Set{"concurrentStreams": "3"}, policy.CapsFor(2), nil
 		},
 		func(j *corev1.Job) { recordCalls = append(recordCalls, j) },
 	)

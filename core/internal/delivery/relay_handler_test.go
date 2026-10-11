@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +25,7 @@ func TestRelayHandlerServesMediaOverHTTP(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/media/relay/"+tok, nil)
+	req := httptest.NewRequest(http.MethodGet, RelayPrefix+tok, nil)
 	(&RelayHandler{Relay: relay}).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
@@ -57,7 +58,7 @@ func TestRelayHandlerForwardsRange(t *testing.T) {
 		t.Fatalf("Grant: %v", err)
 	}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/media/relay/"+tok, nil)
+	req := httptest.NewRequest(http.MethodGet, RelayPrefix+tok, nil)
 	req.Header.Set("Range", "bytes=0-3")
 	(&RelayHandler{Relay: relay}).ServeHTTP(rr, req)
 
@@ -79,18 +80,93 @@ type rangeError struct{ got string }
 
 func (e *rangeError) Error() string { return "range not forwarded: " + e.got }
 
+// A pull runs under the caller's own context, so a caller that goes away —
+// a closed browser tab, a seeking player that gave up — cancels the provider
+// fetch instead of leaving it running to completion against the provider's
+// goodwill. The fetch closure is handed the same ctx the request carried.
+func TestRelayPullIsCancelledWithTheCaller(t *testing.T) {
+	relay := NewRelay()
+	fetched := make(chan struct{})
+	tok, err := relay.Grant("s1", "v1", func(ctx context.Context, _ string) (FetchResult, error) {
+		close(fetched)
+		<-ctx.Done() // the provider fetch is in flight when the caller leaves
+		return FetchResult{}, ctx.Err()
+	}, time.Minute)
+	if err != nil {
+		t.Fatalf("Grant: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := relay.Open(ctx, tok)
+		done <- err
+	}()
+
+	<-fetched // the fetch has started under the caller's context
+	cancel()  // the caller disconnects
+
+	// Bounded: if the pull ignores the caller's context this fails fast
+	// rather than hanging the suite.
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("pull err = %v, want context.Canceled (the caller's own context)", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("pull still running after the caller's context was cancelled: Open is not honouring it")
+	}
+}
+
+// The request handler forwards exactly that context: ServeHTTP's own
+// disconnect path must reach the fetch, not a fresh background one.
+func TestRelayHandlerForwardsRequestContext(t *testing.T) {
+	relay := NewRelay()
+	fetched := make(chan struct{})
+	tok, err := relay.Grant("s1", "v1", func(ctx context.Context, _ string) (FetchResult, error) {
+		close(fetched)
+		<-ctx.Done()
+		return FetchResult{}, ctx.Err()
+	}, time.Minute)
+	if err != nil {
+		t.Fatalf("Grant: %v", err)
+	}
+
+	reqCtx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequest(http.MethodGet, RelayPrefix+tok, nil).WithContext(reqCtx)
+	done := make(chan int, 1)
+	go func() {
+		rr := httptest.NewRecorder()
+		(&RelayHandler{Relay: relay}).ServeHTTP(rr, req)
+		done <- rr.Code
+	}()
+
+	<-fetched
+	cancel()
+
+	// Bounded: a handler that dropped the request context would block here.
+	select {
+	case code := <-done:
+		if code != http.StatusForbidden {
+			t.Fatalf("status after caller cancelled = %d, want 403 (the fetch reported the cancellation)", code)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("handler still running after the request context was cancelled: it is not forwarding it")
+	}
+}
+
 func TestRelayHandlerRejectsUnknownAndShapedPaths(t *testing.T) {
 	relay := NewRelay()
 	h := &RelayHandler{Relay: relay}
 
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/media/relay/bogus", nil))
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, RelayPrefix+"bogus", nil))
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("unknown token status = %d, want 403", rr.Code)
 	}
 
 	rr = httptest.NewRecorder()
-	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/media/relay/", nil))
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, RelayPrefix, nil))
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("empty token status = %d, want 400", rr.Code)
 	}

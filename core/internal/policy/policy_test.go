@@ -65,19 +65,70 @@ func TestWithIsNonDestructive(t *testing.T) {
 func TestEffectiveAccountLimitIsPolicyCappedByProviderCap(t *testing.T) {
 	d := Defaults() // streams 3
 	for _, tc := range []struct {
-		override, cap map[string]string
-		want          int
+		override map[string]string
+		cap      int // 0 = no cap declared
+		want     int
 	}{
-		{nil, nil, 3},                          // default vs none
-		{m(KeyConcurrentStreams, "4"), nil, 4}, // override lifts, no cap
-		{nil, m(KeyConcurrentStreams, "2"), 2}, // cap pulls down
-		{m(KeyConcurrentStreams, "5"), m(KeyConcurrentStreams, "2"), 2},
-		{m(KeyConcurrentStreams, "5"), m(KeyConcurrentStreams, "9"), 5},
+		{nil, 0, 3},                          // default vs none
+		{m(KeyConcurrentStreams, "4"), 0, 4}, // override lifts, no cap
+		{nil, 2, 2},                          // cap pulls down
+		{m(KeyConcurrentStreams, "5"), 2, 2},
+		{m(KeyConcurrentStreams, "5"), 9, 5},
 	} {
-		got := EffectiveAccountLimit(d.With(Set(tc.override)), Set(tc.cap))
+		got := EffectiveAccountLimit(d.With(Set(tc.override)), CapsFor(uint32(tc.cap)))
 		if got != tc.want {
-			t.Fatalf("override=%v cap=%v: want %d, got %d", tc.override, tc.cap, tc.want, got)
+			t.Fatalf("override=%v cap=%d: want %d, got %d", tc.override, tc.cap, tc.want, got)
 		}
+	}
+}
+
+// A cap parses on its own, apart from the policy vocabulary: it knows one
+// key, defaults to nothing, and refuses a policy key smuggled into it —
+// otherwise "cap" and "policy" would collapse back into one map.
+func TestParseCapsIsItsOwnVocabulary(t *testing.T) {
+	c, err := ParseCaps(map[string]string{KeyConcurrentStreams: "2"})
+	if err != nil {
+		t.Fatalf("ParseCaps: %v", err)
+	}
+	if n, ok := c.Streams(); !ok || n != 2 {
+		t.Fatalf("streams = %d, present %v; want 2, true", n, ok)
+	}
+	// Absent is the unbound answer, not zero-admit.
+	empty, err := ParseCaps(nil)
+	if err != nil {
+		t.Fatalf("ParseCaps(nil): %v", err)
+	}
+	if _, ok := empty.Streams(); ok {
+		t.Fatal("nil caps declared a ceiling; want unbound")
+	}
+	for _, bad := range []map[string]string{
+		{KeyConcurrentStreams: "0"},
+		{KeyConcurrentStreams: "many"},
+		{KeyBandwidth: "unlimited"}, // a policy key is not a cap
+	} {
+		if _, err := ParseCaps(bad); err == nil {
+			t.Errorf("ParseCaps(%v): want error, got nil", bad)
+		}
+	}
+}
+
+// CapsFor's zero is the documented "unbound" spelling, and the recorded
+// round-trip renders exactly what was declared — an unbound account records
+// nothing rather than a cap of zero.
+func TestCapsRoundTripThroughLimits(t *testing.T) {
+	if _, ok := CapsFor(0).Streams(); ok {
+		t.Fatal("CapsFor(0) declared a ceiling; want unbound")
+	}
+	if got := CapsFor(0).Limits(); got != nil {
+		t.Fatalf("unbound Limits() = %v, want nil", got)
+	}
+	c := CapsFor(4)
+	back, err := ParseCaps(c.Limits())
+	if err != nil {
+		t.Fatalf("round trip: %v", err)
+	}
+	if n, ok := back.Streams(); !ok || n != 4 {
+		t.Fatalf("round trip streams = %d, present %v; want 4, true", n, ok)
 	}
 }
 

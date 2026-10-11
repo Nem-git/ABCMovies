@@ -322,9 +322,31 @@ func SetupCatalogues(entries []config.SlotEntry, deps Deps) ([]enrichment.Catalo
 			return nil, fmt.Errorf("slot %q (adapter %q): %w", p.entry.ID, p.entry.Adapter, err)
 		}
 		logAdmitted(logger, p.entry.ID, caps)
-		out = append(out, p.b.catalogue)
+		cat := p.b.catalogue
+		pace, err := cataloguePace(p.entry, deps.Registry)
+		if err != nil {
+			return nil, fmt.Errorf("slot %q (adapter %q): %w", p.entry.ID, p.entry.Adapter, err)
+		}
+		// The declared pace is enforced here, at the call site, rather than
+		// in the drain worker: the worker paces between entries, but one
+		// entry makes several calls into this catalogue (a lookup per
+		// catalogue, a detail fetch per surviving candidate), and those are
+		// the calls the provider actually sees.
+		cat.Client = &pacedCatalogue{inner: cat.Client, pace: pace}
+		out = append(out, cat)
 	}
 	return out, nil
+}
+
+// cataloguePace resolves how fast one catalogue slot may be called, by the
+// same precedence as a sync cadence: the operator's per-slot override, then
+// the adapter's handshake declaration, then the shipped default. Catalogue
+// slots run no jobs of their own, so this is the only pacing they get —
+// before it existed, nothing paced catalogue calls at all and one hardcoded
+// worker constant was the only politeness brake in the system.
+func cataloguePace(entry config.SlotEntry, reg *registry.InProcessRegistry) (time.Duration, error) {
+	declared, _ := reg.Policy(entry.ID) // nil when the adapter declared none
+	return DeclaredPace(entry.Options[cataloguePaceKey], declared, cataloguePaceKey, defaultCataloguePace)
 }
 
 // RouteLinkedAccounts assigns each linked provider account to exactly one
@@ -580,21 +602,43 @@ func SetupAll(ctx context.Context, slots config.SlotsConfig, deps Deps) ([]sched
 // the scheduler default (zero). A declared value that fails to parse is a
 // broken adapter or config and is reported, not ignored.
 func DeclaredCadence(configValue string, declared map[string]string, key string) (time.Duration, error) {
+	return declaredDuration(configValue, declared, key, "sync-cadence")
+}
+
+// DeclaredPace resolves a pacing interval by the same precedence as
+// DeclaredCadence — operator override, then the adapter's handshake
+// declaration, then the caller's shipped default — but returns that default
+// instead of zero, since a pace of "no pacing" is never a valid answer for a
+// politeness bound. Its messages name the value as a pace, not a cadence.
+func DeclaredPace(configValue string, declared map[string]string, key string, fallback time.Duration) (time.Duration, error) {
+	d, err := declaredDuration(configValue, declared, key, "pace-interval")
+	if err != nil {
+		return 0, err
+	}
+	if d == 0 {
+		return fallback, nil
+	}
+	return d, nil
+}
+
+// declaredDuration is the shared precedence walk behind DeclaredCadence and
+// DeclaredPace. what names the value for error messages.
+func declaredDuration(configValue string, declared map[string]string, key, what string) (time.Duration, error) {
 	if configValue != "" {
 		d, err := time.ParseDuration(configValue)
 		if err != nil || d <= 0 {
-			return 0, fmt.Errorf("sync-cadence %q is not a positive duration", configValue)
+			return 0, fmt.Errorf("%s %q is not a positive duration", what, configValue)
 		}
 		return d, nil
 	}
 	if v := declared[key]; v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil || d <= 0 {
-			return 0, fmt.Errorf("adapter declared invalid %s %q", key, v)
+			return 0, fmt.Errorf("adapter declared invalid %s %q", what, v)
 		}
 		return d, nil
 	}
-	return 0, nil // scheduler default
+	return 0, nil // caller's default
 }
 
 func keys[M ~map[string]V, V any](m M) []string {

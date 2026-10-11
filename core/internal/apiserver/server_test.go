@@ -183,7 +183,7 @@ func TestServer_GetJob_NotFound(t *testing.T) {
 	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
 
 	_, err := srv.GetJob(context.Background(), &apiv1.GetJobRequest{JobId: "job-1"})
 	if got := status.Code(err); got != codes.NotFound {
@@ -195,7 +195,7 @@ func TestServer_GetJob_EmptyID(t *testing.T) {
 	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
 
 	_, err := srv.GetJob(context.Background(), &apiv1.GetJobRequest{})
 	if got := status.Code(err); got != codes.InvalidArgument {
@@ -207,7 +207,7 @@ func TestServer_SignUp_Success(t *testing.T) {
 	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
 
 	resp, err := srv.SignUp(context.Background(), &apiv1.SignUpRequest{
 		Username: "alice",
@@ -230,7 +230,7 @@ func TestServer_SignUp_EmptyUsername(t *testing.T) {
 	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
 
 	_, err := srv.SignUp(context.Background(), &apiv1.SignUpRequest{})
 	if got := status.Code(err); got != codes.InvalidArgument {
@@ -242,7 +242,7 @@ func TestServer_Login_Success(t *testing.T) {
 	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
 
 	// Sign up.
 	_, err := srv.SignUp(context.Background(), &apiv1.SignUpRequest{
@@ -274,7 +274,7 @@ func TestServer_Login_WrongPassword(t *testing.T) {
 	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
 
 	_, err := srv.SignUp(context.Background(), &apiv1.SignUpRequest{
 		Username: "alice",
@@ -301,7 +301,7 @@ func TestServer_SignUp_Login_GetJob_Flow(t *testing.T) {
 	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
 
 	// 1. Sign up.
 	signUpResp, err := srv.SignUp(context.Background(), &apiv1.SignUpRequest{
@@ -362,7 +362,7 @@ func TestServer_GetJob_CreateAndRetrieve(t *testing.T) {
 	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
 
 	// Create a job.
 	job := &corev1.Job{
@@ -401,7 +401,7 @@ func TestPerUserBlobEncryption_FullFlow(t *testing.T) {
 	inner := stores.WatchHistory
 	stores.WatchHistory = store.NewUserBlobStore(inner)
 
-	srv := apiserver.NewServer(bus, stores, authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: stores, Authenticator: authenticator, Session: session})
 
 	// 1. Sign up Alice.
 	_, err := srv.SignUp(context.Background(), &apiv1.SignUpRequest{
@@ -503,7 +503,7 @@ func TestServer_CreateJob_PublishesEvent(t *testing.T) {
 	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
 
 	ch := bus.Subscribe("test-sub", "user:alice")
 	defer bus.Unsubscribe("test-sub")
@@ -548,7 +548,7 @@ func TestServer_SignUp_DuplicateUsername(t *testing.T) {
 	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
 
 	_, err := srv.SignUp(context.Background(), &apiv1.SignUpRequest{
 		Username: "alice",
@@ -575,7 +575,7 @@ func TestServer_Login_BeforeSignUp(t *testing.T) {
 	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
 
 	_, err := srv.Login(context.Background(), &apiv1.LoginRequest{
 		Username: "nobody",
@@ -592,7 +592,7 @@ func TestServer_GetJob_AuthBehavior(t *testing.T) {
 	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
 
 	// GetJob without auth metadata returns NotFound (auth is at interceptor level).
 	_, err := srv.GetJob(context.Background(), &apiv1.GetJobRequest{JobId: "job-1"})

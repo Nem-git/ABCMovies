@@ -36,7 +36,7 @@ func TestGetLibrary_ReturnsFilteredPagedLibrary(t *testing.T) {
 
 	stores := testStores(t)
 	lib := &stubLibrary{entries: entries, meta: meta}
-	srv := apiserver.NewServer(bus, stores, authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: stores, Authenticator: authenticator, Session: session})
 	srv.SetLibrary(lib)
 	ctx := ctxAs(session, "user-1")
 
@@ -94,13 +94,13 @@ func TestGetLibrary_UnconfiguredAndBadToken(t *testing.T) {
 	defer bus.Close()
 	authenticator, session := testAuth(t)
 
-	if _, err := apiserver.NewServer(bus, testStores(t), authenticator, session).
+	if _, err := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session}).
 		GetLibrary(context.Background(), &apiv1.GetLibraryRequest{}); status.Code(err) != codes.Unavailable {
 		t.Fatalf("unarmed library code = %v, want Unavailable", status.Code(err))
 	}
 
 	lib := &stubLibrary{entries: []*corev1.LibraryEntry{{Id: "entry-1"}}}
-	armed := apiserver.NewServer(bus, testStores(t), authenticator, session)
+	armed := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
 	armed.SetLibrary(lib)
 	if _, err := armed.GetLibrary(context.Background(), &apiv1.GetLibraryRequest{PageToken: "not-a-number"}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("bad page token code = %v, want InvalidArgument", status.Code(err))

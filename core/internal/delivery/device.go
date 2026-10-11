@@ -20,7 +20,6 @@ type DeviceSink struct {
 	relay         *Relay
 	ttl           time.Duration
 	sessionID     string
-	tokens        []string
 	tokensByTrack map[string]string
 }
 
@@ -70,7 +69,6 @@ func (d *DeviceSink) Deliver(_ context.Context, _ *Session, track *corev1.Track,
 	if err != nil {
 		return 0, err
 	}
-	d.tokens = append(d.tokens, tok)
 	d.tokensByTrack[track.GetId()] = tok
 	// Nothing was copied inline; the deliverable is staged for pull.
 	return 0, nil

@@ -24,7 +24,8 @@ func TestGetPlayInfo_ReturnsStagedMenu(t *testing.T) {
 			},
 		},
 	}
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session, dm)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
+	srv.SetDelivery(dm)
 
 	resp, err := srv.GetPlayInfo(ctxAs(session, "user-1"), &apiv1.GetPlayInfoRequest{SessionId: "del-1"})
 	if err != nil {
@@ -53,7 +54,8 @@ func TestGetPlayInfo_MissesAndAccess(t *testing.T) {
 		playmenu: &apiserver.PlayMenu{SessionID: "del-1", MemberUserID: "user-1"},
 		menuErr:  apiserver.ErrPlayMenuNotFound,
 	}
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session, dm)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
+	srv.SetDelivery(dm)
 
 	// A session with no menu is a clean NotFound (recovery semantics §6.2).
 	if _, err := srv.GetPlayInfo(ctxAs(session, "user-1"), &apiv1.GetPlayInfoRequest{SessionId: "del-x"}); status.Code(err) != codes.NotFound {
@@ -61,7 +63,7 @@ func TestGetPlayInfo_MissesAndAccess(t *testing.T) {
 	}
 
 	// An unarmed delivery engine is Unavailable.
-	bare := apiserver.NewServer(bus, testStores(t), authenticator, session)
+	bare := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
 	if _, err := bare.GetPlayInfo(ctxAs(session, "user-1"), &apiv1.GetPlayInfoRequest{SessionId: "del-1"}); status.Code(err) != codes.Unavailable {
 		t.Fatalf("unarmed code = %v, want Unavailable", status.Code(err))
 	}
@@ -78,7 +80,8 @@ func TestGetPlayInfo_MemberScoped(t *testing.T) {
 			Tracks:       []apiserver.PlayMenuTrack{{TrackID: "v1", Track: videoTrack("v1"), RelayToken: "t"}},
 		},
 	}
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session, dm)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
+	srv.SetDelivery(dm)
 
 	// The menu belongs to the member; a different user must not recover it.
 	if _, err := srv.GetPlayInfo(ctxAs(session, "user-2"), &apiv1.GetPlayInfoRequest{SessionId: "del-1"}); status.Code(err) != codes.PermissionDenied {

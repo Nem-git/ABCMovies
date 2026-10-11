@@ -11,6 +11,21 @@ import (
 	apiv1connect "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1/apiv1connect"
 )
 
+// Debug routes are the web layer's observability surface: read-only JSON
+// views over the live instance, plus the authenticated job probe
+// (TECHNICAL-DECISIONS.md §1.2). Each path is defined once here — the mux
+// registrations and the tests both read these, so a rename is one edit. The
+// routes are all under /debug/ so the serving layer can recognise the
+// subtree as its own, and none of them exist in the core's gRPC surface.
+const (
+	routeDebugJob          = "/debug/job"
+	routeDebugCapabilities = "/debug/capabilities"
+	routeDebugMetadata     = "/debug/metadata"
+	routeDebugRegistry     = "/debug/registry"
+	routeDebugSourceCache  = "/debug/sourcecache"
+	routeDebugEnrichment   = "/debug/enrichment"
+)
+
 // Server composes the core in-process and serves it, together with the
 // static page, over a single HTTP port. The RPC surface speaks gRPC-Web
 // (browsers), plain gRPC (h2c clients), and the Connect protocol; see
@@ -42,18 +57,18 @@ func New(configPath string, logger *slog.Logger) (*Server, error) {
 		connect.WithInterceptors(authInterceptor{session: stack.Auth()}),
 	)
 	mux.Handle(path, handler)
-	mux.Handle("POST /debug/job", debugJobHandler{stack: stack})
-	mux.Handle("GET /debug/capabilities", debugCapabilitiesHandler{stack: stack})
-	mux.Handle("GET /debug/metadata", debugMetadataHandler{stack: stack})
-	mux.Handle("GET /debug/registry", debugRegistryHandler{stack: stack})
-	mux.Handle("GET /debug/sourcecache", debugSourceCacheHandler{stack: stack})
-	mux.Handle("GET /debug/enrichment", debugEnrichmentHandler{stack: stack})
+	mux.Handle("POST "+routeDebugJob, debugJobHandler{stack: stack})
+	mux.Handle("GET "+routeDebugCapabilities, debugCapabilitiesHandler{stack: stack})
+	mux.Handle("GET "+routeDebugMetadata, debugMetadataHandler{stack: stack})
+	mux.Handle("GET "+routeDebugRegistry, debugRegistryHandler{stack: stack})
+	mux.Handle("GET "+routeDebugSourceCache, debugSourceCacheHandler{stack: stack})
+	mux.Handle("GET "+routeDebugEnrichment, debugEnrichmentHandler{stack: stack})
 	// The media relay serves delivery sessions' staged bytes (PLAN.md §3.6).
 	// It is unauthenticated beyond the relay token itself: the token is minted
 	// per session per track by the engine and dies with the session, which is
 	// the whole authorization story — bearer sessions would just add a second
 	// minting step. BuildSlots has run above, so the relay is armed.
-	mux.Handle("/media/relay/", stack.RelayHandler())
+	mux.Handle(app.RelayPrefix, stack.RelayHandler())
 	mux.Handle("/", staticHandler())
 
 	return &Server{mux: mux, stack: stack}, nil

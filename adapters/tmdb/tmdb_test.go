@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 )
 
@@ -35,6 +36,42 @@ func writeJSON(t *testing.T, w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		t.Fatalf("encode fixture: %v", err)
+	}
+}
+
+// The handshake is where an adapter says how it wants to be called. TMDB
+// declares its own politeness bound so the number lives with the thing it
+// protects rather than being hardcoded in the core, and the core reads it
+// back through the ordinary policy channel — no adapter-specific branch.
+// The value must parse as a positive duration or the core would refuse it.
+func TestCapabilityQueryDeclaresPaceInterval(t *testing.T) {
+	s := newFixture(t, func(w http.ResponseWriter, r *http.Request) {})
+	resp, err := s.CapabilityQuery(context.Background(), &corev1.CapabilityQueryRequest{})
+	if err != nil {
+		t.Fatalf("CapabilityQuery: %v", err)
+	}
+	pace, ok := resp.GetPolicy()["catalogue.pace-interval"]
+	if !ok {
+		t.Fatal("handshake declares no catalogue.pace-interval; the adapter's own bound must ride the policy channel")
+	}
+	d, err := time.ParseDuration(pace)
+	if err != nil || d <= 0 {
+		t.Fatalf("declared pace %q is not a positive duration: %v", pace, err)
+	}
+}
+
+// One pacing system: the adapter declares its bound and never paces itself —
+// the core's declared-pace wrapper enforces it, so an operator's per-slot
+// override is honored in both directions. A production New() must install no
+// internal ticker; WithPace remains a test-only affordance.
+func TestNewStartsUnpaced(t *testing.T) {
+	t.Setenv("TMDB_TOKEN_TEST", "secret-token")
+	s, err := New("TMDB_TOKEN_TEST")
+	if err != nil {
+		t.Fatalf("new slot: %v", err)
+	}
+	if s.pace != nil {
+		t.Fatal("production slot installed an internal pacing ticker; pacing policy is declared here and enforced by the core wrapper")
 	}
 }
 

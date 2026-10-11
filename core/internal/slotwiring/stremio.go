@@ -12,6 +12,9 @@ import (
 
 func init() {
 	RegisterProvider("stremio", wireStremio)
+	// Stremio validates a linked account's addon URL itself, so it carries
+	// the prober the accounts RPCs probe through (PLAN.md §3.5).
+	RegisterProber("stremio", stremio.Prober{})
 }
 
 // stremioRoster is the core-side source of truth: operator-declared addon

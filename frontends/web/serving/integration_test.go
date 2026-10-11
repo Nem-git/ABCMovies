@@ -206,7 +206,7 @@ func TestDebugJob_Unauthorized(t *testing.T) {
 		{"unknown", "definitely-not-a-valid-token", http.StatusUnauthorized},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/debug/job", nil)
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+routeDebugJob, nil)
 			if err != nil {
 				t.Fatalf("new request: %v", err)
 			}
@@ -232,7 +232,7 @@ func TestDebugCapabilities(t *testing.T) {
 	ctx := t.Context()
 	token := signUpAndLogin(t, ctx, client)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+"/debug/capabilities", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+routeDebugCapabilities, nil)
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestDebugCapabilities(t *testing.T) {
 	}
 
 	// Unauthenticated callers are rejected like every protected method.
-	bare, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+"/debug/capabilities", nil)
+	bare, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+routeDebugCapabilities, nil)
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
@@ -310,7 +310,7 @@ func TestDebugJob_CreatesJobAndEvents(t *testing.T) {
 				return
 			default:
 			}
-			req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/debug/job", nil)
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+routeDebugJob, nil)
 			if err != nil {
 				t.Errorf("new request: %v", err)
 				return
@@ -420,10 +420,10 @@ func TestWebClient_AuthEnforced(t *testing.T) {
 // debugStateEndpoints lists the four read-only observability routes that the
 // web layer serves on top of the gRPC core (TECHNICAL-DECISIONS.md §1.2).
 var debugStateEndpoints = []string{
-	"/debug/metadata",
-	"/debug/registry",
-	"/debug/sourcecache",
-	"/debug/enrichment",
+	routeDebugMetadata,
+	routeDebugRegistry,
+	routeDebugSourceCache,
+	routeDebugEnrichment,
 }
 
 // TestDebugState_Unauthorized proves the four state endpoints enforce the

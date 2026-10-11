@@ -83,7 +83,8 @@ func TestStartDelivery_Success(t *testing.T) {
 	defer bus.Close()
 	authenticator, session := testAuth(t)
 	dm := &stubDelivery{session: runningSession()}
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session, dm)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
+	srv.SetDelivery(dm)
 	srv.SetLibrary(&stubLibrary{reachable: map[string][]string{"acc-1": {"user-1"}}, reaches: []library.Reach{{AccountID: "acc-1", Visibility: accounts.VisibilityPublic}}})
 
 	resp, err := srv.StartDelivery(ctxAs(session, "user-1"), &apiv1.StartDeliveryRequest{
@@ -108,7 +109,7 @@ func TestStartDelivery_Unconfigured(t *testing.T) {
 	bus := apiserver.NewInMemoryBus()
 	defer bus.Close()
 	authenticator, session := testAuth(t)
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
 
 	_, err := srv.StartDelivery(context.Background(), &apiv1.StartDeliveryRequest{
 		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
@@ -127,7 +128,8 @@ func TestStartDelivery_Validation(t *testing.T) {
 	defer bus.Close()
 	authenticator, session := testAuth(t)
 	dm := &stubDelivery{session: runningSession()}
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session, dm)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
+	srv.SetDelivery(dm)
 
 	cases := []*apiv1.StartDeliveryRequest{
 		{},
@@ -148,7 +150,8 @@ func TestHeartbeat_SuccessAndErrors(t *testing.T) {
 	defer bus.Close()
 	authenticator, session := testAuth(t)
 	dm := &stubDelivery{}
-	srv := apiserver.NewServer(bus, testStores(t), authenticator, session, dm)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
+	srv.SetDelivery(dm)
 
 	resp, err := srv.Heartbeat(context.Background(), &apiv1.HeartbeatRequest{SessionId: "del-1"})
 	if err != nil {

@@ -85,7 +85,7 @@ func TestPlayStartStagesMenuAndAnnouncesReady(t *testing.T) {
 		if !ok {
 			t.Fatalf("no relay token staged for %s", id)
 		}
-		res, err := relay.Open(tok)
+		res, err := relay.Open(context.Background(), tok)
 		if err != nil {
 			t.Fatalf("open staged token %s: %v", id, err)
 		}
@@ -208,7 +208,7 @@ func TestPlayEndToEndPassthroughRelay(t *testing.T) {
 
 		// A consumer pulls only through the token; it never sees the
 		// auth_context (the token is opaque).
-		res, err := relay.Open(tok)
+		res, err := relay.Open(context.Background(), tok)
 		if err != nil {
 			t.Fatalf("relay.Open %s: %v", trackID, err)
 		}
@@ -222,16 +222,16 @@ func TestPlayEndToEndPassthroughRelay(t *testing.T) {
 
 	// The provider never saw an unauthenticated pull from these tokens.
 	v1tok, _ := device.RelayToken("v1")
-	res, err := relay.Open(v1tok)
+	res, err := relay.Open(context.Background(), v1tok)
 	if err != nil {
 		t.Fatalf("re-open: %v", err)
 	}
 	_ = res.Body.Close()
-	if err := e.Complete(sess.ID); err != nil {
+	if err := e.Complete(context.Background(), sess.ID); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 	// After finalize, the relay no longer serves the session's tokens.
-	if _, err := relay.Open(v1tok); err == nil {
+	if _, err := relay.Open(context.Background(), v1tok); err == nil {
 		t.Error("relay still served a token after the session finalized")
 	}
 }
@@ -242,18 +242,18 @@ func TestRelayRejectsExpiredAndUnknown(t *testing.T) {
 	tok, _ := relay.Grant("s1", "v1", func(ctx context.Context, _ string) (FetchResult, error) {
 		return FetchResult{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader("x"))}, nil
 	}, time.Second)
-	if _, err := relay.Open(tok); err != nil {
+	if _, err := relay.Open(context.Background(), tok); err != nil {
 		t.Fatalf("fresh token should open: %v", err)
 	}
-	if _, err := relay.Open("bogus"); err == nil {
+	if _, err := relay.Open(context.Background(), "bogus"); err == nil {
 		t.Error("unknown token should fail")
 	}
 	relay.now = func() time.Time { return time.Now().Add(2 * time.Second) }
-	if _, err := relay.Open(tok); err == nil {
+	if _, err := relay.Open(context.Background(), tok); err == nil {
 		t.Error("expired token should fail")
 	}
 	relay.Revoke("s1")
-	if _, err := relay.Open(tok); err == nil {
+	if _, err := relay.Open(context.Background(), tok); err == nil {
 		t.Error("token should fail after revoke")
 	}
 }

@@ -34,7 +34,7 @@ func (r *reachableLibrary) RefreshAvailability(context.Context, string, []string
 
 func newRefreshServer(t *testing.T) *apiserver.Server {
 	t.Helper()
-	srv := apiserver.NewServer(apiserver.NewInMemoryBus(), config.Stores{Jobs: store.NewInMemory(), Vault: store.NewInMemory()}, nil, nil)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: apiserver.NewInMemoryBus(), Stores: config.Stores{Jobs: store.NewInMemory(), Vault: store.NewInMemory()}})
 	srv.SetLibrary(&reachableLibrary{})
 	return srv
 }

@@ -633,18 +633,25 @@ func ValidateArticles(articles []string) error {
 	return nil
 }
 
-// ParseTokenTTL parses the token TTL from the config string.
-// Returns the default (7 days) if the string is empty or invalid.
-func ParseTokenTTL(val string) time.Duration {
-	const defaultTTL = 168 * time.Hour // 7 days
+// defaultTokenTTL is the shipped session-token lifetime: seven days.
+const defaultTokenTTL = 168 * time.Hour
+
+// ParseTokenTTL parses the token TTL from the config string. An empty value
+// means the shipped default. A value that does not parse is a boot failure,
+// not a silent fallback: a typo'd TTL would quietly change every session's
+// lifetime with no signal, so the operator must hear about it at startup.
+func ParseTokenTTL(val string) (time.Duration, error) {
 	if val == "" {
-		return defaultTTL
+		return defaultTokenTTL, nil
 	}
 	d, err := time.ParseDuration(val)
 	if err != nil {
-		return defaultTTL
+		return 0, fmt.Errorf("config: auth.token-ttl %q is not a duration: %w", val, err)
 	}
-	return d
+	if d <= 0 {
+		return 0, fmt.Errorf("config: auth.token-ttl %q must be positive", val)
+	}
+	return d, nil
 }
 
 // BuildAuth creates the auth-layer stores from the given backend stores and

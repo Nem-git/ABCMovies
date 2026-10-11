@@ -6,10 +6,8 @@ import (
 	"time"
 
 	"github.com/nem-git/abcmovies/adapters/jellyfin"
-	"github.com/nem-git/abcmovies/adapters/stremio"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/accounts"
-	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/library"
@@ -31,6 +29,9 @@ const jellyfinCadenceKey = "browse.sync-cadence"
 
 func init() {
 	RegisterProvider("jellyfin", wireJellyfin)
+	// Jellyfin validates a linked account's password itself, so it carries
+	// the prober the accounts RPCs probe through (PLAN.md §3.5).
+	RegisterProber("jellyfin", jellyfinProber{})
 }
 
 // slotRoster is the core-side source of truth the adapter consults for
@@ -236,20 +237,4 @@ type jellyfinProber struct{}
 
 func (jellyfinProber) Probe(ctx context.Context, baseURL, username string, password []byte) ([]byte, error) {
 	return jellyfin.ProbeCredentials(ctx, baseURL, username, password)
-}
-
-// ProberForAdapter returns the credential prober registered for an adapter,
-// or nil when the adapter does not validate a linked account's credentials by
-// itself (PLAN.md §3.5: the core never vaults material it has not confirmed
-// works; adapters without a prober cannot be linked). The key is the adapter
-// name — the same value a LinkAccountRequest carries as its provider.
-func ProberForAdapter(adapter string) apiserver.CredentialProber {
-	switch adapter {
-	case "jellyfin":
-		return jellyfinProber{}
-	case "stremio":
-		return stremio.Prober{}
-	default:
-		return nil
-	}
 }

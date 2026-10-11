@@ -28,27 +28,18 @@ var (
 	ErrGovernorBusy = errors.New("pacing: per-provider aggregate governor at capacity")
 )
 
-// BusyError carries a queue-position hint on a pacing busy answer, mirroring
-// delivery's quota error (§6.5): the number of peer requests queued ahead of
-// the caller, so "busy" is never a dead end. Unwrap keeps errors.Is
-// matching the sentinel (ErrDegraded etc.) intact.
+// BusyError is a pacing busy answer: the provider is in backoff or the
+// aggregate governor is at capacity. It deliberately carries no position
+// hint — v1 has no admission queue, so a rank on an error would be fiction
+// (PLAN.md §11: a refusal never carries a queue position; the future
+// admission mode reports position as tracked job state instead). Unwrap
+// keeps errors.Is matching the sentinel (ErrDegraded etc.) intact.
 type BusyError struct {
-	Err      error
-	Position int
+	Err error
 }
 
-func (e *BusyError) Error() string { return fmt.Sprintf("%s (position %d)", e.Err, e.Position) }
+func (e *BusyError) Error() string { return e.Err.Error() }
 func (e *BusyError) Unwrap() error { return e.Err }
-
-// Position reports the queue-position hint carried by a busy answer; zero
-// when the error is not a pacing busy error.
-func Position(err error) int {
-	var b *BusyError
-	if errors.As(err, &b) {
-		return b.Position
-	}
-	return 0
-}
 
 // Limiter admits requests one at a time against a Budget. The pacing budget
 // is shared, so background refresh and enrichment draw from — and can never
@@ -144,9 +135,6 @@ type Governor struct {
 	backoffT time.Time
 	base     time.Duration
 	max      time.Duration
-	// waiters counts callers currently parked inside Allow waiting for a
-	// rate slot — the position basis for a busy answer.
-	waiters int
 }
 
 // NewGovernor builds a Governor. base and max bound the per-provider backoff.
@@ -162,11 +150,8 @@ func NewGovernor(rps float64, base, max time.Duration, now func() time.Time) *Go
 func (g *Governor) Allow(ctx context.Context) error {
 	g.mu.Lock()
 	if g.now().Before(g.backoffT) {
-		// Failers aren't parked, so waiters counts only parked peers —
-		// exactly the queue the caller would wait behind.
-		pos := g.waiters
 		g.mu.Unlock()
-		return &BusyError{Err: ErrDegraded, Position: pos}
+		return &BusyError{Err: ErrDegraded}
 	}
 	var wait time.Duration
 	now := g.now()
@@ -183,19 +168,12 @@ func (g *Governor) Allow(ctx context.Context) error {
 		g.mu.Unlock()
 		return nil
 	}
-	g.waiters++
 	g.mu.Unlock()
 	select {
 	case <-ctx.Done():
-		g.mu.Lock()
-		g.waiters--
-		g.mu.Unlock()
 		return ctx.Err()
 	case <-time.After(wait):
 	}
-	g.mu.Lock()
-	g.waiters--
-	g.mu.Unlock()
 	return nil // the slot we reserved while parking is ours
 }
 

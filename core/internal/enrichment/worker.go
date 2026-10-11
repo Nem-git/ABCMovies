@@ -8,14 +8,12 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/scheduler"
 )
 
-// paceInterval spaces catalogue calls inside one drain tick; it realizes
-// §1.27's ~5 req/s ceiling for the serial worker.
-const paceInterval = 200 * time.Millisecond
-
 // Worker drains the enrichment queue as a scheduler job (TECHNICAL-DECISIONS
-// §1.28): each tick processes every pending entry serially, paced, and never
-// in a request path. Enrichment is best-effort — a failing entry logs and
-// waits for the next T1/T2 marking to re-enqueue it.
+// §1.28): each tick processes every pending entry serially — the worker
+// applies no pacing of its own; the core's wrapper spaces each catalogue's
+// calls from that catalogue's declared pace — and never in a request path.
+// Enrichment is best-effort — a failing entry logs and waits for the next
+// T1/T2 marking to re-enqueue it.
 type Worker struct {
 	queue  Queue
 	enrich func(ctx context.Context, entryID string) error
@@ -55,11 +53,6 @@ func (w *Worker) drain(ctx context.Context) error {
 		if err := w.enrich(ctx, id); err != nil {
 			w.logger.Warn("enrichment failed; will retry on next trigger",
 				"entry", id, "error", err)
-		}
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-time.After(paceInterval):
 		}
 	}
 }

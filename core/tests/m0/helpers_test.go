@@ -43,7 +43,7 @@ func newFullStack(t *testing.T) *fullStack {
 	bus := apiserver.NewInMemoryBus()
 	t.Cleanup(bus.Close)
 
-	srv := apiserver.NewServer(bus, stores, composite, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: stores, Authenticator: composite, Session: session})
 
 	return &fullStack{
 		stores:  stores,

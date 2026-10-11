@@ -38,9 +38,10 @@ type PlayMenu struct {
 // ready event queries and gets a clean miss).
 var ErrPlayMenuNotFound = errors.New("play menu not found")
 
-// relayPrefix is the stable relay mount; the frontend prepends its own origin
-// (PLAN.md §3.6). The mount itself is managed by the serving layer.
-const relayPrefix = "/media/relay/"
+// relayPrefix is the stable relay mount the play menu stamps onto its tracks;
+// it is the delivery package's exported constant so the URL shape has exactly
+// one definition (the serving layer mounts the handler under it).
+const relayPrefix = delivery.RelayPrefix
 
 // GetPlayInfo recovers a delivery session's staged play menu (PLAN.md §6.2).
 // The ready event is the at-most-once notification; a subscriber that missed

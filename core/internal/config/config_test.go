@@ -169,7 +169,10 @@ func writeConfig(t *testing.T, yaml string) string {
 }
 
 func TestParseTokenTTL_Default(t *testing.T) {
-	got := config.ParseTokenTTL("")
+	got, err := config.ParseTokenTTL("")
+	if err != nil {
+		t.Fatalf("ParseTokenTTL(\"\") error = %v, want none", err)
+	}
 	want := 168 * time.Hour
 	if got != want {
 		t.Fatalf("ParseTokenTTL(\"\") = %v, want %v", got, want)
@@ -177,18 +180,32 @@ func TestParseTokenTTL_Default(t *testing.T) {
 }
 
 func TestParseTokenTTL_Valid(t *testing.T) {
-	got := config.ParseTokenTTL("24h")
+	got, err := config.ParseTokenTTL("24h")
+	if err != nil {
+		t.Fatalf("ParseTokenTTL(\"24h\") error = %v, want none", err)
+	}
 	want := 24 * time.Hour
 	if got != want {
 		t.Fatalf("ParseTokenTTL(\"24h\") = %v, want %v", got, want)
 	}
 }
 
+// An unparseable TTL fails rather than silently falling back to the default:
+// a typo must not quietly change every session's lifetime (the operator
+// hears about it at boot).
 func TestParseTokenTTL_Invalid(t *testing.T) {
-	got := config.ParseTokenTTL("bogus")
-	want := 168 * time.Hour
-	if got != want {
-		t.Fatalf("ParseTokenTTL(\"bogus\") = %v, want %v (default)", got, want)
+	if got, err := config.ParseTokenTTL("bogus"); err == nil {
+		t.Fatalf("ParseTokenTTL(\"bogus\") = %v, want an error", got)
+	}
+}
+
+// A zero or negative TTL is rejected for the same reason: it is a typo, not
+// a request for expiring-immediately sessions.
+func TestParseTokenTTL_NonPositive(t *testing.T) {
+	for _, val := range []string{"0s", "-1h"} {
+		if _, err := config.ParseTokenTTL(val); err == nil {
+			t.Errorf("ParseTokenTTL(%q) succeeded, want an error", val)
+		}
 	}
 }
 

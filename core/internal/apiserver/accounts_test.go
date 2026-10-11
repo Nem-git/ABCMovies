@@ -25,7 +25,7 @@ func TestLinkAccount_ProbesBeforeVaulting(t *testing.T) {
 	authenticator, session := testAuth(t)
 	stores := testStores(t)
 	probe := &stubProber{accept: true, blob: []byte(`{"AccessToken":"t"}`)}
-	srv := apiserver.NewServer(bus, stores, authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: stores, Authenticator: authenticator, Session: session})
 	srv.SetProber("jellyfin", probe)
 	ctx := ctxAs(session, "user-1")
 
@@ -82,7 +82,7 @@ func TestLinkAccount_VisibilityAndValidation(t *testing.T) {
 	authenticator, session := testAuth(t)
 	stores := testStores(t)
 	probe := &stubProber{accept: true, blob: []byte{'{'}}
-	srv := apiserver.NewServer(bus, stores, authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: stores, Authenticator: authenticator, Session: session})
 	srv.SetProber("jellyfin", probe)
 	ctx := ctxAs(session, "user-1")
 
@@ -108,7 +108,7 @@ func TestLinkAccount_VisibilityAndValidation(t *testing.T) {
 
 	// Rejected probes must not leave anything in the vault.
 	rejecting := &stubProber{}
-	rejectingServer := apiserver.NewServer(bus, testStores(t), authenticator, session)
+	rejectingServer := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
 	rejectingServer.SetProber("jellyfin", rejecting)
 	if _, err := rejectingServer.LinkAccount(ctx, &apiv1.LinkAccountRequest{
 		Provider: "jellyfin", BaseUrl: "https://jf.example",
@@ -156,7 +156,7 @@ func TestListAccounts_VisibilityGate(t *testing.T) {
 		reachable: map[string][]string{"op-1": {"user-1", "user-2"}},
 		reaches:   []library.Reach{op},
 	}
-	srv := apiserver.NewServer(bus, stores, authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: stores, Authenticator: authenticator, Session: session})
 	srv.SetLibrary(lib)
 
 	// user-1 linked a private account; it must be visible only to them.
@@ -216,7 +216,7 @@ func TestRemoveAccount_OwnerOnlyAndOperatorProtected(t *testing.T) {
 	stores := testStores(t)
 	op := operatorReach("op-1")
 	lib := &stubLibrary{reachable: map[string][]string{"op-1": {"user-1"}}, reaches: []library.Reach{op}}
-	srv := apiserver.NewServer(bus, stores, authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: stores, Authenticator: authenticator, Session: session})
 	srv.SetLibrary(lib)
 
 	linked := accounts.NewStore(stores.Vault, nil)
@@ -233,9 +233,25 @@ func TestRemoveAccount_OwnerOnlyAndOperatorProtected(t *testing.T) {
 		t.Fatalf("removing operator account code = %v, want PermissionDenied", status.Code(err))
 	}
 
-	// Only the owner may remove a linked account.
-	if _, err := srv.RemoveAccount(ctxAs(session, "user-2"), &apiv1.RemoveAccountRequest{AccountId: "lnk_aaa"}); status.Code(err) != codes.PermissionDenied {
-		t.Fatalf("non-owner removal code = %v, want PermissionDenied", status.Code(err))
+	// A private linked account is invisible to a non-owner: removal answers
+	// NotFound, so the API never confirms that another user's private
+	// account exists (the NotFound rule).
+	if _, err := srv.RemoveAccount(ctxAs(session, "user-2"), &apiv1.RemoveAccountRequest{AccountId: "lnk_aaa"}); status.Code(err) != codes.NotFound {
+		t.Fatalf("non-owner removal of a private account code = %v, want NotFound", status.Code(err))
+	}
+
+	// A member of a shared account may see it exists — she holds it in her
+	// roster — so the refusal is about the action: PermissionDenied.
+	shared := accounts.NewStore(stores.Vault, nil)
+	if err := shared.Add(context.Background(), accounts.Record{
+		ID: "lnk_shared", Provider: "jellyfin", BaseURL: "https://jf.example",
+		Username: "bob", OwnerUserID: "user-1", Visibility: accounts.VisibilityShared,
+		SharedWith: []string{"user-2"}, Status: accounts.StatusLinked, CreatedAt: time.Now(),
+	}); err != nil {
+		t.Fatalf("seed shared account: %v", err)
+	}
+	if _, err := srv.RemoveAccount(ctxAs(session, "user-2"), &apiv1.RemoveAccountRequest{AccountId: "lnk_shared"}); status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("non-owner removal of a shared account code = %v, want PermissionDenied", status.Code(err))
 	}
 
 	// The owner's removal works, drops the live reach, and revokes the session.
@@ -298,7 +314,7 @@ func TestLinkAccount_SharedRosterNamesRealUsers(t *testing.T) {
 	authenticator, session := testAuth(t)
 	stores := testStores(t)
 	probe := &stubProber{accept: true, blob: []byte(`{"AccessToken":"t"}`)}
-	srv := apiserver.NewServer(bus, stores, authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: stores, Authenticator: authenticator, Session: session})
 	srv.SetProber("jellyfin", probe)
 
 	users := auth.NewMemoryUserStore()
@@ -344,7 +360,7 @@ func TestUpdateAccount_OwnerChangesSharingAndCap(t *testing.T) {
 	authenticator, session := testAuth(t)
 	stores := testStores(t)
 	probe := &stubProber{accept: true, blob: []byte(`{"AccessToken":"t"}`)}
-	srv := apiserver.NewServer(bus, stores, authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: stores, Authenticator: authenticator, Session: session})
 	srv.SetProber("jellyfin", probe)
 	users := auth.NewMemoryUserStore()
 	for _, u := range []string{"alice", "carol"} {
@@ -453,7 +469,7 @@ func TestUpdateAccount_OperatorDeclaredIsReadOnly(t *testing.T) {
 	authenticator, session := testAuth(t)
 	stores := testStores(t)
 	op := operatorReach("op-1")
-	srv := apiserver.NewServer(bus, stores, authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: stores, Authenticator: authenticator, Session: session})
 	srv.SetLibrary(&stubLibrary{reachable: map[string][]string{"op-1": {"user-1"}}, reaches: []library.Reach{op}})
 
 	if _, err := srv.UpdateAccount(ctxAs(session, "user-1"), &apiv1.UpdateAccountRequest{
@@ -474,7 +490,7 @@ func TestUpdateAccount_GatesAndNoOps(t *testing.T) {
 	authenticator, session := testAuth(t)
 	stores := testStores(t)
 	probe := &stubProber{accept: true, blob: []byte(`{"AccessToken":"t"}`)}
-	srv := apiserver.NewServer(bus, stores, authenticator, session)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: stores, Authenticator: authenticator, Session: session})
 	srv.SetProber("jellyfin", probe)
 	srv.SetUserDirectory(apiserver.NewUserDirectory(auth.NewMemoryUserStore()))
 	dev := &stubDelivery{}
@@ -490,12 +506,14 @@ func TestUpdateAccount_GatesAndNoOps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LinkAccount: %v", err)
 	}
-	// Not the owner.
+	// Not the owner, and the account is private to its owner: the caller
+	// cannot see it, so the API says NotFound rather than confirm a
+	// stranger's account exists (the NotFound rule).
 	if _, err := srv.UpdateAccount(ctxAs(session, "user-2"), &apiv1.UpdateAccountRequest{
 		AccountId:            link.GetAccountId(),
 		MaxConcurrentStreams: proto.Uint32(1),
-	}); status.Code(err) != codes.PermissionDenied {
-		t.Fatalf("non-owner: err=%v, want PermissionDenied", err)
+	}); status.Code(err) != codes.NotFound {
+		t.Fatalf("non-owner of a private account: err=%v, want NotFound", err)
 	}
 	// Unknown id.
 	if _, err := srv.UpdateAccount(ownerCtx, &apiv1.UpdateAccountRequest{

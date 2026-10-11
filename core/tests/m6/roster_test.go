@@ -62,7 +62,8 @@ func newRosterServer(t *testing.T, lib *rosterLibrary) *apiserver.Server {
 	bus := apiserver.NewInMemoryBus()
 	t.Cleanup(bus.Close)
 	stores := config.Stores{Jobs: store.NewInMemory(), Vault: store.NewInMemory()}
-	srv := apiserver.NewServer(bus, stores, nil, nil, &stubDelivery{})
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: stores})
+	srv.SetDelivery(&stubDelivery{})
 	srv.SetLibrary(lib)
 	accts := accounts.NewStore(stores.Vault, nil)
 	rec := accounts.Record{

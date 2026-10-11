@@ -2,7 +2,6 @@ package delivery
 
 import (
 	"context"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -64,8 +63,8 @@ func TestStartHonorsAccountOverrideUnderMemberCap(t *testing.T) {
 		SessionTTL: 24 * time.Hour,
 		Now:        func() time.Time { return now },
 		RecordJob:  func(*corev1.Job) {},
-		AccountConstraints: func(_ context.Context, _, _ string) (policy.Set, policy.Set, error) {
-			return override, nil, nil
+		AccountConstraints: func(_ context.Context, _, _ string) (policy.Set, policy.ProviderCaps, error) {
+			return override, policy.ProviderCaps{}, nil
 		},
 	})
 	res.source = wholeMuxSource()
@@ -86,8 +85,8 @@ func TestStartHonorsProviderCapOverPolicy(t *testing.T) {
 		SessionTTL: 24 * time.Hour,
 		Now:        func() time.Time { return now },
 		RecordJob:  func(*corev1.Job) {},
-		AccountConstraints: func(_ context.Context, _, _ string) (policy.Set, policy.Set, error) {
-			return nil, policy.Set{"concurrentStreams": "1"}, nil
+		AccountConstraints: func(_ context.Context, _, _ string) (policy.Set, policy.ProviderCaps, error) {
+			return nil, policy.CapsFor(1), nil
 		},
 	})
 	res.source = wholeMuxSource()
@@ -121,7 +120,7 @@ func TestCompleteFreesCapSlot(t *testing.T) {
 	if _, err := e.Start(context.Background(), req); err == nil {
 		t.Fatal("second start should hit cap of 1")
 	}
-	if err := e.Complete(s1.ID); err != nil {
+	if err := e.Complete(context.Background(), s1.ID); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 	if _, err := e.Start(context.Background(), req); err != nil {
@@ -141,8 +140,8 @@ func TestApplyAccountCapEnforcesOnCapChange(t *testing.T) {
 		InstancePolicy: policy.Set{"concurrentStreams": "3"},
 		Now:            func() time.Time { return now },
 		RecordJob:      func(*corev1.Job) {},
-		AccountConstraints: func(ctx context.Context, provider, accountID string) (policy.Set, policy.Set, error) {
-			return nil, policy.Set{"concurrentStreams": strconv.Itoa(currentCap)}, nil
+		AccountConstraints: func(ctx context.Context, provider, accountID string) (policy.Set, policy.ProviderCaps, error) {
+			return nil, policy.CapsFor(uint32(currentCap)), nil
 		},
 	})
 	res.source = wholeMuxSource()
@@ -255,8 +254,8 @@ func TestApplyAccountCapNeverKillsOnRaise(t *testing.T) {
 		InstancePolicy: policy.Set{"concurrentStreams": "5"},
 		Now:            func() time.Time { return now },
 		RecordJob:      func(*corev1.Job) {},
-		AccountConstraints: func(ctx context.Context, provider, accountID string) (policy.Set, policy.Set, error) {
-			return nil, policy.Set{"concurrentStreams": "1"}, nil
+		AccountConstraints: func(ctx context.Context, provider, accountID string) (policy.Set, policy.ProviderCaps, error) {
+			return nil, policy.CapsFor(1), nil
 		},
 	})
 	res.source = wholeMuxSource()

@@ -39,7 +39,6 @@ func TestResolveAccountConstraints(t *testing.T) {
 	if s, _ := cap.Streams(); s != 2 {
 		t.Fatalf("linked cap = %d, want 2", s)
 	}
-
 	// Operator-declared account: cap and override both from config.
 	override, cap, err = resolveAccountConstraints(ctx, cfg, accts, "primary", "home")
 	if err != nil {
@@ -57,8 +56,11 @@ func TestResolveAccountConstraints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unknown: %v", err)
 	}
-	if override != nil || cap != nil {
-		t.Fatalf("unknown should be nil/nil, got %v %v", override, cap)
+	if override != nil {
+		t.Fatalf("unknown override = %v, want nil", override)
+	}
+	if _, declared := cap.Streams(); declared {
+		t.Fatalf("unknown cap = %v, want undeclared", cap)
 	}
 
 	// Zero cap is unbound, not "admitting zero": the instance policy on its
@@ -68,7 +70,7 @@ func TestResolveAccountConstraints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("zero cap: %v", err)
 	}
-	if cap != nil {
-		t.Fatalf("zero cap should mean unbound (nil), got %v", cap)
+	if _, declared := cap.Streams(); declared {
+		t.Fatalf("zero cap should mean unbound, got %v", cap)
 	}
 }

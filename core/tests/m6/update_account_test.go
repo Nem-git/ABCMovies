@@ -105,13 +105,13 @@ func newUpdateServer(t *testing.T, lib *updLibrary, del *updDelivery, userStore 
 	bus := apiserver.NewInMemoryBus()
 	t.Cleanup(bus.Close)
 	stores := config.Stores{Jobs: store.NewInMemory(), Vault: store.NewInMemory()}
-	srv := apiserver.NewServer(bus, stores, nil, nil, del)
+	// CapChangeDefault is normalized by the constructor: the zero value
+	// already means new-sessions-only, so no conditional arming is needed.
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: stores, CapChangeDefault: capDefault})
+	srv.SetDelivery(del)
 	srv.SetLibrary(lib)
 	if userStore != nil {
 		srv.SetUserDirectory(apiserver.NewUserDirectory(userStore))
-	}
-	if capDefault != accounts.CapChangePolicyDefault {
-		srv.SetCapChangeDefault(capDefault)
 	}
 	return srv, stores
 }
@@ -150,8 +150,12 @@ func TestM6UpdateAccountOnlyOwnerCanEdit(t *testing.T) {
 		MaxConcurrentStreams: 2,
 	})
 
-	// non-owner denied
-	_, err := srv.UpdateAccount(apiserver.WithUserID(ctx, "bob"), &apiv1.UpdateAccountRequest{
+	// A member of this shared account — but not its owner — may see it
+	// exists (it is in her roster), so the refusal is about the action:
+	// PermissionDenied. The caller id carries the same user: prefix the
+	// auth layer mints and shared_with validates, so the roster lookup
+	// compares like with like.
+	_, err := srv.UpdateAccount(apiserver.WithUserID(ctx, "user:bob"), &apiv1.UpdateAccountRequest{
 		AccountId: "acc-1",
 		Sharing:   &apiv1.AccountSharing{Visibility: apiv1.AccountVisibility_ACCOUNT_VISIBILITY_PUBLIC},
 	})
@@ -167,6 +171,23 @@ func TestM6UpdateAccountOnlyOwnerCanEdit(t *testing.T) {
 	})
 	if status.Code(err) != codes.PermissionDenied {
 		t.Fatalf("want PermissionDenied for operator-declared, got %v", err)
+	}
+
+	// An account the caller cannot see at all answers NotFound, not
+	// PermissionDenied: a private account of another user must not leak its
+	// existence to a caller guessing ids (the NotFound rule).
+	srv3, stores3 := newUpdateServer(t, &updLibrary{reaches: map[string]library.Reach{}}, del, us, accounts.CapChangePolicyNewSessionsOnly)
+	seedAccountInto(t, accounts.NewStore(stores3.Vault, nil), accounts.Record{
+		ID: "acc-private", Provider: "jellyfin", BaseURL: "http://x", Username: "alice",
+		OwnerUserID: "user:alice", Status: accounts.StatusLinked,
+		Visibility: accounts.VisibilityPrivate,
+	})
+	_, err = srv3.UpdateAccount(apiserver.WithUserID(ctx, "user:eve"), &apiv1.UpdateAccountRequest{
+		AccountId: "acc-private",
+		Sharing:   &apiv1.AccountSharing{Visibility: apiv1.AccountVisibility_ACCOUNT_VISIBILITY_PUBLIC},
+	})
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("want NotFound for an invisible account, got %v", err)
 	}
 }
 

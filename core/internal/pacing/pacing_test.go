@@ -3,6 +3,7 @@ package pacing
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -62,9 +63,13 @@ func TestProviderBackoffIsShared(t *testing.T) {
 	}
 }
 
-// A degraded provider fails fast, and the busy answer carries a position:
-// the number of parked peers the caller would be queued behind (§6.5).
-func TestDegradedBusyAnswerCarriesPosition(t *testing.T) {
+// A degraded provider fails fast — and the busy answer carries no position
+// hint. In v1 there is no queue behind the refusal, so a rank would be
+// fiction (PLAN.md §11: "a refusal never carries a queue position"; the
+// future admission mode reports position as tracked job state instead).
+// The message must be the plain sentinel: any suffix like "(position N)" is
+// a regression, wherever that text would surface — logs or an RPC status.
+func TestDegradedBusyAnswerCarriesNoPosition(t *testing.T) {
 	g := NewGovernor(1e9, time.Minute, time.Minute, nil)
 	g.NoteError()
 	err := Gate(context.Background(), NewLimiter(Budget{}, nil), g, Budget{MaxRetries: 0}, func(context.Context) error {
@@ -73,38 +78,15 @@ func TestDegradedBusyAnswerCarriesPosition(t *testing.T) {
 	if !errors.Is(err, ErrDegraded) {
 		t.Fatalf("err = %v, want ErrDegraded", err)
 	}
-	if got := Position(err); got != 0 {
-		t.Fatalf("quiet governor position = %d, want 0", got)
+	var be *BusyError
+	if !errors.As(err, &be) {
+		t.Fatalf("err = %T %v, want a pacing BusyError", err, err)
 	}
-
-	// One caller parked in the rate gate, then a second caller fails on the
-	// shared backoff and reports the parked peer as its position.
-	g2 := NewGovernor(1e-9, time.Minute, time.Minute, nil) // ~31 years: every second caller parks
-	_ = g2.Allow(context.Background())                     // first call owns the slot
-	parked := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() {
-		close(parked)
-		_ = g2.Allow(ctx)
-	}()
-	<-parked
-	for { // wait until the waiter has actually registered
-		g2.mu.Lock()
-		n := g2.waiters
-		g2.mu.Unlock()
-		if n == 1 {
-			break
-		}
-		time.Sleep(time.Millisecond)
+	if strings.Contains(err.Error(), "position") {
+		t.Fatalf("busy answer leaks a position hint: %q", err.Error())
 	}
-	g2.NoteError()
-	err2 := g2.Allow(context.Background())
-	if !errors.Is(err2, ErrDegraded) {
-		t.Fatalf("err2 = %v, want ErrDegraded", err2)
-	}
-	if got := Position(err2); got != 1 {
-		t.Fatalf("position = %d, want 1 (the parked peer)", got)
+	if err.Error() != ErrDegraded.Error() {
+		t.Fatalf("busy answer text = %q, want the plain sentinel %q", err.Error(), ErrDegraded.Error())
 	}
 }
 

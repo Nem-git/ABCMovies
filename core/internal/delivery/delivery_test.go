@@ -57,11 +57,14 @@ func wholeMuxSource() *corev1.MediaSource {
 	}
 }
 
-// recordingSink records deliveries and finalize/abort calls.
+// recordingSink records deliveries and finalize/abort calls. finalizeErr, when
+// set, is what Finalize returns — the way a sink reports a real failure (an
+// unwritable file, a full disk) instead of a clean close.
 type recordingSink struct {
-	delivered []string
-	finalized bool
-	aborted   bool
+	delivered   []string
+	finalized   bool
+	aborted     bool
+	finalizeErr error
 }
 
 func (r *recordingSink) Deliver(ctx context.Context, s *Session, track *corev1.Track, body io.Reader) (int64, error) {
@@ -71,7 +74,7 @@ func (r *recordingSink) Deliver(ctx context.Context, s *Session, track *corev1.T
 
 func (r *recordingSink) Finalize(ctx context.Context, s *Session) error {
 	r.finalized = true
-	return nil
+	return r.finalizeErr
 }
 func (r *recordingSink) Abort(ctx context.Context, s *Session) { r.aborted = true }
 
@@ -253,7 +256,7 @@ func TestHeartbeatBoundaries(t *testing.T) {
 	if err := e.Heartbeat(s.ID, "u"); err != nil {
 		t.Fatalf("Heartbeat active: %v", err)
 	}
-	if err := e.Complete(s.ID); err != nil {
+	if err := e.Complete(context.Background(), s.ID); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 	if err := e.Heartbeat(s.ID, "u"); err == nil {
@@ -264,6 +267,87 @@ func TestHeartbeatBoundaries(t *testing.T) {
 	}
 	if err := e.Heartbeat(s.ID, "intruder"); err == nil {
 		t.Errorf("heartbeat as a different member should fail")
+	}
+}
+
+// A sink that refuses to finalize did not complete. The session must be
+// recorded as FAILED carrying the sink's own error — never announced DONE —
+// so a download that would not close is not reported as a finished download
+// (PLAN.md §9.1: a job's status is its record of what actually happened).
+// Complete also takes the caller's context, so a hung finalize is bounded by
+// it rather than pinning the session forever.
+func TestCompleteRecordsFailedWhenFinalizeFails(t *testing.T) {
+	var recorded []*corev1.Job
+	e, res, fac := newTestEngine(Options{
+		SessionTTL: 24 * time.Hour,
+		Now:        time.Now,
+		RecordJob:  func(j *corev1.Job) { recorded = append(recorded, j) },
+	})
+	res.source = wholeMuxSource()
+	defer e.Close()
+
+	s, err := e.Start(context.Background(), StartRequest{
+		Goal: GoalDownload, MemberUserID: "u",
+		Provider: "jellyfin", AccountID: "a", Sink: "disk",
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	fac.sinks[s.ID].finalizeErr = errors.New("write to disk failed")
+
+	if err := e.Complete(context.Background(), s.ID); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	if s.Status != StatusFailed {
+		t.Fatalf("session status = %q, want %q", s.Status, StatusFailed)
+	}
+	if s.Error != "write to disk failed" {
+		t.Fatalf("session error = %q, want the sink's error", s.Error)
+	}
+
+	// The recorded job is the system of record: it must agree, so an
+	// operator or client reading the job never sees DONE for a failed write.
+	last := recorded[len(recorded)-1]
+	if last.GetStatus() != corev1.JobStatus_JOB_STATUS_FAILED {
+		t.Fatalf("recorded job status = %v, want FAILED", last.GetStatus())
+	}
+	if last.GetError() != "write to disk failed" {
+		t.Fatalf("recorded job error = %q, want the sink's error", last.GetError())
+	}
+}
+
+// The successful path still records DONE: the failed-finalize rule must not
+// over-correct into reporting clean completions as failures.
+func TestCompleteRecordsDoneWhenFinalizeSucceeds(t *testing.T) {
+	var recorded []*corev1.Job
+	e, res, _ := newTestEngine(Options{
+		SessionTTL: 24 * time.Hour,
+		Now:        time.Now,
+		RecordJob:  func(j *corev1.Job) { recorded = append(recorded, j) },
+	})
+	res.source = wholeMuxSource()
+	defer e.Close()
+
+	s, err := e.Start(context.Background(), StartRequest{
+		Goal: GoalDownload, MemberUserID: "u",
+		Provider: "jellyfin", AccountID: "a", Sink: "disk",
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if err := e.Complete(context.Background(), s.ID); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if s.Status != StatusDone {
+		t.Fatalf("session status = %q, want %q", s.Status, StatusDone)
+	}
+	last := recorded[len(recorded)-1]
+	if last.GetStatus() != corev1.JobStatus_JOB_STATUS_DONE {
+		t.Fatalf("recorded job status = %v, want DONE", last.GetStatus())
+	}
+	if last.GetError() != "" {
+		t.Fatalf("recorded job error = %q, want empty on success", last.GetError())
 	}
 }
 

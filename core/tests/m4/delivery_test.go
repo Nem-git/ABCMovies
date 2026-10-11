@@ -141,7 +141,7 @@ func buildServer(resolver delivery.Resolver, sinks delivery.SinkFactory) (*apise
 		RecordJob:      func(*corev1.Job) {},
 	})
 	bus := apiserver.NewInMemoryBus()
-	srv := apiserver.NewServer(bus, config.Stores{Jobs: store.NewInMemory()}, nil, nil)
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: config.Stores{Jobs: store.NewInMemory()}})
 	srv.SetDelivery(engineManager{eng: eng})
 	srv.SetLibrary(trivialLibrary{})
 	return srv, eng
@@ -229,7 +229,7 @@ func TestM4RemuxDownloadToDiskEndToEnd(t *testing.T) {
 			t.Fatalf("Deliver %s: %v", tr.GetId(), err)
 		}
 	}
-	if err := eng.Complete(sess.ID); err != nil {
+	if err := eng.Complete(context.Background(), sess.ID); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 
@@ -299,7 +299,7 @@ func TestM4PassthroughPlayToDeviceEndToEnd(t *testing.T) {
 		if !ok {
 			t.Fatalf("no relay ticket staged for %s", tr.GetId())
 		}
-		res, err := relay.Open(tok)
+		res, err := relay.Open(context.Background(), tok)
 		if err != nil {
 			t.Fatalf("relay.Open %s: %v", tr.GetId(), err)
 		}
@@ -310,12 +310,12 @@ func TestM4PassthroughPlayToDeviceEndToEnd(t *testing.T) {
 		}
 	}
 
-	if err := eng.Complete(sess.ID); err != nil {
+	if err := eng.Complete(context.Background(), sess.ID); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 	// After finalize the session's relay tickets are revoked.
 	v1tok, _ := device.RelayToken("v1")
-	if res, err := relay.Open(v1tok); err == nil {
+	if res, err := relay.Open(context.Background(), v1tok); err == nil {
 		_ = res.Body.Close()
 		t.Error("relay still served a ticket after the session finalized")
 	}

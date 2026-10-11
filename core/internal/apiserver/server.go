@@ -62,6 +62,15 @@ type DeliveryManager interface {
 	ApplyAccountCap(ctx context.Context, provider, accountID string, enforceNow bool) (int, error)
 }
 
+// jobKeyPrefix is the jobs keyspace: every job is stored under
+// jobKeyPrefix + job id, mirroring the provider:item scoped-key convention
+// used elsewhere (PLAN.md §5.3). One definition, so a keyspace change is one
+// edit and not a hunt.
+const jobKeyPrefix = "job:"
+
+// jobKey returns the jobs-store key for one job id.
+func jobKey(id string) string { return jobKeyPrefix + id }
+
 // Server implements the CoreService (PLAN.md §8).
 type Server struct {
 	apiv1.UnimplementedCoreServiceServer
@@ -106,45 +115,64 @@ type LiveSearcher interface {
 	Run(ctx context.Context, req *apiv1.LiveSearchRequest) (*apiv1.LiveSearchResponse, error)
 }
 
-// SetCapChangeDefault arms the instance-wide default for what lowering an
-// account's concurrent-stream cap does to running sessions (PLAN.md §7.2).
-// An empty value is deliberately accepted and means "new-sessions-only":
-// the shipped default never kills a running session.
-func (s *Server) SetCapChangeDefault(p accounts.CapChangePolicy) {
-	if p == accounts.CapChangePolicyDefault {
-		s.capChangeDefault = accounts.CapChangePolicyNewSessionsOnly
-		return
-	}
-	s.capChangeDefault = p
+// Settings is everything known at construction time (PLAN.md §8). The
+// composition root fills this in; the arming seams that depend on built
+// slots — delivery, library, the probers, live search, the attacher/dropper —
+// stay methods, because they can only be armed once BuildSlots has produced
+// them (see armDelivery).
+type Settings struct {
+	// Bus publishes events; required.
+	Bus Bus
+	// Stores is the persistence set; required (the accounts store is derived
+	// from its vault).
+	Stores config.Stores
+	// Authenticator validates credentials; nil means no login surface.
+	Authenticator *auth.CompositeAuthenticator
+	// Session validates and mints API tokens; nil means auth is unarmed.
+	Session auth.Session
+	// CapChangeDefault is the instance-wide default for what lowering an
+	// account's concurrent-stream cap does to running sessions (PLAN.md
+	// §7.2); zero means new-sessions-only.
+	CapChangeDefault accounts.CapChangePolicy
+	// UserDirectory answers whether a user id names a real account, so a
+	// share listed for someone who does not exist is refused rather than
+	// silently granted to nobody; nil skips the check.
+	UserDirectory UserDirectory
 }
 
-// NewServer returns a CoreService backed by the given bus, stores, and auth.
-// An optional DeliveryManager may be supplied; when absent the delivery RPCs
-// return Unavailable.
-func NewServer(bus Bus, stores config.Stores, authenticator *auth.CompositeAuthenticator, session auth.Session, dm ...DeliveryManager) *Server {
-	var d DeliveryManager
-	if len(dm) > 0 {
-		d = dm[0]
-	}
+// NewServer returns a CoreService built from st. A DeliveryManager is not
+// part of Settings: it is armed post-construction by SetDelivery, once the
+// composition root has built the engine (and, with it, the slots).
+func NewServer(st Settings) *Server {
 	return &Server{
-		bus:      bus,
-		stores:   stores,
-		auth:     authenticator,
-		session:  session,
-		delivery: d,
+		bus:     st.Bus,
+		stores:  st.Stores,
+		auth:    st.Authenticator,
+		session: st.Session,
 		// The accounts store is owned here, over the same vault the wiring's
 		// session-vault recovery reads, so a link made through the API is
 		// picked up by slot provisioning exactly as an operator-configured
 		// account would be (PLAN.md §3.5).
-		accounts: accounts.NewStore(stores.Vault, nil),
-		probers:  map[string]CredentialProber{},
+		accounts:      accounts.NewStore(st.Stores.Vault, nil),
+		probers:       map[string]CredentialProber{},
+		userDirectory: st.UserDirectory,
 		// The shipped default never kills a running session: a cap change
 		// applies from the next session (TECHNICAL-DECISIONS.md).
-		capChangeDefault: accounts.CapChangePolicyNewSessionsOnly,
+		capChangeDefault: capChangeOrDefault(st.CapChangeDefault),
 		// A server built without the composition root still publishes the
 		// shipped liveness cadence; composition overrides it from config.
 		heartbeatInterval: defaultHeartbeatInterval(),
 	}
+}
+
+// capChangeOrDefault normalizes the instance cap-change default: the empty
+// value is deliberately accepted and means "new-sessions-only" — the shipped
+// default never kills a running session.
+func capChangeOrDefault(p accounts.CapChangePolicy) accounts.CapChangePolicy {
+	if p == accounts.CapChangePolicyDefault {
+		return accounts.CapChangePolicyNewSessionsOnly
+	}
+	return p
 }
 
 // SetAttacher arms the runtime link path (PLAN.md §5.1): when armed, a link
@@ -248,7 +276,7 @@ func (s *Server) GetJob(ctx context.Context, req *apiv1.GetJobRequest) (*apiv1.G
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 	uid, _ := UserIDFromContext(ctx)
-	raw, err := s.stores.Jobs.Get(ctx, "job:"+req.GetJobId())
+	raw, err := s.stores.Jobs.Get(ctx, jobKey(req.GetJobId()))
 	if err == store.ErrKeyNotFound {
 		return nil, status.Error(codes.NotFound, "job not found")
 	}
@@ -349,7 +377,7 @@ func (s *Server) recordJob(ctx context.Context, job *corev1.Job) {
 	if err != nil {
 		return
 	}
-	_ = s.stores.Jobs.Put(ctx, "job:"+job.GetId(), raw)
+	_ = s.stores.Jobs.Put(ctx, jobKey(job.GetId()), raw)
 }
 
 // RecordJobStatus persists a delivery job's state and announces its
@@ -364,7 +392,7 @@ func RecordJobStatus(ctx context.Context, st store.Store, b Bus, job *corev1.Job
 	if err != nil {
 		return
 	}
-	_ = st.Put(ctx, "job:"+job.GetId(), raw)
+	_ = st.Put(ctx, jobKey(job.GetId()), raw)
 	b.Publish(&corev1.EventEnvelope{
 		Id:       fmt.Sprintf("evt-delivery-%s", job.GetId()),
 		Type:     corev1.EventType_EVENT_TYPE_JOB_STATUS,
@@ -391,7 +419,7 @@ func (s *Server) CreateJob(ctx context.Context, job *corev1.Job) error {
 	if err != nil {
 		return fmt.Errorf("marshal job: %w", err)
 	}
-	if err := s.stores.Jobs.Put(ctx, "job:"+job.GetId(), raw); err != nil {
+	if err := s.stores.Jobs.Put(ctx, jobKey(job.GetId()), raw); err != nil {
 		return err
 	}
 	// Publish job-status event (PLAN.md §9.2, M0 acceptance).

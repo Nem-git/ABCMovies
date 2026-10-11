@@ -88,7 +88,12 @@ func Build(configPath string, logger *slog.Logger) (*Stack, error) {
 		_ = closeStores(stores)
 		return nil, fmt.Errorf("auth: %w", err)
 	}
-	session := config.BuildSession(tokens, deks, config.ParseTokenTTL(cfg.Auth.TokenTTL))
+	tokenTTL, err := config.ParseTokenTTL(cfg.Auth.TokenTTL)
+	if err != nil {
+		_ = closeStores(stores)
+		return nil, err
+	}
+	session := config.BuildSession(tokens, deks, tokenTTL)
 
 	r := registry.NewInProcess()
 	if _, err := r.Admit("builtin", builtin.New()); err != nil {
@@ -98,11 +103,6 @@ func Build(configPath string, logger *slog.Logger) (*Stack, error) {
 	}
 
 	bus := apiserver.NewInMemoryBus()
-	srv := apiserver.NewServer(bus, stores, composite, session)
-	// The accounts RPCs validate named members against this: a share listed
-	// for someone who does not exist is refused, not silently granted to
-	// nobody.
-	srv.SetUserDirectory(apiserver.NewUserDirectory(users))
 	// The instance-wide default for what lowering a cap does to running
 	// sessions; an account with no choice of its own inherits it.
 	capDefault, err := config.ParseCapChangeDefault(cfg.Delivery.OnCapChange)
@@ -111,7 +111,17 @@ func Build(configPath string, logger *slog.Logger) (*Stack, error) {
 		_ = closeStores(stores)
 		return nil, err
 	}
-	srv.SetCapChangeDefault(capDefault)
+	// The accounts RPCs validate named members against the directory: a
+	// share listed for someone who does not exist is refused, not silently
+	// granted to nobody.
+	srv := apiserver.NewServer(apiserver.Settings{
+		Bus:              bus,
+		Stores:           stores,
+		Authenticator:    composite,
+		Session:          session,
+		CapChangeDefault: capDefault,
+		UserDirectory:    apiserver.NewUserDirectory(users),
+	})
 
 	return &Stack{
 		service:         srv,
@@ -162,7 +172,14 @@ func (s *Stack) AuthInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServ
 // not been called (a bare core). See BuildSlots.
 func (s *Stack) Slots() *SlotRuntime { return s.slots }
 
-// Relay returns the composed media relay for serving /media/relay/ pulls
+// RelayPrefix is the stable URL prefix under which RelayHandler serves staged
+// delivery pulls (PLAN.md §3.6). It is re-exported from the delivery package
+// (the single definition) because embedders cannot import core/internal: the
+// serving layer mounts the handler here and stamps play-menu URLs with the
+// same value.
+const RelayPrefix = delivery.RelayPrefix
+
+// Relay returns the composed media relay for serving RelayPrefix pulls
 // (PLAN.md §3.6), or nil before BuildSlots. Only the built-in device sink
 // grants tickets into it, and only its delivery sessions.
 func (s *Stack) Relay() *delivery.Relay {
@@ -173,7 +190,7 @@ func (s *Stack) Relay() *delivery.Relay {
 }
 
 // RelayHandler returns an HTTP handler serving staged delivery pulls under
-// /media/relay/ (PLAN.md §3.6), or nil before BuildSlots. It gives an
+// RelayPrefix (PLAN.md §3.6), or nil before BuildSlots. It gives an
 // embedder an HTTP transport without reaching into core internals: the
 // handler is unauthenticated beyond the relay token itself — the token is
 // minted per session per track by the engine and dies with the session,
