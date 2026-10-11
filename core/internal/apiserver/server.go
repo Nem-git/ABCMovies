@@ -268,9 +268,10 @@ func (s *Server) LiveSearch(ctx context.Context, req *apiv1.LiveSearchRequest) (
 func (s *Server) Delivery() DeliveryManager { return s.delivery }
 
 // GetJob returns a job's current state from the jobs store (PLAN.md §9.1).
-// The job is visible only to its owner: the caller presenting a delivery job
-// that belongs to another member gets PermissionDenied, the same boundary the
-// play menu applies (§2.2 member-scoping).
+// The job is visible only to its owner: a delivery job that belongs to
+// another member answers NotFound, indistinguishable from one that does not
+// exist — the same boundary the play menu applies (§2.2 member-scoping,
+// PLAN.md §8.1).
 func (s *Server) GetJob(ctx context.Context, req *apiv1.GetJobRequest) (*apiv1.GetJobResponse, error) {
 	if err := schema.ValidateGetJobRequest(req); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -288,8 +289,11 @@ func (s *Server) GetJob(ctx context.Context, req *apiv1.GetJobRequest) (*apiv1.G
 		return nil, status.Error(codes.Internal, "corrupted job data")
 	}
 	// Jobs without an owner belong to no one; a delivery job always carries one.
+	// A job outside the caller's ownership answers exactly as one that does not
+	// exist — unknown and unreachable are indistinguishable, so job ids cannot
+	// be probed (PLAN.md §8.1, §2.2).
 	if owner := job.GetOwnerUserId(); owner != "" && owner != uid {
-		return nil, status.Error(codes.PermissionDenied, "job belongs to another user")
+		return nil, status.Error(codes.NotFound, "job not found")
 	}
 	return &apiv1.GetJobResponse{Job: &job}, nil
 }
@@ -312,13 +316,15 @@ func (s *Server) StartDelivery(ctx context.Context, req *apiv1.StartDeliveryRequ
 	// the quota and policy keys this delivery is counted against attach to
 	// that identity (§2.2). Account reachability is verified next: an
 	// authenticated user may only start a delivery through an account they
-	// may derive a library from.
+	// may derive a library from. The refusal answers alike for an unknown and
+	// an unreachable account: the id never confirms what exists beyond the
+	// caller's reach (PLAN.md §8.1, §2.2).
 	uid, _ := UserIDFromContext(ctx)
 	if s.library == nil {
 		return nil, status.Error(codes.Unavailable, "library engine not configured")
 	}
 	if _, ok := s.library.ReachAuthorized(req.GetAccountId(), uid); !ok {
-		return nil, status.Error(codes.PermissionDenied, "account not reachable by the caller")
+		return nil, status.Error(codes.NotFound, "account not found")
 	}
 	sess, err := s.delivery.Start(ctx, delivery.StartRequest{
 		Goal:           goal,

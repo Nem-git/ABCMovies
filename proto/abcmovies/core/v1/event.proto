@@ -75,6 +75,10 @@ message MergeConflictEvent {
 
 // ProviderSwitchedEvent reports a static-play failover to another provider
 // carrying the title; the switch is never silent (PLAN.md §6.5).
+//
+// Interim declaration: this type and its fields ship with the static-play
+// failover feature that emits them (PLAN.md §6.5). They are not dead code
+// and must not be removed as cleanup before that feature lands.
 message ProviderSwitchedEvent {
   // The provider the session came from.
   string from_provider = 1;

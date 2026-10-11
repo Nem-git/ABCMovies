@@ -416,7 +416,9 @@ func (e *Engine) Heartbeat(id string, memberUserID string) error {
 		return errNotFound("session %q not found", id)
 	}
 	if s.Context.GetMemberUserId() != memberUserID {
-		return &deliveryError{code: codeDenied, msg: "session does not belong to this caller"}
+		// The refusal is the same answer as an unknown id: session ids cannot
+		// be probed for existence (PLAN.md §8.1, §2.2).
+		return errNotFound("session %q not found", id)
 	}
 	if !s.isActive() {
 		return errInvalid("session %q is %s and cannot heartbeat", id, s.Status)
@@ -801,15 +803,16 @@ type deliveryError struct {
 
 func (e *deliveryError) Error() string { return e.msg }
 
-// codeInvalid, codeNotFound, codeQuota, and codeDenied are the gRPC status
-// codes delivery errors carry. They are named constants from the canonical
-// set rather than bare integers, so a reader — and the apiserver, which
-// re-raises them verbatim — sees the same vocabulary everywhere.
+// codeInvalid, codeNotFound, and codeQuota are the gRPC status codes delivery
+// errors carry. They are named constants from the canonical set rather than
+// bare integers, so a reader — and the apiserver, which re-raises them
+// verbatim — sees the same vocabulary everywhere. Delivery never answers
+// PermissionDenied: a refusal outside the caller's reach is NotFound
+// (PLAN.md §8.1).
 const (
 	codeInvalid  = codes.InvalidArgument
 	codeNotFound = codes.NotFound
 	codeQuota    = codes.ResourceExhausted
-	codeDenied   = codes.PermissionDenied
 )
 
 func errInvalid(format string, a ...any) error {

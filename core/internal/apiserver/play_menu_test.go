@@ -83,8 +83,9 @@ func TestGetPlayInfo_MemberScoped(t *testing.T) {
 	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
 	srv.SetDelivery(dm)
 
-	// The menu belongs to the member; a different user must not recover it.
-	if _, err := srv.GetPlayInfo(ctxAs(session, "user-2"), &apiv1.GetPlayInfoRequest{SessionId: "del-1"}); status.Code(err) != codes.PermissionDenied {
-		t.Fatalf("cross-user read code = %v, want PermissionDenied", status.Code(err))
+	// The menu belongs to the member; a different user must not recover it —
+	// and gets the same NotFound as a missing menu (PLAN.md §8.1).
+	if _, err := srv.GetPlayInfo(ctxAs(session, "user-2"), &apiv1.GetPlayInfoRequest{SessionId: "del-1"}); status.Code(err) != codes.NotFound {
+		t.Fatalf("cross-user read code = %v, want NotFound", status.Code(err))
 	}
 }

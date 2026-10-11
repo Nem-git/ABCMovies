@@ -59,8 +59,10 @@ func (s *Server) RefreshAvailability(ctx context.Context, req *apiv1.RefreshAvai
 		return nil, status.Error(codes.Unavailable, "library engine not configured")
 	}
 	uid, _ := UserIDFromContext(ctx)
+	// The refusal answers alike for an unknown and an unreachable account: the
+	// id never confirms what exists beyond the caller's reach (PLAN.md §8.1).
 	if _, ok := s.library.ReachAuthorized(req.GetAccountId(), uid); !ok {
-		return nil, status.Error(codes.PermissionDenied, "account not reachable by this caller")
+		return nil, status.Error(codes.NotFound, "account not found")
 	}
 	stats, err := s.library.RefreshAvailability(ctx, req.GetAccountId(), req.GetNativeIds())
 	if err != nil {

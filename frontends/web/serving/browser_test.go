@@ -138,6 +138,8 @@ func TestWebBrowser_AccountsLibraryPlay(t *testing.T) {
 
 	// An account linked over the wire lands in the list for its owner and is
 	// removable again (PLAN.md §7.5).
+	// LinkAccountRequest.Visibility has proto3 explicit presence (optional).
+	vis := apiv1.AccountVisibility_ACCOUNT_VISIBILITY_PRIVATE
 	linkRes, err := authed.LinkAccount(ctx, connect.NewRequest(&apiv1.LinkAccountRequest{
 		Provider: "jellyfin",
 		BaseUrl:  fake.URL(),
@@ -147,7 +149,7 @@ func TestWebBrowser_AccountsLibraryPlay(t *testing.T) {
 				Password: []byte("linked-password"),
 			},
 		},
-		Visibility: apiv1.AccountVisibility_ACCOUNT_VISIBILITY_PRIVATE,
+		Visibility: &vis,
 	}))
 	if err != nil {
 		t.Fatalf("LinkAccount over gRPC-Web: %v", err)

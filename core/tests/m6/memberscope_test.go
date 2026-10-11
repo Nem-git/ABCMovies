@@ -103,12 +103,20 @@ func TestM6StartDeliveryAttributesTokenUser(t *testing.T) {
 
 func TestM6StartDeliveryRejectsUnreachableAccount(t *testing.T) {
 	srv, _, _ := newMemberscopeServer()
+	// An unreachable account answers exactly as an unknown one — the refusal
+	// never confirms what exists beyond the caller's reach (PLAN.md §8.1).
 	_, err := srv.StartDelivery(apiserver.WithUserID(context.Background(), "u1"), &apiv1.StartDeliveryRequest{
 		Goal: apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY, Provider: "jellyfin", AccountId: "acc2",
 		NativeId: "item1", Sink: "device",
 	})
-	if status.Code(err) != codes.PermissionDenied {
-		t.Fatalf("account belonging to another member: got %v, want PermissionDenied", status.Code(err))
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("account belonging to another member: got %v, want NotFound", status.Code(err))
+	}
+	if _, err := srv.StartDelivery(apiserver.WithUserID(context.Background(), "u1"), &apiv1.StartDeliveryRequest{
+		Goal: apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY, Provider: "jellyfin", AccountId: "nope",
+		NativeId: "item1", Sink: "device",
+	}); status.Code(err) != codes.NotFound {
+		t.Fatalf("unknown account: got %v, want NotFound", status.Code(err))
 	}
 }
 
@@ -119,8 +127,10 @@ func TestM6GetJobRejectsNonOwner(t *testing.T) {
 		t.Fatalf("CreateJob: %v", err)
 	}
 	_, err := srv.GetJob(apiserver.WithUserID(context.Background(), "u2"), &apiv1.GetJobRequest{JobId: "job-1"})
-	if status.Code(err) != codes.PermissionDenied {
-		t.Fatalf("GetJob by non-owner: got %v, want PermissionDenied", status.Code(err))
+	// A foreign job answers exactly as an unknown one — job ids cannot be
+	// probed (PLAN.md §8.1).
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("GetJob by non-owner: got %v, want NotFound", status.Code(err))
 	}
 }
 
@@ -141,8 +151,10 @@ func TestM6HeartbeatRejectsNonMember(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	if err := eng.Heartbeat(sess.ID, "u2"); delivery.Code(err) != 7 {
-		t.Fatalf("non-member heartbeat err = %v (code %v), want permission denied", err, delivery.Code(err))
+	// The refusal is the same answer as an unknown id — session ids cannot be
+	// probed for existence (PLAN.md §8.1).
+	if err := eng.Heartbeat(sess.ID, "u2"); codes.Code(delivery.Code(err)) != codes.NotFound {
+		t.Fatalf("non-member heartbeat err = %v (code %v), want NotFound", err, delivery.Code(err))
 	}
 }
 

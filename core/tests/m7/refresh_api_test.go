@@ -22,7 +22,10 @@ type reachableLibrary struct {
 }
 
 func (r *reachableLibrary) ReachAuthorized(accountID, userID string) (library.Reach, bool) {
-	if accountID == "locked" {
+	// Mirrors the production gate: only a registered account resolves, and it
+	// must be one the caller may reach — unregistered and unreachable answer
+	// alike (library.Service.ReachAuthorized, PLAN.md §8.1).
+	if accountID != "acct" {
 		return library.Reach{}, false
 	}
 	return library.Reach{AccountID: accountID, Visibility: accounts.VisibilityPublic}, true
@@ -64,9 +67,16 @@ func TestRefreshAvailabilityValidatesArgs(t *testing.T) {
 
 func TestRefreshAvailabilityReachGate(t *testing.T) {
 	srv := newRefreshServer(t)
+	// An unreachable account answers exactly as an unknown one — the refusal
+	// never confirms what exists beyond the caller's reach (PLAN.md §8.1).
 	if _, err := srv.RefreshAvailability(context.Background(), &apiv1.RefreshAvailabilityRequest{
 		AccountId: "locked", NativeIds: []string{"x"},
-	}); status.Code(err) != codes.PermissionDenied {
-		t.Fatalf("locked account = %v, want PermissionDenied", err)
+	}); status.Code(err) != codes.NotFound {
+		t.Fatalf("locked account = %v, want NotFound", err)
+	}
+	if _, err := srv.RefreshAvailability(context.Background(), &apiv1.RefreshAvailabilityRequest{
+		AccountId: "nope", NativeIds: []string{"x"},
+	}); status.Code(err) != codes.NotFound {
+		t.Fatalf("unknown account = %v, want NotFound", err)
 	}
 }

@@ -261,17 +261,26 @@ message LinkAccountRequest {
     AccountPassword password = 3;
   }
 
-  // How the linked account is shared (PLAN.md §5.1). Private by default: the
-  // account feeds only its owner's library until they choose otherwise.
-  AccountVisibility visibility = 4;
+  // How the linked account is shared (PLAN.md §5.1). Presence matters:
+  // absent leaves visibility unchanged — a re-link keeps the account's
+  // current sharing, a first link defaults to PRIVATE (the account feeds
+  // only its owner's library). Explicitly present must carry a known
+  // value; UNSPECIFIED present is InvalidArgument.
+  optional AccountVisibility visibility = 4;
 
-  // The host users this account is shared with. Required when visibility is
-  // SHARED, ignored otherwise.
+  // The host users this account is shared with (PLAN.md §5.1). A repeated
+  // field has no presence, so it travels wholesale with visibility: a
+  // present visibility replaces the member list (possibly empty), an
+  // absent visibility ignores this list — a half-specified sharing change
+  // cannot be expressed, the same discipline as UpdateAccountRequest's
+  // AccountSharing.
   repeated string shared_with = 5;
 
   // The owner's cap on concurrent streams from this account (PLAN.md §3.9).
-  // Zero means unlimited. The delivery engine enforces it.
-  uint32 max_concurrent_streams = 6;
+  // Absent means unchanged (re-link); present with zero means unlimited.
+  // Mirrors UpdateAccountRequest.max_concurrent_streams. The delivery
+  // engine enforces it.
+  optional uint32 max_concurrent_streams = 6;
 }
 
 // Password credentials for a linked account. The core authenticates against

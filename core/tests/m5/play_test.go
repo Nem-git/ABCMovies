@@ -199,9 +199,11 @@ func TestM5PlayInfoCrossUserDenied(t *testing.T) {
 		t.Fatalf("StartDelivery: %v", err)
 	}
 
+	// Another member's session answers as a clean miss — indistinguishable
+	// from an unknown id (PLAN.md §8.1).
 	_, err = client.GetPlayInfo(authedCtx(t.Context(), stack.bobToken), &apiv1.GetPlayInfoRequest{SessionId: play.GetJob().GetId()})
-	if status.Code(err) != codes.PermissionDenied {
-		t.Fatalf("bob GetPlayInfo on alice's session: got %v, want PermissionDenied", status.Code(err))
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("bob GetPlayInfo on alice's session: got %v, want NotFound", status.Code(err))
 	}
 }
 

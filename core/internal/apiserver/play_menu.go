@@ -62,8 +62,10 @@ func (s *Server) GetPlayInfo(ctx context.Context, req *apiv1.GetPlayInfoRequest)
 		return nil, status.Error(codes.Code(delivery.Code(err)), err.Error())
 	}
 	uid, _ := UserIDFromContext(ctx)
+	// Another member's menu answers exactly as a missing one, so play-menu
+	// ids cannot be probed (PLAN.md §8.1, §2.2).
 	if menu.MemberUserID != "" && menu.MemberUserID != uid {
-		return nil, status.Error(codes.PermissionDenied, "play menu belongs to another user")
+		return nil, status.Error(codes.NotFound, "play menu not found")
 	}
 	tracks := make([]*apiv1.PlayTrack, 0, len(menu.Tracks))
 	for _, t := range menu.Tracks {

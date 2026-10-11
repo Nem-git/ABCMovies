@@ -93,13 +93,15 @@ slots:
 	}
 
 	ctx := apiserver.WithUserID(context.Background(), "u1")
+	// LinkAccountRequest.Visibility has proto3 explicit presence (optional).
+	vis := apiv1.AccountVisibility_ACCOUNT_VISIBILITY_PRIVATE
 	linkRes, err := srv.LinkAccount(ctx, &apiv1.LinkAccountRequest{
 		Provider: "jellyfin",
 		BaseUrl:  fake.URL(),
 		AuthMethod: &apiv1.LinkAccountRequest_Password{
 			Password: &apiv1.AccountPassword{Username: "u1link", Password: []byte("pw")},
 		},
-		Visibility: apiv1.AccountVisibility_ACCOUNT_VISIBILITY_PRIVATE,
+		Visibility: &vis,
 	})
 	if err != nil {
 		t.Fatalf("LinkAccount: %v", err)

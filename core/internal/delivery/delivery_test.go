@@ -256,17 +256,24 @@ func TestHeartbeatBoundaries(t *testing.T) {
 	if err := e.Heartbeat(s.ID, "u"); err != nil {
 		t.Fatalf("Heartbeat active: %v", err)
 	}
+	// Unknown and foreign must answer alike — session ids cannot be probed
+	// for existence (PLAN.md §8.1).
+	unknownErr := e.Heartbeat("nope", "u")
+	if unknownErr == nil {
+		t.Errorf("heartbeat on unknown session should fail")
+	} else if Code(unknownErr) != int32(codeNotFound) {
+		t.Errorf("unknown session code = %v, want NotFound", Code(unknownErr))
+	}
+	if err := e.Heartbeat(s.ID, "intruder"); err == nil {
+		t.Errorf("heartbeat as a different member should fail")
+	} else if Code(err) != Code(unknownErr) {
+		t.Errorf("intruder heartbeat code = %v, want the same answer as an unknown id (%v)", Code(err), Code(unknownErr))
+	}
 	if err := e.Complete(context.Background(), s.ID); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 	if err := e.Heartbeat(s.ID, "u"); err == nil {
 		t.Errorf("heartbeat on completed session should fail")
-	}
-	if err := e.Heartbeat("nope", "u"); err == nil {
-		t.Errorf("heartbeat on unknown session should fail")
-	}
-	if err := e.Heartbeat(s.ID, "intruder"); err == nil {
-		t.Errorf("heartbeat as a different member should fail")
 	}
 }
 

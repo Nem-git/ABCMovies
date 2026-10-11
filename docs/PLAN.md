@@ -161,7 +161,7 @@ One rule for all messages: **additive changes (new fields) never bump a version;
 
 A slot **declares only versions it has passed the fixture suite for** (§2.5) — declaration and verified behavior must agree. Wire-additive is not behavior-compatible: a change that is additive in the wire format but alters behavior in practice (a field whose presence changes meaning for consumers that read it) is still breaking and needs a new version. A consumer that ignores the new field has not implemented the new version and must declare the version it actually implements.
 
-**Pre-release exemption.** Until the first release ships, built-in slot contracts are exempt from the version-bump rule: their consumers are entirely in-repo and updated atomically in the same change, so breaking evolution without a new version is accepted for them. The exemption ends at first release; from then on the rule above applies without exception.
+**Pre-release exemption.** Until the first release ships, built-in contracts (slots and the core API) are exempt from the version-bump rule: their consumers are entirely in-repo and updated atomically in the same change, so breaking evolution without a new version is accepted for them. The exemption ends at first release; from then on the rule above applies without exception.
 
 ### 3.5 Account linking
 
@@ -184,7 +184,7 @@ Each provider adapter **declares which mechanisms it supports**; custody is a pe
 
 The common mechanisms above are a **closed common set**: browser-capture, scoped-token, per-request credential, cookie-paste, and password. Anything outside that set is carried as an **opaque, provider-defined auth method** — a structured descriptor published in the adapter's handshake — and only that adapter can interpret it; `link-account` carries a `method` discriminator so a generic frontend can render an appropriate input even for a method it has never seen. Unknown methods degrade gracefully: a generic frontend renders the descriptor's own affordances rather than a bespoke form.
 
-**Interactive login is not the core's job.** Captcha completion, email-code entry, and browser-based login are *frontend* responsibilities: the frontend runs the interactive flow and hands the resulting session material to the core through `link-account` / `update-account-session`. The core validates client-supplied sessions by probing the provider before vaulting them — it never vaults material it has not confirmed works. Some providers bind sessions to a **registered device** — a pairing flow that registers the instance as a device on the account; where the adapter declares this, **device-binding rules apply**: re-link implies re-registration of the device, and when the account's device binding is re-provisioned, the core emits `account-session-expired` for every session that was bound to the replaced device (§9.2). These flows are what a frontend runs. See §7.5.
+**Interactive login is not the core's job.** Captcha completion, email-code entry, and browser-based login are *frontend* responsibilities: the frontend runs the interactive flow and hands the resulting session material to the core through `link-account` — idempotent on the account's natural key (owner, provider, base URL, username), so re-submitting an existing link refreshes its session instead of creating a duplicate record (§7.5). The core validates client-supplied sessions by probing the provider before vaulting them — it never vaults material it has not confirmed works. Some providers bind sessions to a **registered device** — a pairing flow that registers the instance as a device on the account; where the adapter declares this, **device-binding rules apply**: re-link implies re-registration of the device, and when the account's device binding is re-provisioned, the core emits `account-session-expired` for every session that was bound to the replaced device (§9.2). These flows are what a frontend runs. See §7.5.
 
 ### 3.6 The byte-stream transport (sinks)
 
@@ -498,7 +498,7 @@ Two integration shapes exist, so the labels are defined here rather than assumed
 
 Sessions die: services expire them, log you out, or force re-login on new-device detection. For most streaming sites there is no refresh token — "refresh" means re-login, sometimes captcha or email code. Sessions have a **TTL**; when one dies, the engine requeues the owner ("your provider session expired — re-link"), a human step. No blind automated re-login.
 
-**Re-linking is client-driven.** The core's role is: emit an `account-session-expired` event, create a `re-auth` job with status `awaiting-action` (the job payload names the account owner as the only one who may act), and expose `link-account` / `update-account-session` for the *frontend* to submit new credential material (captured cookies, pasted tokens, scoped-token results). The interactive step — captcha, email codes, running a controlled browser — is implemented by the frontend; the core validates client-supplied sessions by probing before vaulting (§3.5).
+**Re-linking is client-driven.** The core's role is: emit an `account-session-expired` event, create a `re-auth` job with status `awaiting-action` (the job payload names the account owner as the only one who may act), and expose `link-account` for the *frontend* to submit new credential material (captured cookies, pasted tokens, scoped-token results) — idempotent on the account's natural key (owner, provider, base URL, username), so re-submitting the existing link refreshes its session instead of creating a second record. The interactive step — captcha, email codes, running a controlled browser — is implemented by the frontend; the core validates client-supplied sessions by probing before vaulting (§3.5).
 
 ### 7.6 Host-power minimization
 
@@ -521,6 +521,10 @@ Sessions die: services expire them, log you out, or force re-login on new-device
 ### 8.1 Frontends
 
 The core exposes a stable set of application services over an **inbound API server**. Frontends — web, API, CLI — are **clients** of that API: they reach in; the core never reaches out to them (§3.1).
+
+**Hosting is not control.** The web serving layer hosts the core; it does not control it. An embedder owns only its transport and assets — core lifecycle operations are explicit, never an implicit side effect of serving a request.
+
+**NotFound hides reach.** An RPC addressing a resource outside the caller's reach answers `NotFound`, exactly as it would for an id that does not exist: unknown and unreachable are indistinguishable on every surface — accounts, jobs, play menus, delivery entry points, sessions — so the API never confirms what exists beyond the caller's reach (§2.2). `PermissionDenied` is reserved for resources the caller legitimately already knows: visible to them but forbidden for this action, or operator-declared, and operations restricted to administrators.
 
 The core's contracts are schemas; frontends translate to their own external surfaces — a web frontend may serve its browser a different encoding even though the core speaks the contract wire format. The core thinks in sessions, jobs, and facts; interfaces adapt that to their nature.
 
@@ -611,7 +615,7 @@ Key decisions, pointing to where they are argued in the body:
 | Play sessions stay alive by heartbeat; downloads don't (fetch progress is the heartbeat) | §9.1 |
 | The built-in sink is the user's device; instance-local disk is a second v1 sink; sink deliverables are not caches | §6.4 |
 | Structured content metadata (TitleMetadata) replaces flat metadata_links; one record per title with external-ID-to-record lookup; per-field provenance from catalogues (preferred) and providers (fallback); no denormalized snapshot on LibraryEntry | §2.3, §2.4, §5.2 |
-| Until first release, built-in slot contracts may evolve breaking-ly without a version bump: consumers are entirely in-repo and updated atomically; the breaking-change gate stays off until then | §3.4 |
+| Until first release, built-in contracts (slots and the core API) may evolve breaking-ly without a version bump: consumers are entirely in-repo and updated atomically; the breaking-change gate stays off until then | §3.4 |
 | Catalogue items carry all their content metadata inside an embedded TitleMetadata; which of those fields count as matching evidence is decided by the matching engine, never by the schema | §3.4, §5.3 |
 | Pipelines are ordered **step-chains** (a DAG of transform stages), not a single kind; the engine records a session's chain at start, and a step v1 cannot run is **declined loudly and logged** (decrypt / transcode / record), never downgraded to passthrough | §6.3, §2.5 |
 | Slot sink config is a namespaced `options` map (disk `path` lives under `options`); the flat `Path`/`Retention` sink fields are removed | §6.4, config |
@@ -624,5 +628,6 @@ Key decisions, pointing to where they are argued in the body:
 | All sinks — including the default device sink — are declared explicitly in instance config; the device entry is trivial (`id: device`, `adapter: device`, `enabled: true`), mapping the per-slot-config model onto all v1 sinks uniformly | §6.4; TECHNICAL-DECISIONS §1.13 |
 | Lowering an account's stream cap is per-account and the owner's choice: the shipped default applies the new cap from the next session and never interrupts a running stream; the other option cuts the excess sessions immediately, oldest first | §7.2, §3.5 |
 | Busy answers are typed refusals and **never carry a queue position**: in v1 no admission queue exists, so a rank on an error would be fiction (and would advertise load to a flooder). The future admission mode — a recorded additive extension of StartDelivery — is where position and notify-on-start belong: tracked, queryable job state plus an admission event, never error decoration | §6.5, §7.2; TECHNICAL-DECISIONS §1.35 |
+| NotFound hides reach: an id outside the caller's reach answers NotFound exactly as an id that does not exist, on every surface — unknown and unreachable are indistinguishable; PermissionDenied only for resources the caller legitimately already knows (visible but forbidden, operator-declared, admin-only) | §8.1, §2.2; TECHNICAL-DECISIONS §1.36 |
 
 **Scope of this log.** This log records *product* decisions only. Implementation decisions (language, transport, tooling) are recorded in TECHNICAL-DECISIONS.md; scope and acceptance live in SCOPE.md; feasibility evidence lives in RESEARCH.md. This document deliberately stays agnostic about all three.

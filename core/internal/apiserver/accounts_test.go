@@ -94,7 +94,7 @@ func TestLinkAccount_VisibilityAndValidation(t *testing.T) {
 		AuthMethod: &apiv1.LinkAccountRequest_Password{
 			Password: &apiv1.AccountPassword{Username: "bob", Password: []byte("sekret")},
 		},
-		Visibility: apiv1.AccountVisibility_ACCOUNT_VISIBILITY_SHARED,
+		Visibility: visibilityPtr(apiv1.AccountVisibility_ACCOUNT_VISIBILITY_SHARED),
 		SharedWith: []string{"alice", "alice"},
 	})
 	if err != nil {
@@ -136,7 +136,7 @@ func TestLinkAccount_VisibilityAndValidation(t *testing.T) {
 	if _, err := srv.LinkAccount(ctx, &apiv1.LinkAccountRequest{
 		Provider:   "jellyfin",
 		BaseUrl:    "https://x",
-		Visibility: apiv1.AccountVisibility_ACCOUNT_VISIBILITY_SHARED,
+		Visibility: visibilityPtr(apiv1.AccountVisibility_ACCOUNT_VISIBILITY_SHARED),
 		AuthMethod: &apiv1.LinkAccountRequest_Password{
 			Password: &apiv1.AccountPassword{Username: "bob", Password: []byte("s")},
 		},
@@ -327,7 +327,7 @@ func TestLinkAccount_SharedRosterNamesRealUsers(t *testing.T) {
 	pw := &apiv1.LinkAccountRequest_Password{Password: &apiv1.AccountPassword{Username: "bob", Password: []byte("sekret")}}
 	if _, err := srv.LinkAccount(ctx, &apiv1.LinkAccountRequest{
 		Provider: "jellyfin", BaseUrl: "https://jf.example/", AuthMethod: pw,
-		Visibility: apiv1.AccountVisibility_ACCOUNT_VISIBILITY_SHARED,
+		Visibility: visibilityPtr(apiv1.AccountVisibility_ACCOUNT_VISIBILITY_SHARED),
 		SharedWith: []string{"user:does-not-exist"},
 	}); status.Code(err) != codes.InvalidArgument || !strings.Contains(err.Error(), "user:does-not-exist") {
 		t.Fatalf("unknown member: err = %v, want InvalidArgument naming the user", err)
@@ -337,7 +337,7 @@ func TestLinkAccount_SharedRosterNamesRealUsers(t *testing.T) {
 	}
 	if _, err := srv.LinkAccount(ctx, &apiv1.LinkAccountRequest{
 		Provider: "jellyfin", BaseUrl: "https://jf.example/", AuthMethod: pw,
-		Visibility: apiv1.AccountVisibility_ACCOUNT_VISIBILITY_SHARED,
+		Visibility: visibilityPtr(apiv1.AccountVisibility_ACCOUNT_VISIBILITY_SHARED),
 		SharedWith: []string{"user:alice"},
 	}); err != nil {
 		t.Fatalf("real member should link: %v", err)
@@ -353,6 +353,10 @@ func TestLinkAccount_SharedRosterNamesRealUsers(t *testing.T) {
 // capPolicyPtr takes the address of a proto enum value the way the
 // optional CapChangePolicy field does on UpdateAccountRequest.
 func capPolicyPtr(p apiv1.CapChangePolicy) *apiv1.CapChangePolicy { return &p }
+
+// visibilityPtr takes the address of a proto enum value the way the
+// optional Visibility field does on LinkAccountRequest.
+func visibilityPtr(v apiv1.AccountVisibility) *apiv1.AccountVisibility { return &v }
 
 func TestUpdateAccount_OwnerChangesSharingAndCap(t *testing.T) {
 	bus := apiserver.NewInMemoryBus()
@@ -378,7 +382,7 @@ func TestUpdateAccount_OwnerChangesSharingAndCap(t *testing.T) {
 	link, err := srv.LinkAccount(ownerCtx, &apiv1.LinkAccountRequest{
 		Provider: "jellyfin", BaseUrl: "https://jf.example/",
 		AuthMethod: &apiv1.LinkAccountRequest_Password{Password: &apiv1.AccountPassword{Username: "bob", Password: []byte("x")}},
-		Visibility: apiv1.AccountVisibility_ACCOUNT_VISIBILITY_PUBLIC,
+		Visibility: visibilityPtr(apiv1.AccountVisibility_ACCOUNT_VISIBILITY_PUBLIC),
 	})
 	if err != nil {
 		t.Fatalf("LinkAccount: %v", err)
