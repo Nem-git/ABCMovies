@@ -24,23 +24,22 @@ func main() {
 	logger := slog.Default()
 	ctx := context.Background()
 
-	stack, err := app.Build(instanceConfigPath, logger)
+	stack, err := app.New(ctx, instanceConfigPath, logger)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "abcmovies: %v\n", err)
 		os.Exit(1)
 	}
 	defer stack.Close()
 
-	slots, err := stack.BuildSlots(ctx, logger)
-	if err != nil {
+	// The embedder owns the lifecycle: construction composed everything and
+	// started nothing; this explicit Start runs the shared scheduler (already
+	// wired with the boot set of jobs) and the delivery watchdog. A runtime
+	// account link registers its refresh job on the same scheduler and it
+	// starts immediately.
+	if err := stack.Start(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "abcmovies: %v\n", err)
 		os.Exit(1)
 	}
-
-	// The slot runtime owns the shared scheduler, already wired with the boot
-	// set of jobs; run it here. A runtime account link registers its refresh
-	// job on the same scheduler and it starts immediately.
-	go slots.Scheduler.Run(ctx)
 
 	unary, stream := stack.AuthInterceptors()
 	gs := grpc.NewServer(

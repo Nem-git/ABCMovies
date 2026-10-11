@@ -42,13 +42,9 @@ slots:
 	}
 	t.Setenv("JF_TEST_PASSWORD", "operator-password-not-real")
 
-	stack, err := Build(configPath, slog.Default())
+	stack, err := New(context.Background(), configPath, slog.Default())
 	if err != nil {
 		t.Fatalf("stack: %v", err)
-	}
-	slots, err := stack.BuildSlots(context.Background(), slog.Default())
-	if err != nil {
-		t.Fatalf("BuildSlots: %v", err)
 	}
 	srv, ok := stack.Service().(*apiserver.Server)
 	if !ok {
@@ -84,7 +80,7 @@ slots:
 	id := linkRes.GetAccountId()
 
 	// Before any sharing change the account reaches only its owner.
-	if _, ok := slots.Library.ReachAuthorized(id, memberID); ok {
+	if _, ok := stack.Slots().Library.ReachAuthorized(id, memberID); ok {
 		t.Fatal("account is reachable by u2 before sharing")
 	}
 
@@ -92,7 +88,7 @@ slots:
 	// derivation path (linking runs it in the background by design).
 	deadline := time.Now().Add(3 * time.Second)
 	for {
-		entries, err := slots.Library.Library(context.Background(), "u1")
+		entries, err := stack.Slots().Library.Library(context.Background(), "u1")
 		if err != nil {
 			t.Fatalf("owner library: %v", err)
 		}
@@ -108,7 +104,7 @@ slots:
 	// The owner's derived cache now exists — the sharing change must
 	// invalidate it, because the account's audience (and therefore u1's
 	// derivation) changed.
-	if _, ok := slots.Library.ReachAuthorized(id, "u1"); !ok {
+	if _, ok := stack.Slots().Library.ReachAuthorized(id, "u1"); !ok {
 		t.Fatal("owner lost the reach")
 	}
 
@@ -123,14 +119,14 @@ slots:
 	}
 
 	// The live reach now includes u2, and the owner's cached row was swept.
-	if _, ok := slots.Library.ReachAuthorized(id, memberID); !ok {
+	if _, ok := stack.Slots().Library.ReachAuthorized(id, memberID); !ok {
 		t.Fatal("u2 still cannot reach the account after sharing")
 	}
 
 	// And the member actually *uses* it from here through the core — no
 	// provider login of their own needed; the account session is used on
 	// their behalf.
-	memberEntries, err := slots.Library.Library(context.Background(), memberID)
+	memberEntries, err := stack.Slots().Library.Library(context.Background(), memberID)
 	if err != nil {
 		t.Fatalf("member library: %v", err)
 	}
@@ -147,10 +143,10 @@ slots:
 	}); err != nil {
 		t.Fatalf("UpdateAccount narrow: %v", err)
 	}
-	if _, ok := slots.Library.ReachAuthorized(id, memberID); ok {
+	if _, ok := stack.Slots().Library.ReachAuthorized(id, memberID); ok {
 		t.Fatal("u2 still authorized after narrowing")
 	}
-	if _, ok := slots.Library.ReachAuthorized(id, "u1"); !ok {
+	if _, ok := stack.Slots().Library.ReachAuthorized(id, "u1"); !ok {
 		t.Fatal("owner lost the reach")
 	}
 }

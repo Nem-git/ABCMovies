@@ -123,13 +123,9 @@ slots:
 	}
 	t.Setenv("JF_TEST_PASSWORD", "operator-password-not-real")
 
-	stack, err := Build(configPath, slog.Default())
+	stack, err := New(context.Background(), configPath, slog.Default())
 	if err != nil {
 		t.Fatalf("stack: %v", err)
-	}
-	slots, err := stack.BuildSlots(context.Background(), slog.Default())
-	if err != nil {
-		t.Fatalf("BuildSlots: %v", err)
 	}
 	srv, ok := stack.Service().(*apiserver.Server)
 	if !ok {
@@ -153,7 +149,7 @@ slots:
 
 	// The linked account must be live for its owner immediately: reachable
 	// through the library's reach set, no restart, no reload.
-	reach, ok := slots.Library.ReachAuthorized(linkRes.GetAccountId(), "u1")
+	reach, ok := stack.Slots().Library.ReachAuthorized(linkRes.GetAccountId(), "u1")
 	if !ok {
 		t.Fatalf("linked account %q has no live reach", linkRes.GetAccountId())
 	}

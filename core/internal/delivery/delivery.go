@@ -62,7 +62,14 @@ const (
 
 // Session is one delivery session: a single play or download (§6, §2.3). It
 // carries the account context the engine needs to police, audit, and revoke.
+//
+// Session is handed out of the engine to callers (Start's return value, Get),
+// so its mutable state — Status, Error, Menu, and the liveness timestamps —
+// is guarded by mu, not by the engine's sessions lock. The engine acquires
+// e.mu before s.mu, never the reverse.
 type Session struct {
+	mu sync.RWMutex
+
 	ID      string
 	Goal    Goal
 	Context corev1.DeliveryContext
@@ -384,6 +391,12 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 	e.byAccount[key][sess.ID] = struct{}{}
 	e.mu.Unlock()
 
+	// The session's mutable state is synchronized by the session's own lock:
+	// the watchdog's sweep and the quota loops read it, so the queued→running
+	// flip and the menu staging must land under it — never in the gap after
+	// the maps unlock (-race proved why; PLAN.md §9.1).
+	staged := req.Goal == GoalPlay && sess.Sink != nil && len(src.GetTracks()) > 0
+	sess.mu.Lock()
 	sess.Status = StatusRunning
 
 	// A play session stages its menu before it is announced: every manifest
@@ -393,19 +406,25 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 	// rather than surface an empty player (PLAN.md §6.1, §6.2). Delivery-only
 	// tracks (carried-in audio/subtitle) have no location and stage nothing;
 	// the player reads them off the carrier track they name.
-	if req.Goal == GoalPlay && sess.Sink != nil && len(src.GetTracks()) > 0 {
+	if staged {
 		sess.Menu = src.GetTracks()
 		for _, tr := range src.GetTracks() {
 			if len(tr.GetDelivery().GetLocations()) == 0 {
 				continue
 			}
 			if _, err := sess.Sink.Deliver(ctx, sess, tr, nil); err != nil {
+				sess.mu.Unlock()
 				return nil, fmt.Errorf("stage play menu: %w", err)
 			}
 		}
-		if e.menuReady != nil {
-			e.menuReady(sess)
-		}
+	}
+	sess.mu.Unlock()
+
+	// Announce the complete menu only after the session lock is dropped:
+	// subscribers read back into the engine (GetPlayInfo, Job) and must never
+	// find the staging path holding the write lock.
+	if staged && e.menuReady != nil {
+		e.menuReady(sess)
 	}
 
 	e.recordJob(sess.toJob())
@@ -457,7 +476,9 @@ func (e *Engine) Heartbeat(id string, memberUserID string) error {
 		// be probed for existence (PLAN.md §8.1, §2.2).
 		return errNotFound("session %q not found", id)
 	}
-	if !s.isActive() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.isActiveLocked() {
 		return errInvalid("session %q is %s and cannot heartbeat", id, s.Status)
 	}
 	s.lastHeartbeat = e.now()
@@ -473,7 +494,9 @@ func (e *Engine) Progress(id string, percent uint32) error {
 	if !ok {
 		return errNotFound("session %q not found", id)
 	}
-	if !s.isActive() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.isActiveLocked() {
 		return errInvalid("session %q is %s and cannot progress", id, s.Status)
 	}
 	if percent > 100 {
@@ -500,12 +523,15 @@ func (e *Engine) RevokeAccount(provider, accountID, memberUserID string) int {
 		if !ok {
 			continue
 		}
+		s.mu.Lock()
 		s.Status = StatusRevoked
 		s.Error = "account revoked"
 		if s.Sink != nil {
 			s.Sink.Abort(context.Background(), s)
 		}
-		e.recordJob(s.toJob())
+		job := s.toJobLocked()
+		s.mu.Unlock()
+		e.recordJob(job)
 		killed++
 	}
 	delete(e.byAccount, key)
@@ -526,12 +552,15 @@ func (e *Engine) RevokeAllOnAccount(accountID string) int {
 		if s.Context.GetAccountId() != accountID {
 			continue
 		}
+		s.mu.Lock()
 		s.Status = StatusRevoked
 		s.Error = "account revoked"
 		if s.Sink != nil {
 			s.Sink.Abort(context.Background(), s)
 		}
-		e.recordJob(s.toJob())
+		job := s.toJobLocked()
+		s.mu.Unlock()
+		e.recordJob(job)
 		delete(e.byAccount[accountKey{s.Context.GetProvider(), s.Context.GetAccountId(), s.Context.GetMemberUserId()}], id)
 		killed++
 	}
@@ -558,12 +587,15 @@ func (e *Engine) RevokeOthersOnAccount(provider, accountID string, keepMembers [
 		if keep[s.Context.GetMemberUserId()] {
 			continue
 		}
+		s.mu.Lock()
 		s.Status = StatusRevoked
 		s.Error = "account sharing narrowed"
 		if s.Sink != nil {
 			s.Sink.Abort(context.Background(), s)
 		}
-		e.recordJob(s.toJob())
+		job := s.toJobLocked()
+		s.mu.Unlock()
+		e.recordJob(job)
 		delete(e.byAccount[accountKey{provider, accountID, s.Context.GetMemberUserId()}], id)
 		killed++
 	}
@@ -622,12 +654,20 @@ func (e *Engine) ApplyAccountCap(ctx context.Context, provider, accountID string
 			e.mu.Unlock()
 			continue
 		}
+		s.mu.Lock()
+		if !s.isActiveLocked() {
+			s.mu.Unlock()
+			e.mu.Unlock()
+			continue
+		}
 		s.Status = StatusRevoked
 		s.Error = "stream limit lowered by the account owner"
 		if s.Sink != nil {
 			s.Sink.Abort(context.Background(), s)
 		}
-		e.recordJob(s.toJob())
+		job := s.toJobLocked()
+		s.mu.Unlock()
+		e.recordJob(job)
 		delete(e.byAccount[accountKey{provider, accountID, s.Context.GetMemberUserId()}], ls.id)
 		killed++
 		e.mu.Unlock()
@@ -647,6 +687,7 @@ func (e *Engine) Complete(ctx context.Context, id string) error {
 		e.mu.Unlock()
 		return errNotFound("session %q not found", id)
 	}
+	s.mu.Lock()
 	s.Status = StatusDone
 	if s.Sink != nil {
 		if err := s.Sink.Finalize(ctx, s); err != nil {
@@ -654,8 +695,10 @@ func (e *Engine) Complete(ctx context.Context, id string) error {
 			s.Error = err.Error()
 		}
 	}
+	job := s.toJobLocked()
+	s.mu.Unlock()
 	e.mu.Unlock()
-	e.recordJob(s.toJob())
+	e.recordJob(job)
 	return nil
 }
 
@@ -705,7 +748,9 @@ func (e *Engine) sweep() {
 	e.mu.Lock()
 	var dead []*Session
 	for id, s := range e.sessions {
-		if !s.isActive() {
+		s.mu.Lock()
+		if !s.isActiveLocked() {
+			s.mu.Unlock()
 			continue
 		}
 		now := e.now()
@@ -715,23 +760,26 @@ func (e *Engine) sweep() {
 				s.Status = StatusFailed
 				s.Error = "heartbeat timed out"
 				dead = append(dead, s)
+				s.mu.Unlock()
 				continue
 			}
 		} else if now.Sub(s.lastProgress) > e.ttl {
 			s.Status = StatusFailed
 			s.Error = "download stalled"
 			dead = append(dead, s)
+			s.mu.Unlock()
 			continue
 		}
 		if now.Sub(s.createdAt) > e.ttl {
 			// TTL is the zombie cap for every session (§9.1).
-			if s.isActive() {
+			if s.isActiveLocked() {
 				s.Status = StatusFailed
 				s.Error = "session TTL expired"
 				dead = append(dead, s)
 			}
 		}
 		_ = id
+		s.mu.Unlock()
 	}
 	for _, d := range dead {
 		delete(e.sessions, d.ID)
@@ -756,7 +804,24 @@ func (e *Engine) Close() {
 
 // isActive reports whether the session is queued or running.
 func (s *Session) isActive() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.isActiveLocked()
+}
+
+// isActiveLocked is isActive for a caller already holding s.mu's write lock.
+func (s *Session) isActiveLocked() bool {
 	return s.Status == StatusQueued || s.Status == StatusRunning
+}
+
+// StagedMenu returns the session's staged play menu under the session's
+// read lock, or nil when none was staged (a download, or a play with no
+// location-bearing tracks). The returned slice shares its (immutable) track
+// elements with the session.
+func (s *Session) StagedMenu() []*corev1.Track {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.Menu
 }
 
 // Job returns the session as its system-of-record Job (PLAN.md §9.1).
@@ -765,6 +830,13 @@ func (s *Session) Job() *corev1.Job { return s.toJob() }
 // toJob renders the session as its system-of-record Job (PLAN.md §9.1; a
 // delivery session is a kind of job, §2.3).
 func (s *Session) toJob() *corev1.Job {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.toJobLocked()
+}
+
+// toJobLocked is toJob for a caller already holding s.mu.
+func (s *Session) toJobLocked() *corev1.Job {
 	j := &corev1.Job{
 		Id:          s.ID,
 		Kind:        corev1.JobKind_JOB_KIND_DELIVERY,

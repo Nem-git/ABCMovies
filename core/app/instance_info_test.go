@@ -32,14 +32,11 @@ delivery:
 		t.Fatalf("write config: %v", err)
 	}
 
-	stack, err := Build(configPath, slog.Default())
+	stack, err := New(context.Background(), configPath, slog.Default())
 	if err != nil {
 		t.Fatalf("stack: %v", err)
 	}
 	defer stack.Close()
-	if _, err := stack.BuildSlots(context.Background(), slog.Default()); err != nil {
-		t.Fatalf("BuildSlots: %v", err)
-	}
 	srv, ok := stack.Service().(*apiserver.Server)
 	if !ok {
 		t.Fatal("service is not a concrete *apiserver.Server")
@@ -60,14 +57,11 @@ delivery:
 // Without delivery config the composed stack publishes the shipped default
 // (30s, TECHNICAL-DECISIONS.md §1.14).
 func TestComposedStackPublishesDefaultHeartbeatInterval(t *testing.T) {
-	stack, err := Build("", slog.Default())
+	stack, err := New(context.Background(), "", slog.Default())
 	if err != nil {
 		t.Fatalf("stack: %v", err)
 	}
 	defer stack.Close()
-	if _, err := stack.BuildSlots(context.Background(), slog.Default()); err != nil {
-		t.Fatalf("BuildSlots: %v", err)
-	}
 	srv, ok := stack.Service().(*apiserver.Server)
 	if !ok {
 		t.Fatal("service is not a concrete *apiserver.Server")

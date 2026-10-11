@@ -55,13 +55,9 @@ func TestUnlinkedAccountLeavesRunningSlot(t *testing.T) {
 	configPath := writeLinkedJFConfig(t, fake.URL())
 	t.Setenv("JF_TEST_PASSWORD", "operator-password-not-real")
 
-	stack, err := Build(configPath, slog.Default())
+	stack, err := New(context.Background(), configPath, slog.Default())
 	if err != nil {
 		t.Fatalf("stack: %v", err)
-	}
-	slots, err := stack.BuildSlots(context.Background(), slog.Default())
-	if err != nil {
-		t.Fatalf("BuildSlots: %v", err)
 	}
 	srv, ok := stack.Service().(*apiserver.Server)
 	if !ok {
@@ -86,16 +82,16 @@ func TestUnlinkedAccountLeavesRunningSlot(t *testing.T) {
 	if _, err := srv.RemoveAccount(ctx, &apiv1.RemoveAccountRequest{AccountId: linkRes.GetAccountId()}); err != nil {
 		t.Fatalf("RemoveAccount: %v", err)
 	}
-	if _, ok := slots.Library.ReachAuthorized(linkRes.GetAccountId(), "u1"); ok {
+	if _, ok := stack.Slots().Library.ReachAuthorized(linkRes.GetAccountId(), "u1"); ok {
 		t.Fatal("reach still authorized after unlink")
 	}
 	// The ghost must not linger: the running slot no longer serves the id.
-	if len(slots.Providers) == 0 {
+	if len(stack.Slots().Providers) == 0 {
 		t.Fatal("no built providers")
 	}
-	att, ok := slots.Providers[0].Impl.(slotwiring.AttachableSlot)
+	att, ok := stack.Slots().Providers[0].Impl.(slotwiring.AttachableSlot)
 	if !ok {
-		t.Fatalf("provider %q not attachable", slots.Providers[0].Entry.ID)
+		t.Fatalf("provider %q not attachable", stack.Slots().Providers[0].Entry.ID)
 	}
 	if _, err := att.CatalogueSync(context.Background(), &slotsv1.CatalogueSyncRequest{AccountId: linkRes.GetAccountId()}); err == nil || !strings.Contains(err.Error(), "unknown account") {
 		t.Fatalf("CatalogueSync after unlink = %v, want unknown account", err)
@@ -114,7 +110,10 @@ func TestLastAccountOfUserSlotRetiresIt(t *testing.T) {
 	configPath := writeLinkedJFConfig(t, fakeA.URL())
 	t.Setenv("JF_TEST_PASSWORD", "operator-password-not-real")
 
-	stack, err := Build(configPath, slog.Default())
+	// Two-phase like New composes: build the fallible base, seed a linked
+	// record into the vault, then compose the slots so boot provisions a
+	// user-owned (synthetic) slot for it.
+	stack, err := build(configPath, slog.Default())
 	if err != nil {
 		t.Fatalf("stack: %v", err)
 	}
@@ -129,21 +128,20 @@ func TestLastAccountOfUserSlotRetiresIt(t *testing.T) {
 	if err := linkedStore.Save(context.Background(), r1.ID, []byte(fmt.Sprintf(`{"AccessToken":%q,"User":{"Id":"u1"}}`, "faker-token"))); err != nil {
 		t.Fatalf("seed linked session: %v", err)
 	}
-
-	slots, err := stack.BuildSlots(context.Background(), slog.Default())
-	if err != nil {
-		t.Fatalf("BuildSlots: %v", err)
+	if _, err := stack.buildSlots(context.Background(), slog.Default()); err != nil {
+		t.Fatalf("buildSlots: %v", err)
 	}
+
 	srv, ok := stack.Service().(*apiserver.Server)
 	if !ok {
 		t.Fatalf("service is not a concrete *apiserver.Server")
 	}
 	// The synthetic user-owned slot exists at boot from the seeded record.
-	if len(slots.Providers) != 2 {
-		t.Fatalf("providers = %d, want operator slot + one provisioned user slot", len(slots.Providers))
+	if len(stack.Slots().Providers) != 2 {
+		t.Fatalf("providers = %d, want operator slot + one provisioned user slot", len(stack.Slots().Providers))
 	}
 	ns := slotwiring.ServerNamespace(r1)
-	if _, ok := slots.Resolvers[ns]; !ok {
+	if _, ok := stack.Slots().Resolvers[ns]; !ok {
 		t.Fatalf("synthetic slot %q has no resolver entry", ns)
 	}
 
@@ -152,16 +150,16 @@ func TestLastAccountOfUserSlotRetiresIt(t *testing.T) {
 	if _, err := srv.RemoveAccount(apiserver.WithUserID(context.Background(), "u1"), &apiv1.RemoveAccountRequest{AccountId: r1.ID}); err != nil {
 		t.Fatalf("RemoveAccount: %v", err)
 	}
-	if len(slots.Providers) != 1 {
-		t.Fatalf("providers = %d, want only the operator slot", len(slots.Providers))
+	if len(stack.Slots().Providers) != 1 {
+		t.Fatalf("providers = %d, want only the operator slot", len(stack.Slots().Providers))
 	}
-	if slots.Providers[0].Entry.ID != "jf" {
-		t.Fatalf("surviving provider = %q, want jf", slots.Providers[0].Entry.ID)
+	if stack.Slots().Providers[0].Entry.ID != "jf" {
+		t.Fatalf("surviving provider = %q, want jf", stack.Slots().Providers[0].Entry.ID)
 	}
-	if _, ok := slots.Resolvers[ns]; ok {
+	if _, ok := stack.Slots().Resolvers[ns]; ok {
 		t.Fatalf("resolver for retired slot %q still present", ns)
 	}
-	snap := slots.deps.Registry.Snapshot()
+	snap := stack.Slots().deps.Registry.Snapshot()
 	if _, gone := snap[ns]; gone {
 		t.Fatalf("retired slot %q still in registry", ns)
 	}

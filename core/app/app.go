@@ -11,9 +11,11 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
@@ -52,22 +54,35 @@ type Stack struct {
 	registry *registry.InProcessRegistry
 	bus      *apiserver.InMemoryBus
 
-	// cfg is the loaded instance config, retained so BuildSlots and the
-	// delivery wiring compose exactly what Build loaded.
+	// cfg is the loaded instance config, retained so buildSlots and the
+	// delivery wiring compose exactly what build loaded.
 	cfg *config.Config
 
-	// slots holds the composed provider-slot layer when BuildSlots has been
+	// slots holds the composed provider-slot layer when buildSlots has been
 	// called; nil until then.
 	slots *SlotRuntime
 	// delivery is the composed delivery engine, armed onto the API service
-	// once BuildSlots has run; nil until then.
+	// once buildSlots has run; nil until then.
 	delivery *delivery.Engine
+
+	// lifecycle guards the Start/Close pair. Start launches the periodic
+	// work — the shared scheduler and the delivery watchdog — under one
+	// cancellable context, and Close cancels it and waits (PLAN.md §10). A
+	// stack that was never started is a valid, inert composition: the
+	// tests' and an embedder's opt-out, and Close is safe either way.
+	lifecycleMu   sync.Mutex
+	started       bool
+	closed        bool
+	startCancel   context.CancelFunc
+	schedulerDone chan struct{}
 }
 
-// Build composes the full core. configPath selects the instance config:
-// "" loads defaults; a path applies that YAML over defaults, treating a
-// missing file as defaults. The caller owns closing the stack.
-func Build(configPath string, logger *slog.Logger) (*Stack, error) {
+// build composes the fallible construction half of the stack: configPath
+// selects the instance config ("" loads defaults; a missing file means
+// defaults), then stores, auth, registry, bus, and the API server come up.
+// New is the only exported way in, so construction always composes the slot
+// layer over this base too.
+func build(configPath string, logger *slog.Logger) (*Stack, error) {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return nil, err
@@ -135,6 +150,23 @@ func Build(configPath string, logger *slog.Logger) (*Stack, error) {
 	}, nil
 }
 
+// New composes the full core: the fallible construction above plus the
+// provider-slot layer, so an embedder either receives a complete, inert
+// stack or a clean error — never a half-wired one. The composed stack runs
+// no periodic work until Start is called (PLAN.md §10); the caller owns
+// closing it.
+func New(ctx context.Context, configPath string, logger *slog.Logger) (*Stack, error) {
+	s, err := build(configPath, logger)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.buildSlots(ctx, logger); err != nil {
+		s.Close()
+		return nil, err
+	}
+	return s, nil
+}
+
 // BindAddress returns the configured API bind address.
 func (s *Stack) BindAddress() string { return s.bind }
 
@@ -168,8 +200,9 @@ func (s *Stack) AuthInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServ
 	return apiserver.AuthUnaryInterceptor(s.internalSession), apiserver.AuthStreamInterceptor(s.internalSession)
 }
 
-// Slots returns the composed provider-slot layer, or nil when BuildSlots has
-// not been called (a bare core). See BuildSlots.
+// Slots returns the composed provider-slot layer, or nil when the stack was
+// assembled without it (New always composes it). When nil, delivery seams
+// and the library are unarmed.
 func (s *Stack) Slots() *SlotRuntime { return s.slots }
 
 // RelayPrefix is the stable URL prefix under which RelayHandler serves staged
@@ -180,8 +213,9 @@ func (s *Stack) Slots() *SlotRuntime { return s.slots }
 const RelayPrefix = delivery.RelayPrefix
 
 // Relay returns the composed media relay for serving RelayPrefix pulls
-// (PLAN.md §3.6), or nil before BuildSlots. Only the built-in device sink
-// grants tickets into it, and only its delivery sessions.
+// (PLAN.md §3.6); nil when the stack was assembled without the slot layer
+// (New always composes it). Only the built-in device sink grants tickets
+// into it, and only its delivery sessions.
 func (s *Stack) Relay() *delivery.Relay {
 	if s.slots == nil {
 		return nil
@@ -190,11 +224,12 @@ func (s *Stack) Relay() *delivery.Relay {
 }
 
 // RelayHandler returns an HTTP handler serving staged delivery pulls under
-// RelayPrefix (PLAN.md §3.6), or nil before BuildSlots. It gives an
-// embedder an HTTP transport without reaching into core internals: the
-// handler is unauthenticated beyond the relay token itself — the token is
-// minted per session per track by the engine and dies with the session,
-// which is the whole authorization story (§3.6).
+// RelayPrefix (PLAN.md §3.6); nil when the slot layer is uncomposed (New
+// always composes it). It gives an embedder an HTTP transport without
+// reaching into core internals: the handler is unauthenticated beyond the
+// relay token itself — the token is minted per session per track by the
+// engine and dies with the session, which is the whole authorization story
+// (§3.6).
 func (s *Stack) RelayHandler() http.Handler {
 	r := s.Relay()
 	if r == nil {
@@ -264,11 +299,11 @@ func NewSealedBlobs(vault interface {
 	return SealedBlobs{vault: vault}
 }
 
-// BuildSlots composes the provider-slot layer over this stack's stores and
-// cache config, making the composed slots available through Slots(). It is a
-// no-op once slots are already composed. The stack's config path is re-loaded
-// so the caller's slot configuration (catalogue, enrichment cadence) applies.
-func (s *Stack) BuildSlots(ctx context.Context, logger *slog.Logger) (*SlotRuntime, error) {
+// buildSlots composes the provider-slot layer over this stack's stores and
+// cache config, making it available through Slots(). It is a no-op once the
+// slots are already composed. New calls it so construction is
+// all-or-nothing.
+func (s *Stack) buildSlots(ctx context.Context, logger *slog.Logger) (*SlotRuntime, error) {
 	if s.slots != nil {
 		return s.slots, nil
 	}
@@ -293,10 +328,69 @@ func (s *Stack) BuildSlots(ctx context.Context, logger *slog.Logger) (*SlotRunti
 	return rt, nil
 }
 
-// Close releases every resource the composed stack holds.
+// Start launches the stack's periodic work: the shared scheduler and the
+// delivery watchdog (PLAN.md §9.1, §10). The embedder calls it explicitly —
+// hosting a stack never starts the core's lifecycle as a side effect of a
+// request or of construction. Start is one-shot: a second call, or a call
+// after Close, is an error rather than a silent second run of the loops.
+func (s *Stack) Start(ctx context.Context) error {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.closed {
+		return errors.New("app: stack is closed")
+	}
+	if s.started {
+		return errors.New("app: stack already started")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	s.startCancel = cancel
+	s.started = true
+
+	// The scheduler runs the boot-registered jobs; registering a job after
+	// this point starts that job's worker immediately. Its Run returns once
+	// every worker has stopped, so the done channel is the shutdown handshake
+	// the scheduler never had.
+	s.schedulerDone = make(chan struct{})
+	if s.slots != nil && s.slots.Scheduler != nil {
+		done := s.schedulerDone
+		go func() {
+			defer close(done)
+			s.slots.Scheduler.Run(runCtx)
+		}()
+	} else {
+		close(s.schedulerDone)
+	}
+	if s.delivery != nil {
+		go s.delivery.Watch(runCtx)
+	}
+	return nil
+}
+
+// Close releases every resource the composed stack holds, stopping in
+// reverse order whatever Start began and then tearing down construction.
+// Safe to call more than once, and safe on a stack that was never started.
 func (s *Stack) Close() {
+	s.lifecycleMu.Lock()
+	if s.closed {
+		s.lifecycleMu.Unlock()
+		return
+	}
+	s.closed = true
+	cancel := s.startCancel
+	schedulerDone := s.schedulerDone
+	s.lifecycleMu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
 	if s.delivery != nil {
 		s.delivery.Close()
+	}
+	if schedulerDone != nil {
+		<-schedulerDone
 	}
 	if s.slots != nil {
 		s.slots.Bus.Close()

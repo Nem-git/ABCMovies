@@ -48,6 +48,24 @@ func newWebStack(t *testing.T) (*Server, apiv1connect.CoreServiceClient, *httpte
 	return srv, client, ts
 }
 
+// The web layer hosts the core but does not control it (PLAN.md §10): a
+// stack's periodic work starts only because the embedder asked, through
+// Start. Every web test above never calls it — that is the opt-out proof —
+// and this one pins the hook and its one-shot guard.
+func TestWebServerStartIsExplicit(t *testing.T) {
+	srv, err := New("", nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	t.Cleanup(srv.Close)
+	if err := srv.Start(t.Context()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if err := srv.Start(t.Context()); err == nil {
+		t.Fatal("a second Start must be refused, not double-run the periodic work")
+	}
+}
+
 func signUpAndLogin(t *testing.T, ctx context.Context, client apiv1connect.CoreServiceClient) string {
 	t.Helper()
 

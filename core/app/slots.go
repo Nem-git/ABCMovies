@@ -107,7 +107,8 @@ type SlotRuntime struct {
 	// maps a provider slot id to its produce-sources resolver; Sinks is the
 	// composite sink factory built from the configured sinks; Relay grants
 	// session-scoped media access (PLAN.md §3.6). The engine itself is built
-	// and armed by Stack.BuildSlots, which owns the jobs store and lifecycle.
+	// and armed by the stack: construction composes it, Start launches its
+	// watchdog, and Close stops it.
 	Resolvers slotwiring.Resolvers
 	Sinks     delivery.SinkFactory
 	Relay     *delivery.Relay

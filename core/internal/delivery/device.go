@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
@@ -20,6 +21,7 @@ type DeviceSink struct {
 	relay         *Relay
 	ttl           time.Duration
 	sessionID     string
+	mu            sync.Mutex
 	tokensByTrack map[string]string
 }
 
@@ -69,7 +71,9 @@ func (d *DeviceSink) Deliver(_ context.Context, _ *Session, track *corev1.Track,
 	if err != nil {
 		return 0, err
 	}
+	d.mu.Lock()
 	d.tokensByTrack[track.GetId()] = tok
+	d.mu.Unlock()
 	// Nothing was copied inline; the deliverable is staged for pull.
 	return 0, nil
 }
@@ -77,7 +81,9 @@ func (d *DeviceSink) Deliver(_ context.Context, _ *Session, track *corev1.Track,
 // RelayToken returns the staged relay token for a track, ok=false if the track
 // has not been staged yet.
 func (d *DeviceSink) RelayToken(trackID string) (string, bool) {
+	d.mu.Lock()
 	tok, ok := d.tokensByTrack[trackID]
+	d.mu.Unlock()
 	return tok, ok
 }
 

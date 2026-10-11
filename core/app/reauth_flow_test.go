@@ -57,12 +57,9 @@ slots:
 	}
 	t.Setenv("JF_TEST_PASSWORD", "operator-password-not-real")
 
-	stack, err := Build(configPath, slog.Default())
+	stack, err := New(context.Background(), configPath, slog.Default())
 	if err != nil {
 		t.Fatalf("stack: %v", err)
-	}
-	if _, err := stack.BuildSlots(context.Background(), slog.Default()); err != nil {
-		t.Fatalf("BuildSlots: %v", err)
 	}
 	srv, ok := stack.Service().(*apiserver.Server)
 	if !ok {

@@ -73,7 +73,11 @@ func (m managedDelivery) PlayMenu(sessionID string) (*apiserver.PlayMenu, error)
 	if !ok {
 		return nil, apiserver.ErrPlayMenuNotFound
 	}
-	if sess.Goal != delivery.GoalPlay || sess.Sink == nil || len(sess.Menu) == 0 {
+	if sess.Goal != delivery.GoalPlay || sess.Sink == nil {
+		return nil, apiserver.ErrPlayMenuNotFound
+	}
+	staged := sess.StagedMenu()
+	if len(staged) == 0 {
 		return nil, apiserver.ErrPlayMenuNotFound
 	}
 	device, ok := sess.Sink.(*delivery.DeviceSink)
@@ -85,7 +89,7 @@ func (m managedDelivery) PlayMenu(sessionID string) (*apiserver.PlayMenu, error)
 		MemberUserID: sess.Context.GetMemberUserId(),
 		Container:    planContainer(sess.Plan),
 	}
-	for _, tr := range sess.Menu {
+	for _, tr := range staged {
 		token, ok := device.RelayToken(tr.GetId())
 		if !ok {
 			// A carried-in track has no location and thus no relay ticket; the
@@ -206,7 +210,8 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 		Logger: logger,
 	})
 	s.delivery = eng
-	go eng.Watch(context.Background())
+	// The delivery watchdog is periodic work: Start launches it (PLAN.md
+	// §10), never construction.
 	// The liveness interval the engine enforces is the one clients must
 	// heartbeat on — publish the same value, never a second copy of it.
 	srv.SetHeartbeatInterval(timing.HeartbeatInterval)

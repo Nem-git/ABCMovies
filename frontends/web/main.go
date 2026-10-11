@@ -30,6 +30,13 @@ func main() {
 	}
 	defer srv.Close()
 
+	// The embedder owns the lifecycle: New composed the core and started
+	// nothing; the frontend explicitly begins it (PLAN.md §10).
+	if err := srv.Start(context.Background()); err != nil {
+		fmt.Fprintf(os.Stderr, "web: %v\n", err)
+		os.Exit(1)
+	}
+
 	addr := srv.BindAddress()
 	httpSrv := &http.Server{
 		Addr:              addr,

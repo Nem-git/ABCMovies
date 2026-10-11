@@ -36,18 +36,15 @@ type Server struct {
 }
 
 // New composes the full stack with the instance config at configPath
-// ("" for defaults). The caller owns closing the server.
+// ("" for defaults), leaving it inert: the embedder decides when the core
+// begins running, through Start (PLAN.md §10). The caller owns closing the
+// server.
 func New(configPath string, logger *slog.Logger) (*Server, error) {
-	stack, err := app.Build(configPath, logger)
+	// Composing the provider-slot layer here is what lets the debug/state
+	// views render the live enrichment and registry surfaces. With no slots
+	// configured this leaves a healthy, empty composed state.
+	stack, err := app.New(context.Background(), configPath, logger)
 	if err != nil {
-		return nil, err
-	}
-
-	// Compose the provider-slot layer so the debug/state views can render
-	// the live enrichment and registry surfaces. With no slots configured
-	// this leaves a healthy, empty composed state.
-	if _, err := stack.BuildSlots(context.Background(), logger); err != nil {
-		stack.Close()
 		return nil, err
 	}
 
@@ -79,6 +76,11 @@ func (s *Server) Handler() http.Handler { return s.mux }
 
 // BindAddress returns the configured API bind address.
 func (s *Server) BindAddress() string { return s.stack.BindAddress() }
+
+// Start launches the composed core's periodic work (PLAN.md §10). The web
+// layer hosts the core but does not control it: New only composes the stack,
+// and the embedder decides when — and whether — the core begins running.
+func (s *Server) Start(ctx context.Context) error { return s.stack.Start(ctx) }
 
 // Close releases every resource the composed stack holds.
 func (s *Server) Close() { s.stack.Close() }
