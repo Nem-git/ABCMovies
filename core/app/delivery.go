@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/policy"
+	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
 // compositeResolver routes produce-sources to the provider adapter wired for
@@ -193,6 +195,14 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 			}
 			rt.Bus.Publish(env)
 		},
+		// SessionDied runs the re-auth flow when a delivery discovers a
+		// dead provider session (PLAN.md §7.5): the account flips to
+		// EXPIRED, the owner is notified, and a re-auth job opens for the
+		// owner. The flow is gated on the status transition, so a user
+		// retrying play cannot spam the owner with duplicate events.
+		SessionDied: func(accountID string) {
+			reauthOnSessionDeath(context.Background(), accountStore, s.stores.Jobs, rt.Bus, accountID, logger)
+		},
 		Logger: logger,
 	})
 	s.delivery = eng
@@ -212,4 +222,51 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 	srv.SetAttacher(rt)
 	srv.SetDropper(rt)
 	return nil
+}
+
+// reauthOnSessionDeath runs the re-auth flow for an account whose provider
+// session was discovered dead during a delivery (PLAN.md §7.5): the record
+// flips to EXPIRED, the owner is notified, and a re-auth job opens in
+// AWAITING_ACTION naming the owner as the only actor who may re-link. The
+// flip gates the whole flow, so an account already awaiting re-auth is not
+// re-announced when the user retries — the open job still waits for them.
+func reauthOnSessionDeath(ctx context.Context, st *accounts.Store, jobs store.Store, bus *apiserver.InMemoryBus, accountID string, logger *slog.Logger) {
+	rec, err := st.Get(ctx, accountID)
+	if err != nil {
+		// Nothing to expire: the account is gone or was never stored. A
+		// store failure must not crash the delivery path that discovered
+		// the death.
+		logger.Error("re-auth: dead session for an unreadable account", "account", accountID, "err", err)
+		return
+	}
+	if rec.Status == accounts.StatusExpired {
+		return
+	}
+	if err := st.SetStatus(ctx, accountID, accounts.StatusExpired); err != nil {
+		logger.Error("re-auth: failed to expire the account", "account", accountID, "err", err)
+		return
+	}
+	bus.Publish(&corev1.EventEnvelope{
+		Id:       fmt.Sprintf("evt-account-expired-%s-%d", accountID, time.Now().UnixNano()),
+		Type:     corev1.EventType_EVENT_TYPE_ACCOUNT_SESSION_EXPIRED,
+		Audience: corev1.EventAudience_EVENT_AUDIENCE_OWNER,
+		UserId:   rec.OwnerUserID,
+		Payload: &corev1.EventEnvelope_AccountSession{
+			AccountSession: &corev1.AccountSessionEvent{AccountId: accountID, Provider: rec.Provider},
+		},
+		EmittedAt: timestamppb.Now(),
+	})
+	// The job is the system of record for the open re-auth (PLAN.md §9.1).
+	// Its deterministic id keeps one open job per account: a later death
+	// after a successful re-link re-opens that same record.
+	apiserver.RecordJobStatus(ctx, jobs, bus, &corev1.Job{
+		Id:          "reauth-" + accountID,
+		Kind:        corev1.JobKind_JOB_KIND_RE_AUTH,
+		Status:      corev1.JobStatus_JOB_STATUS_AWAITING_ACTION,
+		OwnerUserId: rec.OwnerUserID,
+		AwaitingAction: &corev1.AwaitingAction{
+			Kind:        &corev1.AwaitingAction_Common{Common: corev1.ActionType_ACTION_TYPE_RELINK},
+			ActorUserId: rec.OwnerUserID,
+		},
+	})
 }

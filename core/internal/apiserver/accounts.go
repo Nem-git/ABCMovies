@@ -46,6 +46,12 @@ func (s *Server) SetProber(provider string, p CredentialProber) {
 // (vault-first custody model). Sharing starts at link time and can change
 // afterwards through UpdateAccount (§7.1: the owner can revoke a member at
 // any time).
+//
+// The call is idempotent on the caller's natural key — provider + base URL
+// + username (§7.5): re-linking an account the caller already owns refreshes
+// that record's session in place, never minting a duplicate. Only the fields
+// the request actually sent are applied (presence semantics, §3.5); an
+// EXPIRED account returns to LINKED.
 func (s *Server) LinkAccount(ctx context.Context, req *apiv1.LinkAccountRequest) (*apiv1.LinkAccountResponse, error) {
 	if err := schema.ValidateLinkAccountRequest(req); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -59,13 +65,45 @@ func (s *Server) LinkAccount(ctx context.Context, req *apiv1.LinkAccountRequest)
 	}
 	uid, _ := UserIDFromContext(ctx)
 	baseURL := strings.TrimRight(req.GetBaseUrl(), "/")
-	vis := apiVisibility(req.GetVisibility())
-	if err := s.validateSharing(ctx, vis, req.GetSharedWith()); err != nil {
-		return nil, err
+	// Presence decides (PLAN.md §3.5, §7.5; the contract's field comments):
+	// a present visibility carries the whole sharing change — its member
+	// list travels with it, and a non-shared visibility with a roster is
+	// ambiguous, so validateSharing refuses it — while an absent visibility
+	// leaves sharing untouched: a re-link keeps the account's audience, a
+	// first link defaults to PRIVATE. A present UNSPECIFIED is a client
+	// error, never read as absence.
+	if req.Visibility != nil {
+		if req.GetVisibility() == apiv1.AccountVisibility_ACCOUNT_VISIBILITY_UNSPECIFIED {
+			return nil, status.Error(codes.InvalidArgument, "visibility: an explicit value is required when the field is present")
+		}
+		if err := s.validateSharing(ctx, apiVisibility(req.GetVisibility()), req.GetSharedWith()); err != nil {
+			return nil, err
+		}
 	}
 	blob, err := prober.Probe(ctx, baseURL, req.GetPassword().GetUsername(), req.GetPassword().GetPassword())
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "provider rejected the credentials")
+	}
+	// The natural key (PLAN.md §7.5): the caller's own record for the same
+	// provider + base URL + username IS the account being re-linked — same
+	// id, same audience, same budget, refreshed session. Someone else's
+	// record for the same provider username is never a candidate: the key is
+	// owner-scoped, so a re-link cannot hijack an account the caller does
+	// not own.
+	prev, err := s.ownAccountBy(ctx, uid, req.GetProvider(), baseURL, req.GetPassword().GetUsername())
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to read the account")
+	}
+	if prev != nil {
+		return s.relinkAccount(ctx, *prev, blob, req)
+	}
+	// First link: an absent visibility resolves to the documented default —
+	// PRIVATE, its member list empty regardless of what rode along.
+	vis := accounts.VisibilityPrivate
+	var roster []string
+	if req.Visibility != nil {
+		vis = apiVisibility(req.GetVisibility())
+		roster = req.GetSharedWith()
 	}
 	id := accounts.NewID()
 	if err := s.accounts.Save(ctx, id, blob); err != nil {
@@ -79,7 +117,7 @@ func (s *Server) LinkAccount(ctx context.Context, req *apiv1.LinkAccountRequest)
 		OwnerUserID:          uid,
 		Status:               accounts.StatusLinked,
 		Visibility:           vis,
-		SharedWith:           req.GetSharedWith(),
+		SharedWith:           roster,
 		MaxConcurrentStreams: req.GetMaxConcurrentStreams(),
 		CreatedAt:            time.Now().UTC(),
 	}
@@ -99,6 +137,56 @@ func (s *Server) LinkAccount(ctx context.Context, req *apiv1.LinkAccountRequest)
 	}
 	s.emitAccountEvent(uid, id, rec.Provider, corev1.EventType_EVENT_TYPE_ACCOUNT_SESSION_LINKED)
 	return &apiv1.LinkAccountResponse{AccountId: id}, nil
+}
+
+// ownAccountBy resolves the caller's own account for a natural key — owner,
+// provider, base URL, username (PLAN.md §7.5). It returns nil when the
+// caller has no such record; other users' records are never candidates.
+func (s *Server) ownAccountBy(ctx context.Context, uid, provider, baseURL, username string) (*accounts.Record, error) {
+	records, err := s.accounts.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i, rec := range records {
+		if rec.OwnerUserID == uid && rec.Provider == provider && rec.BaseURL == baseURL && rec.Username == username {
+			return &records[i], nil
+		}
+	}
+	return nil, nil
+}
+
+// relinkAccount refreshes an existing link in place (PLAN.md §7.5): the
+// freshly probed session replaces the vaulted one under the same account
+// id, only the fields the request actually sent are applied, and the
+// account returns to LINKED from EXPIRED. The record, its audience, and its
+// budget survive untouched unless the request said otherwise. A failure
+// after the session is replaced is reported but never rolled back: the new
+// session is itself valid owner-supplied material, so the account is left
+// with a working session and its earlier sharing.
+func (s *Server) relinkAccount(ctx context.Context, prev accounts.Record, blob []byte, req *apiv1.LinkAccountRequest) (*apiv1.LinkAccountResponse, error) {
+	if err := s.accounts.Save(ctx, prev.ID, blob); err != nil {
+		return nil, status.Error(codes.Internal, "failed to replace the account session")
+	}
+	// Presence-gated settings changes ride the same path an owner-driven
+	// update takes (§7.1): wholesale sharing with the live reach swap, a
+	// present cap enforced against live sessions — one discipline, one
+	// implementation.
+	if req.Visibility != nil || req.MaxConcurrentStreams != nil {
+		upd := &apiv1.UpdateAccountRequest{AccountId: prev.ID, MaxConcurrentStreams: req.MaxConcurrentStreams}
+		if req.Visibility != nil {
+			upd.Sharing = &apiv1.AccountSharing{Visibility: req.GetVisibility(), SharedWith: req.GetSharedWith()}
+		}
+		if _, err := s.UpdateAccount(ctx, upd); err != nil {
+			return nil, err
+		}
+	}
+	if prev.Status != accounts.StatusLinked {
+		if err := s.accounts.SetStatus(ctx, prev.ID, accounts.StatusLinked); err != nil {
+			return nil, status.Error(codes.Internal, "failed to return the account to linked")
+		}
+	}
+	s.emitAccountEvent(prev.OwnerUserID, prev.ID, prev.Provider, corev1.EventType_EVENT_TYPE_ACCOUNT_SESSION_LINKED)
+	return &apiv1.LinkAccountResponse{AccountId: prev.ID}, nil
 }
 
 // visibleTo reports whether an account's existence is already knowable to a

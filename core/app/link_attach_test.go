@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
@@ -16,11 +18,18 @@ import (
 
 // fakeJellyfin is a minimal in-process provider: it answers one login and one
 // catalogue page, so a Stack's jellyfin slot builds against it
-// (PLAN.md §3.3 handshake over-config is driven by the real adapter).
+// (PLAN.md §3.3 handshake over-config is driven by the real adapter). It also
+// serves the delivery path (PlaybackInfo + stream) so a composed stack can
+// start a play against it.
 type fakeJellyfin struct {
 	srv    *httptest.Server
 	authN  int
 	itemsN int
+	// playback401 makes every PlaybackInfo call fail authorization: a test
+	// flips it to kill a linked account's cached session at the provider.
+	// The adapter blanks its vaulted copy on rejection, so the next resolve
+	// discovers a dead session — the re-auth flow's trigger (PLAN.md §7.5).
+	playback401 bool
 }
 
 func newFakeJellyfin(t *testing.T) *fakeJellyfin {
@@ -41,6 +50,41 @@ func newFakeJellyfin(t *testing.T) *fakeJellyfin {
 			"TotalRecordCount": 1,
 			"StartIndex":       0,
 		})
+	})
+	mux.HandleFunc("POST /Items/{id}/PlaybackInfo", func(w http.ResponseWriter, r *http.Request) {
+		if f.playback401 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"Exception":{"Message":"Unauthorized"}}`))
+			return
+		}
+		if !strings.HasPrefix(r.Header.Get("Authorization"), "MediaBrowser Token=") {
+			http.Error(w, "missing authorization", http.StatusUnauthorized)
+			return
+		}
+		id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/Items/"), "/PlaybackInfo")
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"MediaSources": []map[string]any{{
+				"Id":        "ms-" + id,
+				"Container": "mkv",
+				"MediaStreams": []map[string]any{
+					{"Type": "Video", "Codec": "hevc", "Width": 1920, "Height": 1080, "Language": "eng"},
+					{"Type": "Audio", "Codec": "truehd", "Channels": 8, "ChannelLayout": "7.1", "Language": "eng"},
+					{"Type": "Subtitle", "Codec": "srt", "Language": "eng"},
+				},
+			}},
+		})
+	})
+	mux.HandleFunc("GET /Videos/{id}/stream", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("api_key") != "faker-token" {
+			http.Error(w, "missing api key", http.StatusUnauthorized)
+			return
+		}
+		body := []byte("fake-mkv-bytes")
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+		_, _ = w.Write(body)
 	})
 	f.srv = httptest.NewServer(mux)
 	t.Cleanup(f.srv.Close)

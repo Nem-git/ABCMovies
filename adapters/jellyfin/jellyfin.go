@@ -120,6 +120,11 @@ func (e NoSessionError) Error() string {
 		e.AccountID, e.Username, e.BaseURL)
 }
 
+// NoSession marks this error for the core's re-auth flow by structure
+// (PLAN.md §7.5): delivery.IsNoSession keys off it, and neither side needs
+// to import the other's type.
+func (e NoSessionError) NoSession() bool { return true }
+
 // New builds a slot serving the given account ids, resolved through src. Empty
 // PasswordEnv is allowed: such an account is vault-first — its session must
 // already be in the vault (a validated link), never re-logged-in from here.

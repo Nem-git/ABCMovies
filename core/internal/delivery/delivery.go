@@ -19,6 +19,7 @@ package delivery
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -103,6 +104,21 @@ type Resolver interface {
 	ProduceSources(ctx context.Context, provider, accountID, nativeID string) (*corev1.MediaSource, error)
 }
 
+// noSession is the structural contract a typed "this account has no live
+// session and cannot obtain one; only a human re-link recovers it" failure
+// satisfies (PLAN.md §7.5). Adapters mark their own error type with
+// NoSession() bool — structural typing keeps the core free of adapter
+// imports while any adapter can participate.
+type noSession interface{ NoSession() bool }
+
+// IsNoSession reports whether err, or anything it wraps, is a typed
+// no-live-session failure: the signal that the re-auth flow must run, never
+// an ordinary provider error.
+func IsNoSession(err error) bool {
+	var marker noSession
+	return errors.As(err, &marker)
+}
+
 // Sink is the byte destination for one delivery session (PLAN.md §6.4). One
 // session drives exactly one sink.
 type Sink interface {
@@ -145,8 +161,14 @@ type Options struct {
 	// delivery-play-menu-ready event through it (PLAN.md §6.2); nil mutes the
 	// announcement.
 	MenuReady func(*Session)
-	Now       func() time.Time
-	Logger    *slog.Logger
+	// SessionDied reports that an account's provider session was discovered
+	// dead during a delivery — a typed no-live-session failure (PLAN.md
+	// §7.5). The composition root flips the account to EXPIRED, notifies the
+	// owner, and opens the re-auth job; nil mutes the report, and the
+	// delivery itself still fails normally.
+	SessionDied func(accountID string)
+	Now         func() time.Time
+	Logger      *slog.Logger
 }
 
 // Engine owns the delivery sessions and the session→account index.
@@ -160,12 +182,13 @@ type Engine struct {
 	interval time.Duration
 	grace    time.Duration
 
-	resolver  Resolver
-	sinkMaker SinkFactory
-	recordJob func(*corev1.Job)
-	menuReady func(*Session)
-	now       func() time.Time
-	logger    *slog.Logger
+	resolver    Resolver
+	sinkMaker   SinkFactory
+	recordJob   func(*corev1.Job)
+	menuReady   func(*Session)
+	sessionDied func(accountID string)
+	now         func() time.Time
+	logger      *slog.Logger
 
 	instancePolicy     policy.Set
 	accountConstraints func(ctx context.Context, provider, accountID string) (override policy.Set, caps policy.ProviderCaps, err error)
@@ -180,19 +203,20 @@ type Engine struct {
 // grace bound play-session heartbeat liveness (TECHNICAL-DECISIONS.md §1.14).
 func New(opts Options) *Engine {
 	e := &Engine{
-		sessions:  make(map[string]*Session),
-		byAccount: make(map[accountKey]map[string]struct{}),
-		ttl:       opts.SessionTTL,
-		interval:  opts.HeartbeatInterval,
-		grace:     opts.HeartbeatGrace,
-		resolver:  opts.SourceResolver,
-		sinkMaker: opts.SinkFactory,
-		recordJob: opts.RecordJob,
-		menuReady: opts.MenuReady,
-		now:       opts.Now,
-		logger:    opts.Logger,
-		stopCh:    make(chan struct{}),
-		done:      make(chan struct{}),
+		sessions:    make(map[string]*Session),
+		byAccount:   make(map[accountKey]map[string]struct{}),
+		ttl:         opts.SessionTTL,
+		interval:    opts.HeartbeatInterval,
+		grace:       opts.HeartbeatGrace,
+		resolver:    opts.SourceResolver,
+		sinkMaker:   opts.SinkFactory,
+		recordJob:   opts.RecordJob,
+		menuReady:   opts.MenuReady,
+		sessionDied: opts.SessionDied,
+		now:         opts.Now,
+		logger:      opts.Logger,
+		stopCh:      make(chan struct{}),
+		done:        make(chan struct{}),
 	}
 	e.instancePolicy = opts.InstancePolicy
 	if e.instancePolicy == nil {
@@ -243,6 +267,9 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 	}
 	src, err := e.resolver.ProduceSources(ctx, req.Provider, req.AccountID, req.NativeID)
 	if err != nil {
+		if IsNoSession(err) {
+			e.reportSessionDied(req.AccountID)
+		}
 		return nil, fmt.Errorf("resolve sources: %w", err)
 	}
 	if err := ValidateManifest(src); err != nil {
@@ -383,6 +410,16 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 
 	e.recordJob(sess.toJob())
 	return sess, nil
+}
+
+// reportSessionDied surfaces a discovered dead session to the composition
+// root, which runs the re-auth flow (PLAN.md §7.5). A nil hook mutes the
+// report; the delivery itself still fails either way.
+func (e *Engine) reportSessionDied(accountID string) {
+	if e.sessionDied == nil {
+		return
+	}
+	e.sessionDied(accountID)
 }
 
 func (e *Engine) resolveConstraints(ctx context.Context, req StartRequest) (override policy.Set, caps policy.ProviderCaps, err error) {
