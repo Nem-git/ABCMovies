@@ -7,6 +7,7 @@ import "abcmovies/core/v1/job.proto";
 import "abcmovies/core/v1/library_entry.proto";
 import "abcmovies/core/v1/media_source.proto";
 import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
 
 // The inbound API service surface (docs/TECHNICAL-DECISIONS §1.3, PLAN.md §8).
 // Clients reach in; the core never reaches out. Two communication styles:
@@ -89,6 +90,35 @@ service CoreService {
   // instance enforces. Read-only; changing settings is a future, separately
   // gated surface (TECHNICAL-DECISIONS.md §1.45).
   rpc GetInstanceSettings(GetInstanceSettingsRequest) returns (GetInstanceSettingsResponse);
+
+  // Slot health: read-only view of provider slot health as discovered by
+  // probes (Batch 6). Additive; authenticated.
+  rpc ListSlotHealth(ListSlotHealthRequest) returns (ListSlotHealthResponse);
+}
+
+enum SlotHealthErrorKind {
+  SLOT_HEALTH_ERROR_KIND_UNSPECIFIED = 0;
+  SLOT_HEALTH_ERROR_KIND_AUTH = 1;
+  SLOT_HEALTH_ERROR_KIND_NETWORK = 2;
+  SLOT_HEALTH_ERROR_KIND_TIMEOUT = 3;
+  SLOT_HEALTH_ERROR_KIND_UNKNOWN = 4;
+}
+
+message SlotHealth {
+  string slot_id = 1;
+  bool healthy = 2;
+  google.protobuf.Timestamp last_probe_at = 3;
+  google.protobuf.Timestamp last_success_at = 4;
+  google.protobuf.Timestamp last_failure_at = 5;
+  int64 failure_count = 6;
+  SlotHealthErrorKind last_error_kind = 7;
+  string last_error_message = 8;
+}
+
+message ListSlotHealthRequest {}
+
+message ListSlotHealthResponse {
+  repeated SlotHealth slots = 1;
 }
 
 message GetInstanceInfoRequest {}

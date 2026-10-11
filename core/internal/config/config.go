@@ -120,6 +120,7 @@ type Config struct {
 		SourceCache   StoreConfig `yaml:"source-cache"`
 		MetadataCache StoreConfig `yaml:"metadata-cache"`
 		Settings      StoreConfig `yaml:"settings"`
+		SlotHealth    StoreConfig `yaml:"slot-health"`
 	} `yaml:"stores"`
 	// Policy is the instance-wide usage policy — a limit-type → value map
 	// (PLAN.md §7.2). Absent keys inherit the shipped defaults; unknown
@@ -207,6 +208,7 @@ type Stores struct {
 	SourceCache   store.Store
 	MetadataCache store.Store
 	Settings      store.Store
+	SlotHealth    store.Store
 	VaultAEAD     cipher.AEAD
 }
 
@@ -235,6 +237,8 @@ func Default() *Config {
 	// default is honest: the operator's config re-establishes them at boot.
 	// The example config recommends local-file for a durable record.
 	c.Stores.Settings = StoreConfig{Backend: "in-memory"}
+	// Slot health is written by probes; in-memory dev default is fine.
+	c.Stores.SlotHealth = StoreConfig{Backend: "in-memory"}
 	// The built-in reference slot is part of every instance; kind lists start
 	// empty and grow through operator config.
 	c.Slots.Builtin.Enabled = true
@@ -439,7 +443,10 @@ func BuildStores(ctx context.Context, cfg *Config, logger *slog.Logger) (Stores,
 	if err != nil {
 		return s, fmt.Errorf("stores.settings: %w", err)
 	}
-
+	s.SlotHealth, err = buildStore(ctx, cfg.Stores.SlotHealth, "data/slot-health.db")
+	if err != nil {
+		return s, fmt.Errorf("stores.slot-health: %w", err)
+	}
 	// The instance key is resolved exactly once and shared by everything that
 	// must be sealed at rest: the vault store, the sealed login store, and an
 	// encrypted data-key cache. Resolving it per consumer would, with a
@@ -484,7 +491,7 @@ func BuildStores(ctx context.Context, cfg *Config, logger *slog.Logger) (Stores,
 // all stores get closed regardless.
 func CloseStores(s Stores) error {
 	var firstErr error
-	for _, c := range []store.Store{s.Cache, s.Vault, s.WatchHistory, s.Jobs, s.Sessions, s.Users, s.SourceCache, s.MetadataCache, s.Settings} {
+	for _, c := range []store.Store{s.Cache, s.Vault, s.WatchHistory, s.Jobs, s.Sessions, s.Users, s.SourceCache, s.MetadataCache, s.Settings, s.SlotHealth} {
 		if err := c.Close(); err != nil && firstErr == nil {
 			firstErr = err
 		}

@@ -82,7 +82,14 @@ func (s *Server) LinkAccount(ctx context.Context, req *apiv1.LinkAccountRequest)
 	}
 	blob, err := prober.Probe(ctx, baseURL, req.GetPassword().GetUsername(), req.GetPassword().GetPassword())
 	if err != nil {
+		// Record probe failure (batch 6); slot id is the provider slot.
+		if s.slotHealth != nil {
+			_ = s.slotHealth.RecordProbeFailure(ctx, req.GetProvider(), "AUTH", "")
+		}
 		return nil, status.Error(codes.Unauthenticated, "provider rejected the credentials")
+	}
+	if s.slotHealth != nil {
+		_ = s.slotHealth.RecordProbeSuccess(ctx, req.GetProvider())
 	}
 	// The natural key (PLAN.md §7.5): the caller's own record for the same
 	// provider + base URL + username IS the account being re-linked — same

@@ -262,3 +262,14 @@ func (a *coreServiceAdapter) LiveSearch(
 	}
 	return connect.NewResponse(resp), nil
 }
+
+func (a *coreServiceAdapter) ListSlotHealth(
+	ctx context.Context,
+	req *connect.Request[apiv1.ListSlotHealthRequest],
+) (*connect.Response[apiv1.ListSlotHealthResponse], error) {
+	resp, err := a.srv.ListSlotHealth(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}

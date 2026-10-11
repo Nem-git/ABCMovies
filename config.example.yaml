@@ -198,6 +198,16 @@ stores:
     backend: local-file
     # path: data/metadata-cache.db  # default
 
+  # Instance settings (Batch 5) — durable record of operator settings. Values
+  # are re-seedable from config at boot.
+  settings:
+    backend: local-file
+    # path: data/settings.db  # default
+  # Slot health (Batch 6) — probe results for provider slots.
+  slot-health:
+    backend: local-file
+    # path: data/slot-health.db  # default
+
 # Enrichment pipeline tuning (docs/TECHNICAL-DECISIONS.md §1.28, §1.29).
 # Absent keys fall back to the documented defaults.
 # enrichment:

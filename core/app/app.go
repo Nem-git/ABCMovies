@@ -27,6 +27,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/registry"
 	"github.com/nem-git/abcmovies/core/internal/settings"
+	"github.com/nem-git/abcmovies/core/internal/slothealth"
 	"google.golang.org/grpc"
 )
 
@@ -169,6 +170,13 @@ func build(configPath string, logger *slog.Logger) (*Stack, error) {
 	// GetInstanceSettings and the owner-id visibility projection always see
 	// what the instance enforces, never a boot-frozen copy.
 	srv.SetInstanceSettings(settingsProvider)
+	if stores.SlotHealth != nil {
+		slotHP, err := slothealth.New(stores.SlotHealth)
+		if err != nil {
+			return nil, fmt.Errorf("slothealth: %w", err)
+		}
+		srv.SetSlotHealth(slotHP)
+	}
 
 	return &Stack{
 		service:         srv,

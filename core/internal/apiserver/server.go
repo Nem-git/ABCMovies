@@ -15,6 +15,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/schema"
 	"github.com/nem-git/abcmovies/core/internal/settings"
+	"github.com/nem-git/abcmovies/core/internal/slothealth"
 	"github.com/nem-git/abcmovies/core/internal/store"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -122,6 +123,7 @@ type Server struct {
 	// stored one. Nil until armed: a server built without the composition
 	// root falls back to the construction-time auth and heartbeatInterval.
 	instanceSettings InstanceSettings
+	slotHealth       *slothealth.Provider
 }
 
 // LiveSearcher runs one explicit user-triggered refresh of the lazy
@@ -595,4 +597,9 @@ func authMethod(passwordSignUp *apiv1.PasswordSignUp, passwordLogin *apiv1.Passw
 		return "password"
 	}
 	return ""
+}
+
+// SetSlotHealth arms the slot-health provider.
+func (s *Server) SetSlotHealth(p *slothealth.Provider) {
+	s.slotHealth = p
 }
