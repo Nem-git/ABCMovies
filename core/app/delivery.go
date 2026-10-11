@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
+	"github.com/nem-git/abcmovies/core/internal/pacing"
 	"github.com/nem-git/abcmovies/core/internal/policy"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
@@ -100,6 +102,19 @@ func (m managedDelivery) PlayMenu(sessionID string) (*apiserver.PlayMenu, error)
 		menu.Tracks = append(menu.Tracks, apiserver.PlayMenuTrack{TrackID: tr.GetId(), Track: tr, RelayToken: token})
 	}
 	return menu, nil
+}
+
+// classifyDeliveryRefusal attaches a typed admission reason to a refused
+// start. The pacing governor's busy answer is the unhealthy-slot signal
+// (PLAN.md §7.2): the provider is in backoff or the aggregate governor is at
+// capacity. A plain transport failure is not a slot-health signal and stays
+// an untyped failure (TECHNICAL-DECISIONS.md §1.44).
+func classifyDeliveryRefusal(err error) (delivery.RefusalReason, bool) {
+	var busy *pacing.BusyError
+	if errors.As(err, &busy) {
+		return delivery.RefusalUnhealthySlot, true
+	}
+	return delivery.RefusalUnspecified, false
 }
 
 // planContainer extracts the deliverable's container from a play plan: the
@@ -207,7 +222,14 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 		SessionDied: func(accountID string) {
 			reauthOnSessionDeath(context.Background(), accountStore, s.stores.Jobs, rt.Bus, accountID, logger)
 		},
-		Logger: logger,
+		// ClassifyRefusal attaches a typed admission reason to a refused
+		// start. The pacing governor's busy answer is the unhealthy-slot
+		// signal (PLAN.md §7.2): the provider is in backoff or the aggregate
+		// governor is at capacity. A plain transport failure is not a
+		// slot-health signal and stays an untyped failure — only pacing
+		// admits the classification (TECHNICAL-DECISIONS.md §1.44).
+		ClassifyRefusal: classifyDeliveryRefusal,
+		Logger:          logger,
 	})
 	s.delivery = eng
 	// The delivery watchdog is periodic work: Start launches it (PLAN.md

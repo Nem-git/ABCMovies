@@ -174,8 +174,19 @@ type Options struct {
 	// owner, and opens the re-auth job; nil mutes the report, and the
 	// delivery itself still fails normally.
 	SessionDied func(accountID string)
-	Now         func() time.Time
-	Logger      *slog.Logger
+	// ClassifyRefusal converts a resolver failure into a typed admission
+	// refusal, so the StartDelivery caller learns why the start was refused
+	// (PLAN.md §6.5, §11). The composition root owns the cross-package
+	// vocabulary here — for example mapping the pacing governor's busy
+	// answer (a pacing.BusyError) to RefusalUnhealthySlot — keeping the
+	// engine free of the pacing package's types. Returning ok=false leaves
+	// the error unclassified (a plain failure with no refusal reason). Nil
+	// disables the classifier; a resolve that reports a dead session
+	// (IsNoSession) is always refused as RefusalNoSession, before the
+	// classifier runs.
+	ClassifyRefusal func(err error) (RefusalReason, bool)
+	Now             func() time.Time
+	Logger          *slog.Logger
 }
 
 // Engine owns the delivery sessions and the session→account index.
@@ -194,6 +205,7 @@ type Engine struct {
 	recordJob   func(*corev1.Job)
 	menuReady   func(*Session)
 	sessionDied func(accountID string)
+	classify    func(err error) (RefusalReason, bool)
 	now         func() time.Time
 	logger      *slog.Logger
 
@@ -220,6 +232,7 @@ func New(opts Options) *Engine {
 		recordJob:   opts.RecordJob,
 		menuReady:   opts.MenuReady,
 		sessionDied: opts.SessionDied,
+		classify:    opts.ClassifyRefusal,
 		now:         opts.Now,
 		logger:      opts.Logger,
 		stopCh:      make(chan struct{}),
@@ -274,8 +287,20 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 	}
 	src, err := e.resolver.ProduceSources(ctx, req.Provider, req.AccountID, req.NativeID)
 	if err != nil {
+		// A dead provider session is refused as NO_SESSION — the caller's
+		// account needs a re-link, and the re-auth flow is opened on their
+		// behalf — never as a generic failure (PLAN.md §7.5).
 		if IsNoSession(err) {
 			e.reportSessionDied(req.AccountID)
+			return nil, NewRefusal(RefusalNoSession, "account %s/%s has no live provider session; the owner must re-link the account", req.Provider, req.AccountID)
+		}
+		// The composition root's classifier maps cross-package signals (the
+		// pacing governor's busy answer) onto a typed refusal; everything it
+		// does not claim stays a plain, untyped failure.
+		if e.classify != nil {
+			if reason, ok := e.classify(err); ok {
+				return nil, NewRefusal(reason, "provider %s is currently unavailable; retry shortly", req.Provider)
+			}
 		}
 		return nil, fmt.Errorf("resolve sources: %w", err)
 	}
@@ -378,11 +403,11 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 	}
 	if memberActive >= memberLimit {
 		e.mu.Unlock()
-		return nil, &deliveryError{code: codeQuota, msg: fmt.Sprintf("member %s is at its concurrent-stream cap (%d)", req.MemberUserID, memberLimit)}
+		return nil, NewRefusal(RefusalAtCapacity, "member %s is at its concurrent-stream cap (%d)", req.MemberUserID, memberLimit)
 	}
 	if accountActive >= accountLimit {
 		e.mu.Unlock()
-		return nil, &deliveryError{code: codeQuota, msg: fmt.Sprintf("account %s/%s is at its concurrent-stream cap (%d)", req.Provider, req.AccountID, accountLimit)}
+		return nil, NewRefusal(RefusalAtCapacity, "account %s/%s is at its concurrent-stream cap (%d)", req.Provider, req.AccountID, accountLimit)
 	}
 	e.sessions[sess.ID] = sess
 	if e.byAccount[key] == nil {
@@ -906,22 +931,69 @@ func RejectUnsupportedDRM(ms *corev1.MediaSource) error {
 }
 
 type deliveryError struct {
-	code codes.Code
-	msg  string
+	code   codes.Code
+	msg    string
+	reason RefusalReason
 }
 
 func (e *deliveryError) Error() string { return e.msg }
 
-// codeInvalid, codeNotFound, and codeQuota are the gRPC status codes delivery
-// errors carry. They are named constants from the canonical set rather than
-// bare integers, so a reader — and the apiserver, which re-raises them
-// verbatim — sees the same vocabulary everywhere. Delivery never answers
-// PermissionDenied: a refusal outside the caller's reach is NotFound
-// (PLAN.md §8.1).
+// RefusalReason is the typed reason a StartDelivery was refused (PLAN.md
+// §6.5, §11). The apiserver projects it onto the DeliveryRefusal wire detail;
+// the empty value means "no admission reason attached" and renders no detail.
+type RefusalReason string
+
 const (
-	codeInvalid  = codes.InvalidArgument
-	codeNotFound = codes.NotFound
-	codeQuota    = codes.ResourceExhausted
+	// RefusalUnspecified means no admission reason was attached.
+	RefusalUnspecified RefusalReason = ""
+	// RefusalAtCapacity: the member or account is at a concurrent-stream
+	// cap. Refused as ResourceExhausted.
+	RefusalAtCapacity RefusalReason = "at-capacity"
+	// RefusalNoSession: the account's provider session is dead; the owner
+	// must re-link. Refused as FailedPrecondition, after the re-auth flow
+	// is reported.
+	RefusalNoSession RefusalReason = "no-session"
+	// RefusalUnhealthySlot: the provider slot is unhealthy — in the
+	// composition root's vocabulary, the pacing governor is in backoff or at
+	// capacity. Refused as Unavailable.
+	RefusalUnhealthySlot RefusalReason = "unhealthy-slot"
+)
+
+// refusalCode is the canonical gRPC status code for a refusal reason.
+func refusalCode(r RefusalReason) codes.Code {
+	switch r {
+	case RefusalAtCapacity:
+		return codeQuota
+	case RefusalNoSession:
+		return codeNoSession
+	case RefusalUnhealthySlot:
+		return codeUnhealthy
+	default:
+		return codes.Unknown
+	}
+}
+
+// NewRefusal builds a typed admission-refusal error: the code and reason
+// travel together, so the apiserver can re-raise the code and attach the
+// reason detail without re-deriving either. It is the one way a typed
+// refusal is constructed outside the engine — harnesses and the seam tests
+// fabricate refusals through it, keeping reasons and codes consistent.
+func NewRefusal(r RefusalReason, format string, a ...any) error {
+	return &deliveryError{code: refusalCode(r), msg: fmt.Sprintf(format, a...), reason: r}
+}
+
+// codeInvalid, codeNotFound, codeQuota, codeNoSession, and codeUnhealthy are
+// the gRPC status codes delivery errors carry. They are named constants from
+// the canonical set rather than bare integers, so a reader — and the
+// apiserver, which re-raises them verbatim — sees the same vocabulary
+// everywhere. Delivery never answers PermissionDenied: a refusal outside the
+// caller's reach is NotFound (PLAN.md §8.1).
+const (
+	codeInvalid   = codes.InvalidArgument
+	codeNotFound  = codes.NotFound
+	codeQuota     = codes.ResourceExhausted
+	codeNoSession = codes.FailedPrecondition
+	codeUnhealthy = codes.Unavailable
 )
 
 func errInvalid(format string, a ...any) error {
@@ -932,13 +1004,27 @@ func errNotFound(format string, a ...any) error {
 	return &deliveryError{code: codeNotFound, msg: fmt.Sprintf(format, a...)}
 }
 
-// Code returns the gRPC-style status code for a delivery error.
+// Code returns the gRPC-style status code for a delivery error. It unwraps
+// wrapped errors (a resolver failure is wrapped on the way out, and its
+// typed code must survive the wrap).
 func Code(err error) int32 {
-	if e, ok := err.(*deliveryError); ok {
-		return int32(e.code)
-	}
 	if err == nil {
 		return 0
 	}
+	var de *deliveryError
+	if errors.As(err, &de) {
+		return int32(de.code)
+	}
 	return int32(codes.Unknown)
+}
+
+// Reason returns the admission-refusal reason attached to a delivery error,
+// or RefusalUnspecified when none is attached. Like Code, it unwraps: a
+// reason must survive the wrap that carried the error up.
+func Reason(err error) RefusalReason {
+	var de *deliveryError
+	if errors.As(err, &de) {
+		return de.reason
+	}
+	return RefusalUnspecified
 }

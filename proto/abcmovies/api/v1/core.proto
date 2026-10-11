@@ -445,6 +445,38 @@ message StartDeliveryResponse {
   abcmovies.core.v1.Job job = 1;
 }
 
+// Why a StartDelivery was refused. A refused start returns a non-OK status
+// whose details carry a DeliveryRefusal, so the caller learns what happened
+// and what to do — a busy answer is a typed refusal (PLAN.md §6.5). A
+// refusal never carries a queue position: v1 has no admission queue behind
+// StartDelivery; positions belong to the future admission mode, recorded as
+// tracked job state (PLAN.md §11).
+enum DeliveryRefusalReason {
+  DELIVERY_REFUSAL_REASON_UNSPECIFIED = 0;
+
+  // At a per-member or per-account concurrent-stream cap, or another
+  // resource admission cap. The caller should free a slot and retry, or
+  // have their allowance raised.
+  DELIVERY_REFUSAL_REASON_AT_CAPACITY = 1;
+
+  // The account has no live provider session. The owner must re-link the
+  // account (a re-auth job is opened for them); a retry without re-linking
+  // cannot succeed.
+  DELIVERY_REFUSAL_REASON_NO_SESSION = 2;
+
+  // The provider slot is unhealthy — the per-provider pacing governor is in
+  // backoff or at capacity. The caller should retry after the backoff.
+  DELIVERY_REFUSAL_REASON_UNHEALTHY_SLOT = 3;
+}
+
+message DeliveryRefusal {
+  // The typed reason for the refusal.
+  DeliveryRefusalReason reason = 1;
+
+  // A human-facing explanation and, where an action exists, what to do next.
+  string message = 2;
+}
+
 message HeartbeatRequest {
   // The delivery session id to keep alive. Required.
   string session_id = 1;

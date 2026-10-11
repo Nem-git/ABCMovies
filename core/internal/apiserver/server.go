@@ -337,7 +337,7 @@ func (s *Server) StartDelivery(ctx context.Context, req *apiv1.StartDeliveryRequ
 		Container:      req.GetContainer(),
 	})
 	if err != nil {
-		return nil, status.Error(codes.Code(delivery.Code(err)), err.Error())
+		return nil, refusalStatus(err)
 	}
 	s.recordJob(ctx, sess.Job())
 	return &apiv1.StartDeliveryResponse{Job: sess.Job()}, nil
@@ -356,6 +356,42 @@ func (s *Server) Heartbeat(ctx context.Context, req *apiv1.HeartbeatRequest) (*a
 		return nil, status.Error(codes.Code(delivery.Code(err)), err.Error())
 	}
 	return &apiv1.HeartbeatResponse{SessionId: req.GetSessionId()}, nil
+}
+
+// refusalStatus renders a StartDelivery failure as a gRPC status. A typed
+// admission refusal (delivery.Reason != "") carries a DeliveryRefusal detail,
+// so the caller can distinguish at-capacity, no-session, and unhealthy-slot
+// refusals and act on them (PLAN.md §6.5, §11). An untyped failure keeps a
+// plain status — no detail, no invented reason.
+func refusalStatus(err error) error {
+	code := codes.Code(delivery.Code(err))
+	msg := err.Error()
+	reason := mapRefusalReason(delivery.Reason(err))
+	if reason == apiv1.DeliveryRefusalReason_DELIVERY_REFUSAL_REASON_UNSPECIFIED {
+		return status.Error(code, msg)
+	}
+	st := status.New(code, msg)
+	if d, derr := st.WithDetails(&apiv1.DeliveryRefusal{Reason: reason, Message: msg}); derr == nil {
+		return d.Err()
+	}
+	return st.Err()
+}
+
+// mapRefusalReason projects the engine's refusal vocabulary onto the wire
+// enum. The enumeration is 1:1 today; the switch exists so that a new engine
+// reason fails loudly (falls through to Unspecified, which drops the detail)
+// rather than silently inventing a wire value.
+func mapRefusalReason(r delivery.RefusalReason) apiv1.DeliveryRefusalReason {
+	switch r {
+	case delivery.RefusalAtCapacity:
+		return apiv1.DeliveryRefusalReason_DELIVERY_REFUSAL_REASON_AT_CAPACITY
+	case delivery.RefusalNoSession:
+		return apiv1.DeliveryRefusalReason_DELIVERY_REFUSAL_REASON_NO_SESSION
+	case delivery.RefusalUnhealthySlot:
+		return apiv1.DeliveryRefusalReason_DELIVERY_REFUSAL_REASON_UNHEALTHY_SLOT
+	default:
+		return apiv1.DeliveryRefusalReason_DELIVERY_REFUSAL_REASON_UNSPECIFIED
+	}
 }
 
 // deliveryGoal maps the API goal enum to the engine's goal.

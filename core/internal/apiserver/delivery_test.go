@@ -2,6 +2,8 @@ package apiserver_test
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	"google.golang.org/grpc/codes"
@@ -142,6 +144,71 @@ func TestStartDelivery_Validation(t *testing.T) {
 	// The engine must not be reached for a bad request.
 	if dm.session != nil && len(dm.heartbeats) != 0 {
 		t.Fatalf("engine was reached for invalid requests")
+	}
+}
+
+// A typed admission refusal surfaces on the wire as a DeliveryRefusal status
+// detail: the caller reads the reason and the message without string-matching,
+// and the status code still says ResourceExhausted (PLAN.md §6.5, §11).
+func TestStartDelivery_TypedRefusalCarriesDetail(t *testing.T) {
+	bus := apiserver.NewInMemoryBus()
+	defer bus.Close()
+	authenticator, session := testAuth(t)
+	dm := &stubDelivery{startErr: delivery.NewRefusal(delivery.RefusalAtCapacity, "account acc-1 is at its concurrent-stream cap (1)")}
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
+	srv.SetDelivery(dm)
+	srv.SetLibrary(&stubLibrary{reachable: map[string][]string{"acc-1": {"user-1"}}, reaches: []library.Reach{{AccountID: "acc-1", Visibility: accounts.VisibilityPublic}}})
+
+	_, err := srv.StartDelivery(ctxAs(session, "user-1"), &apiv1.StartDeliveryRequest{
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:  "jellyfin",
+		AccountId: "acc-1",
+		NativeId:  "item-42",
+		Sink:      "device",
+	})
+	if status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("code = %v, want ResourceExhausted", status.Code(err))
+	}
+	st := status.Convert(err)
+	details := st.Details()
+	if len(details) != 1 {
+		t.Fatalf("details = %v, want exactly one DeliveryRefusal", details)
+	}
+	refusal, ok := details[0].(*apiv1.DeliveryRefusal)
+	if !ok {
+		t.Fatalf("detail type = %T, want *apiv1.DeliveryRefusal", details[0])
+	}
+	if refusal.GetReason() != apiv1.DeliveryRefusalReason_DELIVERY_REFUSAL_REASON_AT_CAPACITY {
+		t.Errorf("reason = %v, want at-capacity", refusal.GetReason())
+	}
+	if refusal.GetMessage() == "" || !strings.Contains(refusal.GetMessage(), "cap") {
+		t.Errorf("message = %q, want the cap explanation", refusal.GetMessage())
+	}
+}
+
+// An untyped failure keeps a plain status: Unknown, no detail, no invented
+// reason. Only a classified refusal carries the DeliveryRefusal detail.
+func TestStartDelivery_UntypedFailureStaysPlain(t *testing.T) {
+	bus := apiserver.NewInMemoryBus()
+	defer bus.Close()
+	authenticator, session := testAuth(t)
+	dm := &stubDelivery{startErr: errors.New("provider unreachable")}
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: testStores(t), Authenticator: authenticator, Session: session})
+	srv.SetDelivery(dm)
+	srv.SetLibrary(&stubLibrary{reachable: map[string][]string{"acc-1": {"user-1"}}, reaches: []library.Reach{{AccountID: "acc-1", Visibility: accounts.VisibilityPublic}}})
+
+	_, err := srv.StartDelivery(ctxAs(session, "user-1"), &apiv1.StartDeliveryRequest{
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY,
+		Provider:  "jellyfin",
+		AccountId: "acc-1",
+		NativeId:  "item-42",
+		Sink:      "device",
+	})
+	if status.Code(err) != codes.Unknown {
+		t.Fatalf("code = %v, want Unknown for an unclassified failure", status.Code(err))
+	}
+	if got := status.Convert(err).Details(); len(got) != 0 {
+		t.Fatalf("details = %v, want none for an untyped failure", got)
 	}
 }
 
