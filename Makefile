@@ -68,17 +68,22 @@ vuln: web-build
 tidy-check:
 	$(GO) mod tidy -diff
 
-# Fails when the two Go runtime pins disagree. go.mod's `toolchain` directive
+# Fails when the three Go runtime pins disagree. go.mod's `toolchain` directive
 # is authoritative for builds (GOTOOLCHAIN=auto); the .tool-versions `go` line
-# is what mise provisions in the Containerfile and CI. A drift between them is
-# silent environment drift, so the gate rejects instead of picking one.
+# is what mise provisions in the Containerfile and CI; the Containerfile
+# `FROM golang:` tag is the image every release build starts from. A drift
+# between them is silent environment drift, so the gate rejects instead of
+# picking one.
 pin-check:
 	@tool=$$(sed -n 's/^go //p' .tool-versions); \
 	mod=$$(sed -n 's/^toolchain go//p' go.mod); \
+	img=$$(sed -n 's/^FROM golang://p' Containerfile); \
 	if [ -z "$$tool" ]; then echo "pin-check: no 'go' line in .tool-versions" >&2; exit 1; fi; \
 	if [ -z "$$mod" ]; then echo "pin-check: no 'toolchain' directive in go.mod" >&2; exit 1; fi; \
+	if [ -z "$$img" ]; then echo "pin-check: no 'FROM golang:' line in Containerfile" >&2; exit 1; fi; \
 	if [ "$$tool" != "$$mod" ]; then echo "pin-check: .tool-versions has 'go $$tool' but go.mod has 'toolchain go$$mod'" >&2; exit 1; fi; \
-	echo "pin-check: go $$tool agreed"
+	if [ "$$tool" != "$$img" ]; then echo "pin-check: .tool-versions has 'go $$tool' but Containerfile has 'FROM golang:$$img'" >&2; exit 1; fi; \
+	echo "pin-check: go $$tool agreed (.tool-versions, go.mod, Containerfile)"
 
 # The milestone whose acceptance criteria gate the next image tag (CI-CD.md
 # §5). The value lives exactly once, at the repo root; CI re-reads the same
