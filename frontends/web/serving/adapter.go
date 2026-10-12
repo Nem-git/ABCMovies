@@ -284,3 +284,14 @@ func (a *coreServiceAdapter) UpdateInstanceSettings(
 	}
 	return connect.NewResponse(resp), nil
 }
+
+func (a *coreServiceAdapter) CancelDelivery(
+	ctx context.Context,
+	req *connect.Request[apiv1.CancelDeliveryRequest],
+) (*connect.Response[apiv1.CancelDeliveryResponse], error) {
+	resp, err := a.srv.CancelDelivery(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}

@@ -60,9 +60,16 @@ service CoreService {
   rpc UpdateAccount(UpdateAccountRequest) returns (UpdateAccountResponse);
 
   // Delivery: begin a play or download session and receive the delivery job
-  // (PLAN.md §6, §9.1). Start is a plain "create" — each call makes a new
-  // session; event idempotency is deferred (TECHNICAL-DECISIONS.md §1.30).
+  // (PLAN.md §6, §9.1). Admission is derived from the goal: a play is
+  // immediate (it fails loudly at the seat cap); a download queues when the
+  // cap is reached and starts when a seat frees (PLAN.md §6.5). Retries are
+  // safe when the caller sends an idempotency key (TECHNICAL-DECISIONS.md
+  // §1.44).
   rpc StartDelivery(StartDeliveryRequest) returns (StartDeliveryResponse);
+
+  // Delivery: cancel a delivery job — remove it from the queue or end a
+  // running session (PLAN.md §6.5). Owner-only; the caller must own the job.
+  rpc CancelDelivery(CancelDeliveryRequest) returns (CancelDeliveryResponse);
 
   // Delivery: report a play session is still alive (PLAN.md §9.1). A paused
   // session still heartbeats, so it is not killed.
@@ -504,19 +511,37 @@ message StartDeliveryRequest {
   // it is a remux container when the sink cannot consume the native one
   // (PLAN.md §6.3, §6.5). Optional.
   string container = 7;
+
+  // Idempotency key for retry safety (PLAN.md §9.1). A client generates one
+  // per user gesture and re-sends it on retry; a retry with a key the server
+  // has already seen returns the same job instead of creating a second.
+  // Absent = no deduplication (the legacy behavior). Keys are retained for a
+  // bounded window, after which a retry is treated as a new request.
+  string idempotency_key = 8;
 }
 
 message StartDeliveryResponse {
-  // The delivery job; its id is the delivery session id (PLAN.md §9.1).
+  // The delivery job; its id is the delivery session id (PLAN.md §9.1). A
+  // download that queued rather than started carries status QUEUED and its
+  // queue position (PLAN.md §6.5).
+  abcmovies.core.v1.Job job = 1;
+}
+
+message CancelDeliveryRequest {
+  // The delivery job to cancel. Required.
+  string job_id = 1;
+}
+
+message CancelDeliveryResponse {
+  // The cancelled job.
   abcmovies.core.v1.Job job = 1;
 }
 
 // Why a StartDelivery was refused. A refused start returns a non-OK status
 // whose details carry a DeliveryRefusal, so the caller learns what happened
 // and what to do — a busy answer is a typed refusal (PLAN.md §6.5). A
-// refusal never carries a queue position: v1 has no admission queue behind
-// StartDelivery; positions belong to the future admission mode, recorded as
-// tracked job state (PLAN.md §11).
+// refusal never carries a queue position; position exists only on the job of
+// a successfully queued start, as tracked job state (PLAN.md §11).
 enum DeliveryRefusalReason {
   DELIVERY_REFUSAL_REASON_UNSPECIFIED = 0;
 

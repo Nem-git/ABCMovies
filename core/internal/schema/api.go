@@ -93,6 +93,17 @@ func ValidateStartDeliveryRequest(r *apiv1.StartDeliveryRequest) error {
 	return nil
 }
 
+// ValidateCancelDeliveryRequest checks a CancelDeliveryRequest.
+func ValidateCancelDeliveryRequest(r *apiv1.CancelDeliveryRequest) error {
+	if r == nil {
+		return fmt.Errorf("cancel_delivery_request: nil")
+	}
+	if r.GetJobId() == "" {
+		return fmt.Errorf("cancel_delivery_request: job_id is required")
+	}
+	return nil
+}
+
 // ValidateStartDeliveryResponse checks a StartDeliveryResponse.
 func ValidateStartDeliveryResponse(r *apiv1.StartDeliveryResponse) error {
 	if r == nil {

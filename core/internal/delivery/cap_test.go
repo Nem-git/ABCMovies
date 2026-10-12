@@ -22,7 +22,7 @@ func TestStartEnforcesConcurrentStreamsCap(t *testing.T) {
 	defer e.Close()
 
 	req := StartRequest{
-		Goal: GoalDownload, MemberUserID: "u1",
+		Goal: GoalPlay, MemberUserID: "u1",
 		Provider: "jellyfin", AccountID: "acc1", Sink: "disk",
 	}
 	if _, err := e.Start(context.Background(), req); err != nil {
@@ -70,7 +70,7 @@ func TestStartHonorsAccountOverrideUnderMemberCap(t *testing.T) {
 	res.source = wholeMuxSource()
 	defer e.Close()
 
-	req := StartRequest{Goal: GoalDownload, MemberUserID: "u", Provider: "jellyfin", AccountID: "a", Sink: "disk"}
+	req := StartRequest{Goal: GoalPlay, MemberUserID: "u", Provider: "jellyfin", AccountID: "a", Sink: "disk"}
 	if _, err := e.Start(context.Background(), req); err != nil {
 		t.Fatalf("first: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestStartHonorsProviderCapOverPolicy(t *testing.T) {
 	res.source = wholeMuxSource()
 	defer e.Close()
 
-	req := StartRequest{Goal: GoalDownload, MemberUserID: "u", Provider: "jellyfin", AccountID: "a", Sink: "disk"}
+	req := StartRequest{Goal: GoalPlay, MemberUserID: "u", Provider: "jellyfin", AccountID: "a", Sink: "disk"}
 	if _, err := e.Start(context.Background(), req); err != nil {
 		t.Fatalf("first: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestCompleteFreesCapSlot(t *testing.T) {
 	res.source = wholeMuxSource()
 	defer e.Close()
 
-	req := StartRequest{Goal: GoalDownload, MemberUserID: "u", Provider: "jellyfin", AccountID: "a", Sink: "disk"}
+	req := StartRequest{Goal: GoalPlay, MemberUserID: "u", Provider: "jellyfin", AccountID: "a", Sink: "disk"}
 	s1, err := e.Start(context.Background(), req)
 	if err != nil {
 		t.Fatalf("session 1: %v", err)

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
@@ -64,6 +65,10 @@ func (m managedDelivery) RevokeOthersOnAccount(provider, accountID string, keepM
 
 func (m managedDelivery) ApplyAccountCap(ctx context.Context, provider, accountID string, enforceNow bool) (int, error) {
 	return m.eng.ApplyAccountCap(ctx, provider, accountID, enforceNow)
+}
+
+func (m managedDelivery) Cancel(jobID string) (*delivery.Session, error) {
+	return m.eng.Cancel(jobID)
 }
 
 // PlayMenu recovers a session's staged play menu, attaching each
@@ -232,6 +237,11 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 		Logger:          logger,
 	})
 	s.delivery = eng
+	// Fail orphaned queued jobs: a queued download is persisted in the store,
+	// but the in-memory queue is empty after a restart, so any QUEUED job in
+	// the store has no live session behind it. Mark it FAILED with an honest
+	// reason — never a phantom (PLAN.md §9.1).
+	failOrphanedQueued(context.Background(), s.stores.Jobs, rt.Bus, logger)
 	// The delivery watchdog is periodic work: Start launches it (PLAN.md
 	// §10), never construction.
 	// The liveness interval the engine enforces is the one clients must
@@ -296,4 +306,37 @@ func reauthOnSessionDeath(ctx context.Context, st *accounts.Store, jobs store.St
 			ActorUserId: rec.OwnerUserID,
 		},
 	})
+}
+
+// failOrphanedQueued marks queued jobs with no live session as FAILED. It is
+// called at startup: a queued download is persisted in the store, but the
+// in-memory queue is empty after a restart, so any QUEUED job in the store is
+// orphaned. Marking it FAILED with an honest reason keeps the system of record
+// truthful — never a phantom (PLAN.md §9.1).
+func failOrphanedQueued(ctx context.Context, jobs store.Store, bus *apiserver.InMemoryBus, logger *slog.Logger) {
+	keys, err := jobs.List(ctx, "job:")
+	if err != nil {
+		logger.Error("delivery: failed to list jobs for orphan sweep", "err", err)
+		return
+	}
+	for _, key := range keys {
+		raw, err := jobs.Get(ctx, key)
+		if err != nil {
+			continue
+		}
+		var job corev1.Job
+		if err := proto.Unmarshal(raw, &job); err != nil {
+			continue
+		}
+		if job.GetStatus() != corev1.JobStatus_JOB_STATUS_QUEUED {
+			continue
+		}
+		apiserver.RecordJobStatus(ctx, jobs, bus, &corev1.Job{
+			Id:          job.GetId(),
+			Kind:        job.GetKind(),
+			OwnerUserId: job.GetOwnerUserId(),
+			Status:      corev1.JobStatus_JOB_STATUS_FAILED,
+			Error:       "instance restarted while queued",
+		})
+	}
 }

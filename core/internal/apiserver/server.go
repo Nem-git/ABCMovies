@@ -2,6 +2,7 @@ package apiserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -62,6 +63,9 @@ type DeliveryManager interface {
 	// and, on enforce-now, ends the excess sessions; it never touches a
 	// session when the policy is new-sessions-only.
 	ApplyAccountCap(ctx context.Context, provider, accountID string, enforceNow bool) (int, error)
+	// Cancel removes a queued download or ends a running one. Owner-only;
+	// the caller must own the job (PLAN.md §6.5).
+	Cancel(jobID string) (*delivery.Session, error)
 }
 
 // jobKeyPrefix is the jobs keyspace: every job is stored under
@@ -352,12 +356,52 @@ func (s *Server) StartDelivery(ctx context.Context, req *apiv1.StartDeliveryRequ
 		Sink:           req.GetSink(),
 		SelectedTarget: req.GetSelectedTarget(),
 		Container:      req.GetContainer(),
+		IdempotencyKey: req.GetIdempotencyKey(),
 	})
 	if err != nil {
+		// A queued download is a success, not an error (PLAN.md §6.5): the
+		// response carries the job with status QUEUED and its position.
+		var qerr *delivery.ErrQueued
+		if errors.As(err, &qerr) {
+			s.recordJob(ctx, qerr.Job())
+			return &apiv1.StartDeliveryResponse{Job: qerr.Job()}, nil
+		}
 		return nil, refusalStatus(err)
 	}
 	s.recordJob(ctx, sess.Job())
 	return &apiv1.StartDeliveryResponse{Job: sess.Job()}, nil
+}
+
+// CancelDelivery removes a queued download or ends a running one
+// (PLAN.md §6.5). Owner-only; the caller must own the job.
+func (s *Server) CancelDelivery(ctx context.Context, req *apiv1.CancelDeliveryRequest) (*apiv1.CancelDeliveryResponse, error) {
+	if err := schema.ValidateCancelDeliveryRequest(req); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	if s.delivery == nil {
+		return nil, status.Error(codes.Unavailable, "delivery engine not configured")
+	}
+	uid, _ := UserIDFromContext(ctx)
+	// Owner-only: a job outside the caller's ownership answers exactly as one
+	// that does not exist (PLAN.md §8.1, §2.2).
+	jobResp, err := s.GetJob(ctx, &apiv1.GetJobRequest{JobId: req.GetJobId()})
+	if err != nil {
+		return nil, err
+	}
+	if owner := jobResp.GetJob().GetOwnerUserId(); owner != "" && owner != uid {
+		return nil, status.Error(codes.NotFound, "job not found")
+	}
+	sess, err := s.delivery.Cancel(req.GetJobId())
+	if err != nil {
+		return nil, status.Error(codes.Code(delivery.Code(err)), err.Error())
+	}
+	if sess != nil {
+		s.recordJob(ctx, sess.Job())
+		return &apiv1.CancelDeliveryResponse{Job: sess.Job()}, nil
+	}
+	// A queued job has no session; the engine already recorded the
+	// cancellation. Re-read the job to return its current state.
+	return &apiv1.CancelDeliveryResponse{Job: jobResp.GetJob()}, nil
 }
 
 // Heartbeat keeps a play session alive (PLAN.md §9.1).

@@ -35,11 +35,27 @@ func TestStartRefusalAtCapacityIsTyped(t *testing.T) {
 	res.source = wholeMuxSource()
 	defer e.Close()
 
-	req := StartRequest{Goal: GoalDownload, MemberUserID: "u1", Provider: "jellyfin", AccountID: "acc1", Sink: "disk"}
-	if _, err := e.Start(context.Background(), req); err != nil {
-		t.Fatalf("session 1: %v", err)
+	// A download fills the single seat; a play at the cap refuses loudly
+	// (PLAN.md §6.5: play gets a priority path — start immediately or not at
+	// all).
+	if _, err := e.Start(context.Background(), StartRequest{
+		Goal:         GoalDownload,
+		MemberUserID: "u1",
+		Provider:     "jellyfin",
+		AccountID:    "acc1",
+		NativeID:     "movie-1",
+		Sink:         "device",
+	}); err != nil {
+		t.Fatalf("first start: %v", err)
 	}
-	_, err := e.Start(context.Background(), req)
+	_, err := e.Start(context.Background(), StartRequest{
+		Goal:         GoalPlay,
+		MemberUserID: "u1",
+		Provider:     "jellyfin",
+		AccountID:    "acc1",
+		NativeID:     "movie-1",
+		Sink:         "device",
+	})
 	if err == nil {
 		t.Fatal("second start should hit the cap of 1")
 	}

@@ -59,6 +59,15 @@ message JobProgress {
   string message = 2;
 }
 
+// Queued carries the visible state of a job waiting for a slot (PLAN.md §6.5).
+// Present only while the job is queued. The position is derived, not stored:
+// it is the count of jobs ahead at the moment it is read, so it shifts as
+// jobs ahead complete or are cancelled.
+message Queued {
+  // How many jobs are ahead of this one in its queue. 1-based.
+  uint32 position = 1;
+}
+
 // Policy is a generic policy map — limit-type to value — so new limit kinds
 // need no schema change (PLAN.md §7.2). Values are strings (e.g. "3",
 // "unlimited").
@@ -97,6 +106,14 @@ message DeliveryContext {
   // play it is a remux container when the sink cannot consume the native one
   // (PLAN.md §6.3); part of the resume key (§6.5).
   string container = 10;
+  // The delivery goal ("play" or "download"), captured so a queued job can
+  // be resumed after a restart. The api/v1 DeliveryGoal enum cannot be
+  // referenced here without a circular import, so the value is the engine's
+  // own Goal string (PLAN.md §6.5, §9.1).
+  string goal = 11;
+  // The provider-native item id, captured so a queued job can be resumed
+  // after a restart (PLAN.md §6.5, §9.1).
+  string native_id = 12;
 }
 
 // PassthroughPrompt is an open passthrough action: an opaque structured prompt
@@ -146,4 +163,6 @@ message Job {
   AwaitingAction awaiting_action = 8;
   // The failure reason; required when status is FAILED.
   string error = 9;
+  // The queue state; present only when status is QUEUED.
+  Queued queued = 10;
 }

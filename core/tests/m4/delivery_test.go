@@ -129,6 +129,10 @@ func (m engineManager) ApplyAccountCap(ctx context.Context, provider, accountID 
 	return m.eng.ApplyAccountCap(ctx, provider, accountID, enforceNow)
 }
 
+func (m engineManager) Cancel(jobID string) (*delivery.Session, error) {
+	return m.eng.Cancel(jobID)
+}
+
 // buildServer wires the delivery engine over the given resolver and sink
 // factory and returns an armed CoreService together with the engine its
 // harness drives.

@@ -94,6 +94,25 @@ type Session struct {
 	lastProgress  time.Time
 }
 
+// queuedRequest is a download waiting for a seat (PLAN.md §6.5). It holds the
+// original start request so the engine can promote it when a slot frees. The
+// id is stable: it becomes the session id when the request is promoted, so a
+// client polling GetJob sees the same job id from queue to completion.
+type queuedRequest struct {
+	id             string
+	req            StartRequest
+	idempotencyKey string
+	createdAt      time.Time
+}
+
+// idempotencyEntry records a job created for an idempotency key, so a retry
+// with the same key returns the same job instead of creating a second
+// (PLAN.md §9.1).
+type idempotencyEntry struct {
+	jobID     string
+	createdAt time.Time
+}
+
 // accountKey is the index key revocation is grounded in: a provider account
 // as a member uses it (PLAN.md §2.3, §7.1). Revocation finds every session
 // whose memberUserId matches the revoked member on that account.
@@ -185,8 +204,21 @@ type Options struct {
 	// (IsNoSession) is always refused as RefusalNoSession, before the
 	// classifier runs.
 	ClassifyRefusal func(err error) (RefusalReason, bool)
-	Now             func() time.Time
-	Logger          *slog.Logger
+	// QueueCap is the maximum number of queued downloads per member. A
+	// download that arrives when the member's queue is full is refused with
+	// AT_CAPACITY (no position — the queue is full, not the seat cap).
+	// Zero resolves to 10.
+	QueueCap int
+	// QueueTTL is how long a queued download may wait before it is failed
+	// with "queued too long". Zero resolves to 24 hours.
+	QueueTTL time.Duration
+	// IdempotencyTTL is how long an idempotency key is remembered. After
+	// this, a retry with the same key is treated as a new request. Zero
+	// resolves to 1 hour.
+	IdempotencyTTL time.Duration
+
+	Now    func() time.Time
+	Logger *slog.Logger
 }
 
 // Engine owns the delivery sessions and the session→account index.
@@ -211,6 +243,12 @@ type Engine struct {
 
 	instancePolicy     policy.Set
 	accountConstraints func(ctx context.Context, provider, accountID string) (override policy.Set, caps policy.ProviderCaps, err error)
+
+	queue          map[string][]*queuedRequest // keyed by memberUserID
+	queueCap       int
+	queueTTL       time.Duration
+	idempotency    map[string]idempotencyEntry
+	idempotencyTTL time.Duration
 
 	stopCh  chan struct{}
 	done    chan struct{}
@@ -249,6 +287,20 @@ func New(opts Options) *Engine {
 	if e.logger == nil {
 		e.logger = slog.Default()
 	}
+	e.queue = make(map[string][]*queuedRequest)
+	e.queueCap = opts.QueueCap
+	if e.queueCap <= 0 {
+		e.queueCap = 10
+	}
+	e.queueTTL = opts.QueueTTL
+	if e.queueTTL <= 0 {
+		e.queueTTL = 24 * time.Hour
+	}
+	e.idempotency = make(map[string]idempotencyEntry)
+	e.idempotencyTTL = opts.IdempotencyTTL
+	if e.idempotencyTTL <= 0 {
+		e.idempotencyTTL = time.Hour
+	}
 	return e
 }
 
@@ -267,10 +319,25 @@ type StartRequest struct {
 	// composition) (PLAN.md §6.3, §6.5).
 	SelectedTarget string
 	Container      string
+	// IdempotencyKey makes retries safe (PLAN.md §9.1): a client generates one
+	// per user gesture and re-sends it on retry; a retry with a key the engine
+	// has already seen returns the same job instead of creating a second.
+	// Empty = no deduplication (the legacy behavior).
+	IdempotencyKey string
+
+	// sessionID is the id to use for the session, set when promoting a queued
+	// request so the job id is stable from queue to completion. Empty means
+	// generate a new id (the normal start path).
+	sessionID string
 }
 
 // Start resolves a manifest and begins a delivery session. The session is
 // created, indexed by account for revocation, and announced as a job.
+//
+// Admission is derived from the goal (PLAN.md §6.5): a play is immediate —
+// it fails loudly at the seat cap; a download queues when the cap is reached
+// and starts when a seat frees. Retries are safe when the caller sends an
+// idempotency key (PLAN.md §9.1).
 func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) {
 	if req.Goal != GoalPlay && req.Goal != GoalDownload {
 		return nil, errInvalid("goal must be play or download")
@@ -281,10 +348,41 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 	if req.Sink == "" {
 		return nil, errInvalid("sink is required")
 	}
-
 	if e.resolver == nil {
 		return nil, errInvalid("no source resolver wired; cannot deliver")
 	}
+
+	// Idempotency: a retry with a known key returns the same session
+	// (PLAN.md §9.1). The key is remembered for a bounded window.
+	if req.IdempotencyKey != "" {
+		e.mu.Lock()
+		if entry, ok := e.idempotency[req.IdempotencyKey]; ok {
+			if s, ok := e.sessions[entry.jobID]; ok {
+				e.mu.Unlock()
+				return s, nil
+			}
+			// The key maps to a job still waiting in the queue: return its
+			// queued state rather than enqueueing a second entry.
+			for _, qr := range e.queue[req.MemberUserID] {
+				if qr.id == entry.jobID {
+					job := e.queuedJobLocked(qr)
+					e.mu.Unlock()
+					return nil, &ErrQueued{job: job}
+				}
+			}
+			e.mu.Unlock()
+		} else {
+			e.mu.Unlock()
+		}
+	}
+
+	return e.start(ctx, req)
+}
+
+// start resolves and begins a delivery session. It is the shared path for a
+// fresh start and a promoted queue entry: the caller has already validated
+// the request and cleared idempotency.
+func (e *Engine) start(ctx context.Context, req StartRequest) (*Session, error) {
 	src, err := e.resolver.ProduceSources(ctx, req.Provider, req.AccountID, req.NativeID)
 	if err != nil {
 		// A dead provider session is refused as NO_SESSION — the caller's
@@ -356,36 +454,10 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 	accountLimit := policy.EffectiveAccountLimit(effectivePolicy, caps)
 	memberLimit, _ := e.instancePolicy.Streams()
 
-	sess := &Session{
-		ID:            e.newSessionID(),
-		Goal:          req.Goal,
-		Status:        StatusQueued,
-		Plan:          plan,
-		createdAt:     now,
-		lastHeartbeat: now,
-		lastProgress:  now,
-		Context: corev1.DeliveryContext{
-			Provider:       req.Provider,
-			AccountId:      req.AccountID,
-			MemberUserId:   req.MemberUserID,
-			Sink:           req.Sink,
-			SelectedTarget: req.SelectedTarget,
-			Container:      req.Container,
-			Policy:         &corev1.Policy{Limits: effectivePolicy},
-			ProviderCap:    &corev1.Policy{Limits: caps.Limits()},
-		},
-	}
-
-	if e.sinkMaker != nil {
-		sink, err := e.sinkMaker.NewSink(ctx, sess, src.GetTracks())
-		if err != nil {
-			return nil, fmt.Errorf("sink %q: %w", req.Sink, err)
-		}
-		sess.Sink = sink
-	}
-
 	// Counting and admission must be atomic: a check-then-act pair that isn't
 	// lets two concurrent starts both pass a limit that either would trip.
+	// The cap is checked before the session is created so a queued download
+	// does not create a session it will not use yet.
 	key := accountKey{req.Provider, req.AccountID, req.MemberUserID}
 	e.mu.Lock()
 	memberActive := 0
@@ -401,20 +473,66 @@ func (e *Engine) Start(ctx context.Context, req StartRequest) (*Session, error) 
 			accountActive++
 		}
 	}
-	if memberActive >= memberLimit {
+	if memberActive >= memberLimit || accountActive >= accountLimit {
+		// At the seat cap. A play fails loudly (PLAN.md §6.5: play gets a
+		// priority path — start immediately or not at all). A download parks
+		// in the queue and starts when a seat frees.
+		if req.Goal == GoalDownload {
+			if len(e.queue[req.MemberUserID]) >= e.queueCap {
+				e.mu.Unlock()
+				return nil, NewRefusal(RefusalAtCapacity, "member %s has %d downloads queued; the queue is full", req.MemberUserID, e.queueCap)
+			}
+			job := e.parkLocked(req)
+			e.mu.Unlock()
+			e.recordJob(job)
+			return nil, &ErrQueued{job: job}
+		}
 		e.mu.Unlock()
 		return nil, NewRefusal(RefusalAtCapacity, "member %s is at its concurrent-stream cap (%d)", req.MemberUserID, memberLimit)
 	}
-	if accountActive >= accountLimit {
-		e.mu.Unlock()
-		return nil, NewRefusal(RefusalAtCapacity, "account %s/%s is at its concurrent-stream cap (%d)", req.Provider, req.AccountID, accountLimit)
+
+	sessID := req.sessionID
+	if sessID == "" {
+		sessID = e.newSessionID()
+	}
+	sess := &Session{
+		ID:            sessID,
+		Goal:          req.Goal,
+		Status:        StatusQueued,
+		Plan:          plan,
+		createdAt:     now,
+		lastHeartbeat: now,
+		lastProgress:  now,
+		Context: corev1.DeliveryContext{
+			Provider:       req.Provider,
+			AccountId:      req.AccountID,
+			MemberUserId:   req.MemberUserID,
+			Sink:           req.Sink,
+			SelectedTarget: req.SelectedTarget,
+			Container:      req.Container,
+			Goal:           string(req.Goal),
+			NativeId:       req.NativeID,
+			Policy:         &corev1.Policy{Limits: effectivePolicy},
+			ProviderCap:    &corev1.Policy{Limits: caps.Limits()},
+		},
 	}
 	e.sessions[sess.ID] = sess
 	if e.byAccount[key] == nil {
 		e.byAccount[key] = make(map[string]struct{})
 	}
 	e.byAccount[key][sess.ID] = struct{}{}
+	if req.IdempotencyKey != "" {
+		e.idempotency[req.IdempotencyKey] = idempotencyEntry{jobID: sess.ID, createdAt: e.now()}
+	}
 	e.mu.Unlock()
+
+	if e.sinkMaker != nil {
+		sink, err := e.sinkMaker.NewSink(ctx, sess, src.GetTracks())
+		if err != nil {
+			return nil, fmt.Errorf("sink %q: %w", req.Sink, err)
+		}
+		sess.Sink = sink
+	}
 
 	// The session's mutable state is synchronized by the session's own lock:
 	// the watchdog's sweep and the quota loops read it, so the queued→running
@@ -561,6 +679,7 @@ func (e *Engine) RevokeAccount(provider, accountID, memberUserID string) int {
 	}
 	delete(e.byAccount, key)
 	e.mu.Unlock()
+	e.promoteNextLocked(context.Background(), memberUserID)
 	return killed
 }
 
@@ -573,6 +692,7 @@ func (e *Engine) RevokeAccount(provider, accountID, memberUserID string) int {
 func (e *Engine) RevokeAllOnAccount(accountID string) int {
 	e.mu.Lock()
 	var killed int
+	var affected []string
 	for id, s := range e.sessions {
 		if s.Context.GetAccountId() != accountID {
 			continue
@@ -584,12 +704,17 @@ func (e *Engine) RevokeAllOnAccount(accountID string) int {
 			s.Sink.Abort(context.Background(), s)
 		}
 		job := s.toJobLocked()
+		memberUserID := s.Context.GetMemberUserId()
 		s.mu.Unlock()
 		e.recordJob(job)
 		delete(e.byAccount[accountKey{s.Context.GetProvider(), s.Context.GetAccountId(), s.Context.GetMemberUserId()}], id)
+		affected = append(affected, memberUserID)
 		killed++
 	}
 	e.mu.Unlock()
+	for _, memberUserID := range affected {
+		e.promoteNextLocked(context.Background(), memberUserID)
+	}
 	return killed
 }
 
@@ -605,6 +730,7 @@ func (e *Engine) RevokeOthersOnAccount(provider, accountID string, keepMembers [
 	}
 	e.mu.Lock()
 	var killed int
+	var affected []string
 	for id, s := range e.sessions {
 		if s.Context.GetProvider() != provider || s.Context.GetAccountId() != accountID || !s.isActive() {
 			continue
@@ -619,12 +745,17 @@ func (e *Engine) RevokeOthersOnAccount(provider, accountID string, keepMembers [
 			s.Sink.Abort(context.Background(), s)
 		}
 		job := s.toJobLocked()
+		memberUserID := s.Context.GetMemberUserId()
 		s.mu.Unlock()
 		e.recordJob(job)
 		delete(e.byAccount[accountKey{provider, accountID, s.Context.GetMemberUserId()}], id)
+		affected = append(affected, memberUserID)
 		killed++
 	}
 	e.mu.Unlock()
+	for _, memberUserID := range affected {
+		e.promoteNextLocked(context.Background(), memberUserID)
+	}
 	return killed
 }
 
@@ -721,9 +852,11 @@ func (e *Engine) Complete(ctx context.Context, id string) error {
 		}
 	}
 	job := s.toJobLocked()
+	memberUserID := s.Context.GetMemberUserId()
 	s.mu.Unlock()
 	e.mu.Unlock()
 	e.recordJob(job)
+	e.promoteNextLocked(ctx, memberUserID)
 	return nil
 }
 
@@ -829,13 +962,20 @@ func (e *Engine) sweep() {
 		_ = id
 		s.mu.Unlock()
 	}
+	var affected []string
 	for _, d := range dead {
 		delete(e.sessions, d.ID)
 		key := accountKey{d.Context.GetProvider(), d.Context.GetAccountId(), d.Context.GetMemberUserId()}
 		delete(e.byAccount[key], d.ID)
 		e.recordJob(d.toJob())
+		affected = append(affected, d.Context.GetMemberUserId())
 	}
+	e.checkQueueTTL()
+	e.cleanupIdempotency()
 	e.mu.Unlock()
+	for _, memberUserID := range affected {
+		e.promoteNextLocked(context.Background(), memberUserID)
+	}
 }
 
 // Close stops the watchdog. Safe to call whether or not Watch is running.

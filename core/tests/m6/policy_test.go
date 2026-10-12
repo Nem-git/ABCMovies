@@ -6,7 +6,7 @@ package m6_test
 
 import (
 	"context"
-	"strings"
+	"errors"
 	"testing"
 	"time"
 
@@ -63,10 +63,18 @@ func TestM6ProviderCapIsTheAccountCeiling(t *testing.T) {
 	if _, err := e.Start(ctx(), req); err != nil {
 		t.Fatalf("2nd: %v", err)
 	}
-	// Third through the same member+account must respect the declared cap (2),
-	// even though the instance policy allows 4.
-	if _, err := e.Start(ctx(), req); err == nil || !strings.Contains(err.Error(), "cap") {
-		t.Fatalf("third start: expected cap rejection, got %v", err)
+	// Third through the same member+account respects the declared cap (2):
+	// a download queues (PLAN.md §6.5) rather than being refused.
+	_, err := e.Start(ctx(), req)
+	if err == nil {
+		t.Fatal("third start should queue, not start")
+	}
+	var qerr *delivery.ErrQueued
+	if !errors.As(err, &qerr) {
+		t.Fatalf("third start: expected queue, got %v", err)
+	}
+	if qerr.Job().GetStatus() != corev1.JobStatus_JOB_STATUS_QUEUED {
+		t.Errorf("third status = %v, want QUEUED", qerr.Job().GetStatus())
 	}
 }
 
@@ -88,11 +96,19 @@ func TestM6MemberLimitSpansAccounts(t *testing.T) {
 	if _, err := e.Start(ctx(), r2); err != nil {
 		t.Fatalf("r2: %v", err)
 	}
-	// Same member on either account refuses a third; the account where the
-	// two live must not absorb the third — this is the bypass that the old
-	// per-(account,member) counter allowed.
-	if _, err := e.Start(ctx(), r1); err == nil || !strings.Contains(err.Error(), "cap") {
-		t.Fatalf("third on acc1: expected member-aggregate cap, got %v", err)
+	// Same member on either account: a third download queues (PLAN.md §6.5)
+	// — the member-aggregate cap is still enforced, but a download waits
+	// rather than being refused.
+	_, err := e.Start(ctx(), r1)
+	if err == nil {
+		t.Fatal("third on acc1 should queue, not start")
+	}
+	var qerr *delivery.ErrQueued
+	if !errors.As(err, &qerr) {
+		t.Fatalf("third on acc1: expected queue, got %v", err)
+	}
+	if qerr.Job().GetStatus() != corev1.JobStatus_JOB_STATUS_QUEUED {
+		t.Errorf("third status = %v, want QUEUED", qerr.Job().GetStatus())
 	}
 }
 

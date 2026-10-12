@@ -174,6 +174,7 @@ func (s *stubDelivery) RevokeOthersOnAccount(string, string, []string) int { ret
 func (s *stubDelivery) ApplyAccountCap(context.Context, string, string, bool) (int, error) {
 	return 0, nil
 }
+func (s *stubDelivery) Cancel(string) (*delivery.Session, error) { return nil, nil }
 
 func (l *stubLibrary) RefreshAvailability(context.Context, string, []string) (sourcecache.Stats, error) {
 	return sourcecache.Stats{}, nil

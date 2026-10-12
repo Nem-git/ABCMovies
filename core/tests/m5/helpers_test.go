@@ -479,6 +479,10 @@ func (m m5Delivery) ApplyAccountCap(ctx context.Context, provider, accountID str
 	return m.eng.ApplyAccountCap(ctx, provider, accountID, enforceNow)
 }
 
+func (m m5Delivery) Cancel(jobID string) (*delivery.Session, error) {
+	return m.eng.Cancel(jobID)
+}
+
 func (m m5Delivery) PlayMenu(sessionID string) (*apiserver.PlayMenu, error) {
 	sess, ok := m.eng.Get(sessionID)
 	if !ok {

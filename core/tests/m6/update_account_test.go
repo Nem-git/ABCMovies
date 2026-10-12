@@ -54,6 +54,8 @@ func (d *updDelivery) ApplyAccountCap(ctx context.Context, provider, accountID s
 	return 0, nil
 }
 
+func (d *updDelivery) Cancel(string) (*delivery.Session, error) { return nil, nil }
+
 type updLibrary struct {
 	users          map[string][]string
 	reaches        map[string]library.Reach

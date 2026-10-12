@@ -67,6 +67,8 @@ func (s *stubDelivery) ApplyAccountCap(ctx context.Context, provider, accountID 
 	return 0, nil
 }
 
+func (s *stubDelivery) Cancel(string) (*delivery.Session, error) { return nil, nil }
+
 func runningSession() *delivery.Session {
 	return &delivery.Session{
 		ID:     "del-1",
