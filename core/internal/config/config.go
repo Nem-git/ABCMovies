@@ -757,6 +757,10 @@ func BuildAuth(users, sessions store.Store, dekCacheMode string, aead cipher.AEA
 	case "", "memory":
 		deks = auth.NewMemoryDEKCache()
 	case "encrypted-store":
+		// C4 interim: fail loudly if using generated key with encrypted-store
+		if aead == nil {
+			return nil, nil, nil, fmt.Errorf("auth: dek-cache 'encrypted-store' requires a pinned vault key; set stores.vault-key to a 64-hex key or use dek-cache: 'memory'")
+		}
 		sealed, err := auth.NewSealedDEKCache(sessions, aead)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("auth: dek-cache: %w", err)

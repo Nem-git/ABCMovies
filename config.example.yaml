@@ -20,9 +20,9 @@ auth:
   #     must log in again after a restart.
   #   encrypted-store: persisted in the sessions store sealed with the
   #     vault cipher (no plaintext key material reaches disk either way).
-  #     With an ephemeral vault key (vault-key: generated) sealed entries
-  #     are unreadable after a restart, i.e. memory-equivalent; pair with
-  #     a pinned hex vault key to survive restarts without re-login.
+  #     When using encrypted-store, a pinned hex vault key (non-generated) is
+  #     required to survive restarts. If vault-key is 'generated' and
+  #     dek-cache is 'encrypted-store', boot will fail.
   dek-cache: memory
 
 slots:
