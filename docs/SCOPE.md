@@ -22,7 +22,7 @@ This document fixes **what v1 of the project is**: which milestones ship, what i
 
 | Deferred | Where it's specified | Note |
 | --- | --- | --- |
-| DRM slot (acquire-keys / decrypt) | PLAN.md §6.6 | v2 — the `drm?` manifest field is carried but never populated in v1 |
+| DRM slot implementation (acquire-keys / decrypt) | PLAN.md §6.6 | v2 — the DRM slot is optional and managed in the store (D8), but its implementation is deferred; the `drm?` manifest field is carried but never populated in v1 |
 | Lazy streaming-service providers | PLAN.md §5.4 | v1 providers are library-class only |
 | Sidecar custody | PLAN.md §7.4 | Server-held custody only in v1; relay-through-owner is v2 |
 | Egress routing | PLAN.md §7.3 | Off by default; not built in v1 |

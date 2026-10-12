@@ -446,7 +446,7 @@ The same manifest may back several concurrent sessions, each to its own sink; ea
 
 ### 6.6 The DRM slot
 
-DRM is a **required component**, implemented as an isolated, versioned slot with two operations, each versioned per-operation (§3.4):
+DRM is an **optional slot kind**, implemented as an isolated, versioned slot with two operations, each versioned per-operation (§3.4). An instance may exist without a DRM slot; like providers and sinks, it is declared in the store (D8), not required at boot. The delivery engine treats a populated `drm?` manifest field as an honest "unsupported in this version" failure — never a silent skip:
 
 - **acquire-keys** — given a track's drm context (DRM system, license endpoint, initialization data, and any engine-side-only auth the license call needs), return content **keys**: key IDs, material, and validity.
 - **decrypt** — given a track source and its keys, return a clear, transcodeable stream.
@@ -628,6 +628,7 @@ Key decisions, pointing to where they are argued in the body:
 | All sinks — including the default device sink — are declared explicitly in instance config; the device entry is trivial (`id: device`, `adapter: device`, `enabled: true`), mapping the per-slot-config model onto all v1 sinks uniformly | §6.4; TECHNICAL-DECISIONS §1.13 |
 | Lowering an account's stream cap is per-account and the owner's choice: the shipped default applies the new cap from the next session and never interrupts a running stream; the other option cuts the excess sessions immediately, oldest first | §7.2, §3.5 |
 | Busy answers are typed refusals and **never carry a queue position**: in v1 no admission queue exists, so a rank on an error would be fiction (and would advertise load to a flooder). The future admission mode — a recorded additive extension of StartDelivery — is where position and notify-on-start belong: tracked, queryable job state plus an admission event, never error decoration | §6.5, §7.2; TECHNICAL-DECISIONS §1.35 |
+| DRM is an optional slot kind, not a required component; it moves to the store with the others (§6.6, D8) | §6.6 |
 | NotFound hides reach: an id outside the caller's reach answers NotFound exactly as an id that does not exist, on every surface — unknown and unreachable are indistinguishable; PermissionDenied only for resources the caller legitimately already knows (visible but forbidden, operator-declared, admin-only) | §8.1, §2.2; TECHNICAL-DECISIONS §1.36 |
 
 **Scope of this log.** This log records *product* decisions only. Implementation decisions (language, transport, tooling) are recorded in TECHNICAL-DECISIONS.md; scope and acceptance live in SCOPE.md; feasibility evidence lives in RESEARCH.md. This document deliberately stays agnostic about all three.
