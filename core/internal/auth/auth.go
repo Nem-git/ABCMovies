@@ -123,6 +123,10 @@ func (a *PasswordAuthenticator) SignUp(username string, password []byte) (*SignU
 		WrappedDEK:      wrappedDEK,
 		WrappedRecovery: wrappedRecovery,
 	}
+	// Bootstrap: first user becomes operator; subsequent users are regular.
+	if countUsers(a.store) == 0 {
+		userData.Role = RoleOperator
+	}
 	if err := a.store.PutUser(username, userData); err != nil {
 		return nil, fmt.Errorf("auth: store user: %w", err)
 	}
@@ -267,11 +271,20 @@ type UserStore interface {
 }
 
 // UserData holds the authentication material for a user.
+// Role identifies the user's authorization role (USER by default).
+type Role int
+
+const (
+	RoleUser Role = iota
+	RoleOperator
+)
+
 type UserData struct {
 	Salt            []byte // random salt for Argon2id
 	PasswordHash    []byte // Argon2id(password, salt) — the password-KEK
 	WrappedDEK      []byte // DEK wrapped by password-KEK
 	WrappedRecovery []byte // DEK wrapped by recovery-KEK
+	Role            Role   // authorization role
 }
 
 // MemoryUserStore is an in-memory implementation of UserStore.
@@ -295,6 +308,13 @@ func (s *MemoryUserStore) GetUser(username string) (*UserData, error) {
 func (s *MemoryUserStore) PutUser(username string, data *UserData) error {
 	s.users[username] = data
 	return nil
+}
+
+func countUsers(s UserStore) int {
+	if m, ok := any(s).(*MemoryUserStore); ok {
+		return len(m.users)
+	}
+	return 0
 }
 
 // CompositeAuthenticator routes auth requests to method-specific

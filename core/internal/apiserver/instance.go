@@ -2,9 +2,11 @@ package apiserver
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
+	"github.com/nem-git/abcmovies/core/internal/auth"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/settings"
 	"google.golang.org/grpc/codes"
@@ -105,4 +107,70 @@ func defaultHeartbeatInterval() time.Duration {
 		return config.DefaultHeartbeatInterval
 	}
 	return t.HeartbeatInterval
+}
+
+// settingsApplier is the write side of the instance-settings seam: the
+// settings Provider implements it, so the API layer reaches the same
+// validate -> apply live -> persist pipeline the boot path uses (E2)
+// without importing the Provider directly.
+type settingsApplier interface {
+	Apply(context.Context, settings.Patch, settings.LiveApply) (settings.Snapshot, error)
+}
+
+// requireOperator refuses the call unless the authenticated caller carries
+// the operator role. Operator-gated surfaces (settings updates, slot health,
+// and later the admin slot surface) share this check, so the rule lives in
+// one place (D3: minimal operator model — role on the user record, bootstrap
+// first user to OPERATOR).
+func (s *Server) requireOperator(ctx context.Context) error {
+	uid, ok := UserIDFromContext(ctx)
+	if !ok {
+		return status.Error(codes.Unauthenticated, "authentication required")
+	}
+	username, found := strings.CutPrefix(uid, "user:")
+	if !found {
+		return status.Error(codes.PermissionDenied, "operator role required")
+	}
+	if s.stores.Users == nil {
+		return status.Error(codes.FailedPrecondition, "user store unavailable")
+	}
+	data, err := auth.NewStoreUserStore(s.stores.Users).GetUser(username)
+	if err != nil {
+		return status.Error(codes.PermissionDenied, "operator role required")
+	}
+	if data.Role != auth.RoleOperator {
+		return status.Error(codes.PermissionDenied, "operator role required")
+	}
+	return nil
+}
+
+// applySettingsPatch runs one update through the settings pipeline. A
+// server built without the composition root (no armed instanceSettings)
+// has nothing to write to, so an update is refused rather than silently
+// dropped.
+func (s *Server) applySettingsPatch(patch settings.Patch) error {
+	p, ok := s.instanceSettings.(settingsApplier)
+	if !ok {
+		return status.Error(codes.FailedPrecondition, "instance settings are not writable")
+	}
+	live := settings.LiveApply{}
+	if s.auth != nil {
+		live.AuthMethods = s.auth.SetMethods
+	}
+	_, err := p.Apply(context.Background(), patch, live)
+	return err
+}
+
+func (s *Server) UpdateInstanceSettings(ctx context.Context, req *apiv1.UpdateInstanceSettingsRequest) (*apiv1.UpdateInstanceSettingsResponse, error) {
+	if err := s.requireOperator(ctx); err != nil {
+		return nil, err
+	}
+	patch := settings.Patch{}
+	if req.OwnerUserIdVisible != nil {
+		patch.OwnerUserIDVisible = req.OwnerUserIdVisible
+	}
+	if err := s.applySettingsPatch(patch); err != nil {
+		return nil, err
+	}
+	return &apiv1.UpdateInstanceSettingsResponse{}, nil
 }

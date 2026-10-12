@@ -273,3 +273,14 @@ func (a *coreServiceAdapter) ListSlotHealth(
 	}
 	return connect.NewResponse(resp), nil
 }
+
+func (a *coreServiceAdapter) UpdateInstanceSettings(
+	ctx context.Context,
+	req *connect.Request[apiv1.UpdateInstanceSettingsRequest],
+) (*connect.Response[apiv1.UpdateInstanceSettingsResponse], error) {
+	resp, err := a.srv.UpdateInstanceSettings(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}

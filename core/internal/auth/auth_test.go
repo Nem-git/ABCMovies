@@ -202,3 +202,33 @@ func TestCompositeAuthenticator_SetMethodsRejectsUnknown(t *testing.T) {
 		t.Errorf("methods after rejected swap = %v, want untouched [password]", got)
 	}
 }
+
+// TestSignUp_FirstUserIsOperator pins the bootstrap rule: the first user
+// created carries the operator role, and every user after that is a regular
+// user. D3: minimal operator model — no config bootstrap needed.
+func TestSignUp_FirstUserIsOperator(t *testing.T) {
+	store := auth.NewMemoryUserStore()
+	authn := auth.NewPasswordAuthenticator(store)
+
+	if _, err := authn.SignUp("alice", []byte("password123")); err != nil {
+		t.Fatalf("SignUp alice: %v", err)
+	}
+	alice, err := store.GetUser("alice")
+	if err != nil {
+		t.Fatalf("GetUser alice: %v", err)
+	}
+	if alice.Role != auth.RoleOperator {
+		t.Errorf("first user role = %v, want RoleOperator", alice.Role)
+	}
+
+	if _, err := authn.SignUp("bob", []byte("password456")); err != nil {
+		t.Fatalf("SignUp bob: %v", err)
+	}
+	bob, err := store.GetUser("bob")
+	if err != nil {
+		t.Fatalf("GetUser bob: %v", err)
+	}
+	if bob.Role != auth.RoleUser {
+		t.Errorf("second user role = %v, want RoleUser", bob.Role)
+	}
+}

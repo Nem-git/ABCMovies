@@ -91,6 +91,10 @@ service CoreService {
   // gated surface (TECHNICAL-DECISIONS.md §1.45).
   rpc GetInstanceSettings(GetInstanceSettingsRequest) returns (GetInstanceSettingsResponse);
 
+  // Instance: update effective instance settings (operator-only). Additive
+  // surface following E2: validate -> apply live -> persist.
+  rpc UpdateInstanceSettings(UpdateInstanceSettingsRequest) returns (UpdateInstanceSettingsResponse);
+
   // Slot health: read-only view of provider slot health as discovered by
   // probes (Batch 6). Additive; authenticated.
   rpc ListSlotHealth(ListSlotHealthRequest) returns (ListSlotHealthResponse);
@@ -151,6 +155,11 @@ message GetInstanceSettingsResponse {
   // guests (PLAN.md §11). Off by default: only the owner sees their own id.
   bool owner_user_id_visible = 5;
 }
+message UpdateInstanceSettingsRequest {
+  optional bool owner_user_id_visible = 1;
+}
+
+message UpdateInstanceSettingsResponse {}
 
 // GetJobResponse is one job's current state.
 message RefreshAvailabilityRequest {

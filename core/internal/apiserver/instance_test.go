@@ -12,6 +12,8 @@ import (
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
+	"github.com/nem-git/abcmovies/core/internal/auth"
+	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/settings"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
@@ -157,8 +159,74 @@ func TestGetInstanceInfoIsPublic(t *testing.T) {
 		t.Fatalf("GetInstanceSettings without token = %v, want Unauthenticated", err)
 	}
 	if _, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{
+		FullMethod: "/abcmovies.api.v1.CoreService/UpdateInstanceSettings",
+	}, handler); status.Code(err) != codes.Unauthenticated {
+		t.Fatalf("UpdateInstanceSettings without token = %v, want Unauthenticated", err)
+	}
+	if _, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{
 		FullMethod: "/abcmovies.api.v1.CoreService/GetJob",
 	}, handler); status.Code(err) != codes.Unauthenticated {
 		t.Fatalf("GetJob without token = %v, want Unauthenticated", err)
+	}
+}
+
+// UpdateInstanceSettings is operator-only: a caller without the operator role
+// is refused with PermissionDenied, and an unauthenticated caller is refused
+// with Unauthenticated. D3: minimal operator model.
+func TestUpdateInstanceSettings_RequiresOperator(t *testing.T) {
+	authenticator, session := testAuth(t)
+	stores := testStores(t)
+	stores.Settings = store.NewInMemory()
+	srv := apiserver.NewServer(apiserver.Settings{Bus: apiserver.NewInMemoryBus(), Stores: stores, Authenticator: authenticator, Session: session})
+	provider, err := settings.New(stores.Settings, config.DefaultInstanceSettings())
+	if err != nil {
+		t.Fatalf("settings.New: %v", err)
+	}
+	srv.SetInstanceSettings(provider)
+
+	// No user in context -> Unauthenticated.
+	if _, err := srv.UpdateInstanceSettings(context.Background(), &apiv1.UpdateInstanceSettingsRequest{}); status.Code(err) != codes.Unauthenticated {
+		t.Fatalf("no principal = %v, want Unauthenticated", err)
+	}
+
+	// A non-operator user -> PermissionDenied.
+	ctx := apiserver.WithUserID(context.Background(), "user:alice")
+	if err := auth.NewStoreUserStore(stores.Users).PutUser("alice", &auth.UserData{Role: auth.RoleUser}); err != nil {
+		t.Fatalf("PutUser alice: %v", err)
+	}
+	if _, err := srv.UpdateInstanceSettings(ctx, &apiv1.UpdateInstanceSettingsRequest{}); status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("regular user = %v, want PermissionDenied", err)
+	}
+}
+
+// An operator can update settings, and the change is applied live through the
+// same pipeline the boot path uses (E2): the value is readable back through
+// GetInstanceSettings immediately after the update.
+func TestUpdateInstanceSettings_AppliesLive(t *testing.T) {
+	authenticator, session := testAuth(t)
+	stores := testStores(t)
+	stores.Settings = store.NewInMemory()
+	srv := apiserver.NewServer(apiserver.Settings{Bus: apiserver.NewInMemoryBus(), Stores: stores, Authenticator: authenticator, Session: session})
+	provider, err := settings.New(stores.Settings, config.DefaultInstanceSettings())
+	if err != nil {
+		t.Fatalf("settings.New: %v", err)
+	}
+	srv.SetInstanceSettings(provider)
+
+	if err := auth.NewStoreUserStore(stores.Users).PutUser("op", &auth.UserData{Role: auth.RoleOperator}); err != nil {
+		t.Fatalf("PutUser op: %v", err)
+	}
+	ctx := apiserver.WithUserID(context.Background(), "user:op")
+
+	visible := true
+	if _, err := srv.UpdateInstanceSettings(ctx, &apiv1.UpdateInstanceSettingsRequest{OwnerUserIdVisible: &visible}); err != nil {
+		t.Fatalf("UpdateInstanceSettings as operator: %v", err)
+	}
+	resp, err := srv.GetInstanceSettings(ctx, &apiv1.GetInstanceSettingsRequest{})
+	if err != nil {
+		t.Fatalf("GetInstanceSettings: %v", err)
+	}
+	if !resp.GetOwnerUserIdVisible() {
+		t.Errorf("owner_user_id_visible = false, want true after operator update")
 	}
 }
