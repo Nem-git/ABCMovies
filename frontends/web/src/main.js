@@ -31,6 +31,7 @@ import { EventType } from './gen/abcmovies/core/v1/event_pb.js';
 import {
   accountCard,
   eventCard,
+  eventPayload,
   eventTypeLabel,
   enrichmentPanel,
   jobCard,
@@ -723,7 +724,7 @@ async function startSubscription() {
       // when the announced job is the session the player is attached to.
       if (
         res.event?.type === EventType.DELIVERY_PLAY_MENU_READY &&
-        res.event?.playMenuReady?.jobId === activeSessionId
+        eventPayload(res.event, 'playMenuReady')?.jobId === activeSessionId
       ) {
         refreshPlayInfo();
       }

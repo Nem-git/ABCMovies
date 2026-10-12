@@ -189,14 +189,25 @@ export function jobCard(job) {
   return card;
 }
 
+// eventPayload reads one case out of an EventEnvelope's payload oneof.
+//
+// protobuf-es v2 (the runtime the web bundle uses) stores a oneof group as
+// `message.payload = { case, value }` and defines no per-case getters, so
+// `ev.jobStatus` and friends are always undefined. Every payload read goes
+// through here.
+export function eventPayload(ev, caseName) {
+  const p = ev?.payload;
+  return p && p.case === caseName ? p.value : undefined;
+}
+
 function payloadRows(ev) {
   switch (ev.type) {
     case EventType.JOB_STATUS: {
-      const p = ev.jobStatus;
+      const p = eventPayload(ev, 'jobStatus');
       return [row('job', p?.jobId), row('status', jobStatusLabel(p?.status))];
     }
     case EventType.MERGE_CONFLICT: {
-      const p = ev.mergeConflict;
+      const p = eventPayload(ev, 'mergeConflict');
       return [
         row('provider', p?.provider),
         row('provider item', p?.providerId),
@@ -205,7 +216,7 @@ function payloadRows(ev) {
       ];
     }
     case EventType.PROVIDER_SWITCHED: {
-      const p = ev.providerSwitched;
+      const p = eventPayload(ev, 'providerSwitched');
       return [
         row('from provider', p?.fromProvider),
         row('to provider', p?.toProvider),
@@ -217,11 +228,11 @@ function payloadRows(ev) {
     case EventType.ACCOUNT_SESSION_LINKED:
     case EventType.ACCOUNT_SESSION_EXPIRED:
     case EventType.ACCOUNT_SESSION_REVOKED: {
-      const p = ev.accountSession;
+      const p = eventPayload(ev, 'accountSession');
       return [row('account', p?.accountId), row('provider', p?.provider)];
     }
     case EventType.AVAILABILITY_CHANGED: {
-      const p = ev.availability;
+      const p = eventPayload(ev, 'availability');
       return [
         row('account', p?.accountId),
         row('provider', p?.provider),
@@ -230,13 +241,13 @@ function payloadRows(ev) {
       ];
     }
     case EventType.DELIVERY_PLAY_MENU_READY: {
-      const p = ev.playMenuReady;
+      const p = eventPayload(ev, 'playMenuReady');
       return [row('job', p?.jobId)];
     }
     case EventType.SLOT_HEALTH_TRANSITION: {
       // Operational: a slot crossing the healthy/unhealthy boundary, routed
       // to operator subscribers only.
-      const p = ev.slotHealthTransition;
+      const p = eventPayload(ev, 'slotHealthTransition');
       const err = p?.lastErrorKind
         ? `${p.lastErrorKind}${p.lastErrorMessage ? `: ${p.lastErrorMessage}` : ''}`
         : '';
