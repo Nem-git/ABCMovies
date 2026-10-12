@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
@@ -109,7 +108,7 @@ func (e *Engine) Enrich(ctx context.Context, entryID string) error {
 	}
 
 	// 2. Text-lookup fallback across enabled catalogue slots.
-	entryItem := identity.Item{Kind: ev.Kind, ExternalIDs: ev.ExternalIDs, Metadata: ev.Metadata}
+	entryItem := identity.FromEvidence(ev.Kind, ev.ExternalIDs, ev.Metadata)
 	var pool []pooledCandidate
 	for _, cat := range e.catalogs {
 		resp, lerr := cat.Client.LookupTitle(ctx, &slotsv1.LookupTitleRequest{
@@ -123,7 +122,7 @@ func (e *Engine) Enrich(ctx context.Context, entryID string) error {
 			continue // best-effort across slots
 		}
 		for _, c := range resp.GetCandidates() {
-			pool = append(pool, pooledCandidate{cat: cat, candidate: c, item: candidateItem(c)})
+			pool = append(pool, pooledCandidate{cat: cat, candidate: c, item: identity.FromLookupCandidate(c)})
 		}
 	}
 
@@ -149,11 +148,7 @@ func (e *Engine) Enrich(ctx context.Context, entryID string) error {
 			cat:      c.cat,
 			ref:      c.candidate.GetRef(),
 			response: mdResp,
-			item: identity.Item{
-				Kind:        c.candidate.GetKind(),
-				ExternalIDs: append(claimedIDs(c.candidate), mdResp.GetExternalIds()...),
-				Metadata:    mdResp.GetMetadata(),
-			},
+			item:     identity.FromDetail(c.candidate, mdResp),
 		})
 	}
 	if len(full) == 0 {
@@ -201,35 +196,6 @@ func (e *Engine) Enrich(ctx context.Context, entryID string) error {
 		}
 	}
 	return nil
-}
-
-// candidateItem adapts a lookup summary to identity evidence. When the
-// display title differs but the original title matches the entry, the
-// original title stands in — that is exactly the localization case the
-// field exists for (contract comment on TitleCandidate.original_title;
-// matching semantics in TECHNICAL-DECISIONS.md §1.29).
-func candidateItem(c *slotsv1.TitleCandidate) identity.Item {
-	title := c.GetTitle()
-	alt := c.GetOriginalTitle()
-	item := identity.Item{
-		Kind:        c.GetKind(),
-		ExternalIDs: claimedIDs(c),
-		Metadata:    &corev1.TitleMetadata{Title: title, Year: c.GetYear()},
-	}
-	if alt != "" && alt != title {
-		item.AltTitles = []string{alt}
-	}
-	return item
-}
-
-// claimedIDs renders a candidate's own assertions, including its canonical
-// ref parsed back into namespace:value form.
-func claimedIDs(c *slotsv1.TitleCandidate) []*slotsv1.ExternalId {
-	ids := append([]*slotsv1.ExternalId{}, c.GetExternalIds()...)
-	if ns, val, ok := strings.Cut(c.GetRef(), ":"); ok && ns != "" && val != "" {
-		ids = append(ids, &slotsv1.ExternalId{Namespace: ns, Value: val})
-	}
-	return ids
 }
 
 func extKey(id *slotsv1.ExternalId) string {

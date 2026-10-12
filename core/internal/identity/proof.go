@@ -69,12 +69,6 @@ func sameIDSet(as, bs []*slotsv1.ExternalId) bool {
 	return true
 }
 
-// ItemFromProof rebuilds the comparison view of an item from stored proof,
-// letting the registry match against entries without keeping full metadata.
-func (p Proof) Item() Item {
-	return Item{
-		Kind:        p.Kind,
-		ExternalIDs: p.ExternalIDs,
-		Metadata:    &corev1.TitleMetadata{Title: p.Title, Year: p.Year},
-	}
-}
+// Item rebuilds the comparison view of an item from stored proof, letting
+// the registry match against entries without keeping full metadata.
+func (p Proof) Item() Item { return FromProof(p) }

@@ -316,7 +316,7 @@ func (e *entryRecord) item() identity.Item {
 	for _, c := range e.Claims {
 		ids = append(ids, &slotsv1.ExternalId{Namespace: c.Namespace, Value: c.Value})
 	}
-	return identity.Item{Kind: e.Kind, ExternalIDs: ids, Metadata: md}
+	return identity.FromEvidence(e.Kind, ids, md)
 }
 
 // Registry is the provider item registry over a Store (PLAN.md §2.4 identity
@@ -476,11 +476,7 @@ func (r *Registry) Alias(ctx context.Context, provider, nativeID string, generat
 // carrying the same normalized title and kind — and returns the first entry
 // the merge rule merges into.
 func (r *Registry) findTarget(ctx context.Context, item *slotsv1.CatalogueItem) (string, error) {
-	live := identity.Item{
-		Kind:        item.GetKind(),
-		ExternalIDs: item.GetExternalIds(),
-		Metadata:    item.GetMetadata(),
-	}
+	live := identity.FromSlotItem(item)
 	seen := map[string]bool{}
 	var order []string
 	for _, id := range item.GetExternalIds() {
