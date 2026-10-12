@@ -37,6 +37,9 @@ enum EventType {
   // A delivery session's play menu is staged and ready to be pulled
   // (PLAN.md §6.2); get play info to recover the menu.
   EVENT_TYPE_DELIVERY_PLAY_MENU_READY = 8;
+  // A provider slot crossed the healthy/unhealthy boundary (operational
+  // transition). Emitted only on state changes, not on every probe.
+  EVENT_TYPE_SLOT_HEALTH_TRANSITION = 9;
 }
 
 // EventAudience fixes how the event is tenancy-routed (PLAN.md §9.2).
@@ -49,6 +52,9 @@ enum EventAudience {
   // Account-scoped: every member and guest whose library derives from the
   // account (availability events).
   EVENT_AUDIENCE_ACCOUNT = 3;
+  // Instance/operational events not scoped to a particular user or account,
+  // routed only to operator subscribers.
+  EVENT_AUDIENCE_INSTANCE = 4;
 }
 
 // JobStatusEvent reports a job state transition (PLAN.md §9.1). Job-status
@@ -115,6 +121,26 @@ message AvailabilityEvent {
   bool present = 4;
 }
 
+// SlotHealthTransitionEvent reports a provider slot crossing the
+// healthy/unhealthy boundary (operational transition). Emitted only on state
+// changes, not on every probe; publishing is best-effort and never affects
+// probe persistence.
+message SlotHealthTransitionEvent {
+  // The provider slot whose health transitioned.
+  string slot_id = 1;
+  // New health state after the transition.
+  bool healthy = 2;
+  // Health state before the transition.
+  bool was_healthy = 3;
+  // Last error kind at transition time ("AUTH", "NETWORK", "TIMEOUT",
+  // "UNKNOWN", or empty on recovery).
+  string last_error_kind = 4;
+  // Last error message at transition time (may be empty).
+  string last_error_message = 5;
+  // When the transition occurred.
+  google.protobuf.Timestamp transitioned_at = 6;
+}
+
 // PlayMenuReadyEvent reports that a delivery session's play menu is staged and
 // ready to be pulled (PLAN.md §6.2). The menu itself is recovered through the
 // GetPlayInfo RPC; this is the at-most-once notification, so a subscriber that
@@ -148,7 +174,8 @@ message EventEnvelope {
     AccountSessionEvent account_session = 10;
     AvailabilityEvent availability = 11;
     PlayMenuReadyEvent play_menu_ready = 12;
+    SlotHealthTransitionEvent slot_health_transition = 13;
   }
   // When the event was emitted.
-  google.protobuf.Timestamp emitted_at = 13;
+  google.protobuf.Timestamp emitted_at = 14;
 }

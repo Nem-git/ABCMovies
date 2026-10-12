@@ -1,7 +1,8 @@
 // Package slothealth tracks the health of provider slots over time, as
-// discovered by the credential probes. The batch-6 design keeps writes to the
-// probe result path and exposes a read-only view via the API; no events or
-// permission changes are introduced here.
+// discovered by the credential probes. The write path is the probe result;
+// reads are exposed via the API. A slot crossing the healthy/unhealthy
+// boundary fires an optional transition hook (Batch 5): best-effort and
+// observational — the record stays the system of truth.
 package slothealth
 
 import (
@@ -29,10 +30,36 @@ type Record struct {
 	LastErrorMessage string
 }
 
+// Transition reports one slot crossing the healthy/unhealthy boundary. It is
+// the payload of the operational event the bus carries (Batch 5); the probe
+// result itself remains the system of record.
+type Transition struct {
+	SlotID           string
+	Healthy          bool
+	WasHealthy       bool
+	LastErrorKind    string
+	LastErrorMessage string
+	At               time.Time
+}
+
 // Provider holds the durable slot-health records in memory and the store.
 type Provider struct {
 	mu      sync.RWMutex
 	backend store.Store
+	// onTransition, when set, is called after a successful persist that
+	// crossed the healthy/unhealthy boundary. Best-effort by contract: it is
+	// called after the record is durable and its failure (if any) is not the
+	// probe writer's concern.
+	onTransition func(Transition)
+}
+
+// SetTransitionHook wires the observer of health-state transitions. A first
+// observation counts as a transition only when the slot is found unhealthy:
+// a brand-new slot being reachable is expected, not news.
+func (p *Provider) SetTransitionHook(fn func(Transition)) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.onTransition = fn
 }
 
 // New creates a Provider over backend. Absence is normal.
@@ -84,14 +111,24 @@ func decode(slotID string, b []byte) (Record, error) {
 	}, nil
 }
 
-// RecordProbeSuccess writes a successful probe result for slotID.
+// RecordProbeSuccess writes a successful probe result for slotID. A flip
+// from unhealthy to healthy fires the transition hook after the record is
+// durable; the first ever observation of a slot fires none (reaching a new
+// slot is expected, not news).
 func (p *Provider) RecordProbeSuccess(ctx context.Context, slotID string) error {
 	if slotID == "" {
 		return errors.New("slothealth: slot id required")
 	}
 	p.mu.Lock()
-	defer p.mu.Unlock()
+	var fired bool
+	var tr Transition
 	now := time.Now()
+	wasHealthy := true
+	if raw, err := p.backend.Get(ctx, key(slotID)); err == nil {
+		if old, err := decode(slotID, raw); err == nil {
+			wasHealthy = old.Healthy
+		}
+	}
 	r := Record{
 		SlotID:        slotID,
 		Healthy:       true,
@@ -101,29 +138,45 @@ func (p *Provider) RecordProbeSuccess(ctx context.Context, slotID string) error 
 	}
 	raw, err := encode(r)
 	if err != nil {
+		p.mu.Unlock()
 		return err
 	}
-	return p.backend.Put(ctx, key(slotID), raw)
+	if err := p.backend.Put(ctx, key(slotID), raw); err != nil {
+		p.mu.Unlock()
+		return err
+	}
+	if !wasHealthy {
+		fired = true
+		tr = Transition{SlotID: slotID, Healthy: true, At: now}
+	}
+	hook := p.onTransition
+	p.mu.Unlock()
+	if fired && hook != nil {
+		hook(tr)
+	}
+	return nil
 }
 
-// RecordProbeFailure writes a failed probe result for slotID.
+// RecordProbeFailure writes a failed probe result for slotID. A flip from
+// healthy to unhealthy fires the transition hook after the record is durable.
+// A first ever observation fires one: a slot found down is news, unlike one
+// found up.
 func (p *Provider) RecordProbeFailure(ctx context.Context, slotID, kind, msg string) error {
 	if slotID == "" {
 		return errors.New("slothealth: slot id required")
 	}
 	p.mu.Lock()
-	defer p.mu.Unlock()
 	now := time.Now()
-	// Load existing to preserve failure count
-	var fc int64
+	// Load existing to preserve failure count and detect the transition. A
+	// missing record counts as healthy (the reachable-until-proven
+	// otherwise), so the first failure of a slot is a transition.
+	wasHealthy := true
+	var fc int64 = 1
 	if raw, err := p.backend.Get(ctx, key(slotID)); err == nil {
 		if old, err := decode(slotID, raw); err == nil {
 			fc = old.FailureCount + 1
-		} else {
-			fc = 1
+			wasHealthy = old.Healthy
 		}
-	} else {
-		fc = 1
 	}
 	r := Record{
 		SlotID:           slotID,
@@ -136,9 +189,32 @@ func (p *Provider) RecordProbeFailure(ctx context.Context, slotID, kind, msg str
 	}
 	raw, err := encode(r)
 	if err != nil {
+		p.mu.Unlock()
 		return err
 	}
-	return p.backend.Put(ctx, key(slotID), raw)
+	if err := p.backend.Put(ctx, key(slotID), raw); err != nil {
+		p.mu.Unlock()
+		return err
+	}
+	var fired bool
+	var tr Transition
+	if wasHealthy {
+		fired = true
+		tr = Transition{
+			SlotID:           slotID,
+			Healthy:          false,
+			WasHealthy:       true,
+			LastErrorKind:    kind,
+			LastErrorMessage: msg,
+			At:               now,
+		}
+	}
+	hook := p.onTransition
+	p.mu.Unlock()
+	if fired && hook != nil {
+		hook(tr)
+	}
+	return nil
 }
 
 // Get returns the record for slotID, or (empty,false) if absent.

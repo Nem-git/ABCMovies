@@ -65,3 +65,61 @@ func TestInMemoryBusDropsAccountEventsWithoutEntiter(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 	}
 }
+
+// An INSTANCE-audience event (operational) is delivered only to subscribers
+// the operator predicate admits; everyone else must not see it.
+func TestInMemoryBusRoutesInstanceAudienceToOperators(t *testing.T) {
+	bus := apiserver.NewInMemoryBus()
+	defer bus.Close()
+	bus.SetOperatorEntiter(func(uid string) bool { return uid == "op" })
+	opCh := bus.Subscribe("sub-op", "op")
+	userCh := bus.Subscribe("sub-user", "alice")
+	defer bus.Unsubscribe("sub-op")
+	defer bus.Unsubscribe("sub-user")
+
+	bus.Publish(&corev1.EventEnvelope{
+		Type:     corev1.EventType_EVENT_TYPE_SLOT_HEALTH_TRANSITION,
+		Audience: corev1.EventAudience_EVENT_AUDIENCE_INSTANCE,
+		Payload: &corev1.EventEnvelope_SlotHealthTransition{
+			SlotHealthTransition: &corev1.SlotHealthTransitionEvent{SlotId: "jellyfin-1"},
+		},
+	})
+
+	select {
+	case e := <-opCh:
+		if e.GetType() != corev1.EventType_EVENT_TYPE_SLOT_HEALTH_TRANSITION {
+			t.Fatalf("operator got %v, want slot-health transition", e.GetType())
+		}
+	case <-time.After(time.Second):
+		t.Fatal("operator should receive the instance-audience event")
+	}
+
+	select {
+	case e := <-userCh:
+		t.Fatalf("regular subscriber received an instance-audience event: %v", e.GetType())
+	default:
+	}
+}
+
+// Without the operator predicate the bus drops INSTANCE-audience events,
+// fail-closed — the same rule the account audience follows.
+func TestInMemoryBusInstanceAudienceFailClosed(t *testing.T) {
+	bus := apiserver.NewInMemoryBus()
+	defer bus.Close()
+	subCh := bus.Subscribe("sub-op", "op")
+	defer bus.Unsubscribe("sub-op")
+
+	bus.Publish(&corev1.EventEnvelope{
+		Type:     corev1.EventType_EVENT_TYPE_SLOT_HEALTH_TRANSITION,
+		Audience: corev1.EventAudience_EVENT_AUDIENCE_INSTANCE,
+		Payload: &corev1.EventEnvelope_SlotHealthTransition{
+			SlotHealthTransition: &corev1.SlotHealthTransitionEvent{SlotId: "jellyfin-1"},
+		},
+	})
+
+	select {
+	case e := <-subCh:
+		t.Fatalf("received instance-audience event without predicate: %v", e.GetType())
+	default:
+	}
+}

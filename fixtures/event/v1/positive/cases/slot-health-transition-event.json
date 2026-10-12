@@ -1,0 +1,20 @@
+{
+  "name": "slot-health-transition-event",
+  "message": {
+    "id": "evt_9f8e7d6c5b4a39281706554433221100",
+    "type": "EVENT_TYPE_SLOT_HEALTH_TRANSITION",
+    "audience": "EVENT_AUDIENCE_INSTANCE",
+    "slot_health_transition": {
+      "slot_id": "jellyfin-1",
+      "healthy": false,
+      "was_healthy": true,
+      "last_error_kind": "NETWORK",
+      "last_error_message": "connection refused",
+      "transitioned_at": "2026-10-11T09:00:00Z"
+    },
+    "emitted_at": "2026-10-11T09:00:00Z"
+  },
+  "expected": {
+    "valid": true
+  }
+}

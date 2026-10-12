@@ -233,6 +233,20 @@ function payloadRows(ev) {
       const p = ev.playMenuReady;
       return [row('job', p?.jobId)];
     }
+    case EventType.SLOT_HEALTH_TRANSITION: {
+      // Operational: a slot crossing the healthy/unhealthy boundary, routed
+      // to operator subscribers only.
+      const p = ev.slotHealthTransition;
+      const err = p?.lastErrorKind
+        ? `${p.lastErrorKind}${p.lastErrorMessage ? `: ${p.lastErrorMessage}` : ''}`
+        : '';
+      return [
+        row('slot', p?.slotId),
+        row('health', p ? (p.healthy ? 'healthy' : 'unhealthy') : ''),
+        row('was', p ? (p.wasHealthy ? 'healthy' : 'unhealthy') : ''),
+        row('error', err),
+      ];
+    }
     default:
       return [row('payload', 'unknown event type')];
   }

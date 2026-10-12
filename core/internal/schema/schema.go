@@ -322,6 +322,14 @@ func ValidateEventEnvelope(e *corev1.EventEnvelope) error {
 		if av.GetAccountId() == "" || av.GetProvider() == "" || av.GetEntryId() == "" {
 			return fmt.Errorf("event: an availability payload requires account_id, provider, and entry_id")
 		}
+	case corev1.EventType_EVENT_TYPE_SLOT_HEALTH_TRANSITION:
+		sh := e.GetSlotHealthTransition()
+		if sh == nil {
+			return fmt.Errorf("event: a slot_health_transition payload is required for SLOT_HEALTH_TRANSITION events")
+		}
+		if sh.GetSlotId() == "" {
+			return fmt.Errorf("event: a slot_health_transition payload requires slot_id")
+		}
 	}
 	return nil
 }

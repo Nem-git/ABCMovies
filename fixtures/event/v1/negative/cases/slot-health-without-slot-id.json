@@ -1,0 +1,16 @@
+{
+  "name": "slot-health-without-slot-id",
+  "message": {
+    "id": "evt_9f8e7d6c5b4a39281706554433221122",
+    "type": "EVENT_TYPE_SLOT_HEALTH_TRANSITION",
+    "audience": "EVENT_AUDIENCE_INSTANCE",
+    "slot_health_transition": {
+      "slot_id": "",
+      "healthy": false,
+      "was_healthy": true
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}

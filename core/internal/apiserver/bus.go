@@ -37,6 +37,11 @@ type InMemoryBus struct {
 	// may derive from that account. When unset, every account-audience event
 	// is silently dropped — consistent with the router never assuming access.
 	accountEntiter func(accountID, uid string) bool
+	// operatorEntiter routes INSTANCE-audience events: a subscriber receives
+	// one only when its uid carries the operator role. When unset, every
+	// instance-audience event is dropped — fail-closed, like the account
+	// predicate.
+	operatorEntiter func(uid string) bool
 }
 
 // NewInMemoryBus returns a new, empty event bus.
@@ -54,13 +59,26 @@ func (b *InMemoryBus) SetAccountEntiter(fn func(accountID, uid string) bool) {
 	b.accountEntiter = fn
 }
 
+// SetOperatorEntiter wires the predicate used to route INSTANCE-audience
+// (operational) events: only subscribers whose uid passes it receive them.
+// Without it, every instance-audience event is silently dropped — the bus
+// never assumes an operator.
+func (b *InMemoryBus) SetOperatorEntiter(fn func(uid string) bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.operatorEntiter = fn
+}
+
 // Publish routes the event to every subscriber entitled to it (PLAN.md §9.2):
 //
 //   - USER and OWNER audiences carry a user_id and are delivered only to that
 //     user's subscriptions;
 //   - ACCOUNT-audience events are fanned out to every subscriber whose uid
 //     the account entitlement predicate admits — a null entitlement predicate
-//     delivers nothing, fail-closed.
+//     delivers nothing, fail-closed;
+//   - INSTANCE-audience events (operational) are fanned out only to
+//     subscribers whose uid the operator predicate admits — again
+//     fail-closed when the predicate is absent.
 //
 // Delivery is best-effort: the channel is buffered, and a slow subscriber
 // misses events rather than blocking the publisher.
@@ -92,6 +110,19 @@ func (b *InMemoryBus) Publish(event *corev1.EventEnvelope) {
 		}
 		for _, sub := range b.subscribers {
 			if !b.accountEntiter(accountID, sub.uid) {
+				continue
+			}
+			select {
+			case sub.ch <- event:
+			default:
+			}
+		}
+	case corev1.EventAudience_EVENT_AUDIENCE_INSTANCE:
+		if b.operatorEntiter == nil {
+			return
+		}
+		for _, sub := range b.subscribers {
+			if !b.operatorEntiter(sub.uid) {
 				continue
 			}
 			select {

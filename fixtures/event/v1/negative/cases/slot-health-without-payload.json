@@ -1,0 +1,11 @@
+{
+  "name": "slot-health-without-payload",
+  "message": {
+    "id": "evt_9f8e7d6c5b4a39281706554433221111",
+    "type": "EVENT_TYPE_SLOT_HEALTH_TRANSITION",
+    "audience": "EVENT_AUDIENCE_INSTANCE"
+  },
+  "expected": {
+    "valid": false
+  }
+}

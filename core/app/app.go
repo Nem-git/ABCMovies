@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,7 +30,46 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/settings"
 	"github.com/nem-git/abcmovies/core/internal/slothealth"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// operatorPredicate is the bus's routing rule for INSTANCE-audience events:
+// only subscribers whose uid carries the operator role receive them. It reads
+// the role off the user record, the same rule the API's operator gate uses.
+func operatorPredicate(users auth.UserStore) func(uid string) bool {
+	return func(uid string) bool {
+		username, found := strings.CutPrefix(uid, "user:")
+		if !found {
+			return false
+		}
+		data, err := users.GetUser(username)
+		return err == nil && data.Role == auth.RoleOperator
+	}
+}
+
+// wireSlotHealthTransitions connects slot-health transitions to the event bus
+// (Batch 5): published to operator subscribers, best-effort — the probe
+// record is the system of truth and lands whether or not anyone listens.
+func wireSlotHealthTransitions(bus *apiserver.InMemoryBus, slotHP *slothealth.Provider) {
+	slotHP.SetTransitionHook(func(tr slothealth.Transition) {
+		bus.Publish(&corev1.EventEnvelope{
+			Id:       fmt.Sprintf("evt-slothealth-%s-%d", tr.SlotID, tr.At.UnixNano()),
+			Type:     corev1.EventType_EVENT_TYPE_SLOT_HEALTH_TRANSITION,
+			Audience: corev1.EventAudience_EVENT_AUDIENCE_INSTANCE,
+			Payload: &corev1.EventEnvelope_SlotHealthTransition{
+				SlotHealthTransition: &corev1.SlotHealthTransitionEvent{
+					SlotId:           tr.SlotID,
+					Healthy:          tr.Healthy,
+					WasHealthy:       tr.WasHealthy,
+					LastErrorKind:    tr.LastErrorKind,
+					LastErrorMessage: tr.LastErrorMessage,
+					TransitionedAt:   timestamppb.New(tr.At),
+				},
+			},
+			EmittedAt: timestamppb.Now(),
+		})
+	})
+}
 
 // Session is the authentication surface a serving layer uses: validate a
 // presented bearer token and obtain a context carrying the authenticated
@@ -147,6 +187,11 @@ func build(configPath string, logger *slog.Logger) (*Stack, error) {
 	}
 
 	bus := apiserver.NewInMemoryBus()
+	// INSTANCE-audience (operational) events, such as slot-health
+	// transitions, are routed only to operator subscribers; the predicate
+	// reads the role off the user record the same way the API's operator
+	// gate does. Without this the bus drops them, fail-closed.
+	bus.SetOperatorEntiter(operatorPredicate(users))
 	// The instance-wide default for what lowering a cap does to running
 	// sessions; an account with no choice of its own inherits it.
 	capDefault, err := config.ParseCapChangeDefault(cfg.Delivery.OnCapChange)
@@ -175,6 +220,7 @@ func build(configPath string, logger *slog.Logger) (*Stack, error) {
 		if err != nil {
 			return nil, fmt.Errorf("slothealth: %w", err)
 		}
+		wireSlotHealthTransitions(bus, slotHP)
 		srv.SetSlotHealth(slotHP)
 	}
 
