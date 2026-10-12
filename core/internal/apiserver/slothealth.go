@@ -10,8 +10,15 @@ import (
 )
 
 // ListSlotHealth returns the health records for all provider slots.
-// Authenticated; no operator role enforcement in this batch (deferred).
+// Operator-only (D4): slot health is operational data about the instance's
+// upstream slots, so a regular member has no use for it and the surface
+// stays gated the same way instance-settings writes are. The check runs
+// before the nil-store short-circuit, so an unwired server does not leak
+// that the data is absent to an unauthorized caller either.
 func (s *Server) ListSlotHealth(ctx context.Context, _ *apiv1.ListSlotHealthRequest) (*apiv1.ListSlotHealthResponse, error) {
+	if err := s.requireOperator(ctx); err != nil {
+		return nil, err
+	}
 	if s.slotHealth == nil {
 		return &apiv1.ListSlotHealthResponse{}, nil
 	}
