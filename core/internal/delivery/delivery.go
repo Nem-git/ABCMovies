@@ -33,6 +33,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/policy"
 )
 
@@ -130,6 +131,19 @@ type Resolver interface {
 	ProduceSources(ctx context.Context, provider, accountID, nativeID string) (*corev1.MediaSource, error)
 }
 
+// DRMClient is the DRM slot's contract surface the delivery engine consumes
+// (PLAN.md §6.6). It is satisfied by an admitted DRM slot through a narrow
+// adapter. The engine uses it to acquire keys and decrypt tracks before
+// delivery (§6.2: "DRM before anything").
+type DRMClient interface {
+	// AcquireKeys asks the DRM slot to acquire content keys for an encrypted
+	// track (PLAN.md §6.6).
+	AcquireKeys(ctx context.Context, providerID, contentID string, system slotsv1.DrmSystem, pssh []byte, keyIDs []string, authContext string) ([]*slotsv1.ContentKey, error)
+	// Decrypt asks the DRM slot to decrypt an encrypted track source into
+	// clear bytes (PLAN.md §6.6).
+	Decrypt(ctx context.Context, sourceRef string, keys []*slotsv1.ContentKey) ([]byte, error)
+}
+
 // noSession is the structural contract a typed "this account has no live
 // session and cannot obtain one; only a human re-link recovers it" failure
 // satisfies (PLAN.md §7.5). Adapters mark their own error type with
@@ -180,6 +194,7 @@ type Options struct {
 	// (PLAN.md §7.2). Nil admits the account with the instance policy only.
 	AccountConstraints func(ctx context.Context, provider, accountID string) (override policy.Set, caps policy.ProviderCaps, err error)
 	SourceResolver     Resolver
+	DRMClient          DRMClient
 	SinkFactory        SinkFactory
 	RecordJob          func(*corev1.Job)
 	// MenuReady announces that a play session's menu is fully staged, once
@@ -233,6 +248,7 @@ type Engine struct {
 	grace    time.Duration
 
 	resolver    Resolver
+	drm         DRMClient
 	sinkMaker   SinkFactory
 	recordJob   func(*corev1.Job)
 	menuReady   func(*Session)
@@ -266,6 +282,7 @@ func New(opts Options) *Engine {
 		interval:    opts.HeartbeatInterval,
 		grace:       opts.HeartbeatGrace,
 		resolver:    opts.SourceResolver,
+		drm:         opts.DRMClient,
 		sinkMaker:   opts.SinkFactory,
 		recordJob:   opts.RecordJob,
 		menuReady:   opts.MenuReady,
@@ -301,6 +318,7 @@ func New(opts Options) *Engine {
 	if e.idempotencyTTL <= 0 {
 		e.idempotencyTTL = time.Hour
 	}
+	decryptExecutable = opts.DRMClient != nil
 	return e
 }
 
@@ -1078,16 +1096,20 @@ func ValidateManifest(ms *corev1.MediaSource) error {
 	return nil
 }
 
-// RejectUnsupportedDRM refuses a manifest that carries a DRM-encrypted track.
-// The MediaSource contract permits DRM (media_source.proto §TrackDrm), but a
-// v1 engine has no key or license handling (PLAN.md §6.6), so the only honest
-// outcome is refusal — never a silent skip that streams an encrypted track
-// unlicensed (PLAN.md §2.5). The schema keeps accepting the field; it is this
-// layer that declines delivery.
+// RejectUnsupportedDRM refuses a manifest that carries a DRM-encrypted track
+// when no DRM client is wired. The MediaSource contract permits DRM
+// (media_source.proto §TrackDrm); with a DRM client (M8), the engine can
+// acquire keys and decrypt (PLAN.md §6.6), so the manifest is accepted and
+// the pipeline includes a decrypt step. Without one, the only honest outcome
+// is refusal — never a silent skip that streams an encrypted track
+// unlicensed (PLAN.md §2.5).
 func RejectUnsupportedDRM(ms *corev1.MediaSource) error {
+	if decryptExecutable {
+		return nil
+	}
 	for _, tr := range ms.GetTracks() {
-		if d := tr.GetDelivery(); d != nil && d.GetDrm() != nil {
-			return fmt.Errorf("track %q is DRM-encrypted; DRM delivery is not supported in v1 (requires §6.6 key/license handling)", tr.GetId())
+		if d := tr.GetDelivery(); d != nil && len(d.GetDrm()) > 0 {
+			return fmt.Errorf("track %q is DRM-encrypted; DRM delivery requires a DRM client (§6.6)", tr.GetId())
 		}
 	}
 	return nil

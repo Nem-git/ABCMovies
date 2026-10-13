@@ -126,15 +126,38 @@ type ComposeParams struct {
 // (§6.4 recording-is-a-sink). Reserved for a later milestone.
 type RecordParams struct{}
 
+// hasDRM reports whether any track in the manifest carries a DRM-encrypted
+// delivery (PLAN.md §6.2, §6.6). The pipeline uses this to decide whether a
+// decrypt step is needed before any other transform (§6.2: "DRM before
+// anything").
+func hasDRM(src *corev1.MediaSource) bool {
+	for _, tr := range src.GetTracks() {
+		if d := tr.GetDelivery(); d != nil && len(d.GetDrm()) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // SelectPipeline chooses the ordered step chain for a session, by §6.3
 // precedence (user request > instance config > delivery goal > engine default).
 // It never fabricates a step it cannot honour: a selection that would need
 // real byte-level re-encoding or muxing is rejected explicitly rather than
 // silently downgraded (PLAN.md §2.5). v1 selects only executable steps —
 // passthrough, container-copy remux (with stream selection), and compose.
+// When a DRM client is wired (M8), a decrypt step is prepended for DRM
+// content (§6.2: "DRM before anything", §6.6).
 func SelectPipeline(goal Goal, src *corev1.MediaSource, container string) (Plan, error) {
 	if src == nil {
 		return Plan{}, fmt.Errorf("pipeline: nil manifest")
+	}
+	decryptNeeded := hasDRM(src)
+	var steps []Step
+	if decryptNeeded {
+		if !decryptExecutable {
+			return Plan{}, fmt.Errorf("pipeline: manifest carries DRM-encrypted content but no DRM client is wired (§6.6)")
+		}
+		steps = append(steps, Step{Kind: StepDecrypt, Params: StepParams{Decrypt: &DecryptParams{}}})
 	}
 	switch goal {
 	case GoalPlay:
@@ -143,12 +166,15 @@ func SelectPipeline(goal Goal, src *corev1.MediaSource, container string) (Plan,
 		// sink explicitly asks for a different container, in which case we
 		// re-container it (v1 container copy).
 		if src.GetAddressable() == corev1.Addressable_ADDRESSABLE_PER_TRACK {
-			return Plan{Steps: []Step{{Kind: StepPassthrough}}}, nil
+			steps = append(steps, Step{Kind: StepPassthrough})
+			return Plan{Steps: steps}, nil
 		}
 		if container == "" {
-			return Plan{Steps: []Step{{Kind: StepPassthrough}}}, nil
+			steps = append(steps, Step{Kind: StepPassthrough})
+			return Plan{Steps: steps}, nil
 		}
-		return Plan{Steps: []Step{{Kind: StepRemux, Params: StepParams{Remux: &RemuxParams{Container: container}}}}}, nil
+		steps = append(steps, Step{Kind: StepRemux, Params: StepParams{Remux: &RemuxParams{Container: container}}})
+		return Plan{Steps: steps}, nil
 	case GoalDownload:
 		// A download always lands as a named container (compose). A whole-mux
 		// source is remux'd to the requested container (or its native one when
@@ -161,40 +187,46 @@ func SelectPipeline(goal Goal, src *corev1.MediaSource, container string) (Plan,
 			}
 			return Plan{}, fmt.Errorf("pipeline: per-track download to container %q needs real muxing, not in v1", container)
 		}
-		return Plan{Steps: []Step{
-			{Kind: StepRemux, Params: StepParams{Remux: &RemuxParams{Container: container}}},
-			{Kind: StepCompose, Params: StepParams{Compose: &ComposeParams{Container: container}}},
-		}}, nil
+		steps = append(steps, Step{Kind: StepRemux, Params: StepParams{Remux: &RemuxParams{Container: container}}})
+		steps = append(steps, Step{Kind: StepCompose, Params: StepParams{Compose: &ComposeParams{Container: container}}})
+		return Plan{Steps: steps}, nil
 	default:
 		return Plan{}, fmt.Errorf("pipeline: unknown goal %q", goal)
 	}
 }
 
-// executableKinds is the set of steps v1 can genuinely run (no re-encode, no
-// DRM decrypt, no live record). Anything else is declined loudly and logged,
-// never faked into a passthrough (PLAN.md §2.5).
+// executableKinds is the set of steps this engine can genuinely run (no
+// re-encode, no live record). DRM decrypt is executable only when a DRM
+// client is wired (M8); without one, it is declined loudly (PLAN.md §2.5).
 var executableKinds = map[StepKind]bool{
 	StepPassthrough: true,
 	StepRemux:       true,
 	StepCompose:     true,
 }
 
-// notExecutableReason names the v1 reason a step kind is declined, for the
+// decryptExecutable reports whether the decrypt step can run. It is true only
+// when a DRM client is wired — the engine has a real decryptor to call (M8).
+var decryptExecutable = false
+
+// notExecutableReason names the reason a step kind is declined, for the
 // honest log-and-fail message.
 func notExecutableReason(k StepKind) string {
 	switch k {
 	case StepDecrypt:
-		return "DRM decrypt is not implemented in v1 (requires §6.6 key/license handling)"
+		if !decryptExecutable {
+			return "DRM decrypt has no DRM client wired (requires §6.6 key/license handling)"
+		}
+		return "DRM decrypt is not executable"
 	case StepTranscode:
-		return "transcode is not implemented in v1 (no encoder; the native-first, encode-only-as-fallback rule of §6.3 is unimplemented)"
+		return "transcode is not implemented (no encoder; the native-first, encode-only-as-fallback rule of §6.3 is unimplemented)"
 	case StepRecord:
-		return "live record is a later milestone and is not implemented in v1"
+		return "live record is a later milestone and is not implemented"
 	default:
-		return fmt.Sprintf("step %q is not executable in v1", k)
+		return fmt.Sprintf("step %q is not executable", k)
 	}
 }
 
-// ValidatePlan asserts every step in the plan is executable by this v1 engine
+// ValidatePlan asserts every step in the plan is executable by this engine
 // and that the plan is non-empty. It is the honest-decline gate: a plan that
 // contains a step the engine cannot run is rejected, with the offending step
 // and kind surfaced — never silently downgraded (PLAN.md §2.5). The caller
@@ -205,6 +237,9 @@ func ValidatePlan(p Plan) error {
 	}
 	for _, s := range p.Steps {
 		if !executableKinds[s.Kind] {
+			if s.Kind == StepDecrypt && decryptExecutable {
+				continue
+			}
 			return fmt.Errorf("plan: step %q (%s): %s", s.Name, s.Kind, notExecutableReason(s.Kind))
 		}
 	}

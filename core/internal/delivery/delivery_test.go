@@ -207,8 +207,8 @@ func TestRejectUnsupportedDRM(t *testing.T) {
 	if err == nil {
 		t.Fatal("DRM-encrypted manifest accepted, want refusal")
 	}
-	if !strings.Contains(err.Error(), `track "v1"`) || !strings.Contains(err.Error(), "not supported in v1") {
-		t.Fatalf("refusal must name the offending track and v1's missing license path, got %q", err.Error())
+	if !strings.Contains(err.Error(), `track "v1"`) || !strings.Contains(err.Error(), "DRM client") {
+		t.Fatalf("refusal must name the offending track and the missing DRM client, got %q", err.Error())
 	}
 }
 

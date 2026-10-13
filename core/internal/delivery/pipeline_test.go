@@ -83,7 +83,7 @@ func TestManualPlanDeclinesUnsupportedSteps(t *testing.T) {
 	if err == nil {
 		t.Fatal("ValidatePlan accepted a transcode step in v1")
 	}
-	if !strings.Contains(err.Error(), "transcode") || !strings.Contains(err.Error(), "not implemented in v1") {
+	if !strings.Contains(err.Error(), "transcode") || !strings.Contains(err.Error(), "not implemented") {
 		t.Errorf("decline message = %q, want explicit transcode / not implemented", err.Error())
 	}
 
