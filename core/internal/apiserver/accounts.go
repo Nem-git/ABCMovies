@@ -34,7 +34,36 @@ func (s *Server) SetProber(provider string, p CredentialProber) {
 	if provider == "" || p == nil {
 		return
 	}
+	s.probersMu.Lock()
 	s.probers[provider] = p
+	s.probersMu.Unlock()
+}
+
+// SetProbers replaces the whole credential-prober set at once. The
+// composition root calls it at boot and again after a live slot reload, so
+// the adapters a link may probe always match the slots that are live. The map
+// is copied under the lock; a concurrent probe sees either the whole old set
+// or the whole new one.
+func (s *Server) SetProbers(probers map[string]CredentialProber) {
+	s.probersMu.Lock()
+	defer s.probersMu.Unlock()
+	if probers == nil {
+		s.probers = map[string]CredentialProber{}
+		return
+	}
+	cp := make(map[string]CredentialProber, len(probers))
+	for k, v := range probers {
+		cp[k] = v
+	}
+	s.probers = cp
+}
+
+// proberFor returns the credential prober armed for a provider, if any.
+func (s *Server) proberFor(provider string) (CredentialProber, bool) {
+	s.probersMu.RLock()
+	defer s.probersMu.RUnlock()
+	p, ok := s.probers[provider]
+	return p, ok
 }
 
 // LinkAccount links a provider account to the caller (PLAN.md §3.5, §7.5):
@@ -59,7 +88,7 @@ func (s *Server) LinkAccount(ctx context.Context, req *apiv1.LinkAccountRequest)
 	if req.GetProvider() == "" {
 		return nil, status.Error(codes.InvalidArgument, "provider is required")
 	}
-	prober, ok := s.probers[req.GetProvider()]
+	prober, ok := s.proberFor(req.GetProvider())
 	if !ok {
 		return nil, status.Error(codes.Unavailable, "no live provider slot to probe: "+req.GetProvider())
 	}

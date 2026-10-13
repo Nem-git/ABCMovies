@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -49,49 +48,6 @@ type AccountConfig struct {
 	Policy map[string]string `yaml:"policy,omitempty"`
 }
 
-// SlotEntry is one declared slot instance within a kind list. The kind comes
-// from which list it sits in (PLAN.md §3.1 fixes five kinds); adapter selects
-// the implementation registered for it. Adding an instance of an existing
-// adapter is a pure config change.
-type SlotEntry struct {
-	Adapter     string `yaml:"adapter"`
-	ID          string `yaml:"id"`
-	Transport   string `yaml:"transport"`
-	Enabled     bool   `yaml:"enabled"`
-	SyncCadence string `yaml:"sync-cadence"`
-	// TokenEnv names the environment variable carrying a slot-level API
-	// secret (e.g. the TMDB bearer token); the value never lives in config
-	// (TECHNICAL-DECISIONS §1.27). Optional; only adapters that authenticate
-	// instance-wide read it.
-	TokenEnv string `yaml:"token-env"`
-	// Server is the base URL of the single server this provider slot serves
-	// (PLAN.md §3.1). Accounts of a slot are logins on that server — a slot
-	// never spans servers. Catalogue and sink entries leave it empty.
-	Server   string          `yaml:"server"`
-	Accounts []AccountConfig `yaml:"accounts"`
-	// Options is the per-adapter configuration bag. Each adapter reads only
-	// the keys it declares; the shared SlotEntry stays free of adapter-specific
-	// fields, so an adapter never sees another adapter's knobs (PLAN.md §6.4:
-	// sinks are pluggable slots). Values are strings; an adapter parses them.
-	// E.g. the disk sink reads Options["path"].
-	Options map[string]string `yaml:"options"`
-}
-
-// SlotsConfig mirrors PLAN.md §3.1's taxonomy: the built-in reference slot,
-// then one open-ended instance list per slot kind. Lists for kinds whose
-// milestones have not landed stay empty; their shape is already fixed so a
-// future milestone never rewrites this schema.
-type SlotsConfig struct {
-	Builtin struct {
-		Enabled bool `yaml:"enabled"`
-	} `yaml:"builtin"`
-	Providers       []SlotEntry `yaml:"providers"`
-	Catalogue       []SlotEntry `yaml:"catalogue"`
-	Sinks           []SlotEntry `yaml:"sinks"`
-	SubtitleSources []SlotEntry `yaml:"subtitle-sources"`
-	Drm             []SlotEntry `yaml:"drm"`
-}
-
 type Config struct {
 	Core struct {
 		API struct {
@@ -121,13 +77,13 @@ type Config struct {
 		MetadataCache StoreConfig `yaml:"metadata-cache"`
 		Settings      StoreConfig `yaml:"settings"`
 		SlotHealth    StoreConfig `yaml:"slot-health"`
+		Slots         StoreConfig `yaml:"slots"`
 	} `yaml:"stores"`
 	// Policy is the instance-wide usage policy — a limit-type → value map
 	// (PLAN.md §7.2). Absent keys inherit the shipped defaults; unknown
 	// keys and malformed values fail startup. The delivery engine stamps it
 	// on every job's recorded DeliveryContext.
 	Policy map[string]string `yaml:"policy,omitempty"`
-	Slots  SlotsConfig       `yaml:"slots"`
 	// Enrichment tunes the background metadata pipeline. Absent keys fall
 	// back to the defaults the enrichment package declares.
 	Enrichment EnrichmentConfig `yaml:"enrichment"`
@@ -209,6 +165,7 @@ type Stores struct {
 	MetadataCache store.Store
 	Settings      store.Store
 	SlotHealth    store.Store
+	Slots         store.Store
 	VaultAEAD     cipher.AEAD
 }
 
@@ -239,9 +196,8 @@ func Default() *Config {
 	c.Stores.Settings = StoreConfig{Backend: "in-memory"}
 	// Slot health is written by probes; in-memory dev default is fine.
 	c.Stores.SlotHealth = StoreConfig{Backend: "in-memory"}
-	// The built-in reference slot is part of every instance; kind lists start
-	// empty and grow through operator config.
-	c.Slots.Builtin.Enabled = true
+	// Managed slots (D8) are durable by default.
+	c.Stores.Slots = StoreConfig{Backend: "local-file", Path: "data/slots.db"}
 	return c
 }
 
@@ -269,9 +225,6 @@ func Load(path string) (*Config, error) {
 	} else {
 		c.authMethodsFromConfig = true
 	}
-	if err := validateSlots(c.Slots); err != nil {
-		return nil, fmt.Errorf("config: slots: %w", err)
-	}
 	if err := validatePolicies(c); err != nil {
 		return nil, err
 	}
@@ -294,99 +247,6 @@ func Load(path string) (*Config, error) {
 func validatePolicies(c *Config) error {
 	if _, err := policy.ParseInstance(c.Policy); err != nil {
 		return err
-	}
-	for _, list := range [][]SlotEntry{c.Slots.Providers, c.Slots.Catalogue, c.Slots.Sinks} {
-		for _, e := range list {
-			for _, a := range e.Accounts {
-				if _, err := policy.ParseOverlay(a.Policy); err != nil {
-					return fmt.Errorf("account %q in slot %q: %w", a.ID, e.ID, err)
-				}
-			}
-		}
-	}
-	return nil
-}
-
-// validateSlots enforces the invariants the slot taxonomy implies (PLAN.md
-// §3.1): instance IDs are unique across every kind, each entry names its
-// adapter, and v1 speaks exactly one transport — a subprocess entry must fail
-// loudly rather than be silently ignored. Provider slots additionally must
-// declare the one server they serve, and every account inside them needs an id.
-func validateSlots(slots SlotsConfig) error {
-	seen := map[string]string{}
-	for _, list := range []struct {
-		kind    string
-		entries []SlotEntry
-	}{
-		{"providers", slots.Providers},
-		{"catalogue", slots.Catalogue},
-		{"sinks", slots.Sinks},
-		{"subtitle-sources", slots.SubtitleSources},
-		{"drm", slots.Drm},
-	} {
-		for _, e := range list.entries {
-			if e.ID == "" {
-				return fmt.Errorf("%s entry: id is required", list.kind)
-			}
-			if prev := seen[e.ID]; prev != "" {
-				return fmt.Errorf("duplicate slot id %q (also in %s)", e.ID, prev)
-			}
-			seen[e.ID] = list.kind
-			if e.Adapter == "" {
-				return fmt.Errorf("slot %q: adapter is required", e.ID)
-			}
-			switch e.Transport {
-			case "", "in-process":
-				// v1 ships in-process only; empty means the default.
-			default:
-				return fmt.Errorf("slot %q: unsupported transport %q (v1 supports \"in-process\")", e.ID, e.Transport)
-			}
-			if list.kind == "providers" {
-				if e.Server == "" {
-					return fmt.Errorf("slot %q: a provider slot must declare the server it serves", e.ID)
-				}
-				for _, a := range e.Accounts {
-					if a.ID == "" {
-						return fmt.Errorf("slot %q: account entry missing id", e.ID)
-					}
-				}
-			}
-			if err := validateSlotOptions(e); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// validateSlotOptions fails the load when a slot's pacing knobs in the
-// options bag are mis-typed: a silent fallback would run the instance with
-// no aggregate bound, the opposite of what the operator asked for (§2.5;
-// mirrors the strict policy-key validation in validatePolicies).
-func validateSlotOptions(e SlotEntry) error {
-	for k, v := range e.Options {
-		switch k {
-		case policy.KeyPacingRequestsPerSec:
-			f, err := strconv.ParseFloat(v, 64)
-			if err != nil || f <= 0 {
-				return fmt.Errorf("slot %q: options %q must be a positive number, got %q", e.ID, k, v)
-			}
-		case policy.KeyPacingMaxPulls:
-			n, err := strconv.Atoi(v)
-			if err != nil || n < 1 {
-				return fmt.Errorf("slot %q: options %q must be a positive integer, got %q", e.ID, k, v)
-			}
-		case policy.KeyPacingDelay:
-			d, err := time.ParseDuration(v)
-			if err != nil || d <= 0 {
-				return fmt.Errorf("slot %q: options %q must be a positive duration, got %q", e.ID, k, v)
-			}
-		case policy.KeyPacingRetries:
-			n, err := strconv.Atoi(v)
-			if err != nil || n < 0 {
-				return fmt.Errorf("slot %q: options %q must be a non-negative integer, got %q", e.ID, k, v)
-			}
-		}
 	}
 	return nil
 }
@@ -447,6 +307,10 @@ func BuildStores(ctx context.Context, cfg *Config, logger *slog.Logger) (Stores,
 	if err != nil {
 		return s, fmt.Errorf("stores.slot-health: %w", err)
 	}
+	s.Slots, err = buildStore(ctx, cfg.Stores.Slots, "data/slots.db")
+	if err != nil {
+		return s, fmt.Errorf("stores.slots: %w", err)
+	}
 	// The instance key is resolved exactly once and shared by everything that
 	// must be sealed at rest: the vault store, the sealed login store, and an
 	// encrypted data-key cache. Resolving it per consumer would, with a
@@ -491,7 +355,7 @@ func BuildStores(ctx context.Context, cfg *Config, logger *slog.Logger) (Stores,
 // all stores get closed regardless.
 func CloseStores(s Stores) error {
 	var firstErr error
-	for _, c := range []store.Store{s.Cache, s.Vault, s.WatchHistory, s.Jobs, s.Sessions, s.Users, s.SourceCache, s.MetadataCache, s.Settings, s.SlotHealth} {
+	for _, c := range []store.Store{s.Cache, s.Vault, s.WatchHistory, s.Jobs, s.Sessions, s.Users, s.SourceCache, s.MetadataCache, s.Settings, s.SlotHealth, s.Slots} {
 		if err := c.Close(); err != nil && firstErr == nil {
 			firstErr = err
 		}

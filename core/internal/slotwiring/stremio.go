@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/nem-git/abcmovies/adapters/stremio"
+	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	"github.com/nem-git/abcmovies/core/internal/accounts"
-	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/library"
 )
 
@@ -51,47 +51,51 @@ func (r stremioRoster) Lookup(ctx context.Context, id string) (stremio.Account, 
 // Runtime-linked addons are not accepted here yet: the slot does not
 // implement the sourcecache-backed AttachableSlot contract, so such a link
 // fails with a typed error rather than half-wiring a sync job.
-func wireStremio(entry config.SlotEntry, deps Deps) (*BuiltSlot, error) {
-	if entry.Server == "" {
-		return nil, fmt.Errorf("slot %q: stremio adapter requires server (the addon manifest URL)", entry.ID)
+func wireStremio(slot *corev1.Slot, deps Deps) (*BuiltSlot, error) {
+	prov := slot.GetProvider()
+	server := prov.GetServer()
+	id := slot.GetId()
+	if server == "" {
+		return nil, fmt.Errorf("slot %q: stremio adapter requires server (the addon manifest URL)", id)
 	}
-	ops := make(map[string]stremio.Account, len(entry.Accounts))
-	ids := make([]string, 0, len(entry.Accounts)+len(deps.LinkedBySlot[entry.ID]))
-	for _, a := range entry.Accounts {
-		if a.ID == "" {
-			return nil, fmt.Errorf("slot %q: account entry missing id", entry.ID)
+	slotAccounts := prov.GetAccounts()
+	ops := make(map[string]stremio.Account, len(slotAccounts))
+	ids := make([]string, 0, len(slotAccounts)+len(deps.LinkedBySlot[id]))
+	for _, a := range slotAccounts {
+		if a.GetId() == "" {
+			return nil, fmt.Errorf("slot %q: account entry missing id", id)
 		}
-		ids = append(ids, a.ID)
-		ops[a.ID] = stremio.Account{ID: a.ID, ManifestURL: entry.Server}
+		ids = append(ids, a.GetId())
+		ops[a.GetId()] = stremio.Account{ID: a.GetId(), ManifestURL: server}
 	}
-	for _, rec := range deps.LinkedBySlot[entry.ID] {
-		if canonicalServer(rec.BaseURL) != canonicalServer(entry.Server) {
+	for _, rec := range deps.LinkedBySlot[id] {
+		if canonicalServer(rec.BaseURL) != canonicalServer(server) {
 			return nil, fmt.Errorf("slot %q serves addon %q but linked account %q is on %q",
-				entry.ID, entry.Server, rec.ID, rec.BaseURL)
+				id, server, rec.ID, rec.BaseURL)
 		}
 		ids = append(ids, rec.ID)
 	}
 	if len(ids) == 0 {
-		return nil, fmt.Errorf("slot %q: stremio adapter requires at least one account entry", entry.ID)
+		return nil, fmt.Errorf("slot %q: stremio adapter requires at least one account entry", id)
 	}
-	slot, err := stremio.New(ids, stremioRoster{server: canonicalServer(entry.Server), ops: ops, store: deps.Accounts})
+	impl, err := stremio.New(ids, stremioRoster{server: canonicalServer(server), ops: ops, store: deps.Accounts})
 	if err != nil {
 		return nil, fmt.Errorf("build: %w", err)
 	}
-	if _, err := deps.Registry.Describe(entry.ID, slot); err != nil {
+	if _, err := deps.Registry.Describe(id, impl); err != nil {
 		return nil, fmt.Errorf("handshake: %w", err)
 	}
 	reachesMeta := make([]reachMeta, 0, len(ids))
-	for range entry.Accounts {
+	for range slotAccounts {
 		reachesMeta = append(reachesMeta, reachMeta{visibility: accounts.VisibilityPublic})
 	}
-	for _, rec := range deps.LinkedBySlot[entry.ID] {
+	for _, rec := range deps.LinkedBySlot[id] {
 		reachesMeta = append(reachesMeta, reachMeta{owner: rec.OwnerUserID, visibility: rec.Visibility, members: rec.SharedWith})
 	}
-	pc := newPacedClient(entry, deps.InstancePolicy, slot, slot, slot, slot)
+	pc := newPacedClient(slot, deps.InstancePolicy, impl, impl, impl, impl)
 	reaches := make([]library.Reach, 0, len(ids))
 	for i, accountID := range ids {
-		syncer, reach, job, err := accountSyncMachine(providerNamespace(entry), accountID, pc, 0, reachesMeta[i], deps)
+		syncer, reach, job, err := accountSyncMachine(providerNamespace(slot), accountID, pc, 0, reachesMeta[i], deps)
 		if err != nil {
 			return nil, err
 		}
@@ -100,8 +104,8 @@ func wireStremio(entry config.SlotEntry, deps Deps) (*BuiltSlot, error) {
 		_ = syncer // kept alive via the reach's Sync field; RefreshItems runs on it
 	}
 	return &BuiltSlot{
-		Entry:      entry,
-		Impl:       slot,
+		Entry:      slot,
+		Impl:       impl,
 		Reaches:    reaches,
 		Resolver:   producesResolver{pc: pc},
 		LazySearch: pc,

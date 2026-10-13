@@ -1,0 +1,10 @@
+{
+  "name": "get-slot-missing-id",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {
+    "ref": { "kind": "SLOT_KIND_PROVIDER" }
+  },
+  "type": "GetSlotRequest"
+}

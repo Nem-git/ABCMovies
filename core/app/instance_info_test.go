@@ -23,6 +23,9 @@ func TestComposedStackPublishesConfiguredHeartbeatInterval(t *testing.T) {
 core:
   api:
     bind: "127.0.0.1:0"
+stores:
+  slots:
+    backend: in-memory
 delivery:
   heartbeat:
     interval: 45s
@@ -57,7 +60,18 @@ delivery:
 // Without delivery config the composed stack publishes the shipped default
 // (30s, TECHNICAL-DECISIONS.md §1.14).
 func TestComposedStackPublishesDefaultHeartbeatInterval(t *testing.T) {
-	stack, err := New(context.Background(), "", slog.Default())
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(configPath, []byte(`
+core:
+  api:
+    bind: "127.0.0.1:0"
+stores:
+  slots:
+    backend: in-memory
+`), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	stack, err := New(context.Background(), configPath, slog.Default())
 	if err != nil {
 		t.Fatalf("stack: %v", err)
 	}

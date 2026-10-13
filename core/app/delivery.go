@@ -10,29 +10,18 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
+	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/pacing"
 	"github.com/nem-git/abcmovies/core/internal/policy"
+	"github.com/nem-git/abcmovies/core/internal/sourcecache"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
-
-// compositeResolver routes produce-sources to the provider adapter wired for
-// the requested provider (a slot instance id, TECHNICAL-DECISIONS.md §1.25).
-type compositeResolver struct {
-	resolvers map[string]delivery.Resolver
-}
-
-func (c compositeResolver) ProduceSources(ctx context.Context, provider, accountID, nativeID string) (*corev1.MediaSource, error) {
-	r, ok := c.resolvers[provider]
-	if !ok {
-		return nil, fmt.Errorf("no resolver wired for provider %q", provider)
-	}
-	return r.ProduceSources(ctx, provider, accountID, nativeID)
-}
 
 // managedDelivery is the delivery surface the API layer sees: the engine's
 // Start/Heartbeat plus PlayMenu over the engine and the relay (PLAN.md §6.2).
@@ -142,20 +131,23 @@ func planContainer(p delivery.Plan) string {
 // shaped by a provider lands in the history of a lot of config files, so
 // the not-found branch admits with the instance policy alone rather than
 // inventing a cap — the produce-sources call will honestly identify it.
-func resolveAccountConstraints(ctx context.Context, cfg *config.Config, accts *accounts.Store, provider, accountID string) (policy.Set, policy.ProviderCaps, error) {
+func resolveAccountConstraints(ctx context.Context, slots []*corev1.Slot, accts *accounts.Store, provider, accountID string) (policy.Set, policy.ProviderCaps, error) {
 	if rec, err := accts.Get(ctx, accountID); err == nil {
 		return nil, policy.CapsFor(rec.MaxConcurrentStreams), nil
 	}
-	for _, slot := range cfg.Slots.Providers {
-		for _, acct := range slot.Accounts {
-			if acct.ID != accountID {
+	for _, slot := range slots {
+		if slot.GetKind() != corev1.SlotKind_SLOT_KIND_PROVIDER {
+			continue
+		}
+		for _, acct := range slot.GetProvider().GetAccounts() {
+			if acct.GetId() != accountID {
 				continue
 			}
-			override, err := policy.ParseOverlay(acct.Policy)
+			override, err := policy.ParseOverlay(acct.GetPolicy())
 			if err != nil {
 				return nil, policy.ProviderCaps{}, fmt.Errorf("policy: %v", err)
 			}
-			return override, policy.CapsFor(acct.MaxConcurrentStreams), nil
+			return override, policy.CapsFor(acct.GetMaxConcurrentStreams()), nil
 		}
 	}
 	return nil, policy.ProviderCaps{}, nil
@@ -188,10 +180,18 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 		HeartbeatGrace:    timing.HeartbeatGrace,
 		InstancePolicy:    instancePolicy,
 		AccountConstraints: func(ctx context.Context, provider, accountID string) (policy.Set, policy.ProviderCaps, error) {
-			return resolveAccountConstraints(ctx, s.cfg, accountStore, provider, accountID)
+			slots, err := s.slotStore.ListByKind(ctx, corev1.SlotKind_SLOT_KIND_PROVIDER, "")
+			if err != nil {
+				return nil, policy.ProviderCaps{}, fmt.Errorf("slots: %w", err)
+			}
+			return resolveAccountConstraints(ctx, slots, accountStore, provider, accountID)
 		},
-		SourceResolver: compositeResolver{resolvers: rt.Resolvers},
-		SinkFactory:    rt.Sinks,
+		// The engine is built once and lives as long as the stack; these
+		// seams read the runtime that is live at call time, so a slot reload
+		// swaps the resolvers and sinks the engine uses without rebuilding it
+		// (D8).
+		SourceResolver: stackResolver{s: s},
+		SinkFactory:    stackSinkFactory{s: s},
 		// The engine is the one announcer of delivery-job status: it
 		// observes every transition, including the ones no client
 		// requested (expiry, revocation, cleanup), and the handler keeps
@@ -199,7 +199,7 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 		// RecordJobStatus the harnesses use, so fixtures exercise the
 		// production path rather than a re-implementation.
 		RecordJob: func(j *corev1.Job) {
-			apiserver.RecordJobStatus(context.Background(), s.stores.Jobs, rt.Bus, j)
+			apiserver.RecordJobStatus(context.Background(), s.stores.Jobs, s.bus, j)
 		},
 		// MenuReady announces a staged play menu once, at Start (PLAN.md
 		// §6.2). The slot runtime bus and the API bus are one object in the
@@ -217,7 +217,7 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 				},
 				EmittedAt: timestamppb.Now(),
 			}
-			rt.Bus.Publish(env)
+			s.bus.Publish(env)
 		},
 		// SessionDied runs the re-auth flow when a delivery discovers a
 		// dead provider session (PLAN.md §7.5): the account flips to
@@ -225,7 +225,7 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 		// owner. The flow is gated on the status transition, so a user
 		// retrying play cannot spam the owner with duplicate events.
 		SessionDied: func(accountID string) {
-			reauthOnSessionDeath(context.Background(), accountStore, s.stores.Jobs, rt.Bus, accountID, logger)
+			reauthOnSessionDeath(context.Background(), accountStore, s.stores.Jobs, s.bus, accountID, logger)
 		},
 		// ClassifyRefusal attaches a typed admission reason to a refused
 		// start. The pacing governor's busy answer is the unhealthy-slot
@@ -241,24 +241,160 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 	// but the in-memory queue is empty after a restart, so any QUEUED job in
 	// the store has no live session behind it. Mark it FAILED with an honest
 	// reason — never a phantom (PLAN.md §9.1).
-	failOrphanedQueued(context.Background(), s.stores.Jobs, rt.Bus, logger)
+	failOrphanedQueued(context.Background(), s.stores.Jobs, s.bus, logger)
 	// The delivery watchdog is periodic work: Start launches it (PLAN.md
 	// §10), never construction.
 	// The liveness interval the engine enforces is the one clients must
 	// heartbeat on — publish the same value, never a second copy of it.
 	srv.SetHeartbeatInterval(timing.HeartbeatInterval)
 	srv.SetDelivery(managedDelivery{eng: eng, relay: rt.Relay})
-	srv.SetLibrary(rt.Library)
-	srv.SetLiveSearcher(liveSlotsFromBuilt(rt.Providers, rt.Library, logger))
-	for provider, prober := range rt.Probers {
-		srv.SetProber(provider, prober)
-	}
-	// Arm the runtime link path both ways: a freshly-linked account routes to
-	// its provider slot and comes alive without a restart, and an unlinked one
-	// leaves the running slot on the way out (PLAN.md §5.1).
-	srv.SetAttacher(rt)
-	srv.SetDropper(rt)
+	// Everything below reads the runtime that is live at call time, so a live
+	// slot reload takes effect on the next call without re-arming the server.
+	// Probers are the exception: their set is replaced wholesale by the reload
+	// under the server's own lock.
+	srv.SetLibrary(stackLibrary{s: s})
+	srv.SetLiveSearcher(stackLiveSearch{s: s, log: logger})
+	srv.SetAttacher(stackAttacher{s: s})
+	srv.SetDropper(stackDropper{s: s})
+	srv.SetProbers(rt.Probers)
 	return nil
+}
+
+// stackResolver routes produce-sources through whatever runtime is live at
+// call time, so a slot reload changes which adapters exist without rebuilding
+// the delivery engine (D8).
+type stackResolver struct{ s *Stack }
+
+func (r stackResolver) ProduceSources(ctx context.Context, provider, accountID, nativeID string) (*corev1.MediaSource, error) {
+	rt := r.s.currentSlots()
+	if rt == nil {
+		return nil, fmt.Errorf("no resolver wired for provider %q", provider)
+	}
+	res, ok := rt.Resolvers[provider]
+	if !ok {
+		return nil, fmt.Errorf("no resolver wired for provider %q", provider)
+	}
+	return res.ProduceSources(ctx, provider, accountID, nativeID)
+}
+
+// stackSinkFactory builds a delivery sink from whatever runtime is live at
+// call time, so a reload that adds, removes, or replaces a sink slot applies
+// to the next session without rebuilding the engine (D8).
+type stackSinkFactory struct{ s *Stack }
+
+func (f stackSinkFactory) NewSink(ctx context.Context, s *delivery.Session, tracks []*corev1.Track) (delivery.Sink, error) {
+	rt := f.s.currentSlots()
+	if rt == nil || rt.Sinks == nil {
+		return nil, fmt.Errorf("no sink configured")
+	}
+	return rt.Sinks.NewSink(ctx, s, tracks)
+}
+
+// stackAttacher routes a runtime-linked account into its live provider slot,
+// reading the current runtime at call time.
+type stackAttacher struct{ s *Stack }
+
+func (a stackAttacher) AttachAccount(rec accounts.Record) error {
+	rt := a.s.currentSlots()
+	if rt == nil {
+		return fmt.Errorf("no live slot runtime to attach account %q", rec.ID)
+	}
+	return rt.AttachAccount(rec)
+}
+
+// stackDropper takes an unlinked account out of its live provider slot,
+// reading the current runtime at call time.
+type stackDropper struct{ s *Stack }
+
+func (d stackDropper) DropAccount(rec accounts.Record) error {
+	rt := d.s.currentSlots()
+	if rt == nil {
+		return nil
+	}
+	return rt.DropAccount(rec)
+}
+
+// stackLibrary is the LibrarySeam over the live runtime: every library and
+// account RPC reads the library service composed by the runtime that is live
+// when the call arrives, so a slot reload changes the derived libraries
+// without re-arming the server (D8).
+type stackLibrary struct{ s *Stack }
+
+func (l stackLibrary) Library(ctx context.Context, userID string) ([]*corev1.LibraryEntry, error) {
+	lib, err := l.live()
+	if err != nil {
+		return nil, err
+	}
+	return lib.Library(ctx, userID)
+}
+
+func (l stackLibrary) Metadata(ctx context.Context, ref string) (*corev1.TitleMetadata, bool, error) {
+	lib, err := l.live()
+	if err != nil {
+		return nil, false, err
+	}
+	return lib.Metadata(ctx, ref)
+}
+
+func (l stackLibrary) ReachAuthorized(accountID, userID string) (library.Reach, bool) {
+	lib, err := l.live()
+	if err != nil {
+		return library.Reach{}, false
+	}
+	return lib.ReachAuthorized(accountID, userID)
+}
+
+func (l stackLibrary) ReachesForUser(userID string) []library.Reach {
+	lib, err := l.live()
+	if err != nil {
+		return nil
+	}
+	return lib.ReachesForUser(userID)
+}
+
+func (l stackLibrary) SetReachSharing(accountID string, visibility accounts.Visibility, members []string) error {
+	lib, err := l.live()
+	if err != nil {
+		return err
+	}
+	return lib.SetReachSharing(accountID, visibility, members)
+}
+
+func (l stackLibrary) RemoveReach(accountID string) {
+	if lib, err := l.live(); err == nil {
+		lib.RemoveReach(accountID)
+	}
+}
+
+func (l stackLibrary) RefreshAvailability(ctx context.Context, accountID string, nativeIDs []string) (sourcecache.Stats, error) {
+	lib, err := l.live()
+	if err != nil {
+		return sourcecache.Stats{}, err
+	}
+	return lib.RefreshAvailability(ctx, accountID, nativeIDs)
+}
+
+func (l stackLibrary) live() (*library.Service, error) {
+	rt := l.s.currentSlots()
+	if rt == nil || rt.Library == nil {
+		return nil, fmt.Errorf("library engine not configured")
+	}
+	return rt.Library, nil
+}
+
+// stackLiveSearch runs the explicit lazy-provider refresh against the provider
+// slots of whatever runtime is live at call time.
+type stackLiveSearch struct {
+	s   *Stack
+	log *slog.Logger
+}
+
+func (l stackLiveSearch) Run(ctx context.Context, req *apiv1.LiveSearchRequest) (*apiv1.LiveSearchResponse, error) {
+	rt := l.s.currentSlots()
+	if rt == nil {
+		return &apiv1.LiveSearchResponse{}, nil
+	}
+	return liveSlotsFromBuilt(rt.Providers, rt.Library, l.log).Run(ctx, req)
 }
 
 // reauthOnSessionDeath runs the re-auth flow for an account whose provider

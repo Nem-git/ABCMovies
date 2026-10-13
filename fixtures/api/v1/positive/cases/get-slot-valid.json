@@ -1,0 +1,11 @@
+{
+  "name": "get-slot-valid",
+  "expected": { "valid": true },
+  "type": "GetSlotRequest",
+  "message": {
+    "ref": {
+      "kind": "SLOT_KIND_PROVIDER",
+      "id": "jellyfin"
+    }
+  }
+}

@@ -23,22 +23,11 @@ func TestQueuedDownloadPromotesWhenSeatFrees(t *testing.T) {
 core:
   api:
     bind: "127.0.0.1:0"
+stores:
+  slots:
+    backend: in-memory
 policy:
   concurrentStreams: 1
-slots:
-  providers:
-    - adapter: jellyfin
-      id: jellyfin
-      enabled: true
-      server: "`+fake.URL()+`"
-      accounts:
-        - id: op
-          username: "alice.homeserver.user"
-          password-env: JF_TEST_PASSWORD
-  sinks:
-    - adapter: device
-      id: device
-      enabled: true
 `), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
@@ -49,6 +38,7 @@ slots:
 		t.Fatalf("New: %v", err)
 	}
 	defer stack.Close()
+	seedJellyfinSlots(t, stack, "jellyfin", fake.URL())
 
 	srv, ok := stack.Service().(*apiserver.Server)
 	if !ok {

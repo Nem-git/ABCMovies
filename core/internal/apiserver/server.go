@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/schema"
 	"github.com/nem-git/abcmovies/core/internal/settings"
 	"github.com/nem-git/abcmovies/core/internal/slothealth"
+	"github.com/nem-git/abcmovies/core/internal/slotstore"
 	"github.com/nem-git/abcmovies/core/internal/store"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -102,6 +104,7 @@ type Server struct {
 	// §3.5: nothing is vaulted that was not probed); armed by wiring.
 	library       LibrarySeam
 	accounts      *accounts.Store
+	probersMu     sync.RWMutex
 	probers       map[string]CredentialProber
 	attacher      AccountAttacher
 	dropper       AccountDropper
@@ -128,7 +131,15 @@ type Server struct {
 	// root falls back to the construction-time auth and heartbeatInterval.
 	instanceSettings InstanceSettings
 	slotHealth       *slothealth.Provider
+	slotStore        *slotstore.Store
+	slotReloader     SlotReloader
 }
+
+// SlotReloader applies a prospective slot set to the running stack (D8). The
+// composition root wires it; a slot CRUD calls it with the set it intends to
+// persist, so a set the wiring rejects is never stored. A nil reloader (a
+// server built without the composition root) makes every apply a no-op.
+type SlotReloader func(ctx context.Context, slots []*corev1.Slot) error
 
 // LiveSearcher runs one explicit user-triggered refresh of the lazy
 // providers. The concrete closure is armed by the composition root.
@@ -646,4 +657,16 @@ func authMethod(passwordSignUp *apiv1.PasswordSignUp, passwordLogin *apiv1.Passw
 // SetSlotHealth arms the slot-health provider.
 func (s *Server) SetSlotHealth(p *slothealth.Provider) {
 	s.slotHealth = p
+}
+
+// SetSlotStore arms the managed-slot store (D8).
+func (s *Server) SetSlotStore(st *slotstore.Store) {
+	s.slotStore = st
+}
+
+// SetSlotReloader arms the slot-reload seam (D8): the composition root wires
+// it to apply a prospective slot set to the running stack so a CRUD change
+// takes effect immediately.
+func (s *Server) SetSlotReloader(fn SlotReloader) {
+	s.slotReloader = fn
 }

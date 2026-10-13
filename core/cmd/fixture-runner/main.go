@@ -738,6 +738,76 @@ func validateAPIMessage(msgType string, msg json.RawMessage) (bool, error) {
 		}
 		err := schema.ValidateGetPlayInfoResponse(&m)
 		return err == nil, err
+	case "CreateSlotRequest":
+		var m apiv1.CreateSlotRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateCreateSlotRequest(&m)
+		return err == nil, err
+	case "CreateSlotResponse":
+		var m apiv1.CreateSlotResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateCreateSlotResponse(&m)
+		return err == nil, err
+	case "GetSlotRequest":
+		var m apiv1.GetSlotRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateGetSlotRequest(&m)
+		return err == nil, err
+	case "GetSlotResponse":
+		var m apiv1.GetSlotResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateGetSlotResponse(&m)
+		return err == nil, err
+	case "UpdateSlotRequest":
+		var m apiv1.UpdateSlotRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateUpdateSlotRequest(&m)
+		return err == nil, err
+	case "UpdateSlotResponse":
+		var m apiv1.UpdateSlotResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateUpdateSlotResponse(&m)
+		return err == nil, err
+	case "DeleteSlotRequest":
+		var m apiv1.DeleteSlotRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateDeleteSlotRequest(&m)
+		return err == nil, err
+	case "DeleteSlotResponse":
+		var m apiv1.DeleteSlotResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateDeleteSlotResponse(&m)
+		return err == nil, err
+	case "ListSlotsRequest":
+		var m apiv1.ListSlotsRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateListSlotsRequest(&m)
+		return err == nil, err
+	case "ListSlotsResponse":
+		var m apiv1.ListSlotsResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateListSlotsResponse(&m)
+		return err == nil, err
 	default:
 		return false, fmt.Errorf("unknown API message type %q", msgType)
 	}

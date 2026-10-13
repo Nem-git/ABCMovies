@@ -189,10 +189,13 @@ func TestM4RemuxDownloadToDiskEndToEnd(t *testing.T) {
 
 	root := t.TempDir()
 
-	// Sinks come from instance config (slotwiring), exactly as v1 declares
-	// them: one enabled disk entry naming its path.
-	sinks, err := slotwiring.SetupSinks([]config.SlotEntry{{
-		ID: "disk", Adapter: "disk", Enabled: true, Options: map[string]string{"path": root},
+	// Sinks come from the slot store (slotwiring), exactly as v1 declares
+	// them: one enabled disk slot naming its path.
+	sinks, err := slotwiring.SetupSinks([]*corev1.Slot{{
+		Id: "disk", Kind: corev1.SlotKind_SLOT_KIND_SINK,
+		Config: &corev1.Slot_Sink{Sink: &corev1.SinkConfig{
+			Adapter: "disk", Options: map[string]string{"path": root},
+		}},
 	}}, delivery.NewRelay())
 	if err != nil {
 		t.Fatalf("SetupSinks: %v", err)

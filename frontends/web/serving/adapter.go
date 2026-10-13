@@ -295,3 +295,58 @@ func (a *coreServiceAdapter) CancelDelivery(
 	}
 	return connect.NewResponse(resp), nil
 }
+
+func (a *coreServiceAdapter) CreateSlot(
+	ctx context.Context,
+	req *connect.Request[apiv1.CreateSlotRequest],
+) (*connect.Response[apiv1.CreateSlotResponse], error) {
+	resp, err := a.srv.CreateSlot(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (a *coreServiceAdapter) GetSlot(
+	ctx context.Context,
+	req *connect.Request[apiv1.GetSlotRequest],
+) (*connect.Response[apiv1.GetSlotResponse], error) {
+	resp, err := a.srv.GetSlot(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (a *coreServiceAdapter) UpdateSlot(
+	ctx context.Context,
+	req *connect.Request[apiv1.UpdateSlotRequest],
+) (*connect.Response[apiv1.UpdateSlotResponse], error) {
+	resp, err := a.srv.UpdateSlot(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (a *coreServiceAdapter) DeleteSlot(
+	ctx context.Context,
+	req *connect.Request[apiv1.DeleteSlotRequest],
+) (*connect.Response[apiv1.DeleteSlotResponse], error) {
+	resp, err := a.srv.DeleteSlot(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (a *coreServiceAdapter) ListSlots(
+	ctx context.Context,
+	req *connect.Request[apiv1.ListSlotsRequest],
+) (*connect.Response[apiv1.ListSlotsResponse], error) {
+	resp, err := a.srv.ListSlots(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}

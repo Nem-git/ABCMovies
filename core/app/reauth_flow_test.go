@@ -38,20 +38,9 @@ func TestSessionExpiredReauthFlowEndToEnd(t *testing.T) {
 core:
   api:
     bind: "127.0.0.1:0"
-slots:
-  providers:
-    - adapter: jellyfin
-      id: jellyfin
-      enabled: true
-      server: "`+fake.URL()+`"
-      accounts:
-        - id: op
-          username: "alice.homeserver.user"
-          password-env: JF_TEST_PASSWORD
-  sinks:
-    - adapter: device
-      id: device
-      enabled: true
+stores:
+  slots:
+    backend: in-memory
 `), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
@@ -61,6 +50,7 @@ slots:
 	if err != nil {
 		t.Fatalf("stack: %v", err)
 	}
+	seedJellyfinSlots(t, stack, "jellyfin", fake.URL())
 	srv, ok := stack.Service().(*apiserver.Server)
 	if !ok {
 		t.Fatal("service is not a concrete *apiserver.Server")

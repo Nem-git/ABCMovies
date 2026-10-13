@@ -1,0 +1,14 @@
+{
+  "name": "delete-slot-response-valid",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {
+    "slot": {
+      "id": "device",
+      "kind": "SLOT_KIND_SINK",
+      "sink": { "adapter": "device" }
+    }
+  },
+  "type": "DeleteSlotResponse"
+}

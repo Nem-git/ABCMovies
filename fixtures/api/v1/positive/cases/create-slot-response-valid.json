@@ -1,0 +1,12 @@
+{
+  "name": "create-slot-response-valid",
+  "expected": { "valid": true },
+  "type": "CreateSlotResponse",
+  "message": {
+    "slot": {
+      "id": "device",
+      "kind": "SLOT_KIND_SINK",
+      "sink": { "adapter": "device" }
+    }
+  }
+}

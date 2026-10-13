@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+
 	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/config"
@@ -27,11 +29,14 @@ func TestLinkStremioAccountNarratesAttachPath(t *testing.T) {
 	reg := registry.NewInProcess()
 	defer reg.Close()
 	bus := apiserver.NewInMemoryBus()
-	rt, err := ComposeSlots(ctx, config.SlotsConfig{Providers: []config.SlotEntry{{
-		Adapter: "stremio", ID: "stremio-test", Enabled: true,
-		Server:   fsrv.URL + "/manifest.json",
-		Accounts: []config.AccountConfig{{ID: "archiveorg"}},
-	}}}, config.EnrichmentConfig{}, config.LibraryConfig{}, reg,
+	slots := []*corev1.Slot{{
+		Id: "stremio-test", Kind: corev1.SlotKind_SLOT_KIND_PROVIDER,
+		Config: &corev1.Slot_Provider{Provider: &corev1.ProviderConfig{
+			Adapter: "stremio", Server: fsrv.URL + "/manifest.json",
+			Accounts: []*corev1.AccountConfig{{Id: "archiveorg"}},
+		}},
+	}}
+	rt, err := ComposeSlots(ctx, slots, config.EnrichmentConfig{}, config.LibraryConfig{}, reg,
 		store.NewInMemory(), store.NewInMemory(), store.NewInMemory(),
 		store.NewInMemory(), bus, nil, nil)
 	if err != nil {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nem-git/abcmovies/core/internal/config"
+	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
 )
 
@@ -22,8 +22,9 @@ func TestSetupSinksDiskRequiresOptionsPath(t *testing.T) {
 		{name: "empty-path", opts: map[string]string{"path": ""}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := SetupSinks([]config.SlotEntry{{
-				ID: "disk", Adapter: "disk", Enabled: true, Options: tc.opts,
+			_, err := SetupSinks([]*corev1.Slot{{
+				Id: "disk", Kind: corev1.SlotKind_SLOT_KIND_SINK,
+				Config: &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "disk", Options: tc.opts}},
 			}}, delivery.NewRelay())
 			if err == nil || !strings.Contains(err.Error(), "options.path is required") {
 				t.Fatalf("want options.path error, got %v", err)
@@ -36,8 +37,9 @@ func TestSetupSinksDiskRequiresOptionsPath(t *testing.T) {
 // adapter name.
 func TestSetupSinksUnknownAdapterRejected(t *testing.T) {
 	t.Parallel()
-	_, err := SetupSinks([]config.SlotEntry{{
-		ID: "x", Adapter: "vhs-player", Enabled: true,
+	_, err := SetupSinks([]*corev1.Slot{{
+		Id: "x", Kind: corev1.SlotKind_SLOT_KIND_SINK,
+		Config: &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "vhs-player"}},
 	}}, delivery.NewRelay())
 	if err == nil || !strings.Contains(err.Error(), "unknown adapter") {
 		t.Fatalf("want unknown-adapter error, got %v", err)

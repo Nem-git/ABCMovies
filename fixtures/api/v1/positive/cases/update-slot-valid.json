@@ -1,0 +1,24 @@
+{
+  "name": "update-slot-valid",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {
+    "slot": {
+      "id": "jellyfin",
+      "kind": "SLOT_KIND_PROVIDER",
+      "provider": {
+        "adapter": "jellyfin",
+        "server": "https://jellyfin.example",
+        "accounts": [
+          {
+            "id": "op",
+            "username": "alice",
+            "passwordEnv": "JF_PASSWORD"
+          }
+        ]
+      }
+    }
+  },
+  "type": "UpdateSlotRequest"
+}

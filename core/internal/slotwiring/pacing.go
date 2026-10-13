@@ -9,7 +9,6 @@ import (
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
-	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/pacing"
 	"github.com/nem-git/abcmovies/core/internal/policy"
 	"github.com/nem-git/abcmovies/core/internal/sourcecache"
@@ -174,9 +173,9 @@ func budgetFromPolicy(m map[string]string) pacing.Budget {
 // governorFromOptions reads the per-provider aggregate keys from a slot
 // entry's Options bag: pacingRequestsPerSecond bounds total requests/sec
 // across all accounts of this slot (PLAN.md §7.2).
-func governorFromOptions(entry config.SlotEntry) *pacing.Governor {
+func governorFromOptions(slot *corev1.Slot) *pacing.Governor {
 	var rps float64
-	if v := entry.Options["pacingRequestsPerSecond"]; v != "" {
+	if v := slot.GetProvider().GetOptions()["pacingRequestsPerSecond"]; v != "" {
 		if f, err := strconv.ParseFloat(v, 64); err == nil {
 			rps = f
 		}
@@ -190,7 +189,7 @@ func governorFromOptions(entry config.SlotEntry) *pacing.Governor {
 // the same merge delivery admission uses for the quotas (§7.2) — so a
 // host-wide pacing key is enforced on every account, not just recorded.
 // Runtime-linked accounts get their budget registered at AttachAccount.
-func newPacedClient(entry config.SlotEntry, instance policy.Set, innerCatalogue sourcecacheClient, innerRefresh sourcecache.RefreshClient, innerProduces produces, innerSearcher searcher) *pacedClient {
+func newPacedClient(slot *corev1.Slot, instance policy.Set, innerCatalogue sourcecache.Client, innerRefresh sourcecache.RefreshClient, innerProduces produces, innerSearcher searcher) *pacedClient {
 	if innerProduces == nil {
 		return nil
 	}
@@ -201,19 +200,19 @@ func newPacedClient(entry config.SlotEntry, instance policy.Set, innerCatalogue 
 		innerSearcher:  innerSearcher,
 		byAccount:      map[string]*pacing.Limiter{},
 		budgetAccount:  map[string]pacing.Budget{},
-		governor:       governorFromOptions(entry),
+		governor:       governorFromOptions(slot),
 	}
-	for _, a := range entry.Accounts {
-		overlay, err := policy.ParseOverlay(a.Policy)
+	for _, a := range slot.GetProvider().GetAccounts() {
+		overlay, err := policy.ParseOverlay(a.GetPolicy())
 		if err != nil {
 			// validatePolicies already rejected malformed overrides at
-			// load; reaching this means a hand-built SlotEntry skips
+			// load; reaching this means a hand-built Slot skips
 			// config validation — treat it as a build error's worth of
 			// loudness and keep the instance budget rather than panic.
-			pc.budgetAccount[a.ID] = budgetFromPolicy(instance)
+			pc.budgetAccount[a.GetId()] = budgetFromPolicy(instance)
 			continue
 		}
-		pc.budgetAccount[a.ID] = budgetFromPolicy(instance.With(overlay))
+		pc.budgetAccount[a.GetId()] = budgetFromPolicy(instance.With(overlay))
 	}
 	return pc
 }

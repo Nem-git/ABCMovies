@@ -1,0 +1,13 @@
+{
+  "name": "create-slot-response-slot-missing-kind",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {
+    "slot": {
+      "id": "device",
+      "sink": { "adapter": "device" }
+    }
+  },
+  "type": "CreateSlotResponse"
+}

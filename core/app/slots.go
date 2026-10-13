@@ -11,6 +11,7 @@ import (
 	"log/slog"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
@@ -36,6 +37,34 @@ type eventPublisher interface {
 // accountInvalidator is the slice of the library service the mux needs.
 type accountInvalidator interface {
 	InvalidateAccount(provider, accountID string) error
+}
+
+// ComposeOption adjusts how ComposeSlots composes a runtime. The zero set
+// (no options) preserves the standalone behaviour every embedder and test
+// gets today: a private scheduler and relay, owned by the returned runtime.
+type ComposeOption func(*composeOptions)
+
+type composeOptions struct {
+	scheduler *scheduler.Scheduler
+	relay     *delivery.Relay
+}
+
+// WithScheduler composes the runtime over a caller-owned scheduler instead of
+// creating a private one. The composition root uses it so a live slot change
+// can register and retire jobs on the one scheduler already running, rather
+// than starting a second one nobody services (D8 reload).
+func WithScheduler(sc *scheduler.Scheduler) ComposeOption {
+	return func(o *composeOptions) { o.scheduler = sc }
+}
+
+// WithRelay composes the runtime over a caller-owned media relay instead of
+// creating a private one. The composition root shares one relay across the
+// boot composition and every live reload: the HTTP relay handler and the
+// delivery engine are armed once against that relay, so a reload must keep
+// minting into the same one or a staged play menu's token would 403 (D8
+// reload).
+func WithRelay(r *delivery.Relay) ComposeOption {
+	return func(o *composeOptions) { o.relay = r }
 }
 
 // eventMux routes sync-emitted availability events to their two consumers:
@@ -127,7 +156,7 @@ type SlotRuntime struct {
 // error, never a silent guess.
 func (rt *SlotRuntime) providerFor(provider, baseURL string) *slotwiring.BuiltSlot {
 	for _, b := range rt.Providers {
-		if b.Entry.Adapter == provider && slotwiring.ServerAddressMatch(b.Entry.Server, baseURL) {
+		if b.Entry.GetProvider().GetAdapter() == provider && slotwiring.ServerAddressMatch(b.Entry.GetProvider().GetServer(), baseURL) {
 			return b
 		}
 	}
@@ -198,21 +227,21 @@ func (rt *SlotRuntime) DropAccount(rec accounts.Record) error {
 	// cached rows, its resolver, and its entry in the registry all go.
 	// Operator-declared slots (accounts configured in config) are never
 	// retired by an unlink; the operator's config outlives any single account.
-	if len(b.Entry.Accounts) == 0 {
+	if len(b.Entry.GetProvider().GetAccounts()) == 0 {
 		remaining := 0
 		if linked, err := rt.deps.Accounts.List(context.Background()); err == nil {
 			for _, l := range linked {
-				if l.Provider == b.Entry.Adapter && slotwiring.ServerAddressMatch(b.Entry.Server, l.BaseURL) {
+				if l.Provider == b.Entry.GetProvider().GetAdapter() && slotwiring.ServerAddressMatch(b.Entry.GetProvider().GetServer(), l.BaseURL) {
 					remaining++
 				}
 			}
 		}
 		if remaining == 0 {
-			rt.deps.Registry.Forget(b.Entry.ID)
-			delete(rt.Resolvers, b.Entry.ID)
+			rt.deps.Registry.Forget(b.Entry.GetId())
+			delete(rt.Resolvers, b.Entry.GetId())
 			keep := make([]*slotwiring.BuiltSlot, 0, len(rt.Providers))
 			for _, p := range rt.Providers {
-				if p.Entry.ID == b.Entry.ID {
+				if p.Entry.GetId() == b.Entry.GetId() {
 					continue
 				}
 				keep = append(keep, p)
@@ -263,9 +292,13 @@ func (e registryEvidence) Evidence(ctx context.Context, entryID string) (enrichm
 // instance is resolved here and injected into both the item registry and
 // the enrichment engine, so every normalization in the process runs on the
 // same article list.
-func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.EnrichmentConfig, lib config.LibraryConfig, reg *registry.InProcessRegistry, sourceCache, metaCache, vault, cache store.Store, apiBus *apiserver.InMemoryBus, logger *slog.Logger, instancePolicy map[string]string) (*SlotRuntime, error) {
+func ComposeSlots(ctx context.Context, slots []*corev1.Slot, enrich config.EnrichmentConfig, lib config.LibraryConfig, reg *registry.InProcessRegistry, sourceCache, metaCache, vault, cache store.Store, apiBus *apiserver.InMemoryBus, logger *slog.Logger, instancePolicy map[string]string, opts ...ComposeOption) (*SlotRuntime, error) {
 	if logger == nil {
 		logger = slog.Default()
+	}
+	var copts composeOptions
+	for _, o := range opts {
+		o(&copts)
 	}
 	identityOpts := identity.Options{Articles: lib.Articles}
 	logger.Info("library: matching drops leading articles", "articles", identityOpts.ArticlesList())
@@ -283,6 +316,9 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 	mux := &eventMux{bus: rt.Bus, log: logger}
 	rt.eventMux = mux
 	rt.Relay = delivery.NewRelay()
+	if copts.relay != nil {
+		rt.Relay = copts.relay
+	}
 	instanceSet, err := policy.ParseInstance(instancePolicy)
 	if err != nil {
 		return nil, fmt.Errorf("policy: %w", err)
@@ -300,24 +336,30 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 	}
 	jobs, reaches, cats, resolvers, built, err := slotwiring.SetupAll(ctx, slots, deps)
 	if err != nil {
-		rt.Bus.Close()
 		return nil, fmt.Errorf("slots: %w", err)
 	}
 	rt.Resolvers = resolvers
 	rt.Probers = map[string]apiserver.CredentialProber{}
 	rt.deps = deps
-	for _, e := range slots.Providers {
-		if !e.Enabled {
+	// Arm probers for enabled provider slots (D8: slots are []*corev1.Slot).
+	for _, slot := range slots {
+		if slot.GetKind() != corev1.SlotKind_SLOT_KIND_PROVIDER {
 			continue
 		}
-		if p := slotwiring.ProberForAdapter(e.Adapter); p != nil {
-			rt.Probers[e.Adapter] = p
+		adapter := slot.GetProvider().GetAdapter()
+		if p := slotwiring.ProberForAdapter(adapter); p != nil {
+			rt.Probers[adapter] = p
 		}
 	}
 
-	srvs, err := slotwiring.SetupSinks(slots.Sinks, rt.Relay)
+	var sinks []*corev1.Slot
+	for _, slot := range slots {
+		if slot.GetKind() == corev1.SlotKind_SLOT_KIND_SINK {
+			sinks = append(sinks, slot)
+		}
+	}
+	srvs, err := slotwiring.SetupSinks(sinks, rt.Relay)
 	if err != nil {
-		rt.Bus.Close()
 		return nil, fmt.Errorf("sinks: %w", err)
 	}
 	rt.Sinks = srvs
@@ -327,7 +369,6 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 	engine := enrichment.NewEngine(registryEvidence{r: itemReg}, meta, cats, logger, identityOpts)
 	drainCadence, err := enrichment.DrainCadence(enrich.DrainCadence)
 	if err != nil {
-		rt.Bus.Close()
 		return nil, fmt.Errorf("enrichment: %w", err)
 	}
 	worker := enrichment.NewWorker(queue, engine.Enrich, logger)
@@ -336,12 +377,17 @@ func ComposeSlots(ctx context.Context, slots config.SlotsConfig, enrich config.E
 	libSvc, err := library.NewService(reaches, itemReg, cache, logger,
 		library.WithEnrichment(meta, queue.Enqueue))
 	if err != nil {
-		rt.Bus.Close()
 		return nil, fmt.Errorf("library: %w", err)
 	}
 	rt.Library, rt.ItemRegistry, rt.Jobs = libSvc, itemReg, jobs
 	rt.Providers = built
-	rt.Scheduler = scheduler.New(0, logger)
+	// The scheduler is caller-owned when one is supplied (a live reload
+	// registers and retires jobs on the scheduler already running); a
+	// standalone compose gets a private one.
+	rt.Scheduler = copts.scheduler
+	if rt.Scheduler == nil {
+		rt.Scheduler = scheduler.New(0, logger)
+	}
 	for _, j := range rt.Jobs {
 		rt.Scheduler.Register(j)
 	}

@@ -1,0 +1,13 @@
+{
+  "name": "delete-slot-valid",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {
+    "ref": {
+      "kind": "SLOT_KIND_SINK",
+      "id": "device"
+    }
+  },
+  "type": "DeleteSlotRequest"
+}

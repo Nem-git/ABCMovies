@@ -44,7 +44,7 @@ func (l *liveSearcher) Run(ctx context.Context, req *apiv1.LiveSearchRequest) (*
 		if b.LazySearch == nil {
 			continue // whole-catalogue providers only sync on cadence
 		}
-		if len(req.GetProviders()) > 0 && !slotListed(b.Entry.ID, req.GetProviders()) {
+		if len(req.GetProviders()) > 0 && !slotListed(b.Entry.GetId(), req.GetProviders()) {
 			continue
 		}
 		ok := true
@@ -58,18 +58,18 @@ func (l *liveSearcher) Run(ctx context.Context, req *apiv1.LiveSearchRequest) (*
 					AccountId: reach.AccountID, Query: req.GetQuery(), PageToken: token,
 				})
 				if err != nil {
-					rejected[b.Entry.ID] = fmt.Sprintf("%s/%s: %v", b.Entry.ID, reach.AccountID, err)
+					rejected[b.Entry.GetId()] = fmt.Sprintf("%s/%s: %v", b.Entry.GetId(), reach.AccountID, err)
 					ok = false
 					break
 				}
 				if _, err := reach.Sync.IngestItems(ctx, reach.AccountID, resp.GetItems()); err != nil {
-					rejected[b.Entry.ID] = fmt.Sprintf("ingest %s/%s: %v", b.Entry.ID, reach.AccountID, err)
+					rejected[b.Entry.GetId()] = fmt.Sprintf("ingest %s/%s: %v", b.Entry.GetId(), reach.AccountID, err)
 					ok = false
 					break
 				}
 				for _, it := range resp.GetItems() {
 					hits = append(hits, &apiv1.LiveSearchHit{
-						Provider:  b.Entry.ID,
+						Provider:  b.Entry.GetId(),
 						AccountId: reach.AccountID,
 						NativeId:  it.GetNativeId(),
 						Title:     it.GetMetadata().GetTitle(),

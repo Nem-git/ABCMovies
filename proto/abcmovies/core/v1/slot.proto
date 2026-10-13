@@ -1,0 +1,107 @@
+syntax = "proto3";
+
+package abcmovies.core.v1;
+
+// The slot contract (docs/PLAN.md §3.1, D8): the system-of-record for a
+// managed slot. A slot is one instance of a slot kind (provider, sink,
+// catalogue, subtitle-source, drm), declared in the store rather than config.
+// Slots are additive (D8); the config loader no longer declares them.
+
+// SlotKind distinguishes the kinds of managed slots (PLAN.md §3.1).
+enum SlotKind {
+  SLOT_KIND_UNSPECIFIED = 0;
+  // A provider slot: serves media through a provider adapter (PLAN.md §3.2).
+  SLOT_KIND_PROVIDER = 1;
+  // A sink slot: where delivery sessions put bytes (PLAN.md §6.4).
+  SLOT_KIND_SINK = 2;
+  // A catalogue slot: feeds background enrichment (PLAN.md §5.2).
+  SLOT_KIND_CATALOGUE = 3;
+  // A subtitle-source slot: external subtitles (PLAN.md §3.1).
+  SLOT_KIND_SUBTITLE_SOURCE = 4;
+  // A DRM slot: acquire-keys + decrypt (PLAN.md §6.6).
+  SLOT_KIND_DRM = 5;
+}
+
+// AccountConfig is one account on a provider slot (PLAN.md §3.5). The
+// password is read from the environment named by password_env — never
+// stored.
+message AccountConfig {
+  // The account id. Required.
+  string id = 1;
+  // The account's username on the provider. Required.
+  string username = 2;
+  // The environment variable carrying the password. Required.
+  string password_env = 3;
+  // The account's declared upstream concurrency ceiling (PLAN.md §7.2).
+  // 0 leaves the account uncapped.
+  uint32 max_concurrent_streams = 4;
+  // Optional per-account override of the instance policy.
+  map<string, string> policy = 5;
+}
+
+// ProviderConfig is the config for a provider slot (PLAN.md §3.2).
+message ProviderConfig {
+  // The provider adapter (e.g. "jellyfin", "stremio"). Required.
+  string adapter = 1;
+  // The base URL of the single server this slot serves. A slot never
+  // spans servers. Required for providers.
+  string server = 2;
+  // The accounts on this server. Optional.
+  repeated AccountConfig accounts = 3;
+  // Optional sync-cadence override.
+  string sync_cadence = 4;
+  // Per-adapter configuration bag (PLAN.md §6.4). Each adapter reads only
+  // the keys it declares.
+  map<string, string> options = 5;
+}
+
+// SinkConfig is the config for a sink slot (PLAN.md §6.4).
+message SinkConfig {
+  // The sink adapter (e.g. "device", "disk"). Required.
+  string adapter = 1;
+  // Per-adapter configuration bag (e.g. path for disk).
+  map<string, string> options = 2;
+}
+
+// CatalogueConfig is the config for a catalogue slot (PLAN.md §5.2).
+message CatalogueConfig {
+  // The catalogue adapter (e.g. "tmdb"). Required.
+  string adapter = 1;
+  // The environment variable carrying the API token. Required.
+  string token_env = 2;
+}
+
+// SubtitleSourceConfig is the config for a subtitle-source slot (PLAN.md
+// §3.1).
+message SubtitleSourceConfig {
+  // The subtitle-source adapter. Required.
+  string adapter = 1;
+}
+
+// DrmConfig is the config for a DRM slot (PLAN.md §6.6).
+message DrmConfig {
+  // The operations this DRM slot supports (e.g. "acquire-keys", "decrypt").
+  repeated string operations = 1;
+  // The version per operation.
+  map<string, string> versions = 2;
+}
+
+// Slot is the system-of-record for a managed slot (PLAN.md §3.1, D8).
+message Slot {
+  // The slot id, globally unique across every kind and owner: it is the
+  // identity namespace (PLAN.md §1.25), so two slots may never share one.
+  // Required.
+  string id = 1;
+  // The slot kind. Required.
+  SlotKind kind = 2;
+  // The owner: empty = operator-owned (instance-wide); set = user-owned.
+  string owner_user_id = 3;
+  // The kind-specific config. Exactly one must be set, matching kind.
+  oneof config {
+    ProviderConfig provider = 4;
+    SinkConfig sink = 5;
+    CatalogueConfig catalogue = 6;
+    SubtitleSourceConfig subtitle_source = 7;
+    DrmConfig drm = 8;
+  }
+}

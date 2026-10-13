@@ -18,27 +18,16 @@ import (
 
 // writeConfigFile writes a minimal instance config with a single operator
 // jellyfin slot pointed at fakeURL.
-func writeLinkedJFConfig(t *testing.T, fakeURL string) string {
+func writeLinkedJFConfig(t *testing.T) string {
 	t.Helper()
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(configPath, []byte(`
 core:
   api:
     bind: "127.0.0.1:0"
-slots:
-  providers:
-    - adapter: jellyfin
-      id: jf
-      enabled: true
-      server: "`+fakeURL+`"
-      accounts:
-        - id: op
-          username: "alice.homeserver.user"
-          password-env: JF_TEST_PASSWORD
-  sinks:
-    - adapter: device
-      id: device
-      enabled: true
+stores:
+  slots:
+    backend: in-memory
 `), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
@@ -52,13 +41,14 @@ slots:
 // account.
 func TestUnlinkedAccountLeavesRunningSlot(t *testing.T) {
 	fake := newFakeJellyfin(t)
-	configPath := writeLinkedJFConfig(t, fake.URL())
+	configPath := writeLinkedJFConfig(t)
 	t.Setenv("JF_TEST_PASSWORD", "operator-password-not-real")
 
 	stack, err := New(context.Background(), configPath, slog.Default())
 	if err != nil {
 		t.Fatalf("stack: %v", err)
 	}
+	seedJellyfinSlots(t, stack, "jf", fake.URL())
 	srv, ok := stack.Service().(*apiserver.Server)
 	if !ok {
 		t.Fatalf("service is not a concrete *apiserver.Server")
@@ -91,7 +81,7 @@ func TestUnlinkedAccountLeavesRunningSlot(t *testing.T) {
 	}
 	att, ok := stack.Slots().Providers[0].Impl.(slotwiring.AttachableSlot)
 	if !ok {
-		t.Fatalf("provider %q not attachable", stack.Slots().Providers[0].Entry.ID)
+		t.Fatalf("provider %q not attachable", stack.Slots().Providers[0].Entry.GetId())
 	}
 	if _, err := att.CatalogueSync(context.Background(), &slotsv1.CatalogueSyncRequest{AccountId: linkRes.GetAccountId()}); err == nil || !strings.Contains(err.Error(), "unknown account") {
 		t.Fatalf("CatalogueSync after unlink = %v, want unknown account", err)
@@ -107,16 +97,19 @@ func TestUnlinkedAccountLeavesRunningSlot(t *testing.T) {
 func TestLastAccountOfUserSlotRetiresIt(t *testing.T) {
 	fakeA := newFakeJellyfin(t)
 	fakeB := newFakeJellyfin(t)
-	configPath := writeLinkedJFConfig(t, fakeA.URL())
+	configPath := writeLinkedJFConfig(t)
 	t.Setenv("JF_TEST_PASSWORD", "operator-password-not-real")
 
-	// Two-phase like New composes: build the fallible base, seed a linked
-	// record into the vault, then compose the slots so boot provisions a
-	// user-owned (synthetic) slot for it.
+	// Two-phase like New composes: build the fallible base, seed the operator
+	// slot and a linked record into their stores, then compose the slots so
+	// boot loads the operator slot and provisions a user-owned (synthetic)
+	// slot for the linked record.
 	stack, err := build(configPath, slog.Default())
 	if err != nil {
 		t.Fatalf("stack: %v", err)
 	}
+	putSlot(t, stack, operatorJellyfinSlot("jf", fakeA.URL()))
+	putSlot(t, stack, deviceSinkSlot("device"))
 	// Seed a linked account on a DIFFERENT server than the operator slot's,
 	// before composition, so boot provisions a user-owned (synthetic) slot for
 	// it rather than routing it to the configured operator slot.
@@ -153,8 +146,8 @@ func TestLastAccountOfUserSlotRetiresIt(t *testing.T) {
 	if len(stack.Slots().Providers) != 1 {
 		t.Fatalf("providers = %d, want only the operator slot", len(stack.Slots().Providers))
 	}
-	if stack.Slots().Providers[0].Entry.ID != "jf" {
-		t.Fatalf("surviving provider = %q, want jf", stack.Slots().Providers[0].Entry.ID)
+	if stack.Slots().Providers[0].Entry.GetId() != "jf" {
+		t.Fatalf("surviving provider = %q, want jf", stack.Slots().Providers[0].Entry.GetId())
 	}
 	if _, ok := stack.Slots().Resolvers[ns]; ok {
 		t.Fatalf("resolver for retired slot %q still present", ns)

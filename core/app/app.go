@@ -27,8 +27,10 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/registry"
+	"github.com/nem-git/abcmovies/core/internal/scheduler"
 	"github.com/nem-git/abcmovies/core/internal/settings"
 	"github.com/nem-git/abcmovies/core/internal/slothealth"
+	"github.com/nem-git/abcmovies/core/internal/slotstore"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -97,6 +99,9 @@ type Stack struct {
 	registry *registry.InProcessRegistry
 	bus      *apiserver.InMemoryBus
 
+	// slotStore holds the managed slots (D8); nil until armed at boot.
+	slotStore *slotstore.Store
+
 	// settings is the instance-settings provider: the single write path for
 	// instance settings and the live source the API reads
 	// (TECHNICAL-DECISIONS.md §1.45). settingsPatch is the boot-time override
@@ -112,11 +117,26 @@ type Stack struct {
 	cfg *config.Config
 
 	// slots holds the composed provider-slot layer when buildSlots has been
-	// called; nil until then.
-	slots *SlotRuntime
+	// called; nil until then. It is swapped under slotsMu by a live admin
+	// CRUD reload (D8); every reader goes through currentSlots().
+	slots   *SlotRuntime
+	slotsMu sync.RWMutex
+	// slotSched is the one scheduler the stack owns for its whole life: the
+	// boot composition and every reload register and retire jobs on it, so a
+	// slot change never leaves a second scheduler nobody runs.
+	slotSched *scheduler.Scheduler
+	// appliedSlots is the slot set currently composed into slots, kept so a
+	// failed reload can restore the composition that was live (D8).
+	appliedSlots []*corev1.Slot
 	// delivery is the composed delivery engine, armed onto the API service
 	// once buildSlots has run; nil until then.
 	delivery *delivery.Engine
+	// relay is the stack's one media relay for its whole life (PLAN.md §3.6).
+	// The delivery engine's sink factory mints tokens into it and the HTTP
+	// RelayHandler verifies them against it; a live slot reload re-composes
+	// the slot layer over this same relay rather than a fresh one, so a menu
+	// staged after a reload still pulls (D8).
+	relay *delivery.Relay
 
 	// lifecycle guards the Start/Close pair. Start launches the periodic
 	// work — the shared scheduler and the delivery watchdog — under one
@@ -179,6 +199,14 @@ func build(configPath string, logger *slog.Logger) (*Stack, error) {
 	}
 	session := config.BuildSession(tokens, deks, tokenTTL)
 
+	// Arm the managed-slot store (D8): slots are loaded from the store at
+	// boot and re-loaded on every admin CRUD change.
+	slotStore, err := slotstore.New(stores.Slots)
+	if err != nil {
+		_ = closeStores(stores)
+		return nil, fmt.Errorf("slot store: %w", err)
+	}
+
 	r := registry.NewInProcess()
 	if _, err := r.Admit("builtin", builtin.New()); err != nil {
 		r.Close()
@@ -211,6 +239,9 @@ func build(configPath string, logger *slog.Logger) (*Stack, error) {
 		CapChangeDefault: capDefault,
 		UserDirectory:    apiserver.NewUserDirectory(users),
 	})
+	// The admin slot CRUD reads and writes the managed-slot store (D8).
+	srv.SetSlotStore(slotStore)
+	srv.SetSlotStore(slotStore)
 	// The API reads the effective settings live: GetInstanceInfo,
 	// GetInstanceSettings and the owner-id visibility projection always see
 	// what the instance enforces, never a boot-frozen copy.
@@ -236,6 +267,8 @@ func build(configPath string, logger *slog.Logger) (*Stack, error) {
 		settings:        settingsProvider,
 		settingsPatch:   settingsPatch,
 		composite:       composite,
+		slotStore:       slotStore,
+		slotSched:       scheduler.New(0, logger),
 	}, nil
 }
 
@@ -252,6 +285,14 @@ func New(ctx context.Context, configPath string, logger *slog.Logger) (*Stack, e
 	if _, err := s.buildSlots(ctx, logger); err != nil {
 		s.Close()
 		return nil, err
+	}
+	// Wire the admin-CRUD reload seam (D8): the API layer calls it with the
+	// prospective slot set before it persists, so a slot the wiring rejects is
+	// never stored and a store write that fails can roll the runtime back.
+	if srv, ok := s.service.(*apiserver.Server); ok {
+		srv.SetSlotReloader(func(ctx context.Context, slots []*corev1.Slot) error {
+			return s.reloadSlots(ctx, slots, logger)
+		})
 	}
 	return s, nil
 }
@@ -291,8 +332,29 @@ func (s *Stack) AuthInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServ
 
 // Slots returns the composed provider-slot layer, or nil when the stack was
 // assembled without it (New always composes it). When nil, delivery seams
-// and the library are unarmed.
-func (s *Stack) Slots() *SlotRuntime { return s.slots }
+// and the library are unarmed. It reads through the live pointer, so a caller
+// after a live admin-CRUD reload sees the recomposed runtime.
+func (s *Stack) Slots() *SlotRuntime { return s.currentSlots() }
+
+// currentSlots returns the runtime composed right now. A reload swaps the
+// whole runtime under slotsMu rather than mutating the live one, so every
+// reader — the read-through delivery and library seams, or an embedder — sees
+// one consistent runtime, never a half-retired one.
+func (s *Stack) currentSlots() *SlotRuntime {
+	s.slotsMu.RLock()
+	defer s.slotsMu.RUnlock()
+	return s.slots
+}
+
+// setSlots publishes a newly composed runtime together with the slot set it
+// was built from. The applied set is retained so a failed live reload can
+// restore exactly what was live.
+func (s *Stack) setSlots(rt *SlotRuntime, applied []*corev1.Slot) {
+	s.slotsMu.Lock()
+	s.slots = rt
+	s.appliedSlots = applied
+	s.slotsMu.Unlock()
+}
 
 // RelayPrefix is the stable URL prefix under which RelayHandler serves staged
 // delivery pulls (PLAN.md §3.6). It is re-exported from the delivery package
@@ -306,10 +368,11 @@ const RelayPrefix = delivery.RelayPrefix
 // (New always composes it). Only the built-in device sink grants tickets
 // into it, and only its delivery sessions.
 func (s *Stack) Relay() *delivery.Relay {
-	if s.slots == nil {
+	rt := s.currentSlots()
+	if rt == nil {
 		return nil
 	}
-	return s.slots.Relay
+	return rt.Relay
 }
 
 // RelayHandler returns an HTTP handler serving staged delivery pulls under
@@ -393,9 +456,61 @@ func NewSealedBlobs(vault interface {
 // slots are already composed. New calls it so construction is
 // all-or-nothing.
 func (s *Stack) buildSlots(ctx context.Context, logger *slog.Logger) (*SlotRuntime, error) {
-	if s.slots != nil {
-		return s.slots, nil
+	if rt := s.currentSlots(); rt != nil {
+		return rt, nil
 	}
+	slots, err := s.loadSlots(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rt, err := s.composeSlotSet(ctx, slots, logger)
+	if err != nil {
+		return nil, err
+	}
+	// Delivery is a stack-lifetime concern: the engine, its watchdog, and the
+	// read-through seams that point at whatever runtime is live are armed
+	// once, here. A later slot reload swaps the runtime the seams read; it
+	// never builds a second engine.
+	if err := s.armDelivery(rt, logger); err != nil {
+		return nil, err
+	}
+	if err := s.applyInstanceSettings(ctx); err != nil {
+		return nil, err
+	}
+	s.setSlots(rt, slots)
+	return rt, nil
+}
+
+// loadSlots reads the managed slot set from the store (D8): the store is the
+// system of record, so boot and every reload compose exactly what it holds.
+// Every kind is listed; the store holds only live slots.
+func (s *Stack) loadSlots(ctx context.Context) ([]*corev1.Slot, error) {
+	var all []*corev1.Slot
+	for _, kind := range slotKinds {
+		slots, err := s.slotStore.ListByKind(ctx, kind, "")
+		if err != nil {
+			return nil, fmt.Errorf("load slots: %w", err)
+		}
+		all = append(all, slots...)
+	}
+	return all, nil
+}
+
+// slotKinds is every managed slot kind, in the order a list presents them.
+var slotKinds = []corev1.SlotKind{
+	corev1.SlotKind_SLOT_KIND_PROVIDER,
+	corev1.SlotKind_SLOT_KIND_SINK,
+	corev1.SlotKind_SLOT_KIND_CATALOGUE,
+	corev1.SlotKind_SLOT_KIND_SUBTITLE_SOURCE,
+	corev1.SlotKind_SLOT_KIND_DRM,
+}
+
+// composeSlotSet builds one SlotRuntime over an explicit slot set, sharing the
+// stack's one bus and one scheduler. It does not arm delivery or apply
+// instance settings: those are stack-lifetime concerns a live reload must not
+// repeat. Jobs registered here land on the running scheduler, so a reload
+// adds and retires jobs without a second scheduler nobody services.
+func (s *Stack) composeSlotSet(ctx context.Context, slots []*corev1.Slot, logger *slog.Logger) (*SlotRuntime, error) {
 	cfg := s.cfg
 	if cfg == nil {
 		var err error
@@ -404,21 +519,119 @@ func (s *Stack) buildSlots(ctx context.Context, logger *slog.Logger) (*SlotRunti
 			return nil, err
 		}
 	}
-	rt, err := ComposeSlots(ctx, cfg.Slots, cfg.Enrichment, cfg.Library,
-		s.registry, s.stores.SourceCache, s.stores.MetadataCache, s.stores.Vault, s.stores.Cache, s.bus, logger, cfg.Policy)
+	// One relay for the stack's whole life: every composition (boot and each
+	// reload) shares it, so tokens minted by a post-reload sink still verify
+	// against the HTTP handler armed at boot.
+	if s.relay == nil {
+		s.relay = delivery.NewRelay()
+	}
+	return ComposeSlots(ctx, slots, cfg.Enrichment, cfg.Library,
+		s.registry, s.stores.SourceCache, s.stores.MetadataCache, s.stores.Vault, s.stores.Cache,
+		s.bus, logger, cfg.Policy, WithScheduler(s.slotSched), WithRelay(s.relay))
+}
+
+// runtimeSlotIDs is every registry name a runtime admitted: one per live
+// provider slot and one per live catalogue slot. Synthetic user-owned server
+// slots appear in Providers (built by SetupProviders), so forgetting these
+// retires them too.
+func runtimeSlotIDs(rt *SlotRuntime) []string {
+	ids := make([]string, 0, len(rt.Providers)+len(rt.Catalogues))
+	for _, b := range rt.Providers {
+		ids = append(ids, b.Entry.GetId())
+	}
+	for _, c := range rt.Catalogues {
+		ids = append(ids, c.Slot)
+	}
+	return ids
+}
+
+// retireRuntime takes a previously composed runtime out of the live registry
+// and scheduler before its replacement is composed: its admitted slots are
+// forgotten so the new composition can re-admit the same ids, and its
+// recurring jobs leave the shared scheduler. The bus is shared and
+// long-lived, so it stays; an in-flight delivery keeps the old runtime's
+// resolver and relay through its own session, so retirement never breaks a
+// running stream.
+func (s *Stack) retireRuntime(rt *SlotRuntime) {
+	if rt == nil {
+		return
+	}
+	for _, id := range runtimeSlotIDs(rt) {
+		s.registry.Forget(id)
+	}
+	for _, j := range rt.Jobs {
+		s.slotSched.Remove(j.Name)
+	}
+}
+
+// reloadSlots applies a prospective slot set to the running stack (D8): it
+// retires the live runtime's admissions and jobs, composes the new set on the
+// shared bus and scheduler, and swaps the runtime readers see. Nothing is
+// persisted here — the API layer calls this before it writes the store, so a
+// slot the wiring rejects is never stored, and a store write that then fails
+// is rolled back by re-applying the set that was live. A compose failure
+// restores the previous composition, leaving the instance exactly as it was.
+func (s *Stack) reloadSlots(ctx context.Context, slots []*corev1.Slot, logger *slog.Logger) error {
+	s.slotsMu.Lock()
+	defer s.slotsMu.Unlock()
+	old := s.slots
+	if old == nil {
+		// Composed without a slot layer (a bare stack): nothing live to swap.
+		return nil
+	}
+	s.retireRuntime(old)
+	// Snapshot what the registry still admits after retirement so a failed
+	// compose can drop whatever it admitted halfway.
+	keep := map[string]struct{}{}
+	for name := range s.registry.Snapshot() {
+		keep[name] = struct{}{}
+	}
+	newRT, err := s.composeSlotSet(ctx, slots, logger)
 	if err != nil {
-		return nil, err
+		s.forgetAdmittedExcept(keep)
+		restored, rerr := s.composeSlotSet(ctx, s.appliedSlots, logger)
+		if rerr != nil {
+			logger.Error("slot reload failed and the previous composition could not be restored",
+				"reload_error", err, "restore_error", rerr)
+			s.slots = nil
+			s.appliedSlots = nil
+			return err
+		}
+		s.slots = restored
+		s.syncProbers(restored)
+		return err
 	}
-	if err := s.armDelivery(rt, logger); err != nil {
-		rt.Bus.Close()
-		return nil, err
+	s.slots = newRT
+	s.appliedSlots = slots
+	s.syncProbers(newRT)
+	return nil
+}
+
+// forgetAdmittedExcept drops every registry entry not in keep. It is the
+// cleanup for a compose that admitted some slots and then failed: the partial
+// admissions must leave before the previous composition is re-admitted.
+func (s *Stack) forgetAdmittedExcept(keep map[string]struct{}) {
+	for name := range s.registry.Snapshot() {
+		if _, ok := keep[name]; !ok {
+			s.registry.Forget(name)
+		}
 	}
-	if err := s.applyInstanceSettings(ctx); err != nil {
-		rt.Bus.Close()
-		return nil, err
+}
+
+// syncProbers replaces the API server's credential-prober set with the one a
+// runtime exposes. Probers are the one seam written on reload rather than read
+// through: the map is keyed by adapter and replaced wholesale under the
+// server's own lock, so a link probe always sees the adapters that are live.
+func (s *Stack) syncProbers(rt *SlotRuntime) {
+	srv, ok := s.service.(*apiserver.Server)
+	if !ok {
+		return
 	}
-	s.slots = rt
-	return rt, nil
+	if rt == nil {
+		srv.SetProbers(nil)
+		return
+	}
+	srv.SetProbers(rt.Probers)
 }
 
 // applyInstanceSettings runs the instance-settings pipeline once, now that
@@ -481,11 +694,14 @@ func (s *Stack) Start(ctx context.Context) error {
 	// every worker has stopped, so the done channel is the shutdown handshake
 	// the scheduler never had.
 	s.schedulerDone = make(chan struct{})
-	if s.slots != nil && s.slots.Scheduler != nil {
+	// The stack's one scheduler runs every boot job and every job a later
+	// reload registers. Start runs it; a reload registers and retires jobs on
+	// the running scheduler, so a live change never starts a second one.
+	if s.slotSched != nil {
 		done := s.schedulerDone
 		go func() {
 			defer close(done)
-			s.slots.Scheduler.Run(runCtx)
+			s.slotSched.Run(runCtx)
 		}()
 	} else {
 		close(s.schedulerDone)
@@ -519,9 +735,8 @@ func (s *Stack) Close() {
 	if schedulerDone != nil {
 		<-schedulerDone
 	}
-	if s.slots != nil {
-		s.slots.Bus.Close()
-	}
+	// The runtime bus is the stack bus (ComposeSlots is given the stack's
+	// bus), so closing it here covers both; Close on the bus is idempotent.
 	s.bus.Close()
 	s.registry.Close()
 	_ = closeStores(s.stores)

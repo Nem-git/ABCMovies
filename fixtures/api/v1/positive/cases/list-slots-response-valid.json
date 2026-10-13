@@ -1,0 +1,29 @@
+{
+  "name": "list-slots-response-valid",
+  "expected": { "valid": true },
+  "type": "ListSlotsResponse",
+  "message": {
+    "slots": [
+      {
+        "id": "jellyfin",
+        "kind": "SLOT_KIND_PROVIDER",
+        "provider": {
+          "adapter": "jellyfin",
+          "server": "https://jellyfin.example",
+          "accounts": [
+            {
+              "id": "op",
+              "username": "alice",
+              "passwordEnv": "JF_PASSWORD"
+            }
+          ]
+        }
+      },
+      {
+        "id": "device",
+        "kind": "SLOT_KIND_SINK",
+        "sink": { "adapter": "device" }
+      }
+    ]
+  }
+}

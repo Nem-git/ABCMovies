@@ -6,6 +6,7 @@ import "abcmovies/core/v1/event.proto";
 import "abcmovies/core/v1/job.proto";
 import "abcmovies/core/v1/library_entry.proto";
 import "abcmovies/core/v1/media_source.proto";
+import "abcmovies/core/v1/slot.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -105,6 +106,21 @@ service CoreService {
   // Slot health: read-only view of provider slot health as discovered by
   // probes (Batch 6). Additive; authenticated.
   rpc ListSlotHealth(ListSlotHealthRequest) returns (ListSlotHealthResponse);
+
+  // Admin: create a managed slot (D8). Operator or the slot's owner.
+  rpc CreateSlot(CreateSlotRequest) returns (CreateSlotResponse);
+
+  // Admin: read a managed slot (D8). Operator or the slot's owner.
+  rpc GetSlot(GetSlotRequest) returns (GetSlotResponse);
+
+  // Admin: update a managed slot (D8). Operator or the slot's owner.
+  rpc UpdateSlot(UpdateSlotRequest) returns (UpdateSlotResponse);
+
+  // Admin: delete a managed slot (D8). Operator or the slot's owner.
+  rpc DeleteSlot(DeleteSlotRequest) returns (DeleteSlotResponse);
+
+  // Admin: list managed slots (D8). Operators see all; users see their own.
+  rpc ListSlots(ListSlotsRequest) returns (ListSlotsResponse);
 }
 
 enum SlotHealthErrorKind {
@@ -130,6 +146,57 @@ message ListSlotHealthRequest {}
 
 message ListSlotHealthResponse {
   repeated SlotHealth slots = 1;
+}
+
+// SlotRef identifies a managed slot by its kind, owner, and id. The owner
+// is empty for operator-owned (instance-wide) slots.
+message SlotRef {
+  abcmovies.core.v1.SlotKind kind = 1;
+  string owner_user_id = 2;
+  string id = 3;
+}
+
+message CreateSlotRequest {
+  abcmovies.core.v1.Slot slot = 1;
+}
+
+message CreateSlotResponse {
+  abcmovies.core.v1.Slot slot = 1;
+}
+
+message GetSlotRequest {
+  SlotRef ref = 1;
+}
+
+message GetSlotResponse {
+  abcmovies.core.v1.Slot slot = 1;
+}
+
+message UpdateSlotRequest {
+  abcmovies.core.v1.Slot slot = 1;
+}
+
+message UpdateSlotResponse {
+  abcmovies.core.v1.Slot slot = 1;
+}
+
+message DeleteSlotRequest {
+  SlotRef ref = 1;
+}
+
+message DeleteSlotResponse {
+  abcmovies.core.v1.Slot slot = 1;
+}
+
+message ListSlotsRequest {
+  // Optional kind filter; UNSPECIFIED lists every kind.
+  abcmovies.core.v1.SlotKind kind = 1;
+  // Optional owner filter; empty lists every owner.
+  string owner_user_id = 2;
+}
+
+message ListSlotsResponse {
+  repeated abcmovies.core.v1.Slot slots = 1;
 }
 
 message GetInstanceInfoRequest {}

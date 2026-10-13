@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
+	"github.com/nem-git/abcmovies/core/internal/slotvalidation"
 )
 
 // ValidateGetJobRequest checks a GetJobRequest.
@@ -100,6 +101,61 @@ func ValidateCancelDeliveryRequest(r *apiv1.CancelDeliveryRequest) error {
 	}
 	if r.GetJobId() == "" {
 		return fmt.Errorf("cancel_delivery_request: job_id is required")
+	}
+	return nil
+}
+
+// --- Slot admin validation (D8) ---
+
+func ValidateCreateSlotRequest(r *apiv1.CreateSlotRequest) error {
+	if r == nil {
+		return fmt.Errorf("create_slot_request: nil")
+	}
+	if r.GetSlot() == nil {
+		return fmt.Errorf("create_slot_request: slot is required")
+	}
+	return nil
+}
+
+func ValidateGetSlotRequest(r *apiv1.GetSlotRequest) error {
+	if r == nil {
+		return fmt.Errorf("get_slot_request: nil")
+	}
+	if r.GetRef() == nil {
+		return fmt.Errorf("get_slot_request: ref is required")
+	}
+	if r.GetRef().GetId() == "" {
+		return fmt.Errorf("get_slot_request: id is required")
+	}
+	return nil
+}
+
+func ValidateUpdateSlotRequest(r *apiv1.UpdateSlotRequest) error {
+	if r == nil {
+		return fmt.Errorf("update_slot_request: nil")
+	}
+	if r.GetSlot() == nil {
+		return fmt.Errorf("update_slot_request: slot is required")
+	}
+	return nil
+}
+
+func ValidateDeleteSlotRequest(r *apiv1.DeleteSlotRequest) error {
+	if r == nil {
+		return fmt.Errorf("delete_slot_request: nil")
+	}
+	if r.GetRef() == nil {
+		return fmt.Errorf("delete_slot_request: ref is required")
+	}
+	if r.GetRef().GetId() == "" {
+		return fmt.Errorf("delete_slot_request: id is required")
+	}
+	return nil
+}
+
+func ValidateListSlotsRequest(r *apiv1.ListSlotsRequest) error {
+	if r == nil {
+		return fmt.Errorf("list_slots_request: nil")
 	}
 	return nil
 }
@@ -334,6 +390,71 @@ func ValidateGetPlayInfoResponse(r *apiv1.GetPlayInfoResponse) error {
 		}
 		if t.GetRelayUrl() == "" {
 			return fmt.Errorf("play_info_response: track %d: relay_url is required", i)
+		}
+	}
+	return nil
+}
+
+// --- Slot admin responses (D8) ---
+
+// ValidateCreateSlotResponse checks a CreateSlotResponse: the created slot
+// must itself be valid, so a response can never carry a slot the store would
+// reject.
+func ValidateCreateSlotResponse(r *apiv1.CreateSlotResponse) error {
+	if r == nil {
+		return fmt.Errorf("create_slot_response: nil")
+	}
+	if r.GetSlot() == nil {
+		return fmt.Errorf("create_slot_response: slot is required")
+	}
+	return slotvalidation.ValidateSlot(r.GetSlot())
+}
+
+// ValidateGetSlotResponse checks a GetSlotResponse.
+func ValidateGetSlotResponse(r *apiv1.GetSlotResponse) error {
+	if r == nil {
+		return fmt.Errorf("get_slot_response: nil")
+	}
+	if r.GetSlot() == nil {
+		return fmt.Errorf("get_slot_response: slot is required")
+	}
+	return slotvalidation.ValidateSlot(r.GetSlot())
+}
+
+// ValidateUpdateSlotResponse checks an UpdateSlotResponse.
+func ValidateUpdateSlotResponse(r *apiv1.UpdateSlotResponse) error {
+	if r == nil {
+		return fmt.Errorf("update_slot_response: nil")
+	}
+	if r.GetSlot() == nil {
+		return fmt.Errorf("update_slot_response: slot is required")
+	}
+	return slotvalidation.ValidateSlot(r.GetSlot())
+}
+
+// ValidateDeleteSlotResponse checks a DeleteSlotResponse.
+func ValidateDeleteSlotResponse(r *apiv1.DeleteSlotResponse) error {
+	if r == nil {
+		return fmt.Errorf("delete_slot_response: nil")
+	}
+	if r.GetSlot() == nil {
+		return fmt.Errorf("delete_slot_response: slot is required")
+	}
+	return slotvalidation.ValidateSlot(r.GetSlot())
+}
+
+// ValidateListSlotsResponse checks a ListSlotsResponse: every listed slot
+// must be valid.
+func ValidateListSlotsResponse(r *apiv1.ListSlotsResponse) error {
+	if r == nil {
+		return fmt.Errorf("list_slots_response: nil")
+	}
+	for i, s := range r.GetSlots() {
+		if s == nil {
+			return fmt.Errorf("list_slots_response: slot %d is nil", i)
+		}
+		if err := slotvalidation.ValidateSlot(s); err != nil {
+			return fmt.Errorf("list_slots_response: slot %d: %w", i, err)
 		}
 	}
 	return nil

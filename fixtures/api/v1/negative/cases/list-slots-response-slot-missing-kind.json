@@ -1,0 +1,15 @@
+{
+  "name": "list-slots-response-slot-missing-kind",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {
+    "slots": [
+      {
+        "id": "device",
+        "sink": { "adapter": "device" }
+      }
+    ]
+  },
+  "type": "ListSlotsResponse"
+}

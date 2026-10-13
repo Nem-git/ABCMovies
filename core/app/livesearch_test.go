@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
+	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/library"
@@ -59,11 +60,13 @@ func TestLiveSearchComposedEndToEnd(t *testing.T) {
 	cache := store.NewInMemory()
 	bus := apiserver.NewInMemoryBus()
 
-	cfg := config.SlotsConfig{Providers: []config.SlotEntry{{
-		Adapter: "stremio", ID: "stremio-test", Enabled: true,
-		Server:   fsrv.URL + "/manifest.json",
-		Accounts: []config.AccountConfig{{ID: "archiveorg"}},
-	}}}
+	cfg := []*corev1.Slot{{
+		Id: "stremio-test", Kind: corev1.SlotKind_SLOT_KIND_PROVIDER,
+		Config: &corev1.Slot_Provider{Provider: &corev1.ProviderConfig{
+			Adapter: "stremio", Server: fsrv.URL + "/manifest.json",
+			Accounts: []*corev1.AccountConfig{{Id: "archiveorg"}},
+		}},
+	}}
 	rt, err := ComposeSlots(ctx, cfg, config.EnrichmentConfig{}, config.LibraryConfig{}, reg, sourceCache, metaCache, vault, cache, bus, nil, nil)
 	if err != nil {
 		t.Fatalf("compose: %v", err)

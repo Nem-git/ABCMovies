@@ -378,8 +378,9 @@ func newM5Stack(t *testing.T, jf *fakeJellyfin) *m5Stack {
 	srv.SetProber("jellyfin", slotwiring.ProberForAdapter("jellyfin"))
 
 	relay := delivery.NewRelay()
-	sinks, err := slotwiring.SetupSinks([]config.SlotEntry{{
-		ID: "device", Adapter: "device", Enabled: true,
+	sinks, err := slotwiring.SetupSinks([]*corev1.Slot{{
+		Id: "device", Kind: corev1.SlotKind_SLOT_KIND_SINK,
+		Config: &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "device"}},
 	}}, relay)
 	if err != nil {
 		t.Fatalf("SetupSinks: %v", err)

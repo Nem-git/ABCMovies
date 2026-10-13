@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/nem-git/abcmovies/adapters/jellyfin"
+	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/accounts"
-	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/scheduler"
@@ -86,8 +86,8 @@ func (a registryResolver) Resolve(ctx context.Context, provider string, item *sl
 // owns in shared state: source-cache keys, registry mappings, event payloads
 // (TECHNICAL-DECISIONS.md §1.25). The adapter name cannot disambiguate two
 // deployed instances of one adapter; the slot id can.
-func providerNamespace(entry config.SlotEntry) string {
-	return entry.ID
+func providerNamespace(slot *corev1.Slot) string {
+	return slot.GetId()
 }
 
 // wireJellyfin builds one Jellyfin slot instance under its configured id:
@@ -97,22 +97,26 @@ func providerNamespace(entry config.SlotEntry) string {
 // handshake-declared cadence is resolved into refresh jobs. It returns the
 // unpublished slot — the composition root admits it as its final step, so
 // this function never publishes on its caller's behalf (publish last).
-func wireJellyfin(entry config.SlotEntry, deps Deps) (*BuiltSlot, error) {
+func wireJellyfin(slot *corev1.Slot, deps Deps) (*BuiltSlot, error) {
+	prov := slot.GetProvider()
+	slotAccounts := prov.GetAccounts()
+	server := prov.GetServer()
+	id := slot.GetId()
 	// Operator-declared accounts are host-provided and public (PLAN.md
 	// §2.2): every user may derive them into a library.
-	ops := make(map[string]jellyfin.Account, len(entry.Accounts))
-	ids := make([]string, 0, len(entry.Accounts)+len(deps.LinkedBySlot[entry.ID]))
-	reachesMeta := make([]reachMeta, 0, len(entry.Accounts)+len(deps.LinkedBySlot[entry.ID]))
-	for _, a := range entry.Accounts {
-		if a.ID == "" {
+	ops := make(map[string]jellyfin.Account, len(slotAccounts))
+	ids := make([]string, 0, len(slotAccounts)+len(deps.LinkedBySlot[id]))
+	reachesMeta := make([]reachMeta, 0, len(slotAccounts)+len(deps.LinkedBySlot[id]))
+	for _, a := range slotAccounts {
+		if a.GetId() == "" {
 			return nil, fmt.Errorf("account entry missing id")
 		}
-		ids = append(ids, a.ID)
-		ops[a.ID] = jellyfin.Account{
-			ID:          a.ID,
-			URL:         entry.Server,
-			Username:    a.Username,
-			PasswordEnv: a.PasswordEnv,
+		ids = append(ids, a.GetId())
+		ops[a.GetId()] = jellyfin.Account{
+			ID:          a.GetId(),
+			URL:         server,
+			Username:    a.GetUsername(),
+			PasswordEnv: a.GetPasswordEnv(),
 		}
 		reachesMeta = append(reachesMeta, reachMeta{visibility: accounts.VisibilityPublic})
 	}
@@ -120,10 +124,10 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) (*BuiltSlot, error) {
 	// server: they carry no password-env — their session was validated and
 	// vaulted at link time (§3.5) and is restored by the adapter. Sharing
 	// follows the record the owner chose at link time (§5.1).
-	for _, rec := range deps.LinkedBySlot[entry.ID] {
-		if canonicalServer(rec.BaseURL) != canonicalServer(entry.Server) {
+	for _, rec := range deps.LinkedBySlot[id] {
+		if canonicalServer(rec.BaseURL) != canonicalServer(server) {
 			return nil, fmt.Errorf("slot %q serves %q but linked account %q is on %q",
-				entry.ID, entry.Server, rec.ID, rec.BaseURL)
+				id, server, rec.ID, rec.BaseURL)
 		}
 		ids = append(ids, rec.ID)
 		reachesMeta = append(reachesMeta, reachMeta{
@@ -137,17 +141,17 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) (*BuiltSlot, error) {
 	if deps.Accounts != nil {
 		opts = append(opts, jellyfin.WithSessionVault(deps.Accounts))
 	}
-	src := slotRoster{canonicalServer(entry.Server), ops, deps.Accounts}
-	slot, err := jellyfin.New(ids, src, opts...)
+	src := slotRoster{canonicalServer(server), ops, deps.Accounts}
+	impl, err := jellyfin.New(ids, src, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("build: %w", err)
 	}
-	info, err := deps.Registry.Describe(entry.ID, slot)
+	info, err := deps.Registry.Describe(id, impl)
 	if err != nil {
 		return nil, fmt.Errorf("handshake: %w", err)
 	}
 
-	cadence, err := DeclaredCadence(entry.SyncCadence, info.Policy, jellyfinCadenceKey)
+	cadence, err := DeclaredCadence(prov.GetSyncCadence(), info.Policy, jellyfinCadenceKey)
 	if err != nil {
 		return nil, fmt.Errorf("cadence: %w", err)
 	}
@@ -157,8 +161,8 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) (*BuiltSlot, error) {
 	// A provider slot's calls to the upstream server are paced through one
 	// Gate composition: the slot-wide governor (§7.2) plus the per-account
 	// budget derived from each account's policy map (§1.35).
-	pc := newPacedClient(entry, deps.InstancePolicy, slot, nil, slot, nil)
-	namespace := providerNamespace(entry)
+	pc := newPacedClient(slot, deps.InstancePolicy, impl, nil, impl, nil)
+	namespace := providerNamespace(slot)
 	for i, accountID := range ids {
 		syncer, reach, job, err := accountSyncMachine(namespace, accountID, pc, cadence, reachesMeta[i], deps)
 		if err != nil {
@@ -168,12 +172,12 @@ func wireJellyfin(entry config.SlotEntry, deps Deps) (*BuiltSlot, error) {
 		jobs = append(jobs, *job)
 		if _, err := syncer.SyncAccount(deps.Ctx, accountID); err != nil {
 			deps.Logger.Warn("initial source-cache sync failed; will retry on cadence",
-				"slot", entry.ID, "account", accountID, "error", err)
+				"slot", id, "account", accountID, "error", err)
 		}
 	}
 	return &BuiltSlot{
-		Entry:    entry,
-		Impl:     slot,
+		Entry:    slot,
+		Impl:     impl,
 		Jobs:     jobs,
 		Reaches:  reaches,
 		Resolver: producesResolver{pc: pc},

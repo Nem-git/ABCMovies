@@ -21,7 +21,7 @@ import (
 // of constructing or hosting).
 func TestStackStartRunsPeriodicWorkAndCloseStopsIt(t *testing.T) {
 	ctx := context.Background()
-	stack, err := New(ctx, "", nil)
+	stack, err := New(ctx, minimalConfigPath(t), nil)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestStackStartRunsPeriodicWorkAndCloseStopsIt(t *testing.T) {
 // the periodic loops; and a closed stack cannot be restarted.
 func TestStackStartIsOneShotAndRefusedAfterClose(t *testing.T) {
 	ctx := context.Background()
-	stack, err := New(ctx, "", nil)
+	stack, err := New(ctx, minimalConfigPath(t), nil)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -126,25 +126,14 @@ func newLifecycleDeliveryStack(t *testing.T) (*Stack, *apiserver.Server, *fakeJe
 core:
   api:
     bind: "127.0.0.1:0"
+stores:
+  slots:
+    backend: in-memory
 delivery:
   session-ttl: "1s"
   heartbeat:
     interval: "100ms"
     grace: "100ms"
-slots:
-  providers:
-    - adapter: jellyfin
-      id: jellyfin
-      enabled: true
-      server: "`+fake.URL()+`"
-      accounts:
-        - id: op
-          username: "alice.homeserver.user"
-          password-env: JF_TEST_PASSWORD
-  sinks:
-    - adapter: device
-      id: device
-      enabled: true
 `), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
@@ -154,6 +143,7 @@ slots:
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	seedJellyfinSlots(t, stack, "jellyfin", fake.URL())
 	srv, ok := stack.Service().(*apiserver.Server)
 	if !ok {
 		t.Fatal("service is not a concrete *apiserver.Server")

@@ -4,8 +4,9 @@ import (
 	"log/slog"
 	"testing"
 
+	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+
 	"github.com/nem-git/abcmovies/core/internal/accounts"
-	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
@@ -19,17 +20,19 @@ func TestResolveAccountConstraints(t *testing.T) {
 	if err := accts.Add(ctx, accounts.Record{ID: "lnk_alice", Provider: "jellyfin", BaseURL: "http://jf", Username: "alice", MaxConcurrentStreams: 2}); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	cfg := &config.Config{}
-	cfg.Slots.Providers = []config.SlotEntry{{
-		ID: "primary", Adapter: "jellyfin", Enabled: true, Server: "http://jf",
-		Accounts: []config.AccountConfig{{
-			ID: "home", Username: "bob", PasswordEnv: "JF_PASSWORD",
-			MaxConcurrentStreams: 4, Policy: map[string]string{"concurrentStreams": "1"},
+	slots := []*corev1.Slot{{
+		Id: "primary", Kind: corev1.SlotKind_SLOT_KIND_PROVIDER,
+		Config: &corev1.Slot_Provider{Provider: &corev1.ProviderConfig{
+			Adapter: "jellyfin", Server: "http://jf",
+			Accounts: []*corev1.AccountConfig{{
+				Id: "home", Username: "bob", PasswordEnv: "JF_PASSWORD",
+				MaxConcurrentStreams: 4, Policy: map[string]string{"concurrentStreams": "1"},
+			}},
 		}},
 	}}
 
 	// Linked account: cap from the record, override nil (nothing declared).
-	override, cap, err := resolveAccountConstraints(ctx, cfg, accts, "primary", "lnk_alice")
+	override, cap, err := resolveAccountConstraints(ctx, slots, accts, "primary", "lnk_alice")
 	if err != nil {
 		t.Fatalf("linked: %v", err)
 	}
@@ -40,7 +43,7 @@ func TestResolveAccountConstraints(t *testing.T) {
 		t.Fatalf("linked cap = %d, want 2", s)
 	}
 	// Operator-declared account: cap and override both from config.
-	override, cap, err = resolveAccountConstraints(ctx, cfg, accts, "primary", "home")
+	override, cap, err = resolveAccountConstraints(ctx, slots, accts, "primary", "home")
 	if err != nil {
 		t.Fatalf("operator: %v", err)
 	}
@@ -52,7 +55,7 @@ func TestResolveAccountConstraints(t *testing.T) {
 	}
 
 	// Unknown: defaults admit; engine falls back to instance policy only.
-	override, cap, err = resolveAccountConstraints(ctx, cfg, accts, "primary", "nope")
+	override, cap, err = resolveAccountConstraints(ctx, slots, accts, "primary", "nope")
 	if err != nil {
 		t.Fatalf("unknown: %v", err)
 	}
@@ -65,8 +68,8 @@ func TestResolveAccountConstraints(t *testing.T) {
 
 	// Zero cap is unbound, not "admitting zero": the instance policy on its
 	// own must govern.
-	cfg.Slots.Providers[0].Accounts[0].MaxConcurrentStreams = 0
-	_, cap, err = resolveAccountConstraints(ctx, cfg, accts, "primary", "home")
+	slots[0].GetProvider().GetAccounts()[0].MaxConcurrentStreams = 0
+	_, cap, err = resolveAccountConstraints(ctx, slots, accts, "primary", "home")
 	if err != nil {
 		t.Fatalf("zero cap: %v", err)
 	}

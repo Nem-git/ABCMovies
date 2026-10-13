@@ -37,30 +37,20 @@ func newWebStackConfig(t *testing.T, configPath string) (*Server, apiv1connect.C
 	return srv, client, ts
 }
 
-// writeJellyfinConfig writes a release-shaped config: one Jellyfin provider
-// slot declared by the operator with the test fake as its server, plus the
-// built-in device sink the play flow delivers into.
+// writeJellyfinConfig writes a release-shaped config: an ephemeral API bind
+// and an in-memory slot store. Since D8 the operator's provider slot and the
+// built-in device sink are created through the admin API (see
+// createOperatorSlots), not declared in config.
 func writeJellyfinConfig(t *testing.T, fakeURL string) string {
 	t.Helper()
+	_ = fakeURL
 	cfg := `
 core:
   api:
     bind: "127.0.0.1:0"
-slots:
-  providers:
-    - adapter: jellyfin
-      id: jf
-      enabled: true
-      sync-cadence: "5m"
-      server: ` + fakeURL + `
-      accounts:
-        - id: jf-op
-          username: alice.homeserver.user
-          password-env: JF_TEST_PASSWORD
-  sinks:
-    - adapter: device
-      id: device
-      enabled: true
+stores:
+  slots:
+    backend: in-memory
 `
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(path, []byte(cfg), 0o600); err != nil {
@@ -68,6 +58,37 @@ slots:
 	}
 	t.Setenv("JF_TEST_PASSWORD", "operator-password-not-real")
 	return path
+}
+
+// createOperatorSlots creates the operator's Jellyfin provider slot and the
+// built-in device sink through the admin API, the way an operator would after
+// D8. The first user is the operator (bootstrap), so the authed client passes
+// the operator checks.
+func createOperatorSlots(t *testing.T, ctx context.Context, client apiv1connect.CoreServiceClient, fakeURL string) {
+	t.Helper()
+	if _, err := client.CreateSlot(ctx, connect.NewRequest(&apiv1.CreateSlotRequest{
+		Slot: &corev1.Slot{
+			Id: "jf", Kind: corev1.SlotKind_SLOT_KIND_PROVIDER,
+			Config: &corev1.Slot_Provider{Provider: &corev1.ProviderConfig{
+				Adapter:     "jellyfin",
+				Server:      fakeURL,
+				SyncCadence: "5m",
+				Accounts: []*corev1.AccountConfig{{
+					Id: "jf-op", Username: "alice.homeserver.user", PasswordEnv: "JF_TEST_PASSWORD",
+				}},
+			}},
+		},
+	})); err != nil {
+		t.Fatalf("CreateSlot provider over gRPC-Web: %v", err)
+	}
+	if _, err := client.CreateSlot(ctx, connect.NewRequest(&apiv1.CreateSlotRequest{
+		Slot: &corev1.Slot{
+			Id: "device", Kind: corev1.SlotKind_SLOT_KIND_SINK,
+			Config: &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "device"}},
+		},
+	})); err != nil {
+		t.Fatalf("CreateSlot sink over gRPC-Web: %v", err)
+	}
 }
 
 // TestWebBrowser_AccountsLibraryPlay drives the served mux as the browser
@@ -85,6 +106,7 @@ func TestWebBrowser_AccountsLibraryPlay(t *testing.T) {
 
 	token := signUpAndLogin(t, ctx, client)
 	authed := authedClient(baseURL, token)
+	createOperatorSlots(t, ctx, authed, fake.URL())
 
 	// Operator-declared account is visible to the caller (PLAN.md §5.1:
 	// operator accounts are PUBLIC and read-only through the API).

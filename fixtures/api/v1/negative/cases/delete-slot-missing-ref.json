@@ -1,0 +1,8 @@
+{
+  "name": "delete-slot-missing-ref",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {},
+  "type": "DeleteSlotRequest"
+}

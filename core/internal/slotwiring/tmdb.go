@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/nem-git/abcmovies/adapters/tmdb"
+	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
-	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/enrichment"
 )
 
@@ -20,20 +20,23 @@ func init() {
 // loudly when it is absent — a half-credentialed catalogue would silently
 // enrich nothing. The slot is returned unpublished; the composition root
 // admits it as its final step.
-func wireTMDB(entry config.SlotEntry, deps Deps) (*builtCatalogue, error) {
-	if entry.TokenEnv == "" {
-		return nil, fmt.Errorf("slot %q: catalogue slots deliver their credential through token-env; none configured", entry.ID)
+func wireTMDB(slot *corev1.Slot, deps Deps) (*builtCatalogue, error) {
+	catCfg := slot.GetCatalogue()
+	tokenEnv := catCfg.GetTokenEnv()
+	id := slot.GetId()
+	if tokenEnv == "" {
+		return nil, fmt.Errorf("slot %q: catalogue slots deliver their credential through token-env; none configured", id)
 	}
-	slot, err := tmdb.New(entry.TokenEnv)
+	impl, err := tmdb.New(tokenEnv)
 	if err != nil {
 		return nil, fmt.Errorf("build: %w", err)
 	}
 	return &builtCatalogue{
 		catalogue: enrichment.Catalogue{
-			Slot:   entry.ID,
-			Client: &catalogClient{slot: slot},
+			Slot:   id,
+			Client: &catalogClient{slot: impl},
 		},
-		impl: slot,
+		impl: impl,
 	}, nil
 }
 

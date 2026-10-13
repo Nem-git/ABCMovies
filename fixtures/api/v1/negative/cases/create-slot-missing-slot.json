@@ -1,0 +1,8 @@
+{
+  "name": "create-slot-missing-slot",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {},
+  "type": "CreateSlotRequest"
+}

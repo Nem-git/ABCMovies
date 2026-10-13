@@ -1,0 +1,22 @@
+{
+  "name": "create-slot-valid-provider",
+  "expected": { "valid": true },
+  "type": "CreateSlotRequest",
+  "message": {
+    "slot": {
+      "id": "jellyfin",
+      "kind": "SLOT_KIND_PROVIDER",
+      "provider": {
+        "adapter": "jellyfin",
+        "server": "https://jellyfin.example",
+        "accounts": [
+          {
+            "id": "op",
+            "username": "alice",
+            "passwordEnv": "JF_PASSWORD"
+          }
+        ]
+      }
+    }
+  }
+}

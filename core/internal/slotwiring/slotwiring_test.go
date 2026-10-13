@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nem-git/abcmovies/core/internal/config"
+	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	"github.com/nem-git/abcmovies/core/internal/registry"
 )
 
@@ -72,43 +72,39 @@ func TestUnknownAdapterRejected(t *testing.T) {
 	reg := registry.NewInProcess()
 	defer reg.Close()
 
-	_, _, _, _, err := SetupProviders([]config.SlotEntry{{
-		ID: "primary", Adapter: "jellifin", Enabled: true, // deliberate typo
+	_, _, _, _, err := SetupProviders([]*corev1.Slot{{
+		Id: "primary", Kind: corev1.SlotKind_SLOT_KIND_PROVIDER, // deliberate typo
+		Config: &corev1.Slot_Provider{Provider: &corev1.ProviderConfig{Adapter: "jellifin"}},
 	}}, Deps{Registry: reg, Logger: slog.Default()})
 	if err == nil || !strings.Contains(err.Error(), "unknown provider adapter") {
 		t.Fatalf("want unknown-adapter error, got %v", err)
 	}
 }
 
-// TestDisabledEntriesAreSkipped pins that enabled:false means the slot never
-// reaches its factory — a disabled Jellyfin must not require credentials.
-func TestDisabledEntriesAreSkipped(t *testing.T) {
-	t.Parallel()
-	reg := registry.NewInProcess()
-	defer reg.Close()
-
-	jobs, _, _, _, err := SetupProviders([]config.SlotEntry{{
-		ID: "primary", Adapter: "jellyfin", Enabled: false,
-		Accounts: []config.AccountConfig{{ID: "primary"}}, // no credentials on purpose
-	}}, Deps{Registry: reg, Logger: slog.Default()})
-	if err != nil {
-		t.Fatalf("disabled entry must not be wired: %v", err)
-	}
-	if len(jobs) != 0 {
-		t.Fatalf("expected no jobs, got %v", jobs)
-	}
-}
-
 // TestUnimplementedKindsRejected pins that declaring a slot of a kind whose
-// milestone has not landed fails startup loudly.
+// milestone has not landed fails startup loudly — DRM and subtitle-source are
+// store-managed (D8) but their implementations are deferred, so a stored
+// entry of either kind must refuse to compose rather than be silently
+// ignored (which would make a typo look like a working deployment).
 func TestUnimplementedKindsRejected(t *testing.T) {
 	t.Parallel()
-	slots := config.SlotsConfig{}
-	slots.SubtitleSources = []config.SlotEntry{{ID: "sub-a", Adapter: "trakt-sub", Enabled: true}}
-
-	if _, _, _, _, _, err := SetupAll(context.Background(), slots, Deps{}); err == nil ||
-		!strings.Contains(err.Error(), "not implemented yet") {
-		t.Fatalf("want not-implemented-yet error, got %v", err)
+	cases := map[string]*corev1.Slot{
+		"subtitle-source": {
+			Id: "sub-a", Kind: corev1.SlotKind_SLOT_KIND_SUBTITLE_SOURCE,
+			Config: &corev1.Slot_SubtitleSource{SubtitleSource: &corev1.SubtitleSourceConfig{Adapter: "trakt-sub"}},
+		},
+		"drm": {
+			Id: "drm-a", Kind: corev1.SlotKind_SLOT_KIND_DRM,
+			Config: &corev1.Slot_Drm{Drm: &corev1.DrmConfig{Operations: []string{"acquire-keys"}}},
+		},
+	}
+	for name, slot := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, _, _, _, _, err := SetupAll(context.Background(), []*corev1.Slot{slot}, Deps{}); err == nil ||
+				!strings.Contains(err.Error(), "not implemented yet") {
+				t.Fatalf("want not-implemented-yet error, got %v", err)
+			}
+		})
 	}
 }
 
@@ -116,8 +112,10 @@ func TestUnimplementedKindsRejected(t *testing.T) {
 // catalogue adapter name.
 func TestUnknownCatalogueAdapterRejected(t *testing.T) {
 	t.Parallel()
-	slots := config.SlotsConfig{}
-	slots.Catalogue = []config.SlotEntry{{ID: "trakt", Adapter: "trakt", Enabled: true}}
+	slots := []*corev1.Slot{{
+		Id: "trakt", Kind: corev1.SlotKind_SLOT_KIND_CATALOGUE,
+		Config: &corev1.Slot_Catalogue{Catalogue: &corev1.CatalogueConfig{Adapter: "trakt"}},
+	}}
 
 	if _, _, _, _, _, err := SetupAll(context.Background(), slots, Deps{}); err == nil ||
 		!strings.Contains(err.Error(), "unknown catalogue adapter") {
@@ -134,10 +132,13 @@ func TestSetupProvidersPublishesLastOnLateFailure(t *testing.T) {
 	reg := registry.NewInProcess()
 	defer reg.Close()
 
-	_, _, _, _, err := SetupProviders([]config.SlotEntry{{
-		ID: "primary", Adapter: "jellyfin", Enabled: true, Server: "http://jf.invalid",
-		SyncCadence: "not-a-duration",
-		Accounts:    []config.AccountConfig{{ID: "home", Username: "bob", PasswordEnv: "JELLYFIN_TEST_PASSWORD"}},
+	_, _, _, _, err := SetupProviders([]*corev1.Slot{{
+		Id: "primary", Kind: corev1.SlotKind_SLOT_KIND_PROVIDER,
+		Config: &corev1.Slot_Provider{Provider: &corev1.ProviderConfig{
+			Adapter: "jellyfin", Server: "http://jf.invalid",
+			SyncCadence: "not-a-duration",
+			Accounts:    []*corev1.AccountConfig{{Id: "home", Username: "bob", PasswordEnv: "JELLYFIN_TEST_PASSWORD"}},
+		}},
 	}}, Deps{Registry: reg, Logger: slog.Default()})
 	if err == nil || !strings.Contains(err.Error(), "sync-cadence") {
 		t.Fatalf("want cadence error, got %v", err)
@@ -160,9 +161,15 @@ func TestSetupCataloguesRejectsOverlappingNamespaces(t *testing.T) {
 	reg := registry.NewInProcess()
 	defer reg.Close()
 
-	_, err := SetupCatalogues([]config.SlotEntry{
-		{ID: "tmdb-a", Adapter: "tmdb", Enabled: true, TokenEnv: "TMDB_TOKEN"},
-		{ID: "tmdb-b", Adapter: "tmdb", Enabled: true, TokenEnv: "TMDB_TOKEN"},
+	_, err := SetupCatalogues([]*corev1.Slot{
+		{
+			Id: "tmdb-a", Kind: corev1.SlotKind_SLOT_KIND_CATALOGUE,
+			Config: &corev1.Slot_Catalogue{Catalogue: &corev1.CatalogueConfig{Adapter: "tmdb", TokenEnv: "TMDB_TOKEN"}},
+		},
+		{
+			Id: "tmdb-b", Kind: corev1.SlotKind_SLOT_KIND_CATALOGUE,
+			Config: &corev1.Slot_Catalogue{Catalogue: &corev1.CatalogueConfig{Adapter: "tmdb", TokenEnv: "TMDB_TOKEN"}},
+		},
 	}, Deps{Registry: reg, Logger: slog.Default()})
 	if err == nil || !strings.Contains(err.Error(), "both claim identity namespace") {
 		t.Fatalf("want overlap error, got %v", err)
@@ -172,15 +179,18 @@ func TestSetupCataloguesRejectsOverlappingNamespaces(t *testing.T) {
 	}
 }
 
-// TestSetupCataloguesAdmitsEachEnabledEntry pins the happy path: one enabled
-// catalogue is admitted and the engine client is served.
-func TestSetupCataloguesAdmitsEachEnabledEntry(t *testing.T) {
+// TestSetupCataloguesAdmitsEachEntry pins the happy path: one catalogue is
+// admitted and the engine client is served.
+func TestSetupCataloguesAdmitsEachEntry(t *testing.T) {
 	t.Setenv("TMDB_TOKEN", "test-token")
 	reg := registry.NewInProcess()
 	defer reg.Close()
 
-	cats, err := SetupCatalogues([]config.SlotEntry{
-		{ID: "tmdb-main", Adapter: "tmdb", Enabled: true, TokenEnv: "TMDB_TOKEN"},
+	cats, err := SetupCatalogues([]*corev1.Slot{
+		{
+			Id: "tmdb-main", Kind: corev1.SlotKind_SLOT_KIND_CATALOGUE,
+			Config: &corev1.Slot_Catalogue{Catalogue: &corev1.CatalogueConfig{Adapter: "tmdb", TokenEnv: "TMDB_TOKEN"}},
+		},
 	}, Deps{Registry: reg, Logger: slog.Default()})
 	if err != nil {
 		t.Fatalf("SetupCatalogues: %v", err)
@@ -198,8 +208,8 @@ func TestSetupCataloguesAdmitsEachEnabledEntry(t *testing.T) {
 // a provider namespace, or their item ids would collide.
 func TestProviderNamespaceIsSlotID(t *testing.T) {
 	t.Parallel()
-	entry := config.SlotEntry{Adapter: "jellyfin", ID: "home-jellyfin"}
-	if got := providerNamespace(entry); got != "home-jellyfin" {
+	slot := &corev1.Slot{Id: "home-jellyfin", Kind: corev1.SlotKind_SLOT_KIND_PROVIDER}
+	if got := providerNamespace(slot); got != "home-jellyfin" {
 		t.Fatalf("provider namespace = %q, want the slot id", got)
 	}
 }
