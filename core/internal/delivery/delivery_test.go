@@ -96,8 +96,18 @@ func (f *fakeSinkFactory) NewSink(ctx context.Context, s *Session, tracks []*cor
 
 // fakeDRMClient is a mock DRM client for testing the pipeline integration.
 type fakeDRMClient struct {
-	keys []*slotsv1.ContentKey
-	err  error
+	keys      []*slotsv1.ContentKey
+	err       error
+	supported []slotsv1.DrmSystem
+}
+
+func (f *fakeDRMClient) Supports(system slotsv1.DrmSystem) bool {
+	for _, s := range f.supported {
+		if s == system {
+			return true
+		}
+	}
+	return false
 }
 
 func (f *fakeDRMClient) AcquireKeys(ctx context.Context, providerID, contentID string, system slotsv1.DrmSystem, pssh []byte, keyIDs []string, authContext string) ([]*slotsv1.ContentKey, error) {
@@ -214,7 +224,7 @@ func TestStartRejectsInvalidManifest(t *testing.T) {
 func drmSource() *corev1.MediaSource {
 	src := staticSource()
 	src.Tracks[0].Delivery = &corev1.TrackDelivery{
-		Drm: []*corev1.TrackDrm{{System: "org.w3.clearkey", LicenseUrl: "https://license.example/"}},
+		Drm: []*corev1.TrackDrm{{System: "DRM_SYSTEM_CLEARKEY", LicenseUrl: "https://license.example/"}},
 	}
 	return src
 }
@@ -236,13 +246,12 @@ func TestRejectUnsupportedDRM(t *testing.T) {
 }
 
 func TestStartAcceptsDRMWithClient(t *testing.T) {
-	// With a DRM client wired, DRM content is accepted and the pipeline
-	// includes a decrypt step (§6.6).
-	old := decryptExecutable
-	decryptExecutable = true
-	defer func() { decryptExecutable = old }()
-
-	drm := &fakeDRMClient{keys: []*slotsv1.ContentKey{{KeyId: "k1", KeyMaterial: []byte("m"), Validity: durationpb.New(time.Hour)}}}
+	// With a DRM client that supports the content's system, DRM content is
+	// accepted and the pipeline includes a decrypt step (§6.6).
+	drm := &fakeDRMClient{
+		keys:      []*slotsv1.ContentKey{{KeyId: "k1", KeyMaterial: []byte("m"), Validity: durationpb.New(time.Hour)}},
+		supported: []slotsv1.DrmSystem{slotsv1.DrmSystem_DRM_SYSTEM_CLEARKEY},
+	}
 	e, res, _ := newTestEngine(Options{
 		SessionTTL: time.Hour,
 		Now:        time.Now,

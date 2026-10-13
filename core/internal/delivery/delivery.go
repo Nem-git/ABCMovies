@@ -136,12 +136,32 @@ type Resolver interface {
 // adapter. The engine uses it to acquire keys and decrypt tracks before
 // delivery (§6.2: "DRM before anything").
 type DRMClient interface {
+	// Supports reports whether this DRM client can handle the given DRM
+	// system (PLAN.md §6.6). The engine calls this at resolve time to
+	// decide whether the pipeline includes a decrypt step.
+	Supports(system slotsv1.DrmSystem) bool
 	// AcquireKeys asks the DRM slot to acquire content keys for an encrypted
 	// track (PLAN.md §6.6).
 	AcquireKeys(ctx context.Context, providerID, contentID string, system slotsv1.DrmSystem, pssh []byte, keyIDs []string, authContext string) ([]*slotsv1.ContentKey, error)
 	// Decrypt asks the DRM slot to decrypt an encrypted track source into
 	// clear bytes (PLAN.md §6.6).
 	Decrypt(ctx context.Context, sourceRef string, keys []*slotsv1.ContentKey) ([]byte, error)
+}
+
+// ContentKeyCache is the content-key cache the engine uses to avoid
+// re-licensing on every delivery (PLAN.md §2.4, §6.6). It is keyed by
+// content — (provider, contentId, keyId) — because a title's key is the
+// same for every user who decrypts it on that provider. The cache is a
+// hint, not a guarantee: on a decrypt failure the entry is dropped and
+// acquire-keys is re-run (fail-fast re-license).
+type ContentKeyCache interface {
+	// GetKeys retrieves all cached keys for a content id.
+	GetKeys(ctx context.Context, contentID string) ([]*slotsv1.ContentKey, error)
+	// PutKeys stores keys for a content id.
+	PutKeys(ctx context.Context, contentID string, keys []*slotsv1.ContentKey) error
+	// DropKeys removes all cached keys for a content id (fail-fast on
+	// decrypt failure).
+	DropKeys(ctx context.Context, contentID string) error
 }
 
 // noSession is the structural contract a typed "this account has no live
@@ -195,6 +215,7 @@ type Options struct {
 	AccountConstraints func(ctx context.Context, provider, accountID string) (override policy.Set, caps policy.ProviderCaps, err error)
 	SourceResolver     Resolver
 	DRMClient          DRMClient
+	ContentKeyCache    ContentKeyCache
 	SinkFactory        SinkFactory
 	RecordJob          func(*corev1.Job)
 	// MenuReady announces that a play session's menu is fully staged, once
@@ -247,15 +268,16 @@ type Engine struct {
 	interval time.Duration
 	grace    time.Duration
 
-	resolver    Resolver
-	drm         DRMClient
-	sinkMaker   SinkFactory
-	recordJob   func(*corev1.Job)
-	menuReady   func(*Session)
-	sessionDied func(accountID string)
-	classify    func(err error) (RefusalReason, bool)
-	now         func() time.Time
-	logger      *slog.Logger
+	resolver        Resolver
+	drm             DRMClient
+	contentKeyCache ContentKeyCache
+	sinkMaker       SinkFactory
+	recordJob       func(*corev1.Job)
+	menuReady       func(*Session)
+	sessionDied     func(accountID string)
+	classify        func(err error) (RefusalReason, bool)
+	now             func() time.Time
+	logger          *slog.Logger
 
 	instancePolicy     policy.Set
 	accountConstraints func(ctx context.Context, provider, accountID string) (override policy.Set, caps policy.ProviderCaps, err error)
@@ -276,22 +298,23 @@ type Engine struct {
 // grace bound play-session heartbeat liveness (TECHNICAL-DECISIONS.md §1.14).
 func New(opts Options) *Engine {
 	e := &Engine{
-		sessions:    make(map[string]*Session),
-		byAccount:   make(map[accountKey]map[string]struct{}),
-		ttl:         opts.SessionTTL,
-		interval:    opts.HeartbeatInterval,
-		grace:       opts.HeartbeatGrace,
-		resolver:    opts.SourceResolver,
-		drm:         opts.DRMClient,
-		sinkMaker:   opts.SinkFactory,
-		recordJob:   opts.RecordJob,
-		menuReady:   opts.MenuReady,
-		sessionDied: opts.SessionDied,
-		classify:    opts.ClassifyRefusal,
-		now:         opts.Now,
-		logger:      opts.Logger,
-		stopCh:      make(chan struct{}),
-		done:        make(chan struct{}),
+		sessions:        make(map[string]*Session),
+		byAccount:       make(map[accountKey]map[string]struct{}),
+		ttl:             opts.SessionTTL,
+		interval:        opts.HeartbeatInterval,
+		grace:           opts.HeartbeatGrace,
+		resolver:        opts.SourceResolver,
+		drm:             opts.DRMClient,
+		contentKeyCache: opts.ContentKeyCache,
+		sinkMaker:       opts.SinkFactory,
+		recordJob:       opts.RecordJob,
+		menuReady:       opts.MenuReady,
+		sessionDied:     opts.SessionDied,
+		classify:        opts.ClassifyRefusal,
+		now:             opts.Now,
+		logger:          opts.Logger,
+		stopCh:          make(chan struct{}),
+		done:            make(chan struct{}),
 	}
 	e.instancePolicy = opts.InstancePolicy
 	if e.instancePolicy == nil {
@@ -318,7 +341,6 @@ func New(opts Options) *Engine {
 	if e.idempotencyTTL <= 0 {
 		e.idempotencyTTL = time.Hour
 	}
-	decryptExecutable = opts.DRMClient != nil
 	return e
 }
 
@@ -423,29 +445,34 @@ func (e *Engine) start(ctx context.Context, req StartRequest) (*Session, error) 
 	if err := ValidateManifest(src); err != nil {
 		return nil, errInvalid("provider returned an invalid manifest: %v", err)
 	}
-	// The contract permits DRM (§6.2), but v1 has no key/license path (§6.6):
-	// an encrypted track is refused loudly, never silently delivered without
-	// license handling (PLAN.md §2.5 — reject, never downgrade).
-	if err := RejectUnsupportedDRM(src); err != nil {
-		e.logger.Error("delivery refused: manifest carries a DRM-encrypted track",
-			"goal", req.Goal,
-			"provider", req.Provider,
-			"account", req.AccountID,
-			"member", req.MemberUserID,
-			"reason", err.Error(),
-		)
-		return nil, errInvalid("%v", err)
+	// The contract permits DRM (§6.2); with a DRM client that supports the
+	// content's DRM system (M8), the engine can acquire keys and decrypt
+	// (PLAN.md §6.6). Without one, the only honest outcome is refusal —
+	// never a silent skip that streams an encrypted track unlicensed
+	// (PLAN.md §2.5).
+	decryptSupported := e.drmSupportsManifest(src)
+	if !decryptSupported {
+		if err := RejectUnsupportedDRM(src); err != nil {
+			e.logger.Error("delivery refused: manifest carries a DRM-encrypted track",
+				"goal", req.Goal,
+				"provider", req.Provider,
+				"account", req.AccountID,
+				"member", req.MemberUserID,
+				"reason", err.Error(),
+			)
+			return nil, errInvalid("%v", err)
+		}
 	}
 
-	plan, err := SelectPipeline(req.Goal, src, req.Container)
+	plan, err := SelectPipeline(req.Goal, src, req.Container, decryptSupported)
 	if err != nil {
 		return nil, errInvalid("cannot satisfy delivery: %v", err)
 	}
 	// Walk the selected chain and refuse — loudly, with the full plan logged —
-	// any step this v1 engine cannot genuinely execute. A step needing a real
+	// any step this engine cannot genuinely execute. A step needing a real
 	// transcoder or decryptor is declined, never downgraded to a passthrough
 	// (PLAN.md §2.5).
-	if err := ValidatePlan(plan); err != nil {
+	if err := ValidatePlan(plan, decryptSupported); err != nil {
 		e.logger.Error("delivery step not executable; refusing (not downgrading)",
 			"goal", req.Goal,
 			"provider", req.Provider,
@@ -1096,20 +1123,42 @@ func ValidateManifest(ms *corev1.MediaSource) error {
 	return nil
 }
 
-// RejectUnsupportedDRM refuses a manifest that carries a DRM-encrypted track
-// when no DRM client is wired. The MediaSource contract permits DRM
-// (media_source.proto §TrackDrm); with a DRM client (M8), the engine can
-// acquire keys and decrypt (PLAN.md §6.6), so the manifest is accepted and
-// the pipeline includes a decrypt step. Without one, the only honest outcome
-// is refusal — never a silent skip that streams an encrypted track
-// unlicensed (PLAN.md §2.5).
-func RejectUnsupportedDRM(ms *corev1.MediaSource) error {
-	if decryptExecutable {
-		return nil
+// drmSupportsManifest reports whether the engine's DRM client supports the
+// DRM system of any encrypted track in the manifest (PLAN.md §6.6). The
+// engine resolves this at resolve time — the check is per-content, not a
+// global flag. If no DRM client is wired, or the client does not support
+// the content's DRM system, the manifest is refused loudly (PLAN.md §2.5).
+func (e *Engine) drmSupportsManifest(ms *corev1.MediaSource) bool {
+	if e.drm == nil {
+		return false
 	}
 	for _, tr := range ms.GetTracks() {
+		d := tr.GetDelivery()
+		if d == nil || len(d.GetDrm()) == 0 {
+			continue
+		}
+		for _, drm := range d.GetDrm() {
+			if sys, ok := slotsv1.DrmSystem_value[drm.GetSystem()]; ok {
+				if e.drm.Supports(slotsv1.DrmSystem(sys)) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// RejectUnsupportedDRM refuses a manifest that carries a DRM-encrypted track
+// when no DRM client supports the content's DRM system. The MediaSource
+// contract permits DRM (media_source.proto §TrackDrm); with a DRM client
+// that supports the system (M8), the engine can acquire keys and decrypt
+// (PLAN.md §6.6), so the manifest is accepted and the pipeline includes a
+// decrypt step. Without one, the only honest outcome is refusal — never a
+// silent skip that streams an encrypted track unlicensed (PLAN.md §2.5).
+func RejectUnsupportedDRM(ms *corev1.MediaSource) error {
+	for _, tr := range ms.GetTracks() {
 		if d := tr.GetDelivery(); d != nil && len(d.GetDrm()) > 0 {
-			return fmt.Errorf("track %q is DRM-encrypted; DRM delivery requires a DRM client (§6.6)", tr.GetId())
+			return fmt.Errorf("track %q is DRM-encrypted; no DRM client supports this content's DRM system (§6.6)", tr.GetId())
 		}
 	}
 	return nil

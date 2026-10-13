@@ -10,7 +10,7 @@ import (
 
 func TestSelectPipelinePlayPerTrackPassthrough(t *testing.T) {
 	src := staticSource() // PER_TRACK
-	p, err := SelectPipeline(GoalPlay, src, "")
+	p, err := SelectPipeline(GoalPlay, src, "", false)
 	if err != nil {
 		t.Fatalf("SelectPipeline: %v", err)
 	}
@@ -20,7 +20,7 @@ func TestSelectPipelinePlayPerTrackPassthrough(t *testing.T) {
 }
 
 func TestSelectPipelinePlayWholeMuxUntouchedPassthrough(t *testing.T) {
-	p, err := SelectPipeline(GoalPlay, wholeMuxSource(), "")
+	p, err := SelectPipeline(GoalPlay, wholeMuxSource(), "", false)
 	if err != nil {
 		t.Fatalf("SelectPipeline: %v", err)
 	}
@@ -30,7 +30,7 @@ func TestSelectPipelinePlayWholeMuxUntouchedPassthrough(t *testing.T) {
 }
 
 func TestSelectPipelinePlayWholeMuxRemuxToRequestedContainer(t *testing.T) {
-	p, err := SelectPipeline(GoalPlay, wholeMuxSource(), "mp4")
+	p, err := SelectPipeline(GoalPlay, wholeMuxSource(), "mp4", false)
 	if err != nil {
 		t.Fatalf("SelectPipeline: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestSelectPipelinePlayWholeMuxRemuxToRequestedContainer(t *testing.T) {
 }
 
 func TestSelectPipelineDownloadWholeMuxRemuxCompose(t *testing.T) {
-	p, err := SelectPipeline(GoalDownload, wholeMuxSource(), "mkv")
+	p, err := SelectPipeline(GoalDownload, wholeMuxSource(), "mkv", false)
 	if err != nil {
 		t.Fatalf("SelectPipeline: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestSelectPipelineDownloadWholeMuxRemuxCompose(t *testing.T) {
 func TestSelectPipelineDownloadPerTrackNeedsMuxingRejected(t *testing.T) {
 	// v1 cannot compose a per-track source into a single container; the
 	// selection must be rejected, never silently downgraded (§2.5).
-	if _, err := SelectPipeline(GoalDownload, staticSource(), "mkv"); err == nil {
+	if _, err := SelectPipeline(GoalDownload, staticSource(), "mkv", false); err == nil {
 		t.Fatal("per-track download to a container should be rejected in v1")
 	}
 }
@@ -73,13 +73,13 @@ func TestManualPlanDeclinesUnsupportedSteps(t *testing.T) {
 	// A plan that reaches the engine already carrying a step v1 cannot run
 	// (here, hand-built as a seam test for transcode/multi-rendition, which
 	// SelectPipeline never produces) must be refused loudly — the honest
-	// "not implemented in v1" decline, never a silent passthrough downgrade.
+	// "not implemented" decline, never a silent passthrough downgrade.
 	plan := Plan{Steps: []Step{
 		{Name: "enc", Kind: StepTranscode, Params: StepParams{Transcode: &TranscodeParams{
 			Profiles: []EncodeProfile{{Codec: "h264", Height: 1080}},
 		}}},
 	}}
-	err := ValidatePlan(plan)
+	err := ValidatePlan(plan, false)
 	if err == nil {
 		t.Fatal("ValidatePlan accepted a transcode step in v1")
 	}
@@ -88,11 +88,11 @@ func TestManualPlanDeclinesUnsupportedSteps(t *testing.T) {
 	}
 
 	plan = Plan{Steps: []Step{{Name: "k", Kind: StepDecrypt, Params: StepParams{Decrypt: &DecryptParams{KeyRef: "k1"}}}}}
-	if err := ValidatePlan(plan); err == nil {
+	if err := ValidatePlan(plan, false); err == nil {
 		t.Fatal("ValidatePlan accepted a decrypt step in v1")
 	}
 
-	if err := ValidatePlan(Plan{}); err == nil {
+	if err := ValidatePlan(Plan{}, false); err == nil {
 		t.Fatal("ValidatePlan accepted an empty plan")
 	}
 }
@@ -108,11 +108,11 @@ func TestSelectPipelineRejectsExecutableOnly(t *testing.T) {
 		{GoalPlay, "mp4"},
 		{GoalDownload, "mkv"},
 	} {
-		p, err := SelectPipeline(tc.goal, wholeMuxSource(), tc.container)
+		p, err := SelectPipeline(tc.goal, wholeMuxSource(), tc.container, false)
 		if err != nil {
 			t.Fatalf("SelectPipeline(%s, %q): %v", tc.goal, tc.container, err)
 		}
-		if err := ValidatePlan(p); err != nil {
+		if err := ValidatePlan(p, false); err != nil {
 			t.Fatalf("SelectPipeline(%s, %q) produced non-executable plan: %v", tc.goal, tc.container, err)
 		}
 	}
@@ -158,13 +158,10 @@ func TestSessionStartDeclinesTranscodeLoudly(t *testing.T) {
 }
 
 func TestSelectPipelinePlayDRMPrependsDecrypt(t *testing.T) {
-	// With a DRM client wired, a play of DRM content prepends a decrypt step
-	// before passthrough (§6.2: "DRM before anything", §6.6).
-	old := decryptExecutable
-	decryptExecutable = true
-	defer func() { decryptExecutable = old }()
-
-	p, err := SelectPipeline(GoalPlay, drmSource(), "")
+	// With a DRM client that supports the content's system, a play of DRM
+	// content prepends a decrypt step before passthrough (§6.2: "DRM before
+	// anything", §6.6).
+	p, err := SelectPipeline(GoalPlay, drmSource(), "", true)
 	if err != nil {
 		t.Fatalf("SelectPipeline: %v", err)
 	}
@@ -180,34 +177,23 @@ func TestSelectPipelinePlayDRMPrependsDecrypt(t *testing.T) {
 }
 
 func TestSelectPipelineDRMRejectedWithoutClient(t *testing.T) {
-	// Without a DRM client, DRM content is refused loudly (§2.5).
-	old := decryptExecutable
-	decryptExecutable = false
-	defer func() { decryptExecutable = old }()
-
-	if _, err := SelectPipeline(GoalPlay, drmSource(), ""); err == nil {
+	// Without a DRM client that supports the content's system, DRM content
+	// is refused loudly (§2.5).
+	if _, err := SelectPipeline(GoalPlay, drmSource(), "", false); err == nil {
 		t.Fatal("DRM content without a DRM client should be rejected")
 	}
 }
 
 func TestValidatePlanAcceptsDecryptWithClient(t *testing.T) {
-	old := decryptExecutable
-	decryptExecutable = true
-	defer func() { decryptExecutable = old }()
-
 	plan := Plan{Steps: []Step{{Name: "dec", Kind: StepDecrypt, Params: StepParams{Decrypt: &DecryptParams{KeyRef: "k1"}}}}}
-	if err := ValidatePlan(plan); err != nil {
+	if err := ValidatePlan(plan, true); err != nil {
 		t.Fatalf("ValidatePlan rejected decrypt with a DRM client wired: %v", err)
 	}
 }
 
 func TestValidatePlanDeclinesDecryptWithoutClient(t *testing.T) {
-	old := decryptExecutable
-	decryptExecutable = false
-	defer func() { decryptExecutable = old }()
-
 	plan := Plan{Steps: []Step{{Name: "dec", Kind: StepDecrypt, Params: StepParams{Decrypt: &DecryptParams{KeyRef: "k1"}}}}}
-	if err := ValidatePlan(plan); err == nil {
+	if err := ValidatePlan(plan, false); err == nil {
 		t.Fatal("ValidatePlan accepted decrypt without a DRM client")
 	}
 }

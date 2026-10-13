@@ -145,17 +145,18 @@ func hasDRM(src *corev1.MediaSource) bool {
 // real byte-level re-encoding or muxing is rejected explicitly rather than
 // silently downgraded (PLAN.md §2.5). v1 selects only executable steps —
 // passthrough, container-copy remux (with stream selection), and compose.
-// When a DRM client is wired (M8), a decrypt step is prepended for DRM
-// content (§6.2: "DRM before anything", §6.6).
-func SelectPipeline(goal Goal, src *corev1.MediaSource, container string) (Plan, error) {
+// When a DRM client supports the content's DRM system (M8), a decrypt step
+// is prepended for DRM content (§6.2: "DRM before anything", §6.6).
+// decryptSupported is resolved by the engine before calling SelectPipeline.
+func SelectPipeline(goal Goal, src *corev1.MediaSource, container string, decryptSupported bool) (Plan, error) {
 	if src == nil {
 		return Plan{}, fmt.Errorf("pipeline: nil manifest")
 	}
 	decryptNeeded := hasDRM(src)
 	var steps []Step
 	if decryptNeeded {
-		if !decryptExecutable {
-			return Plan{}, fmt.Errorf("pipeline: manifest carries DRM-encrypted content but no DRM client is wired (§6.6)")
+		if !decryptSupported {
+			return Plan{}, fmt.Errorf("pipeline: manifest carries DRM-encrypted content but no DRM client supports this content's DRM system (§6.6)")
 		}
 		steps = append(steps, Step{Kind: StepDecrypt, Params: StepParams{Decrypt: &DecryptParams{}}})
 	}
@@ -197,26 +198,20 @@ func SelectPipeline(goal Goal, src *corev1.MediaSource, container string) (Plan,
 
 // executableKinds is the set of steps this engine can genuinely run (no
 // re-encode, no live record). DRM decrypt is executable only when a DRM
-// client is wired (M8); without one, it is declined loudly (PLAN.md §2.5).
+// client supports the content's DRM system (M8); without one, it is declined
+// loudly (PLAN.md §2.5).
 var executableKinds = map[StepKind]bool{
 	StepPassthrough: true,
 	StepRemux:       true,
 	StepCompose:     true,
 }
 
-// decryptExecutable reports whether the decrypt step can run. It is true only
-// when a DRM client is wired — the engine has a real decryptor to call (M8).
-var decryptExecutable = false
-
 // notExecutableReason names the reason a step kind is declined, for the
 // honest log-and-fail message.
 func notExecutableReason(k StepKind) string {
 	switch k {
 	case StepDecrypt:
-		if !decryptExecutable {
-			return "DRM decrypt has no DRM client wired (requires §6.6 key/license handling)"
-		}
-		return "DRM decrypt is not executable"
+		return "DRM decrypt has no DRM client that supports this content's DRM system (§6.6)"
 	case StepTranscode:
 		return "transcode is not implemented (no encoder; the native-first, encode-only-as-fallback rule of §6.3 is unimplemented)"
 	case StepRecord:
@@ -231,13 +226,15 @@ func notExecutableReason(k StepKind) string {
 // contains a step the engine cannot run is rejected, with the offending step
 // and kind surfaced — never silently downgraded (PLAN.md §2.5). The caller
 // (Start) maps this onto a loud session failure that logs the full plan.
-func ValidatePlan(p Plan) error {
+// decryptSupported reports whether a DRM client supports the content's DRM
+// system — the engine resolves this before calling ValidatePlan.
+func ValidatePlan(p Plan, decryptSupported bool) error {
 	if len(p.Steps) == 0 {
 		return fmt.Errorf("plan: no steps")
 	}
 	for _, s := range p.Steps {
 		if !executableKinds[s.Kind] {
-			if s.Kind == StepDecrypt && decryptExecutable {
+			if s.Kind == StepDecrypt && decryptSupported {
 				continue
 			}
 			return fmt.Errorf("plan: step %q (%s): %s", s.Name, s.Kind, notExecutableReason(s.Kind))
