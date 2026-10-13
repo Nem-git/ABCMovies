@@ -117,7 +117,7 @@ func (f *fakeDRMClient) AcquireKeys(ctx context.Context, providerID, contentID s
 	return f.keys, nil
 }
 
-func (f *fakeDRMClient) Decrypt(ctx context.Context, sourceRef string, keys []*slotsv1.ContentKey) ([]byte, error) {
+func (f *fakeDRMClient) Decrypt(ctx context.Context, source DecryptSource, keys []*slotsv1.ContentKey) ([]byte, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -284,7 +284,7 @@ func TestStartRefusesDRMTrackLoudly(t *testing.T) {
 			Now:            time.Now,
 			RecordJob:      func(j *corev1.Job) { recorded = append(recorded, j) },
 			SourceResolver: &fakeResolver{source: drmSource()},
-			SinkFactory:    &DeviceSinkFactory{Relay: NewRelay()},
+			SinkFactory:    &DeviceSinkFactory{Relay: NewRelay(), Opener: NewOpener(nil, nil, nil)},
 		})
 		_, err := e.Start(context.Background(), StartRequest{
 			Goal: goal, MemberUserID: "u",

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"sync"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 // fetch closure; only the opaque token reaches the client.
 type DeviceSink struct {
 	relay         *Relay
+	opener        *Opener
 	ttl           time.Duration
 	sessionID     string
 	mu            sync.Mutex
@@ -31,6 +31,8 @@ var _ Sink = (*DeviceSink)(nil)
 type DeviceSinkFactory struct {
 	// Relay issues the granted tickets. Required.
 	Relay *Relay
+	// Opener produces clear bytes for relay tickets. Required.
+	Opener *Opener
 	// GrantTTL bounds how long a granted relay URL stays valid; zero uses the
 	// default grant lifespan.
 	GrantTTL time.Duration
@@ -47,17 +49,23 @@ func (f *DeviceSinkFactory) NewSink(_ context.Context, s *Session, _ []*corev1.T
 	if f.Relay == nil {
 		return nil, fmt.Errorf("device sink: no relay wired")
 	}
+	if f.Opener == nil {
+		return nil, fmt.Errorf("device sink: no opener wired")
+	}
 	ttl := f.GrantTTL
 	if ttl <= 0 {
 		ttl = defaultGrantTTL
 	}
-	return &DeviceSink{relay: f.Relay, ttl: ttl, sessionID: s.ID, tokensByTrack: map[string]string{}}, nil
+	return &DeviceSink{relay: f.Relay, opener: f.Opener, ttl: ttl, sessionID: s.ID, tokensByTrack: map[string]string{}}, nil
 }
 
 // Deliver stages a relay ticket for one track so a client can pull its bytes.
-// The track's provider location and auth_context are captured into the ticket's
-// fetch closure — the pull attaches credentials engine-side, on demand.
-func (d *DeviceSink) Deliver(_ context.Context, _ *Session, track *corev1.Track, _ io.Reader) (int64, error) {
+// The track's clear bytes are produced by the opener — DRM-encrypted tracks
+// are acquired and decrypted through the content-key cache before the relay
+// serves them. The track's provider location and auth_context are captured
+// into the ticket's fetch closure — the pull attaches credentials engine-side,
+// on demand.
+func (d *DeviceSink) Deliver(_ context.Context, s *Session, track *corev1.Track, _ io.Reader) (int64, error) {
 	dl := track.GetDelivery()
 	if dl == nil {
 		return 0, fmt.Errorf("device sink: track %q has no delivery", track.GetId())
@@ -65,9 +73,7 @@ func (d *DeviceSink) Deliver(_ context.Context, _ *Session, track *corev1.Track,
 	if len(dl.GetLocations()) == 0 {
 		return 0, fmt.Errorf("device sink: track %q has no locations to relay", track.GetId())
 	}
-	location := dl.GetLocations()[0]
-	auth := dl.GetAuthContext()
-	tok, err := d.relay.Grant(d.sessionID, track.GetId(), fetchFrom(location, auth), d.ttl)
+	tok, err := d.relay.Grant(d.sessionID, track.GetId(), d.opener.Fetch(s, track), d.ttl)
 	if err != nil {
 		return 0, err
 	}
@@ -96,32 +102,4 @@ func (d *DeviceSink) Finalize(_ context.Context, _ *Session) error {
 // Abort revokes the session's relay grants (play ended early).
 func (d *DeviceSink) Abort(_ context.Context, _ *Session) {
 	d.relay.Revoke(d.sessionID)
-}
-
-// fetchFrom returns a fetch that pulls bytes from a provider stream URL,
-// attaching the engine-side auth_context as an Authorization header and
-// forwarding any request Range so providers that support it answer a partial
-// (206) response. The provider's status and headers ride back in the result.
-func fetchFrom(location, authContext string) FetchFunc {
-	return func(ctx context.Context, rangeHeader string) (FetchResult, error) {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, location, nil)
-		if err != nil {
-			return FetchResult{}, err
-		}
-		if authContext != "" {
-			req.Header.Set("Authorization", authContext)
-		}
-		if rangeHeader != "" {
-			req.Header.Set("Range", rangeHeader)
-		}
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return FetchResult{}, err
-		}
-		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
-			_ = resp.Body.Close()
-			return FetchResult{}, fmt.Errorf("device sink: provider returned %s", resp.Status)
-		}
-		return FetchResult{StatusCode: resp.StatusCode, Header: resp.Header.Clone(), Body: resp.Body}, nil
-	}
 }

@@ -25,7 +25,7 @@ func TestSetupSinksDiskRequiresOptionsPath(t *testing.T) {
 			_, err := SetupSinks([]*corev1.Slot{{
 				Id: "disk", Kind: corev1.SlotKind_SLOT_KIND_SINK,
 				Config: &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "disk", Options: tc.opts}},
-			}}, delivery.NewRelay())
+			}}, delivery.NewRelay(), nil)
 			if err == nil || !strings.Contains(err.Error(), "options.path is required") {
 				t.Fatalf("want options.path error, got %v", err)
 			}
@@ -40,7 +40,7 @@ func TestSetupSinksUnknownAdapterRejected(t *testing.T) {
 	_, err := SetupSinks([]*corev1.Slot{{
 		Id: "x", Kind: corev1.SlotKind_SLOT_KIND_SINK,
 		Config: &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "vhs-player"}},
-	}}, delivery.NewRelay())
+	}}, delivery.NewRelay(), nil)
 	if err == nil || !strings.Contains(err.Error(), "unknown adapter") {
 		t.Fatalf("want unknown-adapter error, got %v", err)
 	}

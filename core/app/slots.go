@@ -358,7 +358,8 @@ func ComposeSlots(ctx context.Context, slots []*corev1.Slot, enrich config.Enric
 			sinks = append(sinks, slot)
 		}
 	}
-	srvs, err := slotwiring.SetupSinks(sinks, rt.Relay)
+	opener := delivery.NewOpener(nil, nil, logger)
+	srvs, err := slotwiring.SetupSinks(sinks, rt.Relay, opener)
 	if err != nil {
 		return nil, fmt.Errorf("sinks: %w", err)
 	}

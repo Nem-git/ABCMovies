@@ -13,8 +13,7 @@ const (
 	adapterDevice = "device"
 )
 
-// compositeSinkFactory dispatches a delivery session to the concrete sink
-// factory named by its Sink, per PLAN.md §6.4 (sinks are declared in instance
+// compositeSinkFactory dispatches a delivery session to the concrete sink// factory named by its Sink, per PLAN.md §6.4 (sinks are declared in instance
 // config). An unknown sink name is a loud error, never a silent drop.
 type compositeSinkFactory struct {
 	factories map[string]delivery.SinkFactory
@@ -34,7 +33,7 @@ func (c *compositeSinkFactory) NewSink(ctx context.Context, s *delivery.Session,
 // the instance-local disk (declared; must name a path) and the user's device
 // (built-in; its config is the frontend's). Each enabled slot is reachable by
 // its slot id. Zero enabled sinks yields a factory that rejects every start.
-func SetupSinks(slots []*corev1.Slot, relay *delivery.Relay) (delivery.SinkFactory, error) {
+func SetupSinks(slots []*corev1.Slot, relay *delivery.Relay, opener *delivery.Opener) (delivery.SinkFactory, error) {
 	composite := &compositeSinkFactory{factories: map[string]delivery.SinkFactory{}}
 	for _, slot := range slots {
 		if slot.GetKind() != corev1.SlotKind_SLOT_KIND_SINK {
@@ -57,7 +56,7 @@ func SetupSinks(slots []*corev1.Slot, relay *delivery.Relay) (delivery.SinkFacto
 			if relay == nil {
 				return nil, fmt.Errorf("sink %q (device): no relay wired", slot.GetId())
 			}
-			f = &delivery.DeviceSinkFactory{Relay: relay}
+			f = &delivery.DeviceSinkFactory{Relay: relay, Opener: opener}
 		default:
 			return nil, fmt.Errorf("sink %q: unknown adapter %q (registered: disk, device)", slot.GetId(), sinkCfg.GetAdapter())
 		}

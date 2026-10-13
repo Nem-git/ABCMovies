@@ -89,6 +89,9 @@ message TrackDrm {
   // Engine-side only: how to authenticate the license call. Never forwarded to
   // sinks or frontends, never logged (PLAN.md §6.2).
   string auth_context = 4;
+  // The key ids (KIDs) the caller needs keys for. Required by the DRM slot's
+  // AcquireKeys operation (PLAN.md §6.6).
+  repeated string key_ids = 5;
 }
 
 // TrackDelivery describes how to fetch one track's bytes (PLAN.md §6.2).

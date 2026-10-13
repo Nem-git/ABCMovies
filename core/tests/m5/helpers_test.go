@@ -381,7 +381,7 @@ func newM5Stack(t *testing.T, jf *fakeJellyfin) *m5Stack {
 	sinks, err := slotwiring.SetupSinks([]*corev1.Slot{{
 		Id: "device", Kind: corev1.SlotKind_SLOT_KIND_SINK,
 		Config: &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "device"}},
-	}}, relay)
+	}}, relay, delivery.NewOpener(nil, nil, nil))
 	if err != nil {
 		t.Fatalf("SetupSinks: %v", err)
 	}

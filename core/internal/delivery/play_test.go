@@ -64,7 +64,7 @@ func TestPlayStartStagesMenuAndAnnouncesReady(t *testing.T) {
 		Now:            func() time.Time { return now },
 		RecordJob:      func(*corev1.Job) {},
 		SourceResolver: &fakeResolver{source: playSource(provider.URL)},
-		SinkFactory:    &DeviceSinkFactory{Relay: relay},
+		SinkFactory:    &DeviceSinkFactory{Relay: relay, Opener: NewOpener(nil, nil, nil)},
 		MenuReady:      func(s *Session) { announced = s },
 	})
 	defer e.Close()
@@ -118,7 +118,7 @@ func TestPlayStartSkipsLocationlessTracks(t *testing.T) {
 				{Id: "audio-1", Media: &corev1.Track_Audio{}, Delivery: &corev1.TrackDelivery{CarriedIn: "container"}},
 			},
 		}},
-		SinkFactory: &DeviceSinkFactory{Relay: relay},
+		SinkFactory: &DeviceSinkFactory{Relay: relay, Opener: NewOpener(nil, nil, nil)},
 	})
 	defer e.Close()
 
@@ -170,7 +170,7 @@ func TestPlayEndToEndPassthroughRelay(t *testing.T) {
 		Now:            func() time.Time { return now },
 		RecordJob:      func(*corev1.Job) {},
 		SourceResolver: &fakeResolver{source: playSource(provider.URL)},
-		SinkFactory:    &DeviceSinkFactory{Relay: relay},
+		SinkFactory:    &DeviceSinkFactory{Relay: relay, Opener: NewOpener(nil, nil, nil)},
 	})
 	defer e.Close()
 

@@ -174,11 +174,16 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 		return fmt.Errorf("delivery: timing already valid at load; this means memory corruption: %w", err)
 	}
 	accountStore := accounts.NewStore(s.stores.Vault, logger)
+	// The opener produces clear bytes for both pull (relay) and push (disk)
+	// sinks. Production has no DRM slot wired yet, so it is a passthrough
+	// opener — non-DRM content flows, DRM content is refused at resolve.
+	opener := delivery.NewOpener(nil, nil, logger)
 	eng := delivery.New(delivery.Options{
 		SessionTTL:        timing.SessionTTL,
 		HeartbeatInterval: timing.HeartbeatInterval,
 		HeartbeatGrace:    timing.HeartbeatGrace,
 		InstancePolicy:    instancePolicy,
+		Opener:            opener,
 		AccountConstraints: func(ctx context.Context, provider, accountID string) (policy.Set, policy.ProviderCaps, error) {
 			slots, err := s.slotStore.ListByKind(ctx, corev1.SlotKind_SLOT_KIND_PROVIDER, "")
 			if err != nil {

@@ -196,7 +196,7 @@ func TestM4RemuxDownloadToDiskEndToEnd(t *testing.T) {
 		Config: &corev1.Slot_Sink{Sink: &corev1.SinkConfig{
 			Adapter: "disk", Options: map[string]string{"path": root},
 		}},
-	}}, delivery.NewRelay())
+	}}, delivery.NewRelay(), delivery.NewOpener(nil, nil, nil))
 	if err != nil {
 		t.Fatalf("SetupSinks: %v", err)
 	}
@@ -271,7 +271,7 @@ func TestM4PassthroughPlayToDeviceEndToEnd(t *testing.T) {
 	defer provider.Close()
 
 	relay := delivery.NewRelay()
-	srv, eng := buildServer(&fakeResolver{perTrackSource(provider.URL)}, &delivery.DeviceSinkFactory{Relay: relay})
+	srv, eng := buildServer(&fakeResolver{perTrackSource(provider.URL)}, &delivery.DeviceSinkFactory{Relay: relay, Opener: delivery.NewOpener(nil, nil, nil)})
 	defer eng.Close()
 
 	resp, err := srv.StartDelivery(apiserver.WithUserID(context.Background(), "u1"), &apiv1.StartDeliveryRequest{
@@ -339,7 +339,7 @@ func TestM4DRMRefusedNotSilentlyDelivered(t *testing.T) {
 	}))
 	defer provider.Close()
 
-	factory := &countingFactory{SinkFactory: &delivery.DeviceSinkFactory{Relay: delivery.NewRelay()}}
+	factory := &countingFactory{SinkFactory: &delivery.DeviceSinkFactory{Relay: delivery.NewRelay(), Opener: delivery.NewOpener(nil, nil, nil)}}
 	srv, eng := buildServer(&fakeResolver{drmPerTrackSource(provider.URL)}, factory)
 	defer eng.Close()
 

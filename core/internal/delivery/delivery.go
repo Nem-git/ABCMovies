@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"sort"
 	"strconv"
 	"sync"
@@ -145,23 +146,37 @@ type DRMClient interface {
 	AcquireKeys(ctx context.Context, providerID, contentID string, system slotsv1.DrmSystem, pssh []byte, keyIDs []string, authContext string) ([]*slotsv1.ContentKey, error)
 	// Decrypt asks the DRM slot to decrypt an encrypted track source into
 	// clear bytes (PLAN.md §6.6).
-	Decrypt(ctx context.Context, sourceRef string, keys []*slotsv1.ContentKey) ([]byte, error)
+	Decrypt(ctx context.Context, source DecryptSource, keys []*slotsv1.ContentKey) ([]byte, error)
+}
+
+// DecryptSource carries the encrypted source for a Decrypt call (PLAN.md
+// §6.6). InlineBytes is what M8 uses — the engine fetches the encrypted
+// source and passes it directly. SourceRef is reserved so the relay-URL
+// variant (streaming decrypt) can be added later without changing this
+// interface.
+type DecryptSource struct {
+	// InlineBytes is the encrypted source, already fetched by the engine.
+	InlineBytes []byte
+	// SourceRef is a reference to the encrypted source (e.g. a relay URL)
+	// that the slot fetches and decrypts. Reserved for a later milestone.
+	SourceRef string
 }
 
 // ContentKeyCache is the content-key cache the engine uses to avoid
 // re-licensing on every delivery (PLAN.md §2.4, §6.6). It is keyed by
-// content — (provider, contentId, keyId) — because a title's key is the
-// same for every user who decrypts it on that provider. The cache is a
-// hint, not a guarantee: on a decrypt failure the entry is dropped and
-// acquire-keys is re-run (fail-fast re-license).
+// content — (provider, contentId, system, keyId) — because a title's key
+// is the same for every user who decrypts it on that provider, and a
+// multi-DRM title has distinct keys per system. The cache is a hint, not
+// a guarantee: on a decrypt failure the entry is dropped and acquire-keys
+// is re-run (fail-fast re-license).
 type ContentKeyCache interface {
-	// GetKeys retrieves all cached keys for a content id.
-	GetKeys(ctx context.Context, contentID string) ([]*slotsv1.ContentKey, error)
-	// PutKeys stores keys for a content id.
-	PutKeys(ctx context.Context, contentID string, keys []*slotsv1.ContentKey) error
-	// DropKeys removes all cached keys for a content id (fail-fast on
-	// decrypt failure).
-	DropKeys(ctx context.Context, contentID string) error
+	// GetKeys retrieves all cached keys for a content id and DRM system.
+	GetKeys(ctx context.Context, providerID, contentID string, system slotsv1.DrmSystem) ([]*slotsv1.ContentKey, error)
+	// PutKeys stores keys for a content id and DRM system.
+	PutKeys(ctx context.Context, providerID, contentID string, system slotsv1.DrmSystem, keys []*slotsv1.ContentKey) error
+	// DropKeys removes all cached keys for a content id and DRM system
+	// (fail-fast on decrypt failure).
+	DropKeys(ctx context.Context, providerID, contentID string, system slotsv1.DrmSystem) error
 }
 
 // noSession is the structural contract a typed "this account has no live
@@ -216,6 +231,7 @@ type Options struct {
 	SourceResolver     Resolver
 	DRMClient          DRMClient
 	ContentKeyCache    ContentKeyCache
+	Opener             *Opener
 	SinkFactory        SinkFactory
 	RecordJob          func(*corev1.Job)
 	// MenuReady announces that a play session's menu is fully staged, once
@@ -271,6 +287,7 @@ type Engine struct {
 	resolver        Resolver
 	drm             DRMClient
 	contentKeyCache ContentKeyCache
+	opener          *Opener
 	sinkMaker       SinkFactory
 	recordJob       func(*corev1.Job)
 	menuReady       func(*Session)
@@ -306,6 +323,7 @@ func New(opts Options) *Engine {
 		resolver:        opts.SourceResolver,
 		drm:             opts.DRMClient,
 		contentKeyCache: opts.ContentKeyCache,
+		opener:          opts.Opener,
 		sinkMaker:       opts.SinkFactory,
 		recordJob:       opts.RecordJob,
 		menuReady:       opts.MenuReady,
@@ -615,8 +633,111 @@ func (e *Engine) start(ctx context.Context, req StartRequest) (*Session, error) 
 		e.menuReady(sess)
 	}
 
+	// A download is delivered when the engine's delivery loop picks it up. The
+	// push path is triggered by the caller (the frontend or the engine's own
+	// scheduling), not automatically at start — a queued download must not
+	// begin pushing bytes until it is promoted and the caller is ready.
+
 	e.recordJob(sess.toJob())
 	return sess, nil
+}
+
+// deliverDownload pushes a download session's tracks to its sink. It is the
+// push-path counterpart to the pull relay: the opener produces each track's
+// clear bytes (DRM-acquired and decrypted through the content-key cache),
+// the sink writes them, and the session completes on success or fails on the
+// first track that cannot be delivered.
+func (e *Engine) deliverDownload(ctx context.Context, sess *Session, src *corev1.MediaSource) {
+	for _, track := range src.GetTracks() {
+		if !sess.isActive() {
+			return
+		}
+		dl := track.GetDelivery()
+		if dl == nil || len(dl.GetLocations()) == 0 {
+			continue
+		}
+
+		var reader io.ReadCloser
+		var err error
+		if e.opener != nil {
+			reader, err = e.opener.Open(ctx, sess, track)
+		} else {
+			// No opener wired (no DRM): fetch the provider source directly.
+			reader, err = e.fetchDirect(ctx, track)
+		}
+		if err != nil {
+			e.failDownload(sess, err)
+			return
+		}
+		_, err = sess.Sink.Deliver(ctx, sess, track, reader)
+		_ = reader.Close()
+		if err != nil {
+			e.failDownload(sess, fmt.Errorf("deliver track %q: %w", track.GetId(), err))
+			return
+		}
+	}
+
+	_ = e.Complete(ctx, sess.ID)
+}
+
+// fetchDirect fetches a track's provider source without DRM processing.
+// Used when no opener is wired (no DRM client or cache).
+func (e *Engine) fetchDirect(ctx context.Context, track *corev1.Track) (io.ReadCloser, error) {
+	dl := track.GetDelivery()
+	location := dl.GetLocations()[0]
+	auth := dl.GetAuthContext()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, location, nil)
+	if err != nil {
+		return nil, err
+	}
+	if auth != "" {
+		req.Header.Set("Authorization", auth)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("engine: provider fetch: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
+		_ = resp.Body.Close()
+		return nil, fmt.Errorf("engine: provider returned %s", resp.Status)
+	}
+	return resp.Body, nil
+}
+
+// failDownload marks a download session failed with the given error. The
+// session's status and error are set under the session lock; the job is
+// recorded so a polling client sees the failure.
+func (e *Engine) failDownload(sess *Session, err error) {
+	sess.mu.Lock()
+	sess.Status = StatusFailed
+	sess.Error = err.Error()
+	if sess.Sink != nil {
+		sess.Sink.Abort(context.Background(), sess)
+	}
+	job := sess.toJobLocked()
+	sess.mu.Unlock()
+	e.recordJob(job)
+}
+
+// DeliverDownload starts pushing a download session's tracks to its sink. It
+// is the push-path entry point: the opener produces each track's clear bytes
+// (DRM-acquired and decrypted through the content-key cache), the sink writes
+// them, and the session completes on success or fails on the first track that
+// cannot be delivered. The download must be a GoalDownload session with a
+// sink wired; the caller must not call DeliverDownload twice.
+func (e *Engine) DeliverDownload(ctx context.Context, sess *Session) {
+	src, err := e.resolver.ProduceSources(ctx, sess.Context.GetProvider(), sess.Context.GetAccountId(), sess.Context.GetNativeId())
+	if err != nil {
+		e.failDownload(sess, err)
+		return
+	}
+	if err := ValidateManifest(src); err != nil {
+		e.failDownload(sess, errInvalid("invalid manifest: %v", err))
+		return
+	}
+	e.deliverDownload(ctx, sess, src)
 }
 
 // reportSessionDied surfaces a discovered dead session to the composition
