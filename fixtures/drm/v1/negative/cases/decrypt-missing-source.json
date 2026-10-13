@@ -5,7 +5,7 @@
     "keys": [
       {
         "key_id": "kid1",
-        "key_material": "dGVzdC1rZXktbWF0ZXJpYWw=",
+        "key_material": "dGVzdC1rZXktbWF0ZXJpYWw",
         "validity": "3600s"
       }
     ]

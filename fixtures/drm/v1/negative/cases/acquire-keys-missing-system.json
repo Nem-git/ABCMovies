@@ -4,7 +4,7 @@
   "message": {
     "provider_id": "widevine-primary",
     "content_id": "movie123",
-    "pssh": "AAAAKXBzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7T2QAQAAABmQ=",
+    "pssh": "AAAAKXBzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7T2QAQAAABmQ",
     "key_ids": ["kid1"]
   },
   "expected": {

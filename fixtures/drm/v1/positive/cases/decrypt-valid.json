@@ -2,11 +2,11 @@
   "name": "decrypt-valid",
   "type": "DecryptRequest",
   "message": {
-    "inline_bytes": "dGVzdC1lbmNyeXB0ZWQtYnl0ZXM=",
+    "inline_bytes": "dGVzdC1lbmNyeXB0ZWQtYnl0ZXM",
     "keys": [
       {
         "key_id": "kid1",
-        "key_material": "dGVzdC1rZXktbWF0ZXJpYWw=",
+        "key_material": "dGVzdC1rZXktbWF0ZXJpYWw",
         "validity": "3600s"
       }
     ]

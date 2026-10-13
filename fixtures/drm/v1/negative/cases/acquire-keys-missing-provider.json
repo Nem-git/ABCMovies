@@ -4,7 +4,7 @@
   "message": {
     "content_id": "movie123",
     "system": "DRM_SYSTEM_WIDEVINE",
-    "pssh": "AAAAKXBzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7T2QAQAAABmQ=",
+    "pssh": "AAAAKXBzc2gAAAAA7e+LqXnWSs6jyCfc1R0h7T2QAQAAABmQ",
     "key_ids": ["kid1"]
   },
   "expected": {
