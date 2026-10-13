@@ -2,7 +2,7 @@
   "name": "decrypt-valid",
   "type": "DecryptRequest",
   "message": {
-    "inline_bytes": "dGVzdC1lbmNyeXB0ZWQtYnl0ZXM",
+    "inline_bytes": "dGVzdC1kZWNyeXB0LWJ5dGVz",
     "keys": [
       {
         "key_id": "kid1",

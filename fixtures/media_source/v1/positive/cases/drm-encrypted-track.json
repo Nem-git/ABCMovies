@@ -21,7 +21,7 @@
             {
               "system": "com.widevine.alpha",
               "license_url": "https://licenses.example/widevine",
-              "init_data": "CAESEFpkZGVYbmlz"
+              "init_data": "dGVzdC1pbml0LWRhdGE"
             }
           ]
         }
