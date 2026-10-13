@@ -8,7 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/types/known/durationpb"
+
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 )
 
 // fakeResolver returns a canned static, whole-mux manifest.
@@ -89,6 +92,26 @@ func (f *fakeSinkFactory) NewSink(ctx context.Context, s *Session, tracks []*cor
 	}
 	f.sinks[s.ID] = r
 	return r, nil
+}
+
+// fakeDRMClient is a mock DRM client for testing the pipeline integration.
+type fakeDRMClient struct {
+	keys []*slotsv1.ContentKey
+	err  error
+}
+
+func (f *fakeDRMClient) AcquireKeys(ctx context.Context, providerID, contentID string, system slotsv1.DrmSystem, pssh []byte, keyIDs []string, authContext string) ([]*slotsv1.ContentKey, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.keys, nil
+}
+
+func (f *fakeDRMClient) Decrypt(ctx context.Context, sourceRef string, keys []*slotsv1.ContentKey) ([]byte, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return []byte("clear-bytes"), nil
 }
 
 func newTestEngine(opts Options) (*Engine, *fakeResolver, *fakeSinkFactory) {
@@ -209,6 +232,38 @@ func TestRejectUnsupportedDRM(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), `track "v1"`) || !strings.Contains(err.Error(), "DRM client") {
 		t.Fatalf("refusal must name the offending track and the missing DRM client, got %q", err.Error())
+	}
+}
+
+func TestStartAcceptsDRMWithClient(t *testing.T) {
+	// With a DRM client wired, DRM content is accepted and the pipeline
+	// includes a decrypt step (§6.6).
+	old := decryptExecutable
+	decryptExecutable = true
+	defer func() { decryptExecutable = old }()
+
+	drm := &fakeDRMClient{keys: []*slotsv1.ContentKey{{KeyId: "k1", KeyMaterial: []byte("m"), Validity: durationpb.New(time.Hour)}}}
+	e, res, _ := newTestEngine(Options{
+		SessionTTL: time.Hour,
+		Now:        time.Now,
+		RecordJob:  func(*corev1.Job) {},
+		DRMClient:  drm,
+	})
+	defer e.Close()
+	res.source = drmSource()
+
+	s, err := e.Start(t.Context(), StartRequest{
+		Goal: GoalPlay, MemberUserID: "u",
+		Provider: "jellyfin", AccountID: "a", Sink: "device",
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if len(s.Plan.Steps) != 2 {
+		t.Fatalf("steps = %#v, want [decrypt, passthrough]", s.Plan.Steps)
+	}
+	if s.Plan.Steps[0].Kind != StepDecrypt {
+		t.Errorf("step[0].kind = %q, want decrypt", s.Plan.Steps[0].Kind)
 	}
 }
 
