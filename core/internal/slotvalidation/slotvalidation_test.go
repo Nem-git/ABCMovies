@@ -40,7 +40,7 @@ func subtitleSource(id string) *corev1.Slot {
 
 func drm(id string) *corev1.Slot {
 	s := &corev1.Slot{Id: id, Kind: corev1.SlotKind_SLOT_KIND_DRM}
-	s.Config = &corev1.Slot_Drm{Drm: &corev1.DrmConfig{Operations: []string{"acquire-keys"}}}
+	s.Config = &corev1.Slot_Drm{Drm: &corev1.DrmConfig{Adapter: "gowidevine"}}
 	return s
 }
 
@@ -87,7 +87,7 @@ func TestValidateSlotRejections(t *testing.T) {
 		{"subtitle-missing-adapter", configSubtitle("x", ""), "adapter is required"},
 
 		{"drm-nil-config", &corev1.Slot{Id: "x", Kind: corev1.SlotKind_SLOT_KIND_DRM}, "config is required"},
-		{"drm-no-operations", configDrm("x"), "at least one operation is required"},
+		{"drm-missing-adapter", configDrm("x"), "adapter is required"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

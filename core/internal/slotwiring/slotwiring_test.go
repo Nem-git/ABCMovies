@@ -95,7 +95,7 @@ func TestUnimplementedKindsRejected(t *testing.T) {
 		},
 		"drm": {
 			Id: "drm-a", Kind: corev1.SlotKind_SLOT_KIND_DRM,
-			Config: &corev1.Slot_Drm{Drm: &corev1.DrmConfig{Operations: []string{"acquire-keys"}}},
+			Config: &corev1.Slot_Drm{Drm: &corev1.DrmConfig{Adapter: "gowidevine"}},
 		},
 	}
 	for name, slot := range cases {

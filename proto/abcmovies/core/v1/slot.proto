@@ -78,12 +78,16 @@ message SubtitleSourceConfig {
   string adapter = 1;
 }
 
-// DrmConfig is the config for a DRM slot (PLAN.md §6.6).
+// DrmConfig is the config for a DRM slot (PLAN.md §6.6). The adapter is the
+// specific implementation (e.g. "gowidevine", "pywidevine", "remote-key"); it
+// declares which DRM systems it supports in its handshake. The options bag is
+// interpreted by the adapter itself — the core never branches on key names
+// (TECHNICAL-DECISIONS §1.23).
 message DrmConfig {
-  // The operations this DRM slot supports (e.g. "acquire-keys", "decrypt").
-  repeated string operations = 1;
-  // The version per operation.
-  map<string, string> versions = 2;
+  // The DRM adapter (e.g. "gowidevine", "pywidevine", "remote-key"). Required.
+  string adapter = 1;
+  // Per-adapter configuration bag. Each adapter reads only the keys it declares.
+  map<string, string> options = 2;
 }
 
 // Slot is the system-of-record for a managed slot (PLAN.md §3.1, D8).

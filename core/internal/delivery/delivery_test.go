@@ -191,7 +191,7 @@ func TestStartRejectsInvalidManifest(t *testing.T) {
 func drmSource() *corev1.MediaSource {
 	src := staticSource()
 	src.Tracks[0].Delivery = &corev1.TrackDelivery{
-		Drm: &corev1.TrackDrm{System: "org.w3.clearkey", LicenseUrl: "https://license.example/"},
+		Drm: []*corev1.TrackDrm{{System: "org.w3.clearkey", LicenseUrl: "https://license.example/"}},
 	}
 	return src
 }

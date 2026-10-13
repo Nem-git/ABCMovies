@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package abcmovies.slots.v1;
+
+import "google/protobuf/duration.proto";
+
+// The DRM slot contract (docs/PLAN.md §6.6): an optional, isolated slot with
+// two operations — acquire-keys and decrypt — each versioned per-operation
+// (PLAN.md §3.4). Decrypt-to-clear is the composition of the two: the player
+// needs no DRM module at all. The slot is admitted on contract-only (mock)
+// fixtures plus synthetic encrypted fixtures (PLAN.md §2.5); it never decrypts
+// real content in tests.
+//
+// Device credentials are vaulted (PLAN.md §2.4) and managed internally by the
+// slot: it holds a set, rotates automatically on rejection, and raises an
+// awaiting-action job only when the set is exhausted (PLAN.md §9.1). The core
+// never sees raw challenges or credentials — only keys, or an error.
+
+// DrmSystem identifies a DRM system (e.g. "widevine", "playready",
+// "fairplay", "clearkey"). Security levels (L1/L2/L3, SL2000/SL3000) are
+// added later as an additive extension.
+enum DrmSystem {
+  DRM_SYSTEM_UNSPECIFIED = 0;
+  DRM_SYSTEM_WIDEVINE = 1;
+  DRM_SYSTEM_PLAYREADY = 2;
+  DRM_SYSTEM_FAIRPLAY = 3;
+  DRM_SYSTEM_CLEARKEY = 4;
+}
+
+// ContentKey is one decryption key with its validity (PLAN.md §6.6). Keys are
+// TTL'd message values, storable in the content-key cache (PLAN.md §2.4).
+message ContentKey {
+  // The key id (KID) — matches the key id in the license challenge.
+  string key_id = 1;
+  // The key material (base64-encoded).
+  bytes key_material = 2;
+  // How long this key is valid from acquisition.
+  google.protobuf.Duration validity = 3;
+}
+
+// AcquireKeysRequest asks the DRM slot to acquire content keys for an
+// encrypted track (PLAN.md §6.6). The slot uses its device credentials to
+// negotiate with the license endpoint and returns the keys.
+message AcquireKeysRequest {
+  // The provider slot id whose content this is. Required.
+  string provider_id = 1;
+  // The content id (provider-native). Required.
+  string content_id = 2;
+  // The DRM system of the track being decrypted. Required.
+  DrmSystem system = 3;
+  // The PSSH (Protection System Specific Data) or equivalent init data,
+  // base64-encoded. Required.
+  bytes pssh = 4;
+  // The key ids (KIDs) the caller needs keys for. Required.
+  repeated string key_ids = 5;
+  // Engine-side only: how to authenticate the license call (cookies, headers,
+  // tokens). Never forwarded to sinks or frontends, never logged (PLAN.md §6.2).
+  string auth_context = 6;
+}
+
+// AcquireKeysResponse carries the acquired content keys (PLAN.md §6.6). If the
+// slot cannot acquire keys (credentials exhausted, DRM system unsupported), it
+// returns an error — never a partial or empty success.
+message AcquireKeysResponse {
+  // The acquired keys. At least one, matching the requested key_ids.
+  repeated ContentKey keys = 1;
+}
+
+// DecryptRequest asks the DRM slot to decrypt an encrypted track source into
+// a clear, transcodeable stream (PLAN.md §6.6). The composition of
+// acquire-keys + decrypt is decrypt-to-clear: the output is clear bytes ready
+// for the next pipeline step.
+message DecryptRequest {
+  // The encrypted track source (a byte stream or a reference to one). Required.
+  oneof source {
+    // Inline encrypted bytes (for small sources or testing).
+    bytes inline_bytes = 1;
+    // A reference to the encrypted source (e.g. a relay URL or a content
+    // address). The slot fetches and decrypts.
+    string source_ref = 2;
+  }
+  // The content keys for this track, acquired via AcquireKeys. Required.
+  repeated ContentKey keys = 3;
+}
+
+// DecryptResponse carries the decrypted (clear) bytes (PLAN.md §6.6). The
+// output is ready for the next pipeline step (demux, remux, compose, or
+// passthrough to a sink).
+message DecryptResponse {
+  // The decrypted bytes. Required.
+  bytes clear_bytes = 1;
+}
+
+// DrmService is the DRM slot's contract (PLAN.md §6.6). A slot declares only
+// the operations it has passed the fixture suite for (PLAN.md §2.5, §3.4).
+service DrmService {
+  // Acquire content keys for an encrypted track.
+  rpc AcquireKeys(AcquireKeysRequest) returns (AcquireKeysResponse);
+  // Decrypt an encrypted track source into clear bytes.
+  rpc Decrypt(DecryptRequest) returns (DecryptResponse);
+}

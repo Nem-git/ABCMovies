@@ -17,11 +17,13 @@
         },
         "delivery": {
           "locations": ["https://cdn.example/1080/seg.m3u8"],
-          "drm": {
-            "system": "com.widevine.alpha",
-            "license_url": "https://licenses.example/widevine",
-            "init_data": "CAESEFpkZGVYbmlz"
-          }
+          "drm": [
+            {
+              "system": "com.widevine.alpha",
+              "license_url": "https://licenses.example/widevine",
+              "init_data": "CAESEFpkZGVYbmlz"
+            }
+          ]
         }
       },
       {

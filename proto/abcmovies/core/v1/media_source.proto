@@ -105,9 +105,10 @@ message TrackDelivery {
   // Engine-side only: cookies, headers, tokens to attach to the URLs. Never
   // forwarded to sinks or frontends, never logged (PLAN.md §6.2).
   string auth_context = 3;
-  // DRM system + license URL, when the track is encrypted. Absent for most
-  // tracks.
-  TrackDrm drm = 4;
+  // DRM systems + license info, when the track is encrypted. Absent for most
+  // tracks. A track may carry multiple DRM systems (multi-DRM content); the
+  // engine routes to a slot supporting at least one.
+  repeated TrackDrm drm = 4;
   // When the URLs stop being valid (stream URLs expire in minutes-to-hours).
   google.protobuf.Timestamp expiry = 5;
   // Engine-side only: the provider operation that yields a fresh source when

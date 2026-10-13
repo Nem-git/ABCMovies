@@ -84,7 +84,7 @@ func perTrackSource(providerURL string) *corev1.MediaSource {
 // DRM-encrypted. The contract allows the field; v1 must refuse it.
 func drmPerTrackSource(providerURL string) *corev1.MediaSource {
 	ms := perTrackSource(providerURL)
-	ms.Tracks[0].Delivery.Drm = &corev1.TrackDrm{System: "org.w3.clearkey", LicenseUrl: "https://license.example/"}
+	ms.Tracks[0].Delivery.Drm = []*corev1.TrackDrm{{System: "org.w3.clearkey", LicenseUrl: "https://license.example/"}}
 	return ms
 }
 

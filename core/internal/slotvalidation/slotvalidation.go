@@ -108,8 +108,8 @@ func validateDrm(id string, d *corev1.DrmConfig) error {
 	if d == nil {
 		return fmt.Errorf("drm slot %q: config is required", id)
 	}
-	if len(d.GetOperations()) == 0 {
-		return fmt.Errorf("drm slot %q: at least one operation is required", id)
+	if d.GetAdapter() == "" {
+		return fmt.Errorf("drm slot %q: adapter is required", id)
 	}
 	return nil
 }
