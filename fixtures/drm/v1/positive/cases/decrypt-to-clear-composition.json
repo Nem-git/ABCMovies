@@ -1,0 +1,17 @@
+{
+  "name": "decrypt-to-clear-composition",
+  "type": "DecryptRequest",
+  "message": {
+    "inline_bytes": "dGVzdC1lbmNyeXB0ZWQtYnl0ZXM",
+    "keys": [
+      {
+        "key_id": "kid1",
+        "key_material": "AAAAAAAAAAAAAAAA",
+        "validity": "3600s"
+      }
+    ]
+  },
+  "expected": {
+    "valid": true
+  }
+}
