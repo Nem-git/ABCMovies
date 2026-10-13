@@ -157,6 +157,61 @@ func TestSessionStartDeclinesTranscodeLoudly(t *testing.T) {
 	}
 }
 
+func TestSelectPipelinePlayDRMPrependsDecrypt(t *testing.T) {
+	// With a DRM client wired, a play of DRM content prepends a decrypt step
+	// before passthrough (§6.2: "DRM before anything", §6.6).
+	old := decryptExecutable
+	decryptExecutable = true
+	defer func() { decryptExecutable = old }()
+
+	p, err := SelectPipeline(GoalPlay, drmSource(), "")
+	if err != nil {
+		t.Fatalf("SelectPipeline: %v", err)
+	}
+	if len(p.Steps) != 2 {
+		t.Fatalf("steps = %#v, want [decrypt, passthrough]", p.Steps)
+	}
+	if p.Steps[0].Kind != StepDecrypt {
+		t.Errorf("step[0].kind = %q, want decrypt", p.Steps[0].Kind)
+	}
+	if p.Steps[1].Kind != StepPassthrough {
+		t.Errorf("step[1].kind = %q, want passthrough", p.Steps[1].Kind)
+	}
+}
+
+func TestSelectPipelineDRMRejectedWithoutClient(t *testing.T) {
+	// Without a DRM client, DRM content is refused loudly (§2.5).
+	old := decryptExecutable
+	decryptExecutable = false
+	defer func() { decryptExecutable = old }()
+
+	if _, err := SelectPipeline(GoalPlay, drmSource(), ""); err == nil {
+		t.Fatal("DRM content without a DRM client should be rejected")
+	}
+}
+
+func TestValidatePlanAcceptsDecryptWithClient(t *testing.T) {
+	old := decryptExecutable
+	decryptExecutable = true
+	defer func() { decryptExecutable = old }()
+
+	plan := Plan{Steps: []Step{{Name: "dec", Kind: StepDecrypt, Params: StepParams{Decrypt: &DecryptParams{KeyRef: "k1"}}}}}
+	if err := ValidatePlan(plan); err != nil {
+		t.Fatalf("ValidatePlan rejected decrypt with a DRM client wired: %v", err)
+	}
+}
+
+func TestValidatePlanDeclinesDecryptWithoutClient(t *testing.T) {
+	old := decryptExecutable
+	decryptExecutable = false
+	defer func() { decryptExecutable = old }()
+
+	plan := Plan{Steps: []Step{{Name: "dec", Kind: StepDecrypt, Params: StepParams{Decrypt: &DecryptParams{KeyRef: "k1"}}}}}
+	if err := ValidatePlan(plan); err == nil {
+		t.Fatal("ValidatePlan accepted decrypt without a DRM client")
+	}
+}
+
 func TestLineageRendersChain(t *testing.T) {
 	got := Lineage(Plan{Steps: []Step{
 		{Name: "remux-main", Kind: StepRemux},
