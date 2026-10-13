@@ -1,0 +1,10 @@
+{
+  "name": "decrypt-no-keys",
+  "type": "DecryptRequest",
+  "message": {
+    "inline_bytes": "dGVzdC1lbmNyeXB0ZWQtYnl0ZXM="
+  },
+  "expected": {
+    "valid": false
+  }
+}

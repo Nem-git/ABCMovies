@@ -200,6 +200,8 @@ func runCase(s suite, c fixture) error {
 		return runProviderCase(s, c)
 	case "catalogue":
 		return runCatalogueCase(s, c)
+	case "drm":
+		return runDRMCase(s, c)
 	case "api":
 		return runAPICase(s, c)
 	default:
@@ -527,6 +529,60 @@ func validateProviderMessage(msgType string, msg json.RawMessage) (bool, error) 
 		return err == nil, err
 	default:
 		return false, fmt.Errorf("unknown provider message type %q", msgType)
+	}
+}
+
+func runDRMCase(s suite, c fixture) error {
+	switch s.Kind {
+	case "positive", "negative":
+		if c.Expected.Valid == nil {
+			return fmt.Errorf("expected.valid is required for drm schema suites")
+		}
+		valid, err := validateDRMMessage(c.Type, c.Message)
+		if valid != *c.Expected.Valid {
+			if *c.Expected.Valid {
+				return fmt.Errorf("expected valid:true, got invalid: %v", err)
+			}
+			return fmt.Errorf("expected valid:false, but the message validated cleanly")
+		}
+		return nil
+	default:
+		return fmt.Errorf("kind %q is not supported for drm suites", s.Kind)
+	}
+}
+
+func validateDRMMessage(msgType string, msg json.RawMessage) (bool, error) {
+	switch msgType {
+	case "AcquireKeysRequest":
+		var m slotsv1.AcquireKeysRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateAcquireKeysRequest(&m)
+		return err == nil, err
+	case "AcquireKeysResponse":
+		var m slotsv1.AcquireKeysResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateAcquireKeysResponse(&m)
+		return err == nil, err
+	case "DecryptRequest":
+		var m slotsv1.DecryptRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateDecryptRequest(&m)
+		return err == nil, err
+	case "DecryptResponse":
+		var m slotsv1.DecryptResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateDecryptResponse(&m)
+		return err == nil, err
+	default:
+		return false, fmt.Errorf("unknown drm message type %q", msgType)
 	}
 }
 

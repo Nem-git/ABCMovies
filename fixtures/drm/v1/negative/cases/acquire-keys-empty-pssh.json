@@ -1,0 +1,13 @@
+{
+  "name": "acquire-keys-empty-pssh",
+  "type": "AcquireKeysRequest",
+  "message": {
+    "provider_id": "widevine-primary",
+    "content_id": "movie123",
+    "system": "DRM_SYSTEM_WIDEVINE",
+    "key_ids": ["kid1"]
+  },
+  "expected": {
+    "valid": false
+  }
+}

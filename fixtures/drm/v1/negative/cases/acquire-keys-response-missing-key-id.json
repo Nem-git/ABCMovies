@@ -1,0 +1,15 @@
+{
+  "name": "acquire-keys-response-missing-key-id",
+  "type": "AcquireKeysResponse",
+  "message": {
+    "keys": [
+      {
+        "key_material": "dGVzdC1rZXktbWF0ZXJpYWw=",
+        "validity": "3600s"
+      }
+    ]
+  },
+  "expected": {
+    "valid": false
+  }
+}

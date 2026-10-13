@@ -1,0 +1,7 @@
+{
+  "contract": "drm",
+  "version": "v1",
+  "kind": "positive",
+  "slot": "drm",
+  "transport": "schema"
+}

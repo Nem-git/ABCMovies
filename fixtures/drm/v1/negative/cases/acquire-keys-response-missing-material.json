@@ -1,0 +1,15 @@
+{
+  "name": "acquire-keys-response-missing-material",
+  "type": "AcquireKeysResponse",
+  "message": {
+    "keys": [
+      {
+        "key_id": "kid1",
+        "validity": "3600s"
+      }
+    ]
+  },
+  "expected": {
+    "valid": false
+  }
+}
