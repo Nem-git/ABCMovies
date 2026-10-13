@@ -72,9 +72,10 @@ func (a *Adapter) Supports(system slotsv1.DrmSystem) bool {
 }
 
 // apiResponse is the standard JSON response envelope from the pywidevine
-// service: {status, message, data}.
+// service: {status, message, data}. Status can be int (success) or string
+// (error), so we use json.Number to handle both.
 type apiResponse struct {
-	Status  int             `json:"status"`
+	Status  json.Number     `json:"status"`
 	Message string          `json:"message"`
 	Data    json.RawMessage `json:"data"`
 }
@@ -217,7 +218,7 @@ func (a *Adapter) openSession(ctx context.Context) (string, error) {
 	if err := json.Unmarshal(body, &apiResp); err != nil {
 		return "", fmt.Errorf("decode response: %w", err)
 	}
-	if apiResp.Status != 200 {
+	if apiResp.Status.String() != "200" {
 		return "", fmt.Errorf("api error: %s", apiResp.Message)
 	}
 
@@ -267,7 +268,7 @@ func (a *Adapter) getLicenseChallenge(ctx context.Context, sessionID string, pss
 	if err := json.Unmarshal(respBody, &apiResp); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
-	if apiResp.Status != 200 {
+	if apiResp.Status.String() != "200" {
 		return nil, fmt.Errorf("api error: %s", apiResp.Message)
 	}
 
@@ -317,7 +318,7 @@ func (a *Adapter) parseLicense(ctx context.Context, sessionID string, licenseRes
 	if err := json.Unmarshal(respBody, &apiResp); err != nil {
 		return fmt.Errorf("decode response: %w", err)
 	}
-	if apiResp.Status != 200 {
+	if apiResp.Status.String() != "200" {
 		return fmt.Errorf("api error: %s", apiResp.Message)
 	}
 	return nil
@@ -358,7 +359,7 @@ func (a *Adapter) getKeys(ctx context.Context, sessionID string) ([]*widevine.Ke
 	if err := json.Unmarshal(respBody, &apiResp); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
-	if apiResp.Status != 200 {
+	if apiResp.Status.String() != "200" {
 		return nil, fmt.Errorf("api error: %s", apiResp.Message)
 	}
 
