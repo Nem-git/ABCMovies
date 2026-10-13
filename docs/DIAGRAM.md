@@ -400,7 +400,7 @@ Why it is shaped this way:
 
 ```mermaid
 flowchart TB
-    cfg["instance config — slots are declared, never discovered"]
+    cfg["slots store — slots are managed, never discovered"]
     route["linked accounts route first —<br/>an account on a server no slot declares gets a derived, readable srv-* slot"]
     buildall["the factory builds everything the entry needs —<br/>adapter, per-account paced clients, initial sync,<br/>resolved cadence, refresh jobs, delivery resolver<br/>(a Describe probe reads handshake policy without publishing)"]
     overlap["catalogue namespace overlap check, two slots may not claim one namespace"]

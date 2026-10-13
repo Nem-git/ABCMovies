@@ -26,7 +26,7 @@ v1 is a **single-instance deployment**: one process running the core, with the s
    └──────────┘
 ```
 
-- The core is the only always-on component. Slots are subprocesses or network services declared in config (§4 of PLAN.md).
+- The core is the only always-on component. Slots are managed in the store and composed live (D8); a fresh instance has no slots until the operator adds them through the admin API (§4 of PLAN.md).
 - The API transport is the choice recorded in TECHNICAL-DECISIONS.md §1.2; transport encryption terminates at the core (or at a fronting reverse proxy — an acceptable deployment choice, since the core's API is the boundary).
 - Store backends are chosen per class at implementation time (TECHNICAL-DECISIONS.md §2); durability requirements are per §2.4 and are the non-negotiable part.
 
