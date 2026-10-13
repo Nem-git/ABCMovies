@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nem-git/abcmovies/core/drm"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 )
@@ -96,12 +97,12 @@ func (o *Opener) fetchClear(ctx context.Context, s *Session, track *corev1.Track
 			continue
 		}
 
-		keys, err := o.getKeys(ctx, providerID, contentID, sys, drmEntry, dl.GetAuthContext())
+		keys, err := o.getKeys(ctx, providerID, contentID, sys, drmEntry, drmEntry.GetLicenseUrl(), dl.GetAuthContext())
 		if err != nil {
 			return FetchResult{}, err
 		}
 
-		clear, err := o.decryptWithRetry(ctx, providerID, contentID, sys, track, keys, drmEntry, dl.GetAuthContext())
+		clear, err := o.decryptWithRetry(ctx, providerID, contentID, sys, track, keys, drmEntry, drmEntry.GetLicenseUrl(), dl.GetAuthContext())
 		if err != nil {
 			return FetchResult{}, err
 		}
@@ -143,7 +144,7 @@ func (o *Opener) fetchPlain(ctx context.Context, track *corev1.Track, rangeHeade
 
 // getKeys returns cached keys for the content and system, or acquires them
 // on cache miss. Acquired keys are stored in the cache for the next pull.
-func (o *Opener) getKeys(ctx context.Context, providerID, contentID string, system slotsv1.DrmSystem, drmEntry *corev1.TrackDrm, authContext string) ([]*slotsv1.ContentKey, error) {
+func (o *Opener) getKeys(ctx context.Context, providerID, contentID string, system slotsv1.DrmSystem, drmEntry *corev1.TrackDrm, licenseURL, authContext string) ([]*slotsv1.ContentKey, error) {
 	keys, err := o.cache.GetKeys(ctx, providerID, contentID, system)
 	if err != nil {
 		o.logger.Warn("opener: cache read failed", "err", err, "provider", providerID, "content", contentID, "system", system)
@@ -152,7 +153,7 @@ func (o *Opener) getKeys(ctx context.Context, providerID, contentID string, syst
 		return keys, nil
 	}
 
-	keys, err = o.drm.AcquireKeys(ctx, providerID, contentID, system, drmEntry.GetInitData(), drmEntry.GetKeyIds(), authContext)
+	keys, err = o.drm.AcquireKeys(ctx, providerID, contentID, system, drmEntry.GetInitData(), drmEntry.GetKeyIds(), licenseURL, authContext)
 	if err != nil {
 		return nil, fmt.Errorf("opener: DRM could not be decrypted (acquire keys: %v)", err)
 	}
@@ -169,7 +170,7 @@ func (o *Opener) getKeys(ctx context.Context, providerID, contentID string, syst
 // decryptWithRetry decrypts the track, and on failure drops the cached
 // keys and re-licenses once (fail-fast re-license — PLAN.md §6.6). If the
 // re-license also fails, the error is neutral: "DRM could not be decrypted."
-func (o *Opener) decryptWithRetry(ctx context.Context, providerID, contentID string, system slotsv1.DrmSystem, track *corev1.Track, keys []*slotsv1.ContentKey, drmEntry *corev1.TrackDrm, authContext string) ([]byte, error) {
+func (o *Opener) decryptWithRetry(ctx context.Context, providerID, contentID string, system slotsv1.DrmSystem, track *corev1.Track, keys []*slotsv1.ContentKey, drmEntry *corev1.TrackDrm, licenseURL, authContext string) ([]byte, error) {
 	// Fetch the encrypted source inline (M8: whole-content in memory).
 	encResult, err := o.fetchPlain(ctx, track, "")
 	if err != nil {
@@ -181,7 +182,7 @@ func (o *Opener) decryptWithRetry(ctx context.Context, providerID, contentID str
 		return nil, fmt.Errorf("opener: read encrypted source: %w", err)
 	}
 
-	clear, err := o.drm.Decrypt(ctx, DecryptSource{InlineBytes: encBytes}, keys)
+	clear, err := o.drm.Decrypt(ctx, drm.Source{InlineBytes: encBytes}, keys)
 	if err == nil {
 		return clear, nil
 	}
@@ -190,7 +191,7 @@ func (o *Opener) decryptWithRetry(ctx context.Context, providerID, contentID str
 	_ = o.cache.DropKeys(ctx, providerID, contentID, system)
 	o.logger.Warn("opener: decrypt failed, re-licensing once", "provider", providerID, "content", contentID, "system", system)
 
-	keys, err = o.drm.AcquireKeys(ctx, providerID, contentID, system, drmEntry.GetInitData(), drmEntry.GetKeyIds(), authContext)
+	keys, err = o.drm.AcquireKeys(ctx, providerID, contentID, system, drmEntry.GetInitData(), drmEntry.GetKeyIds(), licenseURL, authContext)
 	if err != nil {
 		return nil, fmt.Errorf("opener: DRM could not be decrypted (re-acquire keys: %v)", err)
 	}
@@ -198,7 +199,7 @@ func (o *Opener) decryptWithRetry(ctx context.Context, providerID, contentID str
 		o.logger.Warn("opener: cache write failed after re-license", "err", err)
 	}
 
-	clear, err = o.drm.Decrypt(ctx, DecryptSource{InlineBytes: encBytes}, keys)
+	clear, err = o.drm.Decrypt(ctx, drm.Source{InlineBytes: encBytes}, keys)
 	if err != nil {
 		_ = o.cache.DropKeys(ctx, providerID, contentID, system)
 		return nil, fmt.Errorf("opener: DRM could not be decrypted")

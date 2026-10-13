@@ -6,6 +6,7 @@ toolchain go1.27.2
 
 require (
 	connectrpc.com/connect v1.21.0
+	github.com/iyear/gowidevine v0.1.3
 	go.yaml.in/yaml/v4 v4.0.0-rc.6
 	golang.org/x/crypto v0.58.0
 	golang.org/x/text v0.43.0
@@ -15,6 +16,8 @@ require (
 )
 
 require (
+	github.com/Eyevinn/mp4ff v0.48.0 // indirect
+	github.com/chmike/cmac-go v1.1.0 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/google/pprof v0.0.0-20261003200830-ebaad5f31b4d // indirect
 	github.com/google/renameio v1.0.1 // indirect

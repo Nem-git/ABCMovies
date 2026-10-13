@@ -590,12 +590,11 @@ func SetupAll(ctx context.Context, slots []*corev1.Slot, deps Deps) ([]scheduler
 	// SetupAll deliberately does not build the sink factory here.
 
 	for _, slot := range slots {
-		switch slot.GetKind() {
-		case corev1.SlotKind_SLOT_KIND_SUBTITLE_SOURCE:
+		if slot.GetKind() == corev1.SlotKind_SLOT_KIND_SUBTITLE_SOURCE {
 			return nil, nil, nil, nil, nil, fmt.Errorf("subtitle-source slots are not implemented yet; remove the subtitle-source entries or wait for their milestone")
-		case corev1.SlotKind_SLOT_KIND_DRM:
-			return nil, nil, nil, nil, nil, fmt.Errorf("drm slots are not implemented yet; remove the drm entries or wait for their milestone")
 		}
+		// DRM slots are handled separately by SetupDRM (they wire into the
+		// engine's DRMClient, not the sink factory or resolver).
 	}
 	return pJobs, reaches, cats, resolvers, built, nil
 }

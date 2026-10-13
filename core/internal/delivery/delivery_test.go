@@ -10,6 +10,7 @@ import (
 
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/nem-git/abcmovies/core/drm"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 )
@@ -110,14 +111,14 @@ func (f *fakeDRMClient) Supports(system slotsv1.DrmSystem) bool {
 	return false
 }
 
-func (f *fakeDRMClient) AcquireKeys(ctx context.Context, providerID, contentID string, system slotsv1.DrmSystem, pssh []byte, keyIDs []string, authContext string) ([]*slotsv1.ContentKey, error) {
+func (f *fakeDRMClient) AcquireKeys(ctx context.Context, providerID, contentID string, system slotsv1.DrmSystem, pssh []byte, keyIDs []string, licenseURL, authContext string) ([]*slotsv1.ContentKey, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
 	return f.keys, nil
 }
 
-func (f *fakeDRMClient) Decrypt(ctx context.Context, source DecryptSource, keys []*slotsv1.ContentKey) ([]byte, error) {
+func (f *fakeDRMClient) Decrypt(ctx context.Context, source drm.Source, keys []*slotsv1.ContentKey) ([]byte, error) {
 	if f.err != nil {
 		return nil, f.err
 	}

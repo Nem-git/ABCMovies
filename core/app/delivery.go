@@ -19,6 +19,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/pacing"
 	"github.com/nem-git/abcmovies/core/internal/policy"
+	"github.com/nem-git/abcmovies/core/internal/slotwiring"
 	"github.com/nem-git/abcmovies/core/internal/sourcecache"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
@@ -174,16 +175,26 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 		return fmt.Errorf("delivery: timing already valid at load; this means memory corruption: %w", err)
 	}
 	accountStore := accounts.NewStore(s.stores.Vault, logger)
+	// The DRM client is built from the store's DRM slots. If no DRM slot is
+	// configured, it is nil and DRM content is refused at resolve.
+	var drmSlots []*corev1.Slot
+	drmSlotsList, err := s.slotStore.ListByKind(context.Background(), corev1.SlotKind_SLOT_KIND_DRM, "")
+	if err != nil {
+		return fmt.Errorf("delivery: list drm slots: %w", err)
+	}
+	drmSlots = drmSlotsList
+	drmClient := slotwiring.SetupDRM(context.Background(), drmSlots, logger)
 	// The opener produces clear bytes for both pull (relay) and push (disk)
-	// sinks. Production has no DRM slot wired yet, so it is a passthrough
-	// opener — non-DRM content flows, DRM content is refused at resolve.
-	opener := delivery.NewOpener(nil, nil, logger)
+	// sinks. With a DRM client wired, the opener can acquire keys and
+	// decrypt DRM-encrypted content; without one, it is a passthrough.
+	opener := delivery.NewOpener(drmClient, nil, logger)
 	eng := delivery.New(delivery.Options{
 		SessionTTL:        timing.SessionTTL,
 		HeartbeatInterval: timing.HeartbeatInterval,
 		HeartbeatGrace:    timing.HeartbeatGrace,
 		InstancePolicy:    instancePolicy,
 		Opener:            opener,
+		DRMClient:         drmClient,
 		AccountConstraints: func(ctx context.Context, provider, accountID string) (policy.Set, policy.ProviderCaps, error) {
 			slots, err := s.slotStore.ListByKind(ctx, corev1.SlotKind_SLOT_KIND_PROVIDER, "")
 			if err != nil {

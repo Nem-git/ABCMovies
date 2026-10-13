@@ -82,9 +82,9 @@ func TestUnknownAdapterRejected(t *testing.T) {
 }
 
 // TestUnimplementedKindsRejected pins that declaring a slot of a kind whose
-// milestone has not landed fails startup loudly — DRM and subtitle-source are
-// store-managed (D8) but their implementations are deferred, so a stored
-// entry of either kind must refuse to compose rather than be silently
+// milestone has not landed fails startup loudly — subtitle-source is
+// store-managed (D8) but its implementation is deferred, so a stored
+// entry of that kind must refuse to compose rather than be silently
 // ignored (which would make a typo look like a working deployment).
 func TestUnimplementedKindsRejected(t *testing.T) {
 	t.Parallel()
@@ -92,10 +92,6 @@ func TestUnimplementedKindsRejected(t *testing.T) {
 		"subtitle-source": {
 			Id: "sub-a", Kind: corev1.SlotKind_SLOT_KIND_SUBTITLE_SOURCE,
 			Config: &corev1.Slot_SubtitleSource{SubtitleSource: &corev1.SubtitleSourceConfig{Adapter: "trakt-sub"}},
-		},
-		"drm": {
-			Id: "drm-a", Kind: corev1.SlotKind_SLOT_KIND_DRM,
-			Config: &corev1.Slot_Drm{Drm: &corev1.DrmConfig{Adapter: "gowidevine"}},
 		},
 	}
 	for name, slot := range cases {
