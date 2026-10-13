@@ -90,7 +90,7 @@ func (a *Adapter) AcquireKeys(ctx context.Context, providerID, contentID string,
 	challenge, parseLicense, err := a.cdm.GetLicenseChallenge(
 		parsedPSSH,
 		widevinepb.LicenseType_STREAMING,
-		true, // privacy mode
+		false, // privacy mode — not needed for public test servers
 	)
 	if err != nil {
 		return nil, fmt.Errorf("drmlocal: get license challenge: %w", err)
