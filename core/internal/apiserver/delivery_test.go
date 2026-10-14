@@ -69,7 +69,7 @@ func (s *stubDelivery) ApplyAccountCap(ctx context.Context, provider, accountID 
 
 func (s *stubDelivery) Cancel(string) (*delivery.Session, error) { return nil, nil }
 
-func (s *stubDelivery) GetDeliveryOptions(string) (*apiv1.GetDeliveryOptionsResponse, error) {
+func (s *stubDelivery) GetDeliveryOptions(string, string) (*apiv1.GetDeliveryOptionsResponse, error) {
 	return &apiv1.GetDeliveryOptionsResponse{}, nil
 }
 

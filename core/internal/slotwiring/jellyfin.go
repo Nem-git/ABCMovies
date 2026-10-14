@@ -218,6 +218,7 @@ func accountSyncMachine(namespace, accountID string, client sourcecache.Client, 
 	reach := &library.Reach{
 		Sync:       syncer,
 		AccountID:  accountID,
+		Provider:   namespace,
 		Owner:      meta.owner,
 		Visibility: meta.visibility,
 		Members:    meta.members,

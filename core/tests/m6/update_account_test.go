@@ -56,7 +56,7 @@ func (d *updDelivery) ApplyAccountCap(ctx context.Context, provider, accountID s
 
 func (d *updDelivery) Cancel(string) (*delivery.Session, error) { return nil, nil }
 
-func (d *updDelivery) GetDeliveryOptions(string) (*apiv1.GetDeliveryOptionsResponse, error) {
+func (d *updDelivery) GetDeliveryOptions(string, string) (*apiv1.GetDeliveryOptionsResponse, error) {
 	return &apiv1.GetDeliveryOptionsResponse{}, nil
 }
 

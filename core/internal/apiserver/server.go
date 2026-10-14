@@ -69,8 +69,9 @@ type DeliveryManager interface {
 	// the caller must own the job (PLAN.md §6.5).
 	Cancel(jobID string) (*delivery.Session, error)
 	// GetDeliveryOptions returns the tracks, sinks, and metadata availability
-	// for a title without starting a session (PLAN.md §6.3, §6.4).
-	GetDeliveryOptions(entryID string) (*apiv1.GetDeliveryOptionsResponse, error)
+	// for a title without starting a session (PLAN.md §6.3, §6.4). userID
+	// identifies the caller so the composition root can find the right account.
+	GetDeliveryOptions(entryID, userID string) (*apiv1.GetDeliveryOptionsResponse, error)
 	// ListJobs returns the caller's jobs across all kinds, one page at a time
 	// (PLAN.md §9.1).
 	ListJobs(userID, pageToken string) ([]*corev1.Job, string, error)
@@ -432,7 +433,8 @@ func (s *Server) GetDeliveryOptions(ctx context.Context, req *apiv1.GetDeliveryO
 	if s.delivery == nil {
 		return nil, status.Error(codes.Unavailable, "delivery engine not configured")
 	}
-	opts, err := s.delivery.GetDeliveryOptions(req.GetEntryId())
+	uid, _ := UserIDFromContext(ctx)
+	opts, err := s.delivery.GetDeliveryOptions(req.GetEntryId(), uid)
 	if err != nil {
 		return nil, status.Error(codes.Code(delivery.Code(err)), err.Error())
 	}

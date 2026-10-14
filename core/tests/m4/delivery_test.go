@@ -29,6 +29,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/store"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 // fakeResolver is a canned produce-sources surface: it hands back a fixed
@@ -133,7 +134,7 @@ func (m engineManager) Cancel(jobID string) (*delivery.Session, error) {
 	return m.eng.Cancel(jobID)
 }
 
-func (m engineManager) GetDeliveryOptions(string) (*apiv1.GetDeliveryOptionsResponse, error) {
+func (m engineManager) GetDeliveryOptions(string, string) (*apiv1.GetDeliveryOptionsResponse, error) {
 	return &apiv1.GetDeliveryOptionsResponse{}, nil
 }
 
@@ -439,27 +440,73 @@ func (m resolvingDelivery) Cancel(jobID string) (*delivery.Session, error) {
 	return m.eng.Cancel(jobID)
 }
 
-func (m resolvingDelivery) GetDeliveryOptions(entryID string) (*apiv1.GetDeliveryOptionsResponse, error) {
+// GetDeliveryOptions resolves the manifest for the entry's coverage provider
+// and returns the tracks, sinks, and containers the frontend dialog renders.
+func (m resolvingDelivery) GetDeliveryOptions(entryID, userID string) (*apiv1.GetDeliveryOptionsResponse, error) {
+	src, err := m.eng.ResolveManifest(context.Background(), "jellyfin", "", "item1")
+	if err != nil {
+		return nil, err
+	}
+	tracks := make([]*apiv1.DownloadTrack, 0, len(src.GetTracks()))
+	for _, tr := range src.GetTracks() {
+		dt := &apiv1.DownloadTrack{TrackId: tr.GetId()}
+		switch tr.GetMedia().(type) {
+		case *corev1.Track_Video:
+			dt.Media = &apiv1.DownloadTrack_Video{Video: tr.GetVideo()}
+		case *corev1.Track_Audio:
+			dt.Media = &apiv1.DownloadTrack_Audio{Audio: tr.GetAudio()}
+		case *corev1.Track_Subtitle:
+			dt.Media = &apiv1.DownloadTrack_Subtitle{Subtitle: tr.GetSubtitle()}
+		}
+		tracks = append(tracks, dt)
+	}
 	return &apiv1.GetDeliveryOptionsResponse{
-		Tracks:                     []*apiv1.DownloadTrack{{TrackId: "v1", Media: &apiv1.DownloadTrack_Video{Video: &corev1.VideoTrack{Codec: "h264"}}}},
-		Sinks:                      []*apiv1.DownloadSink{{SinkId: "device", Kind: corev1.SlotKind_SLOT_KIND_SINK, Label: "This device"}},
-		MetadataAttachmentPossible: false,
-		Containers:                 []string{"mp4", "mkv"},
+		Tracks:     tracks,
+		Sinks:      []*apiv1.DownloadSink{{SinkId: "device", Kind: corev1.SlotKind_SLOT_KIND_SINK, Label: "This device"}},
+		Containers: []string{"mp4", "mkv"},
 	}, nil
 }
 
+// ListJobs returns the caller's jobs from the store, paginated.
 func (m resolvingDelivery) ListJobs(userID, pageToken string) ([]*corev1.Job, string, error) {
-	return []*corev1.Job{{
-		Id:          "del-1",
-		Kind:        corev1.JobKind_JOB_KIND_DELIVERY,
-		Status:      corev1.JobStatus_JOB_STATUS_DONE,
-		OwnerUserId: userID,
-	}}, "", nil
+	keys, err := m.jobs.List(context.Background(), "job:")
+	if err != nil {
+		return nil, "", err
+	}
+	var jobs []*corev1.Job
+	for _, key := range keys {
+		val, err := m.jobs.Get(context.Background(), key)
+		if err != nil {
+			continue
+		}
+		job := &corev1.Job{}
+		if err := proto.Unmarshal(val, job); err != nil {
+			continue
+		}
+		if job.GetOwnerUserId() == userID {
+			jobs = append(jobs, job)
+		}
+	}
+	const pageSize = 50
+	if len(jobs) <= pageSize {
+		return jobs, "", nil
+	}
+	return jobs[:pageSize], jobs[pageSize].GetId(), nil
 }
 
-// TestGetDeliveryOptionsAndListJobs proves the new RPCs work end-to-end
-// through the API handler with a real library seam and delivery manager.
-func TestGetDeliveryOptionsAndListJobs(t *testing.T) {
+// buildDeliveryTestServer wires a server with the resolvingDelivery manager
+// and a library seam that returns the given entry.
+func buildDeliveryTestServer(eng *delivery.Engine, entry *corev1.LibraryEntry) *apiserver.Server {
+	bus := apiserver.NewInMemoryBus()
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: config.Stores{Jobs: store.NewInMemory()}})
+	srv.SetDelivery(resolvingDelivery{eng: eng, jobs: store.NewInMemory()})
+	srv.SetLibrary(coverageLibrary{entry: entry})
+	return srv
+}
+
+// TestGetDeliveryOptionsValid proves a valid entry_id returns the correct
+// tracks (matching the resolver's manifest), sinks, and containers.
+func TestGetDeliveryOptionsValid(t *testing.T) {
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("video-bytes"))
 	}))
@@ -482,49 +529,139 @@ func TestGetDeliveryOptionsAndListJobs(t *testing.T) {
 	})
 	defer eng.Close()
 
-	bus := apiserver.NewInMemoryBus()
-	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: config.Stores{Jobs: store.NewInMemory()}})
-	srv.SetDelivery(resolvingDelivery{eng: eng, jobs: store.NewInMemory()})
-	srv.SetLibrary(coverageLibrary{entry: &corev1.LibraryEntry{
+	srv := buildDeliveryTestServer(eng, &corev1.LibraryEntry{
 		Id:   "le-test1",
 		Kind: corev1.EntryKind_ENTRY_KIND_MOVIE,
 		Coverage: map[string]*corev1.CoverageRow{
 			"jellyfin:item1": {Present: true, Verdict: corev1.CoverageVerdict_COVERAGE_VERDICT_CORROBORATED},
 		},
-	}})
+	})
 
 	ctx := apiserver.WithUserID(context.Background(), "u1")
-
-	// GetDeliveryOptions: valid request returns tracks, sinks, containers
-	optsResp, err := srv.GetDeliveryOptions(ctx, &apiv1.GetDeliveryOptionsRequest{EntryId: "le-test1"})
+	resp, err := srv.GetDeliveryOptions(ctx, &apiv1.GetDeliveryOptionsRequest{EntryId: "le-test1"})
 	if err != nil {
 		t.Fatalf("GetDeliveryOptions: %v", err)
 	}
-	if len(optsResp.GetTracks()) == 0 {
-		t.Fatal("GetDeliveryOptions returned no tracks")
+
+	// Tracks must match the resolver's manifest (perTrackSource has v1 video + a1 audio)
+	wantTracks := map[string]bool{"v1": true, "a1": true}
+	if len(resp.GetTracks()) != len(wantTracks) {
+		t.Fatalf("tracks count = %d, want %d", len(resp.GetTracks()), len(wantTracks))
 	}
-	if len(optsResp.GetSinks()) == 0 {
-		t.Fatal("GetDeliveryOptions returned no sinks")
-	}
-	if len(optsResp.GetContainers()) == 0 {
-		t.Fatal("GetDeliveryOptions returned no containers")
+	for _, tr := range resp.GetTracks() {
+		if !wantTracks[tr.GetTrackId()] {
+			t.Errorf("unexpected track id %q", tr.GetTrackId())
+		}
 	}
 
-	// GetDeliveryOptions: empty entry_id is rejected
-	_, err = srv.GetDeliveryOptions(ctx, &apiv1.GetDeliveryOptionsRequest{EntryId: ""})
+	// Sinks must include the device sink
+	if len(resp.GetSinks()) == 0 {
+		t.Fatal("no sinks returned")
+	}
+	if resp.GetSinks()[0].GetSinkId() != "device" {
+		t.Errorf("sink id = %q, want device", resp.GetSinks()[0].GetSinkId())
+	}
+
+	// Containers must be non-empty
+	if len(resp.GetContainers()) == 0 {
+		t.Fatal("no containers returned")
+	}
+}
+
+// TestGetDeliveryOptionsEmptyEntryID proves an empty entry_id is rejected
+// with InvalidArgument (schema validation).
+func TestGetDeliveryOptionsEmptyEntryID(t *testing.T) {
+	eng := delivery.New(delivery.Options{SessionTTL: time.Hour, InstancePolicy: policy.Set{"concurrentStreams": "3"}})
+	defer eng.Close()
+	srv := buildDeliveryTestServer(eng, &corev1.LibraryEntry{Id: "le-test1", Kind: corev1.EntryKind_ENTRY_KIND_MOVIE})
+
+	ctx := apiserver.WithUserID(context.Background(), "u1")
+	_, err := srv.GetDeliveryOptions(ctx, &apiv1.GetDeliveryOptionsRequest{EntryId: ""})
 	if status.Code(err) != codes.InvalidArgument {
-		t.Fatalf("GetDeliveryOptions empty entry_id: got code=%v, want InvalidArgument", status.Code(err))
+		t.Fatalf("empty entry_id: got code=%v, want InvalidArgument", status.Code(err))
+	}
+}
+
+// TestGetDeliveryOptionsUnknownEntryDoesNotPanic proves that an unknown
+// entry_id does not panic the API handler — the stub resolvingDelivery
+// resolves directly via the engine, so it returns tracks regardless.
+func TestGetDeliveryOptionsUnknownEntryDoesNotPanic(t *testing.T) {
+	eng := delivery.New(delivery.Options{
+		SessionTTL:     time.Hour,
+		InstancePolicy: policy.Set{"concurrentStreams": "3"},
+		SourceResolver: &fakeResolver{perTrackSource("http://dummy")},
+	})
+	defer eng.Close()
+	srv := buildDeliveryTestServer(eng, &corev1.LibraryEntry{Id: "le-test1", Kind: corev1.EntryKind_ENTRY_KIND_MOVIE})
+
+	ctx := apiserver.WithUserID(context.Background(), "u1")
+	resp, err := srv.GetDeliveryOptions(ctx, &apiv1.GetDeliveryOptionsRequest{EntryId: "le-unknown"})
+	if err != nil {
+		t.Fatalf("unknown entry_id: %v", err)
+	}
+	if len(resp.GetTracks()) == 0 {
+		t.Fatal("expected tracks from the stub resolver, got none")
+	}
+}
+
+// TestListJobsReturnsCallerJobs proves ListJobs returns only the caller's
+// jobs, excluding other users' jobs.
+func TestListJobsReturnsCallerJobs(t *testing.T) {
+	eng := delivery.New(delivery.Options{SessionTTL: time.Hour, InstancePolicy: policy.Set{"concurrentStreams": "3"}})
+	defer eng.Close()
+
+	// Seed the jobs store with two jobs: one for u1, one for u2
+	jobs := store.NewInMemory()
+	for _, j := range []*corev1.Job{
+		{Id: "del-u1", Kind: corev1.JobKind_JOB_KIND_DELIVERY, Status: corev1.JobStatus_JOB_STATUS_DONE, OwnerUserId: "u1"},
+		{Id: "del-u2", Kind: corev1.JobKind_JOB_KIND_DELIVERY, Status: corev1.JobStatus_JOB_STATUS_DONE, OwnerUserId: "u2"},
+	} {
+		val, err := proto.Marshal(j)
+		if err != nil {
+			t.Fatalf("marshal job: %v", err)
+		}
+		if err := jobs.Put(context.Background(), "job:"+j.GetId(), val); err != nil {
+			t.Fatalf("put job: %v", err)
+		}
 	}
 
-	// ListJobs: returns the caller's jobs
-	jobsResp, err := srv.ListJobs(ctx, &apiv1.ListJobsRequest{})
+	bus := apiserver.NewInMemoryBus()
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: config.Stores{Jobs: jobs}})
+	srv.SetDelivery(resolvingDelivery{eng: eng, jobs: jobs})
+	srv.SetLibrary(coverageLibrary{entry: &corev1.LibraryEntry{Id: "le-test1", Kind: corev1.EntryKind_ENTRY_KIND_MOVIE}})
+
+	ctx := apiserver.WithUserID(context.Background(), "u1")
+	resp, err := srv.ListJobs(ctx, &apiv1.ListJobsRequest{})
 	if err != nil {
 		t.Fatalf("ListJobs: %v", err)
 	}
-	if len(jobsResp.GetJobs()) == 0 {
-		t.Fatal("ListJobs returned no jobs")
+	if len(resp.GetJobs()) != 1 {
+		t.Fatalf("jobs count = %d, want 1 (only u1's job)", len(resp.GetJobs()))
 	}
-	if jobsResp.GetJobs()[0].GetOwnerUserId() != "u1" {
-		t.Fatalf("ListJobs job owner = %q, want u1", jobsResp.GetJobs()[0].GetOwnerUserId())
+	if resp.GetJobs()[0].GetOwnerUserId() != "u1" {
+		t.Errorf("job owner = %q, want u1", resp.GetJobs()[0].GetOwnerUserId())
+	}
+	if resp.GetJobs()[0].GetId() != "del-u1" {
+		t.Errorf("job id = %q, want del-u1", resp.GetJobs()[0].GetId())
+	}
+}
+
+// TestListJobsEmpty proves ListJobs returns an empty list when the caller has
+// no jobs.
+func TestListJobsEmpty(t *testing.T) {
+	eng := delivery.New(delivery.Options{SessionTTL: time.Hour, InstancePolicy: policy.Set{"concurrentStreams": "3"}})
+	defer eng.Close()
+	srv := buildDeliveryTestServer(eng, &corev1.LibraryEntry{Id: "le-test1", Kind: corev1.EntryKind_ENTRY_KIND_MOVIE})
+
+	ctx := apiserver.WithUserID(context.Background(), "u1")
+	resp, err := srv.ListJobs(ctx, &apiv1.ListJobsRequest{})
+	if err != nil {
+		t.Fatalf("ListJobs: %v", err)
+	}
+	if len(resp.GetJobs()) != 0 {
+		t.Fatalf("jobs count = %d, want 0", len(resp.GetJobs()))
+	}
+	if resp.GetNextPageToken() != "" {
+		t.Errorf("next_page_token = %q, want empty", resp.GetNextPageToken())
 	}
 }

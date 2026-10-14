@@ -43,7 +43,7 @@ func (s *stubDelivery) PlayMenu(string) (*apiserver.PlayMenu, error) {
 }
 func (s *stubDelivery) RevokeAllOnAccount(string) int { return 0 }
 
-func (s *stubDelivery) GetDeliveryOptions(string) (*apiv1.GetDeliveryOptionsResponse, error) {
+func (s *stubDelivery) GetDeliveryOptions(string, string) (*apiv1.GetDeliveryOptionsResponse, error) {
 	return &apiv1.GetDeliveryOptionsResponse{}, nil
 }
 

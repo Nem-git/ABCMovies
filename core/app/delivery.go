@@ -67,7 +67,7 @@ func (m managedDelivery) Cancel(jobID string) (*delivery.Session, error) {
 // a title without starting a session (PLAN.md §6.3, §6.4). The composition
 // root resolves the entry through the library seam, then uses the engine's
 // resolver to produce the manifest options.
-func (m managedDelivery) GetDeliveryOptions(entryID string) (*apiv1.GetDeliveryOptionsResponse, error) {
+func (m managedDelivery) GetDeliveryOptions(entryID, userID string) (*apiv1.GetDeliveryOptionsResponse, error) {
 	entries, err := m.library.Library(context.Background(), "")
 	if err != nil {
 		return nil, fmt.Errorf("library: %w", err)
@@ -111,7 +111,14 @@ func (m managedDelivery) GetDeliveryOptions(entryID string) (*apiv1.GetDeliveryO
 		}
 		provider := key[:sep]
 		nativeId := key[sep+1:]
-		src, err := m.eng.ResolveManifest(context.Background(), provider, "", nativeId)
+		accountID := ""
+		for _, r := range m.library.ReachesForUser(userID) {
+			if r.Provider == provider {
+				accountID = r.AccountID
+				break
+			}
+		}
+		src, err := m.eng.ResolveManifest(context.Background(), provider, accountID, nativeId)
 		if err != nil {
 			continue
 		}

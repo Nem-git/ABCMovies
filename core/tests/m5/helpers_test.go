@@ -484,7 +484,7 @@ func (m m5Delivery) Cancel(jobID string) (*delivery.Session, error) {
 	return m.eng.Cancel(jobID)
 }
 
-func (m m5Delivery) GetDeliveryOptions(string) (*apiv1.GetDeliveryOptionsResponse, error) {
+func (m m5Delivery) GetDeliveryOptions(string, string) (*apiv1.GetDeliveryOptionsResponse, error) {
 	return &apiv1.GetDeliveryOptionsResponse{}, nil
 }
 

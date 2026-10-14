@@ -396,3 +396,97 @@ func recvEvent(ctx context.Context, t *testing.T, stream *connect.ServerStreamFo
 		return nil
 	}
 }
+
+// TestWebBrowser_DownloadFlow drives the download path the way the browser
+// page does — over gRPC-Web against a fake Jellyfin: browse the library,
+// request delivery options for an entry, start a download delivery, and read
+// the job back through ListJobs. This proves the new RPCs work end-to-end
+// through the serving layer, not just that the proto compiles.
+func TestWebBrowser_DownloadFlow(t *testing.T) {
+	fake := startFakeJellyfin(t)
+	configPath := writeJellyfinConfig(t, fake.URL())
+	_, client, ts := newWebStackConfig(t, configPath)
+	ctx := t.Context()
+	baseURL := ts.URL
+
+	token := signUpAndLogin(t, ctx, client)
+	authed := authedClient(baseURL, token)
+	createOperatorSlots(t, ctx, authed, fake.URL())
+
+	// Browse the library and find the gondwana entry (same fixture item the
+	// play flow test uses).
+	lib := browse(t, ctx, authed, "")
+	if got := len(lib.GetItems()); got != 3 {
+		t.Fatalf("browse library: got %d items, want 3", got)
+	}
+	gondwana := findItem(t, lib.GetItems(), func(i *apiv1.LibraryItem) bool {
+		return i.GetEntry().GetCoverage()["jf:movie-gondwana"] != nil
+	})
+	if gondwana == nil {
+		t.Fatalf("gondwana item missing; coverage keys: %v", coverageKeys(lib))
+	}
+	entryID := gondwana.GetEntry().GetId()
+
+	// GetDeliveryOptions: the dialog's data source — tracks, sinks, containers.
+	optsResp, err := authed.GetDeliveryOptions(ctx, connect.NewRequest(&apiv1.GetDeliveryOptionsRequest{
+		EntryId: entryID,
+	}))
+	if err != nil {
+		t.Fatalf("GetDeliveryOptions over gRPC-Web: %v", err)
+	}
+	if len(optsResp.Msg.GetTracks()) == 0 {
+		t.Fatal("GetDeliveryOptions returned no tracks")
+	}
+	if len(optsResp.Msg.GetSinks()) == 0 {
+		t.Fatal("GetDeliveryOptions returned no sinks")
+	}
+	if len(optsResp.Msg.GetContainers()) == 0 {
+		t.Fatal("GetDeliveryOptions returned no containers")
+	}
+
+	// StartDelivery with the download goal: the engine queues it (PLAN.md §6.5).
+	startRes, err := authed.StartDelivery(ctx, connect.NewRequest(&apiv1.StartDeliveryRequest{
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_DOWNLOAD,
+		Provider:  "jf",
+		AccountId: "jf-op",
+		NativeId:  "movie-gondwana",
+		Sink:      "relay",
+	}))
+	if err != nil {
+		t.Fatalf("StartDelivery download over gRPC-Web: %v", err)
+	}
+	jobID := startRes.Msg.GetJob().GetId()
+	if jobID == "" {
+		t.Fatal("StartDelivery returned an empty job id")
+	}
+
+	// ListJobs: the downloads panel's data source — must include the job.
+	jobsResp, err := authed.ListJobs(ctx, connect.NewRequest(&apiv1.ListJobsRequest{}))
+	if err != nil {
+		t.Fatalf("ListJobs over gRPC-Web: %v", err)
+	}
+	var found *corev1.Job
+	for _, j := range jobsResp.Msg.GetJobs() {
+		if j.GetId() == jobID {
+			found = j
+		}
+	}
+	if found == nil {
+		t.Fatalf("ListJobs did not include the download job %s", jobID)
+	}
+	if found.GetKind() != corev1.JobKind_JOB_KIND_DELIVERY {
+		t.Errorf("job kind = %v, want DELIVERY", found.GetKind())
+	}
+	if found.GetOwnerUserId() != "user:alice" {
+		t.Errorf("job owner = %q, want user:alice", found.GetOwnerUserId())
+	}
+
+	// GetJob: the job is queryable by id (the system of record).
+	getRes, err := authed.GetJob(ctx, connect.NewRequest(&apiv1.GetJobRequest{JobId: jobID}))
+	if err != nil {
+		t.Fatalf("GetJob over gRPC-Web: %v", err)
+	}
+	if getRes.Msg.GetJob().GetId() != jobID {
+		t.Errorf("GetJob id = %q, want %q", getRes.Msg.GetJob().GetId(), jobID)
+	}
+}

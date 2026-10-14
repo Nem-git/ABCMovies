@@ -42,6 +42,10 @@ import (
 type Reach struct {
 	Sync      *sourcecache.Synchronizer
 	AccountID string
+	// Provider is the slot/provider this account belongs to (e.g. "jellyfin").
+	// Needed by the composition root to map provider → accountID when resolving
+	// delivery options.
+	Provider string
 	// Owner is the host user who linked the account. Empty means the account
 	// is operator-declared (host-provided) and usable only through a public
 	// (or shared) visibility.
