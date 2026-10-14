@@ -1,0 +1,10 @@
+{
+  "name": "get-delivery-options-valid",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {
+    "entryId": "le_01HZX3K5Y7X5Z8V9N4C3W1M8Q"
+  },
+  "type": "GetDeliveryOptionsRequest"
+}

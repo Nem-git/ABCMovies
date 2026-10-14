@@ -864,6 +864,32 @@ func validateAPIMessage(msgType string, msg json.RawMessage) (bool, error) {
 		}
 		err := schema.ValidateListSlotsResponse(&m)
 		return err == nil, err
+	case "GetDeliveryOptionsRequest":
+		var m apiv1.GetDeliveryOptionsRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateGetDeliveryOptionsRequest(&m)
+		return err == nil, err
+	case "GetDeliveryOptionsResponse":
+		var m apiv1.GetDeliveryOptionsResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		return true, nil
+	case "ListJobsRequest":
+		var m apiv1.ListJobsRequest
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		err := schema.ValidateListJobsRequest(&m)
+		return err == nil, err
+	case "ListJobsResponse":
+		var m apiv1.ListJobsResponse
+		if err := protojson.Unmarshal(msg, &m); err != nil {
+			return false, err
+		}
+		return true, nil
 	default:
 		return false, fmt.Errorf("unknown API message type %q", msgType)
 	}

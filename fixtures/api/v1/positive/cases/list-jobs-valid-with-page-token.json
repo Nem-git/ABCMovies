@@ -1,0 +1,10 @@
+{
+  "name": "list-jobs-valid-with-page-token",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": true },
+  "message": {
+    "pageToken": "job:del-50"
+  },
+  "type": "ListJobsRequest"
+}

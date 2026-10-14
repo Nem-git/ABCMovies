@@ -1,0 +1,10 @@
+{
+  "name": "get-delivery-options-empty-entry-id",
+  "request": "",
+  "declaration": [],
+  "expected": { "valid": false },
+  "message": {
+    "entryId": ""
+  },
+  "type": "GetDeliveryOptionsRequest"
+}

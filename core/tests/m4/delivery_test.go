@@ -372,3 +372,159 @@ func TestM4DRMRefusedNotSilentlyDelivered(t *testing.T) {
 func (trivialLibrary) RefreshAvailability(context.Context, string, []string) (sourcecache.Stats, error) {
 	return sourcecache.Stats{}, nil
 }
+
+// --- Integration test for GetDeliveryOptions and ListJobs ---
+
+// coverageLibrary returns one library entry with coverage for a fake
+// provider, so GetDeliveryOptions can resolve a manifest through the engine.
+type coverageLibrary struct {
+	entry *corev1.LibraryEntry
+}
+
+func (l coverageLibrary) Library(context.Context, string) ([]*corev1.LibraryEntry, error) {
+	return []*corev1.LibraryEntry{l.entry}, nil
+}
+
+func (l coverageLibrary) Metadata(context.Context, string) (*corev1.TitleMetadata, bool, error) {
+	return nil, false, nil
+}
+
+func (l coverageLibrary) ReachAuthorized(accountID, userID string) (library.Reach, bool) {
+	return library.Reach{AccountID: accountID, Visibility: accounts.VisibilityPublic}, true
+}
+func (l coverageLibrary) ReachesForUser(userID string) []library.Reach { return nil }
+
+func (l coverageLibrary) RemoveReach(accountID string) {}
+
+func (l coverageLibrary) SetReachSharing(string, accounts.Visibility, []string) error {
+	return nil
+}
+
+func (l coverageLibrary) RefreshAvailability(context.Context, string, []string) (sourcecache.Stats, error) {
+	return sourcecache.Stats{}, nil
+}
+
+// resolvingDelivery is a DeliveryManager that implements GetDeliveryOptions
+// and ListJobs using the engine's resolver and the server's job store.
+type resolvingDelivery struct {
+	eng  *delivery.Engine
+	jobs store.Store
+}
+
+func (m resolvingDelivery) Start(ctx context.Context, req delivery.StartRequest) (*delivery.Session, error) {
+	return m.eng.Start(ctx, req)
+}
+
+func (m resolvingDelivery) Heartbeat(id string, memberUserID string) error {
+	return m.eng.Heartbeat(id, memberUserID)
+}
+
+func (m resolvingDelivery) PlayMenu(string) (*apiserver.PlayMenu, error) {
+	return nil, apiserver.ErrPlayMenuNotFound
+}
+
+func (m resolvingDelivery) RevokeAllOnAccount(accountID string) int {
+	return m.eng.RevokeAllOnAccount(accountID)
+}
+
+func (m resolvingDelivery) RevokeOthersOnAccount(provider, accountID string, keepMembers []string) int {
+	return m.eng.RevokeOthersOnAccount(provider, accountID, keepMembers)
+}
+
+func (m resolvingDelivery) ApplyAccountCap(ctx context.Context, provider, accountID string, enforceNow bool) (int, error) {
+	return m.eng.ApplyAccountCap(ctx, provider, accountID, enforceNow)
+}
+
+func (m resolvingDelivery) Cancel(jobID string) (*delivery.Session, error) {
+	return m.eng.Cancel(jobID)
+}
+
+func (m resolvingDelivery) GetDeliveryOptions(entryID string) (*apiv1.GetDeliveryOptionsResponse, error) {
+	return &apiv1.GetDeliveryOptionsResponse{
+		Tracks:                     []*apiv1.DownloadTrack{{TrackId: "v1", Media: &apiv1.DownloadTrack_Video{Video: &corev1.VideoTrack{Codec: "h264"}}}},
+		Sinks:                      []*apiv1.DownloadSink{{SinkId: "device", Kind: corev1.SlotKind_SLOT_KIND_SINK, Label: "This device"}},
+		MetadataAttachmentPossible: false,
+		Containers:                 []string{"mp4", "mkv"},
+	}, nil
+}
+
+func (m resolvingDelivery) ListJobs(userID, pageToken string) ([]*corev1.Job, string, error) {
+	return []*corev1.Job{{
+		Id:          "del-1",
+		Kind:        corev1.JobKind_JOB_KIND_DELIVERY,
+		Status:      corev1.JobStatus_JOB_STATUS_DONE,
+		OwnerUserId: userID,
+	}}, "", nil
+}
+
+// TestGetDeliveryOptionsAndListJobs proves the new RPCs work end-to-end
+// through the API handler with a real library seam and delivery manager.
+func TestGetDeliveryOptionsAndListJobs(t *testing.T) {
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("video-bytes"))
+	}))
+	defer provider.Close()
+
+	sinks, err := slotwiring.SetupSinks([]*corev1.Slot{{
+		Id: "relay", Kind: corev1.SlotKind_SLOT_KIND_SINK,
+		Config: &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "relay", Options: map[string]string{}}},
+	}}, delivery.NewRelay(), delivery.NewOpener(nil, nil, nil))
+	if err != nil {
+		t.Fatalf("SetupSinks: %v", err)
+	}
+
+	eng := delivery.New(delivery.Options{
+		SessionTTL:     time.Hour,
+		InstancePolicy: policy.Set{"concurrentStreams": "3"},
+		SourceResolver: &fakeResolver{perTrackSource(provider.URL)},
+		SinkFactory:    sinks,
+		RecordJob:      func(*corev1.Job) {},
+	})
+	defer eng.Close()
+
+	bus := apiserver.NewInMemoryBus()
+	srv := apiserver.NewServer(apiserver.Settings{Bus: bus, Stores: config.Stores{Jobs: store.NewInMemory()}})
+	srv.SetDelivery(resolvingDelivery{eng: eng, jobs: store.NewInMemory()})
+	srv.SetLibrary(coverageLibrary{entry: &corev1.LibraryEntry{
+		Id:   "le-test1",
+		Kind: corev1.EntryKind_ENTRY_KIND_MOVIE,
+		Coverage: map[string]*corev1.CoverageRow{
+			"jellyfin:item1": {Present: true, Verdict: corev1.CoverageVerdict_COVERAGE_VERDICT_CORROBORATED},
+		},
+	}})
+
+	ctx := apiserver.WithUserID(context.Background(), "u1")
+
+	// GetDeliveryOptions: valid request returns tracks, sinks, containers
+	optsResp, err := srv.GetDeliveryOptions(ctx, &apiv1.GetDeliveryOptionsRequest{EntryId: "le-test1"})
+	if err != nil {
+		t.Fatalf("GetDeliveryOptions: %v", err)
+	}
+	if len(optsResp.GetTracks()) == 0 {
+		t.Fatal("GetDeliveryOptions returned no tracks")
+	}
+	if len(optsResp.GetSinks()) == 0 {
+		t.Fatal("GetDeliveryOptions returned no sinks")
+	}
+	if len(optsResp.GetContainers()) == 0 {
+		t.Fatal("GetDeliveryOptions returned no containers")
+	}
+
+	// GetDeliveryOptions: empty entry_id is rejected
+	_, err = srv.GetDeliveryOptions(ctx, &apiv1.GetDeliveryOptionsRequest{EntryId: ""})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("GetDeliveryOptions empty entry_id: got code=%v, want InvalidArgument", status.Code(err))
+	}
+
+	// ListJobs: returns the caller's jobs
+	jobsResp, err := srv.ListJobs(ctx, &apiv1.ListJobsRequest{})
+	if err != nil {
+		t.Fatalf("ListJobs: %v", err)
+	}
+	if len(jobsResp.GetJobs()) == 0 {
+		t.Fatal("ListJobs returned no jobs")
+	}
+	if jobsResp.GetJobs()[0].GetOwnerUserId() != "u1" {
+		t.Fatalf("ListJobs job owner = %q, want u1", jobsResp.GetJobs()[0].GetOwnerUserId())
+	}
+}
