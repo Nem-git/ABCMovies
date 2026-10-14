@@ -96,7 +96,7 @@ func (e *Engine) promoteNextLocked(ctx context.Context, memberUserID string) {
 	// Use the queued id as the session id so the job id is stable from
 	// queue to completion (PLAN.md §9.1).
 	qr.req.sessionID = qr.id
-	sess, err := e.start(ctx, qr.req)
+	_, err := e.start(ctx, qr.req)
 	if err != nil {
 		var qerr *ErrQueued
 		if errors.As(err, &qerr) {
@@ -114,11 +114,8 @@ func (e *Engine) promoteNextLocked(ctx context.Context, memberUserID string) {
 		return
 	}
 
-	// A promoted download begins pushing its bytes now that it holds a
-	// seat — never before (PLAN.md §6.5: a queued download waits).
-	if sess.Goal == GoalDownload && sess.Sink != nil {
-		go e.DeliverDownload(context.Background(), sess)
-	}
+	// A promoted download begins pushing its bytes now via the start()
+	// method's trigger — never before (PLAN.md §6.5: a queued download waits).
 }
 
 // Cancel removes a queued download or ends a running one (PLAN.md §6.5).

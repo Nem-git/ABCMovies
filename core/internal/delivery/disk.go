@@ -30,6 +30,11 @@ type DiskSink struct {
 
 var _ Sink = (*DiskSink)(nil)
 
+// Pushes reports that the engine drives byte delivery to a disk sink: it
+// fetches each track's bytes and writes them, so a disk download is
+// self-driving (PLAN.md §3.6).
+func (d *DiskSink) Pushes() bool { return true }
+
 // DiskFactory builds a DiskSink for every delivery session, rooted at root.
 type DiskFactory struct {
 	Root string

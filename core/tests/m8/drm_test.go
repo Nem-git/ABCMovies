@@ -96,6 +96,7 @@ func (f *fakeCache) DropKeys(_ context.Context, provider, contentID string, syst
 type recordingSink struct {
 	delivered []string
 	finalized bool
+	pushes    bool
 }
 
 func (r *recordingSink) Deliver(_ context.Context, _ *delivery.Session, track *corev1.Track, body io.Reader) (int64, error) {
@@ -105,6 +106,8 @@ func (r *recordingSink) Deliver(_ context.Context, _ *delivery.Session, track *c
 	}
 	return 0, nil
 }
+
+func (r *recordingSink) Pushes() bool { return r.pushes }
 
 func (r *recordingSink) Finalize(_ context.Context, _ *delivery.Session) error {
 	r.finalized = true
@@ -399,9 +402,6 @@ func TestM8EngineWithOpenerAndDownload(t *testing.T) {
 	if s.Status != delivery.StatusRunning {
 		t.Fatalf("status = %s, want running", s.Status)
 	}
-
-	// The download push path is triggered explicitly (not auto-started).
-	e.DeliverDownload(context.Background(), s)
 }
 
 // TestM8OpenerFetchServesRangeRequests verifies that the opener's Fetch
@@ -489,7 +489,7 @@ func TestM8EngineDownloadPushEndToEnd(t *testing.T) {
 	}
 	cache := newFakeCache()
 	opener := delivery.NewOpener(drm, cache, nil)
-	sink := &recordingSink{}
+	sink := &recordingSink{pushes: true}
 
 	e := delivery.New(delivery.Options{
 		SessionTTL:      time.Hour,
@@ -517,10 +517,8 @@ func TestM8EngineDownloadPushEndToEnd(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 
-	// The download push path is triggered explicitly (not auto-started).
-	go e.DeliverDownload(context.Background(), s)
-
-	// The download push runs in a background goroutine. Poll for completion.
+	// The download push path is triggered automatically by Start.
+	// Poll for completion.
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		status := s.Job().GetStatus()

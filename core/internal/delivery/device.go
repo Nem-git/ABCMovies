@@ -27,6 +27,11 @@ type DeviceSink struct {
 
 var _ Sink = (*DeviceSink)(nil)
 
+// Pushes reports that the engine does not drive byte delivery to a device
+// sink: it stages a relay ticket the far side pulls through, so a device
+// download is not self-driving (PLAN.md §3.6).
+func (d *DeviceSink) Pushes() bool { return false }
+
 // DeviceSinkFactory builds a DeviceSink per play session over a relay.
 type DeviceSinkFactory struct {
 	// Relay issues the granted tickets. Required.

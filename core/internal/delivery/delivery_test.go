@@ -69,12 +69,18 @@ type recordingSink struct {
 	finalized   bool
 	aborted     bool
 	finalizeErr error
+	// pushes declares the sink's mode (PLAN.md §3.6). Engine unit tests drive
+	// downloads themselves through Complete, so their test sink is a pull
+	// sink by default; a push-mode test sets pushes true.
+	pushes bool
 }
 
 func (r *recordingSink) Deliver(ctx context.Context, s *Session, track *corev1.Track, body io.Reader) (int64, error) {
 	r.delivered = append(r.delivered, track.GetId())
 	return 0, nil
 }
+
+func (r *recordingSink) Pushes() bool { return r.pushes }
 
 func (r *recordingSink) Finalize(ctx context.Context, s *Session) error {
 	r.finalized = true

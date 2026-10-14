@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -73,7 +74,7 @@ func TestEngineFlowDRMPush(t *testing.T) {
 	defer encSrv.Close()
 
 	src := drmWholeMuxSource(encSrv.URL)
-	sink := &recordingSink{}
+	sink := &recordingSink{pushes: true}
 	e, _ := newEngineWithDRM(t, src, &singletonSinkFactory{sink: sink})
 
 	s, err := e.Start(context.Background(), delivery.StartRequest{
@@ -89,9 +90,7 @@ func TestEngineFlowDRMPush(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 
-	// Trigger the download push.
-	go e.DeliverDownload(context.Background(), s)
-
+	// The download push is triggered automatically by Start.
 	// Poll for completion.
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
@@ -107,6 +106,76 @@ func TestEngineFlowDRMPush(t *testing.T) {
 
 	if len(sink.delivered) != 1 || sink.delivered[0] != "c1" {
 		t.Fatalf("delivered = %v, want [c1]", sink.delivered)
+	}
+}
+
+// TestEngineFlowDirectDownloadDisk tests the full engine flow for a direct
+// download start with the real DiskSink. It always runs: uses a mock DRM
+// client, a local HTTP server for the encrypted source, and a real DiskSink
+// writing to a temp directory. It verifies that DeliverDownload is triggered
+// automatically (no manual call) and the file lands on disk.
+func TestEngineFlowDirectDownloadDisk(t *testing.T) {
+	encSrv := encServer()
+	defer encSrv.Close()
+
+	src := drmWholeMuxSource(encSrv.URL)
+	tmpDir := t.TempDir()
+	diskFac, err := delivery.NewDiskFactory(tmpDir)
+	if err != nil {
+		t.Fatalf("NewDiskFactory: %v", err)
+	}
+
+	e, _ := newEngineWithDRM(t, src, diskFac)
+
+	s, err := e.Start(context.Background(), delivery.StartRequest{
+		Goal:         delivery.GoalDownload,
+		MemberUserID: "u",
+		Provider:     "jellyfin",
+		AccountID:    "a",
+		NativeID:     "item-1",
+		Sink:         "disk",
+		Container:    "mkv",
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	// Poll the job status — DeliverDownload should be triggered automatically
+	// by Start, no manual call needed. The .part file exists before delivery
+	// completes, so file count is not a completion signal.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		job := s.Job()
+		if job.GetStatus() == corev1.JobStatus_JOB_STATUS_DONE {
+			break
+		}
+		if job.GetStatus() == corev1.JobStatus_JOB_STATUS_FAILED {
+			t.Fatalf("download failed: %s", job.GetError())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	if s.Job().GetStatus() != corev1.JobStatus_JOB_STATUS_DONE {
+		t.Fatalf("download did not complete: status=%s", s.Job().GetStatus())
+	}
+
+	// After finalize, exactly one file with no .part suffix should remain.
+	entries, _ := os.ReadDir(tmpDir)
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 file on disk, got %d", len(entries))
+	}
+	name := entries[0].Name()
+	if strings.HasSuffix(name, ".part") {
+		t.Fatalf("file was not finalized: %s", name)
+	}
+
+	// The mock DRM client prefixes clear bytes with "clear-".
+	data, err := os.ReadFile(tmpDir + "/" + name)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if string(data) != "clear-encrypted-bytes" {
+		t.Errorf("content = %q, want clear-encrypted-bytes", data)
 	}
 }
 

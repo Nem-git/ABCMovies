@@ -174,12 +174,22 @@ func IsNoSession(err error) bool {
 // Sink is the byte destination for one delivery session (PLAN.md §6.4). One
 // session drives exactly one sink.
 type Sink interface {
-	// Deliver pushes one track's bytes to the sink.
+	// Deliver pushes one track's bytes to the sink. For a push sink the body
+	// carries the track's clear bytes; a pull sink stages a relay ticket
+	// instead and ignores the body.
 	Deliver(ctx context.Context, s *Session, track *corev1.Track, body io.Reader) (int64, error)
 	// Finalize completes the session's deliverable.
 	Finalize(ctx context.Context, s *Session) error
 	// Abort discards the session's partial deliverable.
 	Abort(ctx context.Context, s *Session)
+	// Pushes reports whether the engine drives byte delivery to this sink
+	// (PLAN.md §3.6). A push sink (the instance-local disk) has the engine
+	// fetch each track's bytes and write them, so a download to it is
+	// self-driving and completes when the engine finishes. A pull sink (the
+	// device relay) stages a capability the far side pulls through; the
+	// engine must not push to it nor complete its session on its own — the
+	// puller signals completion.
+	Pushes() bool
 }
 
 // SinkFactory resolves a sink by session context (PLAN.md §6.4: sinks are
@@ -610,10 +620,19 @@ func (e *Engine) start(ctx context.Context, req StartRequest) (*Session, error) 
 		e.menuReady(sess)
 	}
 
-	// A download is delivered when the engine's delivery loop picks it up. The
-	// push path is triggered by the caller (the frontend or the engine's own
-	// scheduling), not automatically at start — a queued download must not
-	// begin pushing bytes until it is promoted and the caller is ready.
+	// A push-sink download starts pushing here, whether it is a direct start
+	// (seat available) or a promotion from the queue: the engine owns the
+	// push trigger — no external caller (frontend or API server) drives it.
+	// A queued download does not reach this path until promoteNextLocked
+	// promotes it, so there is no double-trigger. A pull sink (the device
+	// relay) is not self-driving: its bytes are pulled through a relay ticket
+	// and its completion is signalled by the puller (PLAN.md §3.6, §6.4), so
+	// the engine never pushes to it.
+	if req.Goal == GoalDownload && sess.Sink != nil && sess.Sink.Pushes() {
+		// The download outlives the start RPC: bound it to the engine's own
+		// lifetime, not the caller's request context.
+		go e.DeliverDownload(context.Background(), sess)
+	}
 
 	e.recordJob(sess.toJob())
 	return sess, nil
