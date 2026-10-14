@@ -67,6 +67,9 @@ test-unit: web-build
 test-frontend:
 	cd frontends/web && $(NPM) test
 
+test-e2e:
+	cd frontends/web && $(NPM) run test:e2e
+
 vuln: web-build
 	$(GO) tool govulncheck ./core/... ./adapters/... ./frontends/web/...
 
@@ -108,7 +111,7 @@ fixtures: proto web-build
 	$(GO) build -o $(GOBIN)/fixture-runner ./core/cmd/fixture-runner
 	$(GOBIN)/fixture-runner fixtures
 
-check: deps proto lint tidy-check milestone build test-unit test-frontend fixtures vuln
+check: deps proto lint tidy-check milestone build test-unit test-frontend test-e2e fixtures vuln
 
 run:
 	$(GO) run ./core/cmd/abcmovies
