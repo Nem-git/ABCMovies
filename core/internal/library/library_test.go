@@ -231,11 +231,11 @@ func TestInvalidateAccountTargetsOnlyAffectedUsers(t *testing.T) {
 	if err := svc.InvalidateAccount("jellyfin", "acct-bob"); err != nil {
 		t.Fatalf("invalidate: %v", err)
 	}
-	keys, err := cache.List(ctx, userPrefix)
+	keys, err := cache.List(ctx, UserPrefix)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if len(keys) != 1 || keys[0] != "lib/u/alice" {
+	if len(keys) != 1 || keys[0] != UserPrefix+"alice" {
 		t.Fatalf("remaining cached users = %v, want exactly alice's", keys)
 	}
 
@@ -243,7 +243,7 @@ func TestInvalidateAccountTargetsOnlyAffectedUsers(t *testing.T) {
 	if err := svc.InvalidateAccount("jellyfin", "acct-alice"); err != nil {
 		t.Fatalf("invalidate: %v", err)
 	}
-	keys, err = cache.List(ctx, userPrefix)
+	keys, err = cache.List(ctx, UserPrefix)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -518,7 +518,7 @@ func TestSetReachSharingSweepsUnionOfAudiences(t *testing.T) {
 	ctx := context.Background()
 	cache := store.NewInMemory()
 	for _, u := range []string{"alice", "bob", "carol", "dave"} {
-		if err := cache.Put(ctx, userPrefix+u, []byte(`[]`)); err != nil {
+		if err := cache.Put(ctx, UserPrefix+u, []byte(`[]`)); err != nil {
 			t.Fatalf("seed cache: %v", err)
 		}
 	}
@@ -538,11 +538,11 @@ func TestSetReachSharingSweepsUnionOfAudiences(t *testing.T) {
 		t.Fatalf("SetReachSharing: %v", err)
 	}
 	for _, u := range []string{"alice", "bob", "carol"} {
-		if _, err := cache.Get(ctx, userPrefix+u); err == nil {
+		if _, err := cache.Get(ctx, UserPrefix+u); err == nil {
 			t.Errorf("cached library for %q survived a sharing narrowing", u)
 		}
 	}
-	if _, err := cache.Get(ctx, userPrefix+"dave"); err != nil {
+	if _, err := cache.Get(ctx, UserPrefix+"dave"); err != nil {
 		t.Errorf("dave's unrelated cache was swept: %v", err)
 	}
 	r, ok := svc.reaches["acct-1"]
@@ -553,19 +553,19 @@ func TestSetReachSharingSweepsUnionOfAudiences(t *testing.T) {
 	// Widening back to shared with bob must invalidate the same cache rows
 	// from the other side: alice's audience grows, bob regains access, and
 	// dave is still untouched.
-	if err := cache.Put(ctx, userPrefix+"alice", []byte(`[]`)); err != nil {
+	if err := cache.Put(ctx, UserPrefix+"alice", []byte(`[]`)); err != nil {
 		t.Fatalf("re-seed alice: %v", err)
 	}
 	if err := svc.SetReachSharing("acct-1", accounts.VisibilityShared, []string{"bob"}); err != nil {
 		t.Fatalf("SetReachSharing widen: %v", err)
 	}
-	if _, err := cache.Get(ctx, userPrefix+"alice"); err == nil {
+	if _, err := cache.Get(ctx, UserPrefix+"alice"); err == nil {
 		t.Error("alice's cache survived a sharing widening")
 	}
-	if _, err := cache.Get(ctx, userPrefix+"bob"); err == nil {
+	if _, err := cache.Get(ctx, UserPrefix+"bob"); err == nil {
 		t.Error("bob's stale cache survived a sharing widening")
 	}
-	if _, err := cache.Get(ctx, userPrefix+"dave"); err != nil {
+	if _, err := cache.Get(ctx, UserPrefix+"dave"); err != nil {
 		t.Errorf("dave's unrelated cache was swept: %v", err)
 	}
 	if _, ok := svc.ReachAuthorized("acct-1", "carol"); ok {

@@ -345,7 +345,7 @@ func SetupCatalogues(slots []*corev1.Slot, deps Deps) ([]enrichment.Catalogue, e
 // worker constant was the only politeness brake in the system.
 func cataloguePace(slot *corev1.Slot, reg *registry.InProcessRegistry) (time.Duration, error) {
 	declared, _ := reg.Policy(slot.GetId()) // nil when the adapter declared none
-	return DeclaredPace("", declared, cataloguePaceKey, defaultCataloguePace)
+	return DeclaredPace("", declared, cataloguePaceKey, DefaultCataloguePace)
 }
 
 // RouteLinkedAccounts assigns each linked provider account to exactly one

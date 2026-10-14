@@ -21,7 +21,7 @@ func TestUserBlobStore_PutGetRoundTrip(t *testing.T) {
 	inner := store.NewInMemory()
 	blob := store.NewUserBlobStore(inner)
 	dek := testDEK(t)
-	ctx := store.ContextWithUserBlob(context.Background(), "user:alice", dek)
+	ctx := store.ContextWithUserBlob(context.Background(), store.UserBlobKeyPrefix+"alice", dek)
 
 	if err := blob.Put(ctx, "key1", []byte("hello")); err != nil {
 		t.Fatalf("Put: %v", err)
@@ -40,7 +40,7 @@ func TestUserBlobStore_EncryptedAtRest(t *testing.T) {
 	inner := store.NewInMemory()
 	blob := store.NewUserBlobStore(inner)
 	dek := testDEK(t)
-	ctx := store.ContextWithUserBlob(context.Background(), "user:alice", dek)
+	ctx := store.ContextWithUserBlob(context.Background(), store.UserBlobKeyPrefix+"alice", dek)
 
 	plaintext := "sensitive watch history"
 	if err := blob.Put(ctx, "key1", []byte(plaintext)); err != nil {
@@ -48,7 +48,7 @@ func TestUserBlobStore_EncryptedAtRest(t *testing.T) {
 	}
 
 	// Read raw from the inner store — ciphertext should not contain plaintext.
-	raw, err := inner.Get(ctx, "user:user:alice:key1")
+	raw, err := inner.Get(ctx, store.UserBlobKeyPrefix+"user:alice:key1")
 	if err != nil {
 		t.Fatalf("inner Get: %v", err)
 	}
@@ -63,8 +63,8 @@ func TestUserBlobStore_UserIsolation(t *testing.T) {
 
 	dekA := testDEK(t)
 	dekB := testDEK(t)
-	ctxA := store.ContextWithUserBlob(context.Background(), "user:alice", dekA)
-	ctxB := store.ContextWithUserBlob(context.Background(), "user:bob", dekB)
+	ctxA := store.ContextWithUserBlob(context.Background(), store.UserBlobKeyPrefix+"alice", dekA)
+	ctxB := store.ContextWithUserBlob(context.Background(), store.UserBlobKeyPrefix+"bob", dekB)
 
 	// Alice stores a value.
 	if err := blob.Put(ctxA, "history", []byte("alice-data")); err != nil {
@@ -105,7 +105,7 @@ func TestUserBlobStore_Delete(t *testing.T) {
 	inner := store.NewInMemory()
 	blob := store.NewUserBlobStore(inner)
 	dek := testDEK(t)
-	ctx := store.ContextWithUserBlob(context.Background(), "user:alice", dek)
+	ctx := store.ContextWithUserBlob(context.Background(), store.UserBlobKeyPrefix+"alice", dek)
 
 	if err := blob.Put(ctx, "key1", []byte("val")); err != nil {
 		t.Fatalf("Put: %v", err)
@@ -123,7 +123,7 @@ func TestUserBlobStore_List(t *testing.T) {
 	inner := store.NewInMemory()
 	blob := store.NewUserBlobStore(inner)
 	dek := testDEK(t)
-	ctx := store.ContextWithUserBlob(context.Background(), "user:alice", dek)
+	ctx := store.ContextWithUserBlob(context.Background(), store.UserBlobKeyPrefix+"alice", dek)
 
 	if err := blob.Put(ctx, "history:movie1", []byte("v1")); err != nil {
 		t.Fatalf("Put history:movie1: %v", err)

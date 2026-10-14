@@ -17,10 +17,10 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
-// storageKey is the single key the effective snapshot lives under in the
+// StorageKey is the single key the effective snapshot lives under in the
 // settings store class. One record: the settings are a set, not a bag of
 // independent keys, so a write is atomic across every setting.
-const storageKey = "instance"
+const StorageKey = "instance"
 
 // Snapshot is the effective instance settings (PLAN.md §8). Values are the
 // resolved, validated, live-applied ones — the record a client discovers
@@ -131,7 +131,7 @@ func New(backend store.Store, defaults Snapshot) (*Provider, error) {
 		return nil, err
 	}
 	p := &Provider{backend: backend, defaults: defaults.clone(), current: defaults.clone()}
-	raw, err := backend.Get(context.Background(), storageKey)
+	raw, err := backend.Get(context.Background(), StorageKey)
 	switch {
 	case errors.Is(err, store.ErrKeyNotFound):
 		return p, nil
@@ -219,7 +219,7 @@ func (p *Provider) Apply(ctx context.Context, patch Patch, live LiveApply) (Snap
 	if err != nil {
 		return Snapshot{}, err
 	}
-	if err := p.backend.Put(ctx, storageKey, raw); err != nil {
+	if err := p.backend.Put(ctx, StorageKey, raw); err != nil {
 		return Snapshot{}, fmt.Errorf("settings: persist: %w", err)
 	}
 	p.current = resolved

@@ -24,8 +24,8 @@ type reachMeta struct {
 	members    []string
 }
 
-// The cadence-policy key this adapter declares in its handshake.
-const jellyfinCadenceKey = "browse.sync-cadence"
+// JellyfinSyncCadenceKey is the cadence-policy key this adapter declares in its handshake.
+const JellyfinSyncCadenceKey = "browse.sync-cadence"
 
 func init() {
 	RegisterProvider("jellyfin", wireJellyfin)
@@ -151,7 +151,7 @@ func wireJellyfin(slot *corev1.Slot, deps Deps) (*BuiltSlot, error) {
 		return nil, fmt.Errorf("handshake: %w", err)
 	}
 
-	cadence, err := DeclaredCadence(prov.GetSyncCadence(), info.Policy, jellyfinCadenceKey)
+	cadence, err := DeclaredCadence(prov.GetSyncCadence(), info.Policy, JellyfinSyncCadenceKey)
 	if err != nil {
 		return nil, fmt.Errorf("cadence: %w", err)
 	}

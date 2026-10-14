@@ -9,6 +9,9 @@ import (
 	"strings"
 )
 
+// UserBlobKeyPrefix is the key prefix for per-user blob storage.
+const UserBlobKeyPrefix = "user:"
+
 // UserBlobStore is a Store decorator that encrypts and decrypts values using
 // the current user's DEK, fetched from the request context (PLAN.md §2.4,
 // IMPLEMENTATION.md §1.3). It implements the per-user encrypted blob storage
@@ -82,7 +85,7 @@ func userPrefix(ctx context.Context) string {
 	if uid == "" {
 		return ""
 	}
-	return "user:" + uid + ":"
+	return UserBlobKeyPrefix + uid + ":"
 }
 
 // dekFromContext extracts the DEK from the context.

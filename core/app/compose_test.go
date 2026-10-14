@@ -11,6 +11,7 @@ import (
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"github.com/nem-git/abcmovies/core/internal/config"
+	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/registry"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
@@ -127,7 +128,7 @@ func TestComposeSlotsAvailabilityEventInvalidatesCache(t *testing.T) {
 	}
 
 	// A derived-library entry as if a user had already read their library.
-	if err := cache.Put(ctx, "lib/u/alice", []byte(`{"entries":[]}`)); err != nil {
+	if err := cache.Put(ctx, library.UserPrefix+"alice", []byte(`{"entries":[]}`)); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 	sub := bus.Subscribe("sub-1", "alice")
@@ -135,7 +136,7 @@ func TestComposeSlotsAvailabilityEventInvalidatesCache(t *testing.T) {
 
 	rt.eventMux.Publish(availabilityEnvelope("e1", "jellyfin", "acct-1"))
 
-	if _, err := cache.Get(ctx, "lib/u/alice"); err != store.ErrKeyNotFound {
+	if _, err := cache.Get(ctx, library.UserPrefix+"alice"); err != store.ErrKeyNotFound {
 		t.Fatalf("expected cached library dropped, got err=%v", err)
 	}
 
@@ -162,14 +163,14 @@ func TestComposeSlotsDerivedCacheLivesInTheCacheStore(t *testing.T) {
 	if _, err := rt.Library.Library(context.Background(), "u1"); err != nil {
 		t.Fatalf("derive library: %v", err)
 	}
-	libKeys, err := cache.List(context.Background(), "lib/u/")
+	libKeys, err := cache.List(context.Background(), library.UserPrefix)
 	if err != nil {
 		t.Fatalf("list cache store: %v", err)
 	}
 	if len(libKeys) == 0 {
 		t.Fatal("derived library did not land in the cache store")
 	}
-	leaked, err := sourceCache.List(context.Background(), "lib/u/")
+	leaked, err := sourceCache.List(context.Background(), library.UserPrefix)
 	if err != nil {
 		t.Fatalf("list source cache: %v", err)
 	}

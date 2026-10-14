@@ -174,7 +174,7 @@ func TestStoreUserStore_RoundTrip(t *testing.T) {
 	us := auth.NewStoreUserStore(s)
 
 	data := &auth.UserData{
-		Salt:            []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+		Salt:            bytes.Repeat([]byte{1}, auth.SaltLen),
 		PasswordHash:    []byte("password-kek"),
 		WrappedDEK:      []byte("wrapped-dek"),
 		WrappedRecovery: []byte("wrapped-recovery"),

@@ -8,9 +8,9 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/delivery"
 	"github.com/nem-git/abcmovies/core/internal/policy"
 )
@@ -30,7 +30,7 @@ func muxSource() *corev1.MediaSource {
 
 func newPolicyEngine(instance policy.Set, constraints func(ctx context.Context, provider, accountID string) (policy.Set, policy.ProviderCaps, error), record func(*corev1.Job)) *delivery.Engine {
 	e := delivery.New(delivery.Options{
-		SessionTTL:         24 * time.Hour,
+		SessionTTL:         config.DefaultSessionTTL,
 		InstancePolicy:     instance,
 		AccountConstraints: constraints,
 		SourceResolver:     staticResolver{src: muxSource()},
@@ -49,7 +49,7 @@ func ctx() context.Context { return context.Background() }
 
 func TestM6ProviderCapIsTheAccountCeiling(t *testing.T) {
 	e := newPolicyEngine(
-		policy.Set{"concurrentStreams": "4"},
+		policy.Set{policy.KeyConcurrentStreams: "4"},
 		func(context.Context, string, string) (policy.Set, policy.ProviderCaps, error) {
 			return nil, policy.CapsFor(2), nil
 		},
@@ -80,7 +80,7 @@ func TestM6ProviderCapIsTheAccountCeiling(t *testing.T) {
 
 func TestM6MemberLimitSpansAccounts(t *testing.T) {
 	e := newPolicyEngine(
-		policy.Set{"concurrentStreams": "2"},
+		policy.Set{policy.KeyConcurrentStreams: "2"},
 		func(context.Context, string, string) (policy.Set, policy.ProviderCaps, error) {
 			return nil, policy.ProviderCaps{}, nil // no caps; instance policy alone
 		},
@@ -115,9 +115,9 @@ func TestM6MemberLimitSpansAccounts(t *testing.T) {
 func TestM6JobRecordsEffectivePolicyAndCap(t *testing.T) {
 	var recordCalls []*corev1.Job
 	e := newPolicyEngine(
-		policy.Set{"concurrentStreams": "4"},
+		policy.Set{policy.KeyConcurrentStreams: "4"},
 		func(context.Context, string, string) (policy.Set, policy.ProviderCaps, error) {
-			return policy.Set{"concurrentStreams": "3"}, policy.CapsFor(2), nil
+			return policy.Set{policy.KeyConcurrentStreams: "3"}, policy.CapsFor(2), nil
 		},
 		func(j *corev1.Job) { recordCalls = append(recordCalls, j) },
 	)
@@ -135,11 +135,11 @@ func TestM6JobRecordsEffectivePolicyAndCap(t *testing.T) {
 		t.Fatalf("job %q is not a delivery job", job.GetId())
 	}
 	p := d.GetPolicy().GetLimits()
-	if p["concurrentStreams"] != "3" {
+	if p[policy.KeyConcurrentStreams] != "3" {
 		t.Fatalf("recorded policy = %v, want concurrentStreams=3 (instance 4 overridden at account to 3)", p)
 	}
 	c := d.GetProviderCap().GetLimits()
-	if c["concurrentStreams"] != "2" {
+	if c[policy.KeyConcurrentStreams] != "2" {
 		t.Fatalf("recorded provider cap = %v, want 2", c)
 	}
 }

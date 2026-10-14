@@ -13,7 +13,7 @@ import (
 
 func TestDeclaredCadencePrecedence(t *testing.T) {
 	t.Parallel()
-	declared := map[string]string{"browse.sync-cadence": "6h"}
+	declared := map[string]string{JellyfinSyncCadenceKey: "6h"}
 
 	tests := []struct {
 		name        string
@@ -39,7 +39,7 @@ func TestDeclaredCadencePrecedence(t *testing.T) {
 		{
 			name:        "broken adapter declaration is an error",
 			configValue: "",
-			declared:    map[string]string{"browse.sync-cadence": "soon"},
+			declared:    map[string]string{JellyfinSyncCadenceKey: "soon"},
 			wantErr:     true,
 		},
 		{name: "nothing declared anywhere falls back to zero", configValue: "", declared: nil, want: 0},
@@ -48,7 +48,7 @@ func TestDeclaredCadencePrecedence(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := DeclaredCadence(tt.configValue, tt.declared, "browse.sync-cadence")
+			got, err := DeclaredCadence(tt.configValue, tt.declared, JellyfinSyncCadenceKey)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatalf("expected error, got %v", got)

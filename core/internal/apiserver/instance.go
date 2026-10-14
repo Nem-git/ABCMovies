@@ -14,10 +14,10 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
-// contractVersion is the api/v1 package version this service speaks
+// ContractVersion is the api/v1 package version this service speaks
 // (TECHNICAL-DECISIONS.md §1.43). Additive evolution never changes it; a
 // breaking change would mean a new package, not a new string here.
-const contractVersion = "v1"
+const ContractVersion = "v1"
 
 // SetInstanceSettings arms the live instance-settings source. From then on it
 // is authoritative for the instance RPCs and the owner-id visibility
@@ -71,7 +71,7 @@ func (s *Server) GetInstanceInfo(ctx context.Context, _ *apiv1.GetInstanceInfoRe
 		return nil, status.Error(codes.Internal, "instance settings unavailable")
 	}
 	return &apiv1.GetInstanceInfoResponse{
-		ContractVersion:   contractVersion,
+		ContractVersion:   ContractVersion,
 		AuthMethods:       snap.AuthMethods,
 		HeartbeatInterval: durationpb.New(snap.HeartbeatInterval),
 	}, nil

@@ -13,6 +13,7 @@ import (
 	"github.com/nem-git/abcmovies/core/drm"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
+	"github.com/nem-git/abcmovies/core/internal/config"
 )
 
 // fakeResolver returns a canned static, whole-mux manifest.
@@ -148,7 +149,7 @@ func newTestEngine(opts Options) (*Engine, *fakeResolver, *fakeSinkFactory) {
 func TestStartCreatesSession(t *testing.T) {
 	now := time.Now()
 	e, _, fac := newTestEngine(Options{
-		SessionTTL: 24 * time.Hour,
+		SessionTTL: config.DefaultSessionTTL,
 		Now:        func() time.Time { return now },
 		RecordJob:  func(_ *corev1.Job) {},
 	})
@@ -187,7 +188,7 @@ func TestStartCreatesDistinctSessions(t *testing.T) {
 	// "create": each call makes a fresh session (there is no client-supplied
 	// idempotency key; double-start is bounded structurally by the cap).
 	e, _, _ := newTestEngine(Options{
-		SessionTTL: 24 * time.Hour,
+		SessionTTL: config.DefaultSessionTTL,
 		Now:        time.Now,
 		RecordJob:  func(_ *corev1.Job) {},
 	})
@@ -316,9 +317,9 @@ func TestStartRefusesDRMTrackLoudly(t *testing.T) {
 func TestHeartbeatBoundaries(t *testing.T) {
 	now := time.Now()
 	e, _, _ := newTestEngine(Options{
-		SessionTTL:        24 * time.Hour,
-		HeartbeatInterval: 30 * time.Second,
-		HeartbeatGrace:    90 * time.Second,
+		SessionTTL:        config.DefaultSessionTTL,
+		HeartbeatInterval: config.DefaultHeartbeatInterval,
+		HeartbeatGrace:    config.DefaultHeartbeatGrace,
 		Now:               func() time.Time { return now },
 		RecordJob:         func(_ *corev1.Job) {},
 	})
@@ -360,7 +361,7 @@ func TestHeartbeatBoundaries(t *testing.T) {
 func TestCompleteRecordsFailedWhenFinalizeFails(t *testing.T) {
 	var recorded []*corev1.Job
 	e, res, fac := newTestEngine(Options{
-		SessionTTL: 24 * time.Hour,
+		SessionTTL: config.DefaultSessionTTL,
 		Now:        time.Now,
 		RecordJob:  func(j *corev1.Job) { recorded = append(recorded, j) },
 	})
@@ -403,7 +404,7 @@ func TestCompleteRecordsFailedWhenFinalizeFails(t *testing.T) {
 func TestCompleteRecordsDoneWhenFinalizeSucceeds(t *testing.T) {
 	var recorded []*corev1.Job
 	e, res, _ := newTestEngine(Options{
-		SessionTTL: 24 * time.Hour,
+		SessionTTL: config.DefaultSessionTTL,
 		Now:        time.Now,
 		RecordJob:  func(j *corev1.Job) { recorded = append(recorded, j) },
 	})
@@ -436,8 +437,8 @@ func TestPlayHeartbeatTimeoutEvicts(t *testing.T) {
 	now := time.Now()
 	var recorded []*corev1.Job
 	e, _, _ := newTestEngine(Options{
-		SessionTTL:        24 * time.Hour,
-		HeartbeatInterval: 30 * time.Second,
+		SessionTTL:        config.DefaultSessionTTL,
+		HeartbeatInterval: config.DefaultHeartbeatInterval,
 		HeartbeatGrace:    5 * time.Second,
 		Now:               func() time.Time { return now },
 		RecordJob:         func(j *corev1.Job) { recorded = append(recorded, j) },
@@ -517,7 +518,7 @@ func TestProgressKeepsDownloadAlive(t *testing.T) {
 func TestRevokeAccountEndsSessions(t *testing.T) {
 	var recorded []*corev1.Job
 	e, res, fac := newTestEngine(Options{
-		SessionTTL: 24 * time.Hour,
+		SessionTTL: config.DefaultSessionTTL,
 		Now:        time.Now,
 		RecordJob:  func(j *corev1.Job) { recorded = append(recorded, j) },
 	})
@@ -566,7 +567,7 @@ func TestRevokeAccountEndsSessions(t *testing.T) {
 
 func TestRevokeAllOnAccountEndsEveryMemberOnThatAccount(t *testing.T) {
 	e, res, fac := newTestEngine(Options{
-		SessionTTL: 24 * time.Hour,
+		SessionTTL: config.DefaultSessionTTL,
 		RecordJob:  func(*corev1.Job) {},
 	})
 	res.source = wholeMuxSource()

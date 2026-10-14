@@ -22,7 +22,7 @@ func TestCataloguePacePrecedence(t *testing.T) {
 	}{
 		{
 			name: "nothing declared falls back to the shipped default",
-			want: defaultCataloguePace,
+			want: DefaultCataloguePace,
 		},
 		{
 			name:     "adapter declaration beats the default",
@@ -42,7 +42,7 @@ func TestCataloguePacePrecedence(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := DeclaredPace(tc.override, tc.declared, cataloguePaceKey, defaultCataloguePace)
+			got, err := DeclaredPace(tc.override, tc.declared, cataloguePaceKey, DefaultCataloguePace)
 			if err != nil {
 				t.Fatalf("DeclaredPace: %v", err)
 			}
@@ -68,7 +68,7 @@ func TestCataloguePaceRejectsBadValues(t *testing.T) {
 		{name: "declared not positive", declared: map[string]string{cataloguePaceKey: "-1s"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := DeclaredPace(tc.override, tc.declared, cataloguePaceKey, defaultCataloguePace); err == nil {
+			if _, err := DeclaredPace(tc.override, tc.declared, cataloguePaceKey, DefaultCataloguePace); err == nil {
 				t.Fatal("want an error, got nil")
 			}
 		})
@@ -126,11 +126,11 @@ func TestPacedCatalogueSpacesCalls(t *testing.T) {
 // A zero pace would mean "no pacing at all", so it must never reach the
 // wrapper: DeclaredPace substitutes the shipped default instead.
 func TestDeclaredPaceZeroFallsBackToDefault(t *testing.T) {
-	got, err := DeclaredPace("", nil, cataloguePaceKey, defaultCataloguePace)
+	got, err := DeclaredPace("", nil, cataloguePaceKey, DefaultCataloguePace)
 	if err != nil {
 		t.Fatalf("DeclaredPace: %v", err)
 	}
-	if got != defaultCataloguePace {
-		t.Fatalf("pace = %v, want the shipped default %v", got, defaultCataloguePace)
+	if got != DefaultCataloguePace {
+		t.Fatalf("pace = %v, want the shipped default %v", got, DefaultCataloguePace)
 	}
 }

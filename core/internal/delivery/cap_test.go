@@ -7,14 +7,15 @@ import (
 	"time"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/policy"
 )
 
 func TestStartEnforcesConcurrentStreamsCap(t *testing.T) {
 	now := time.Now()
 	e, res, _ := newTestEngine(Options{
-		SessionTTL:     24 * time.Hour,
-		InstancePolicy: policy.Set{"concurrentStreams": "2"},
+		SessionTTL:     config.DefaultSessionTTL,
+		InstancePolicy: policy.Set{policy.KeyConcurrentStreams: "2"},
 		Now:            func() time.Time { return now },
 		RecordJob:      func(*corev1.Job) {},
 	})
@@ -58,9 +59,9 @@ func TestStartEnforcesConcurrentStreamsCap(t *testing.T) {
 
 func TestStartHonorsAccountOverrideUnderMemberCap(t *testing.T) {
 	now := time.Now()
-	override := policy.Set{"concurrentStreams": "1"}
+	override := policy.Set{policy.KeyConcurrentStreams: "1"}
 	e, res, _ := newTestEngine(Options{
-		SessionTTL: 24 * time.Hour,
+		SessionTTL: config.DefaultSessionTTL,
 		Now:        func() time.Time { return now },
 		RecordJob:  func(*corev1.Job) {},
 		AccountConstraints: func(_ context.Context, _, _ string) (policy.Set, policy.ProviderCaps, error) {
@@ -82,7 +83,7 @@ func TestStartHonorsAccountOverrideUnderMemberCap(t *testing.T) {
 func TestStartHonorsProviderCapOverPolicy(t *testing.T) {
 	now := time.Now()
 	e, res, _ := newTestEngine(Options{
-		SessionTTL: 24 * time.Hour,
+		SessionTTL: config.DefaultSessionTTL,
 		Now:        func() time.Time { return now },
 		RecordJob:  func(*corev1.Job) {},
 		AccountConstraints: func(_ context.Context, _, _ string) (policy.Set, policy.ProviderCaps, error) {
@@ -104,8 +105,8 @@ func TestStartHonorsProviderCapOverPolicy(t *testing.T) {
 func TestCompleteFreesCapSlot(t *testing.T) {
 	now := time.Now()
 	e, res, _ := newTestEngine(Options{
-		SessionTTL:     24 * time.Hour,
-		InstancePolicy: policy.Set{"concurrentStreams": "1"},
+		SessionTTL:     config.DefaultSessionTTL,
+		InstancePolicy: policy.Set{policy.KeyConcurrentStreams: "1"},
 		Now:            func() time.Time { return now },
 		RecordJob:      func(*corev1.Job) {},
 	})
@@ -136,8 +137,8 @@ func TestApplyAccountCapEnforcesOnCapChange(t *testing.T) {
 	now := time.Now()
 	currentCap := 3
 	e, res, _ := newTestEngine(Options{
-		SessionTTL:     24 * time.Hour,
-		InstancePolicy: policy.Set{"concurrentStreams": "3"},
+		SessionTTL:     config.DefaultSessionTTL,
+		InstancePolicy: policy.Set{policy.KeyConcurrentStreams: "3"},
 		Now:            func() time.Time { return now },
 		RecordJob:      func(*corev1.Job) {},
 		AccountConstraints: func(ctx context.Context, provider, accountID string) (policy.Set, policy.ProviderCaps, error) {
@@ -201,7 +202,7 @@ func TestApplyAccountCapEnforcesOnCapChange(t *testing.T) {
 func TestRevokeOthersOnAccountKillsOnlyLoseAccessMembers(t *testing.T) {
 	var recorded []*corev1.Job
 	e, res, _ := newTestEngine(Options{
-		SessionTTL: 24 * time.Hour,
+		SessionTTL: config.DefaultSessionTTL,
 		RecordJob:  func(j *corev1.Job) { recorded = append(recorded, j) },
 	})
 	res.source = wholeMuxSource()
@@ -250,8 +251,8 @@ func TestRevokeOthersOnAccountKillsOnlyLoseAccessMembers(t *testing.T) {
 func TestApplyAccountCapNeverKillsOnRaise(t *testing.T) {
 	now := time.Now()
 	e, res, _ := newTestEngine(Options{
-		SessionTTL:     24 * time.Hour,
-		InstancePolicy: policy.Set{"concurrentStreams": "5"},
+		SessionTTL:     config.DefaultSessionTTL,
+		InstancePolicy: policy.Set{policy.KeyConcurrentStreams: "5"},
 		Now:            func() time.Time { return now },
 		RecordJob:      func(*corev1.Job) {},
 		AccountConstraints: func(ctx context.Context, provider, accountID string) (policy.Set, policy.ProviderCaps, error) {

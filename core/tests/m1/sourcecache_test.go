@@ -24,6 +24,7 @@ import (
 	"github.com/nem-git/abcmovies/adapters/jellyfin"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/registry"
+	"github.com/nem-git/abcmovies/core/internal/slotwiring"
 	"github.com/nem-git/abcmovies/core/internal/sourcecache"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
@@ -309,7 +310,7 @@ func TestM1RegistryShowsCapabilityVersions(t *testing.T) {
 
 	// The handshake verifies freshness: the registry re-asks the adapter, so
 	// the declared cadence policy is visible too.
-	if gotPolicy, ok := reg.Policy("jellyfin"); !ok || gotPolicy["browse.sync-cadence"] == "" {
+	if gotPolicy, ok := reg.Policy("jellyfin"); !ok || gotPolicy[slotwiring.JellyfinSyncCadenceKey] == "" {
 		t.Fatalf("sync-cadence policy not surfaced: %v ok=%v", gotPolicy, ok)
 	}
 }

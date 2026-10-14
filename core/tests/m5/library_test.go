@@ -5,6 +5,7 @@ import (
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/apiserver"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -41,7 +42,7 @@ func TestM5LibraryBrowseMergedFromLinkedAccount(t *testing.T) {
 		t.Fatalf("alice's library has %d entries, want 3 (two movies, one series)", len(resp.GetItems()))
 	}
 	if resp.GetNextPageToken() != "" {
-		t.Errorf("next_page_token = %q, want empty for a 3-item page at page bound %d", resp.GetNextPageToken(), libraryPageSize)
+		t.Errorf("next_page_token = %q, want empty for a 3-item page at page bound %d", resp.GetNextPageToken(), apiserver.LibraryPageSize)
 	}
 	if movies, series := libraryEntryKindCounts(resp.GetItems()); movies != 2 || series != 1 {
 		t.Errorf("library kinds = %d movies, %d series; want 2 and 1", movies, series)
@@ -130,7 +131,7 @@ func TestM5LibraryInvalidPageTokenRejected(t *testing.T) {
 	}
 }
 
-// libraryPageSize mirrors the bounded page bound of the API service; asserted
-// here so the browse test's token expectations stay coupled to it. The value's
-// home is TECHNICAL-DECISIONS.md at P6.
-const libraryPageSize = 100
+// The page bound mirrors the bounded page bound of the API service
+// (apiserver.LibraryPageSize); asserted here so the browse test's token
+// expectations stay coupled to it. The value's home is TECHNICAL-DECISIONS.md
+// at P6.

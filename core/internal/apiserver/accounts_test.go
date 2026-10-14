@@ -42,7 +42,7 @@ func TestLinkAccount_ProbesBeforeVaulting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LinkAccount: %v", err)
 	}
-	if got := resp.GetAccountId(); !strings.HasPrefix(got, "lnk_") || len(got) != 36 {
+	if got := resp.GetAccountId(); !strings.HasPrefix(got, accounts.LinkedAccountIDPrefix) || len(got) != 36 {
 		t.Fatalf("account id = %q, want an lnk_ id", got)
 	}
 	if probe.calls != 1 || probe.user != "bob" || string(probe.pass) != "sekret" {

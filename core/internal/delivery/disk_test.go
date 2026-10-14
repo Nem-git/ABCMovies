@@ -1,10 +1,12 @@
 package delivery
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
@@ -180,4 +182,54 @@ func TestDiskSinkOutputNameEmptyContainer(t *testing.T) {
 	if entries[0].Name() != "movie" {
 		t.Errorf("output name = %q, want movie", entries[0].Name())
 	}
+}
+
+// TestDiskSinkConcurrentDeliverFinalizeAbort drives Deliver, Finalize, and
+// Abort concurrently on the same sink. The engine's push goroutine and a
+// caller can both drive a download session, so the partial-file handle is
+// guarded by a mutex (commit e659a77). This test is the deterministic
+// regression guard: run with -race, it fails without the mutex.
+func TestDiskSinkConcurrentDeliverFinalizeAbort(t *testing.T) {
+	root := t.TempDir()
+	fac, _ := NewDiskFactory(root)
+	s := &Session{
+		ID:   "del-concurrent",
+		Goal: GoalDownload,
+		Context: corev1.DeliveryContext{
+			SelectedTarget: "concurrent-test",
+			Container:      "mkv",
+		},
+	}
+	sink, err := fac.NewSink(context.Background(), s, nil)
+	if err != nil {
+		t.Fatalf("NewSink: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	// Drive Deliver from multiple goroutines.
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = sink.Deliver(context.Background(), s, &corev1.Track{Id: "c1"}, bytes.NewReader([]byte("data")))
+		}()
+	}
+	// Drive Finalize concurrently.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_ = sink.Finalize(context.Background(), s)
+	}()
+	// Drive Abort concurrently.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		sink.Abort(context.Background(), s)
+	}()
+	wg.Wait()
+
+	// After all concurrent operations, the sink must be in a clean state:
+	// either finalized (file exists) or aborted (no partial file).
+	// The key assertion is that -race reports no data race — the mutex
+	// serializes access to the partial-file handle.
 }

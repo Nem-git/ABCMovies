@@ -5,6 +5,7 @@ import (
 	"time"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/config"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -125,7 +126,7 @@ func TestSlotRefreshesItsOwnFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first merge: %v", err)
 	}
-	later := now.Add(24 * time.Hour)
+	later := now.Add(config.DefaultSessionTTL)
 	out, err := Merge(current, Contribution{Slot: "tmdb", Kind: SourceCatalogue, Metadata: md(func(m *corev1.TitleMetadata) {
 		m.Rating = 8.7
 	})}, later)

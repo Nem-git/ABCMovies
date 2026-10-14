@@ -35,9 +35,9 @@ func (s *Server) SetLibrary(ls LibrarySeam) {
 	s.library = ls
 }
 
-// libraryPageSize bounds a GetLibrary page. Concrete values live once: this is
+// LibraryPageSize bounds a GetLibrary page. Concrete values live once: this is
 // the P6 home before the number is recorded in TECHNICAL-DECISIONS.md.
-const libraryPageSize = 100
+const LibraryPageSize = 100
 
 // GetLibrary returns a page of the caller's merged library (PLAN.md §5, §8.1).
 // Derivation, identity merging, and per-user caching all happen in the library
@@ -103,7 +103,7 @@ func (s *Server) GetLibrary(ctx context.Context, req *apiv1.GetLibraryRequest) (
 		}
 		entries = filtered
 	}
-	end := min(start+libraryPageSize, len(entries))
+	end := min(start+LibraryPageSize, len(entries))
 	items := make([]*apiv1.LibraryItem, 0, end-start)
 	for _, e := range entries[start:end] {
 		meta, _, mErr := s.library.Metadata(ctx, e.GetMetadataRef())

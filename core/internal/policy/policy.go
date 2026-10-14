@@ -47,10 +47,20 @@ const (
 // Policy proto (map<string,string>).
 type Set map[string]string
 
+// Shipped default policy values (TECHNICAL-DECISIONS.md §1.14).
+const (
+	// DefaultConcurrentStreamsValue is the shipped default for concurrent streams.
+	DefaultConcurrentStreamsValue = "3"
+	// DefaultBandwidthValue is the shipped default for bandwidth.
+	DefaultBandwidthValue = "unlimited"
+	// DefaultEncodeValue is the shipped default for encode.
+	DefaultEncodeValue = "disabled"
+)
+
 var defaults = map[string]string{
-	KeyConcurrentStreams: "3",
-	KeyBandwidth:         "unlimited",
-	KeyEncode:            "disabled",
+	KeyConcurrentStreams: DefaultConcurrentStreamsValue,
+	KeyBandwidth:         DefaultBandwidthValue,
+	KeyEncode:            DefaultEncodeValue,
 }
 
 // Defaults returns the shipped default policy (TECHNICAL-DECISIONS.md §1.14):

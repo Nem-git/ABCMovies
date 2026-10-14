@@ -7,6 +7,7 @@ import (
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 
 	"github.com/nem-git/abcmovies/core/internal/accounts"
+	"github.com/nem-git/abcmovies/core/internal/policy"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
@@ -26,7 +27,7 @@ func TestResolveAccountConstraints(t *testing.T) {
 			Adapter: "jellyfin", Server: "http://jf",
 			Accounts: []*corev1.AccountConfig{{
 				Id: "home", Username: "bob", PasswordEnv: "JF_PASSWORD",
-				MaxConcurrentStreams: 4, Policy: map[string]string{"concurrentStreams": "1"},
+				MaxConcurrentStreams: 4, Policy: map[string]string{policy.KeyConcurrentStreams: "1"},
 			}},
 		}},
 	}}

@@ -132,7 +132,8 @@ func NewService(reaches []Reach, reg *itemregistry.Registry, cache store.Store, 
 	return s, nil
 }
 
-const userPrefix = "lib/u/"
+// UserPrefix is the key prefix for per-user library data.
+const UserPrefix = "lib/u/"
 
 // AddReach registers an available account for derivation. This is the runtime
 // seam the future hot-add path uses; boot wiring calls it once per reach as
@@ -254,7 +255,7 @@ func (s *Service) RefreshAvailability(ctx context.Context, accountID string, nat
 }
 
 func (s *Service) userKey(userID string) string {
-	return userPrefix + url.PathEscape(userID)
+	return UserPrefix + url.PathEscape(userID)
 }
 
 // Library returns the user's derived library, rebuilding it when no cached
@@ -485,12 +486,12 @@ func (s *Service) InvalidateAccount(provider, accountID string) error {
 // invalidated pointwise; InvalidateAccount and SetReachSharing both root
 // through it.
 func (s *Service) sweepUserCaches(invalidate func(userID string) bool) error {
-	keys, err := s.cache.List(context.Background(), userPrefix)
+	keys, err := s.cache.List(context.Background(), UserPrefix)
 	if err != nil {
 		return fmt.Errorf("library: list cached users: %w", err)
 	}
 	for _, k := range keys {
-		uid := strings.TrimPrefix(k, userPrefix)
+		uid := strings.TrimPrefix(k, UserPrefix)
 		unescaped, uerr := url.PathUnescape(uid)
 		if uerr != nil {
 			unescaped = uid
@@ -506,7 +507,7 @@ func (s *Service) sweepUserCaches(invalidate func(userID string) bool) error {
 }
 
 func (s *Service) invalidateAll(ctx context.Context) error {
-	keys, err := s.cache.List(ctx, userPrefix)
+	keys, err := s.cache.List(ctx, UserPrefix)
 	if err != nil {
 		return fmt.Errorf("library: list cached users: %w", err)
 	}

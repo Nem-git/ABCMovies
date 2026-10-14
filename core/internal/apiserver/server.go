@@ -77,14 +77,14 @@ type DeliveryManager interface {
 	ListJobs(userID, pageToken string) ([]*corev1.Job, string, error)
 }
 
-// jobKeyPrefix is the jobs keyspace: every job is stored under
-// jobKeyPrefix + job id, mirroring the provider:item scoped-key convention
+// JobKeyPrefix is the jobs keyspace: every job is stored under
+// JobKeyPrefix + job id, mirroring the provider:item scoped-key convention
 // used elsewhere (PLAN.md §5.3). One definition, so a keyspace change is one
 // edit and not a hunt.
-const jobKeyPrefix = "job:"
+const JobKeyPrefix = "job:"
 
 // jobKey returns the jobs-store key for one job id.
-func jobKey(id string) string { return jobKeyPrefix + id }
+func jobKey(id string) string { return JobKeyPrefix + id }
 
 // InstanceSettings reads the effective, live instance settings
 // (TECHNICAL-DECISIONS.md §1.45). The settings Provider implements it; the

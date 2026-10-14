@@ -13,7 +13,8 @@ import (
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 )
 
-const bufSize = 1024 * 1024
+// BufSize is the buffer size for in-process gRPC connections.
+const BufSize = 1024 * 1024
 
 // Capability is a contract name and version a slot speaks (§3.3 of PLAN.md).
 type Capability struct {
@@ -88,7 +89,7 @@ func (r *InProcessRegistry) handshake(name string, server corev1.MetaServiceServ
 		}
 		r.mu.Unlock()
 	}
-	lis := bufconn.Listen(bufSize)
+	lis := bufconn.Listen(BufSize)
 	srv := grpc.NewServer()
 	corev1.RegisterMetaServiceServer(srv, server)
 

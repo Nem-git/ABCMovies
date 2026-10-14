@@ -24,6 +24,9 @@ var loadBearingContracts = []string{
 	"job",
 	"event",
 	"title_metadata",
+	// The meta-contract (CapabilityQuery) — the contract of contracts every
+	// slot must answer first (PLAN.md §3.3). Its suite lives under meta/v1.
+	"meta",
 	// The provider slot's whole-catalogue sync contract — the messages the
 	// account source cache persists. Its suite keeps both sync directions in
 	// one directory, distinguished by each case's type field.
@@ -47,6 +50,8 @@ func newMessage(contract string) proto.Message {
 		return &slotsv1.CatalogueSyncRequest{}
 	case "provider_sync_response":
 		return &slotsv1.CatalogueSyncResponse{}
+	case "meta":
+		return &corev1.CapabilityQueryRequest{}
 	}
 	panic("unknown contract " + contract)
 }

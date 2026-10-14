@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/nem-git/abcmovies/core/internal/config"
 )
 
 func TestRunFiresJobsOnShortCadence(t *testing.T) {
@@ -108,7 +110,7 @@ func TestBackoffRecoversAndResetsAfterSuccess(t *testing.T) {
 	minWait = time.Microsecond
 	t.Cleanup(func() {
 		backoffBase = time.Minute
-		backoffMax = 24 * time.Hour
+		backoffMax = config.DefaultSessionTTL
 		minWait = time.Second
 	})
 

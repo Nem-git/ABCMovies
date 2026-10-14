@@ -387,7 +387,7 @@ func newM5Stack(t *testing.T, jf *fakeJellyfin) *m5Stack {
 	}
 	eng := delivery.New(delivery.Options{
 		SessionTTL:     time.Hour,
-		InstancePolicy: policy.Set{"concurrentStreams": "3"},
+		InstancePolicy: policy.Set{policy.KeyConcurrentStreams: "3"},
 		SourceResolver: &namespaceResolver{bySlot: resolvers},
 		SinkFactory:    sinks,
 		// The engine owns delivery-job status events: its hook records
@@ -538,7 +538,7 @@ func planContainer(p delivery.Plan) string {
 func startWireServer(t *testing.T, stack *m5Stack) *grpc.ClientConn {
 	t.Helper()
 
-	lis := bufconn.Listen(1024 * 1024)
+	lis := bufconn.Listen(registry.BufSize)
 	gs := grpc.NewServer(
 		grpc.UnaryInterceptor(apiserver.AuthUnaryInterceptor(stack.session)),
 		grpc.StreamInterceptor(apiserver.AuthStreamInterceptor(stack.session)),
@@ -562,7 +562,7 @@ func startWireServer(t *testing.T, stack *m5Stack) *grpc.ClientConn {
 
 // authedCtx returns ctx carrying the bearer token, as a frontend would send it.
 func authedCtx(ctx context.Context, token string) context.Context {
-	return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token)
+	return metadata.AppendToOutgoingContext(ctx, "authorization", apiserver.BearerPrefix+token)
 }
 
 // signUp creates a user via the server and returns the response.

@@ -66,12 +66,12 @@ func TestVaultEncryptedAtRest(t *testing.T) {
 	v := newTestVault(t, testAEAD(t))
 	ctx := t.Context()
 	plaintext := []byte("super-secret-session-cookie")
-	if err := v.Put(ctx, "account:netflix:user1", plaintext); err != nil {
+	if err := v.Put(ctx, AccountKeyPrefix+"netflix:user1", plaintext); err != nil {
 		t.Fatalf("put: %v", err)
 	}
 
 	// Read the raw ciphertext from disk (bypasses decryption).
-	ciphertext, err := v.CiphertextOnDisk(ctx, "account:netflix:user1")
+	ciphertext, err := v.CiphertextOnDisk(ctx, AccountKeyPrefix+"netflix:user1")
 	if err != nil {
 		t.Fatalf("ciphertext on disk: %v", err)
 	}
@@ -208,7 +208,7 @@ func TestVaultRelayKeyPositive(t *testing.T) {
 		t.Fatalf("relay vault: %v", err)
 	}
 	session := []byte("member-relay-session-token")
-	if err := relayVault.Put(t.Context(), "account:netflix:relay-session", session); err != nil {
+	if err := relayVault.Put(t.Context(), AccountKeyPrefix+"netflix:relay-session", session); err != nil {
 		t.Fatalf("relay put: %v", err)
 	}
 	_ = relayVault.Close()
@@ -219,7 +219,7 @@ func TestVaultRelayKeyPositive(t *testing.T) {
 		t.Fatalf("reopen with relay key: %v", err)
 	}
 
-	got, err := memberVault.Get(t.Context(), "account:netflix:relay-session")
+	got, err := memberVault.Get(t.Context(), AccountKeyPrefix+"netflix:relay-session")
 	if err != nil {
 		_ = memberVault.Close()
 		t.Fatalf("member relay without owner present: %v", err)
@@ -235,7 +235,7 @@ func TestVaultRelayKeyPositive(t *testing.T) {
 	}
 	defer func() { _ = ownerVault.Close() }()
 
-	if _, err := ownerVault.Get(t.Context(), "account:netflix:relay-session"); err == nil {
+	if _, err := ownerVault.Get(t.Context(), AccountKeyPrefix+"netflix:relay-session"); err == nil {
 		t.Fatal("owner key should not decrypt a relay-key-wrapped session")
 	}
 }
@@ -257,7 +257,7 @@ func TestVaultOwnerOnlyOps(t *testing.T) {
 		t.Fatalf("owner vault: %v", err)
 	}
 	session := []byte("netflix-session-token-abc123")
-	if err := ownerVault.Put(t.Context(), "account:netflix:session", session); err != nil {
+	if err := ownerVault.Put(t.Context(), AccountKeyPrefix+"netflix:session", session); err != nil {
 		t.Fatalf("owner put: %v", err)
 	}
 	_ = ownerVault.Close()
@@ -270,14 +270,37 @@ func TestVaultOwnerOnlyOps(t *testing.T) {
 	}
 	defer func() { _ = relayVault.Close() }()
 
-	// Relay tries to update (re-link) the owner's session — this would
-	// overwrite the owner-encrypted blob with relay-encrypted data, which
-	// is an unauthorized mutation. In practice, the application layer
-	// checks authorization; here we verify the encryption boundary:
-	// the relay key cannot read what the owner encrypted.
-	_, err = relayVault.Get(t.Context(), "account:netflix:session")
+	// Relay tries to read the owner's session — this would be an
+	// unauthorized read. The relay key cannot decrypt owner-encrypted data.
+	_, err = relayVault.Get(t.Context(), AccountKeyPrefix+"netflix:session")
 	if err == nil {
 		t.Fatal("relay key should not be able to read owner-encrypted session")
+	}
+
+	// Relay tries to overwrite (re-link) the owner's session with its own
+	// relay-encrypted data. The store does not prevent this at the vault
+	// layer — the application layer enforces owner-only authorization before
+	// reaching the vault. The encryption boundary guarantee is one-way:
+	// the relay key can write, but the owner's key cannot read what the
+	// relay wrote. A relay-forged blob is inert to the owner.
+	if err := relayVault.Put(t.Context(), AccountKeyPrefix+"netflix:session", []byte("forged-session")); err != nil {
+		t.Fatalf("relay put: %v", err)
+	}
+
+	// The owner cannot decrypt the relay's forgery — it reads as garbage
+	// or fails, never as a valid session. This is the encryption boundary:
+	// a relay-forged blob is inert to the owner.
+	ownerVault2, err := NewVault(t.Context(), dbPath, ownerKey)
+	if err != nil {
+		t.Fatalf("reopen owner vault: %v", err)
+	}
+	defer func() { _ = ownerVault2.Close() }()
+
+	_, err = ownerVault2.Get(t.Context(), AccountKeyPrefix+"netflix:session")
+	if err == nil {
+		// If by some chance it decrypted (it shouldn't — different keys),
+		// the content must not be the relay's forgery.
+		t.Fatal("owner key decrypted a relay-encrypted blob — encryption boundary violated")
 	}
 }
 

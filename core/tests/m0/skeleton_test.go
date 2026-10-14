@@ -71,7 +71,7 @@ func TestWalkingSkeleton(t *testing.T) {
 		aliceCtx = ctx
 		return "ok", nil
 	}
-	aliceMeta := metadata.NewIncomingContext(t.Context(), metadata.Pairs("authorization", "Bearer "+token))
+	aliceMeta := metadata.NewIncomingContext(t.Context(), metadata.Pairs("authorization", apiserver.BearerPrefix+token))
 	if _, err := interceptor(aliceMeta, nil, &grpc.UnaryServerInfo{FullMethod: "/abcmovies.api.v1.CoreService/GetJob"}, aliceHandler); err != nil {
 		t.Fatalf("interceptor alice: %v", err)
 	}

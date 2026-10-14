@@ -10,6 +10,7 @@ import (
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
+	"github.com/nem-git/abcmovies/core/internal/config"
 )
 
 // The composed stack publishes the configured liveness cadence, not a
@@ -84,7 +85,7 @@ stores:
 	if err != nil {
 		t.Fatalf("GetInstanceInfo: %v", err)
 	}
-	if got := resp.GetHeartbeatInterval().AsDuration(); got != 30*time.Second {
+	if got := resp.GetHeartbeatInterval().AsDuration(); got != config.DefaultHeartbeatInterval {
 		t.Fatalf("published heartbeat interval = %v, want shipped default 30s", got)
 	}
 }

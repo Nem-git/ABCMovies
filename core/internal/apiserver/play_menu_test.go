@@ -8,6 +8,7 @@ import (
 
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
+	"github.com/nem-git/abcmovies/core/internal/delivery"
 )
 
 func TestGetPlayInfo_ReturnsStagedMenu(t *testing.T) {
@@ -39,7 +40,7 @@ func TestGetPlayInfo_ReturnsStagedMenu(t *testing.T) {
 		t.Fatalf("tracks = %d, want 1", len(tracks))
 	}
 	pt := tracks[0]
-	if pt.GetTrackId() != "v1" || pt.GetRelayUrl() != "/media/relay/tok-v1" {
+	if pt.GetTrackId() != "v1" || pt.GetRelayUrl() != delivery.RelayPrefix+"tok-v1" {
 		t.Fatalf("track = %+v", pt)
 	}
 	if v := pt.GetVideo(); v == nil || v.GetCodec() != "hevc" || v.GetWidth() != 3840 {

@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/policy"
 )
 
@@ -27,8 +28,8 @@ func (classifierMarker) Error() string { return "provider degraded" }
 func TestStartRefusalAtCapacityIsTyped(t *testing.T) {
 	now := time.Now()
 	e, res, _ := newTestEngine(Options{
-		SessionTTL:     24 * time.Hour,
-		InstancePolicy: policy.Set{"concurrentStreams": "1"},
+		SessionTTL:     config.DefaultSessionTTL,
+		InstancePolicy: policy.Set{policy.KeyConcurrentStreams: "1"},
 		Now:            func() time.Time { return now },
 		RecordJob:      func(*corev1.Job) {},
 	})
@@ -76,7 +77,7 @@ func TestStartRefusalAtCapacityIsTyped(t *testing.T) {
 func TestStartRefusalNoSessionIsTyped(t *testing.T) {
 	var reported []string
 	e, res, _ := newTestEngine(Options{
-		SessionTTL:  24 * time.Hour,
+		SessionTTL:  config.DefaultSessionTTL,
 		RecordJob:   func(*corev1.Job) {},
 		SessionDied: func(accountID string) { reported = append(reported, accountID) },
 	})
@@ -105,7 +106,7 @@ func TestStartRefusalNoSessionIsTyped(t *testing.T) {
 // UNHEALTHY_SLOT refusal carried at Unavailable.
 func TestStartRefusalClassifierMapsUnhealthySlot(t *testing.T) {
 	e, res, _ := newTestEngine(Options{
-		SessionTTL: 24 * time.Hour,
+		SessionTTL: config.DefaultSessionTTL,
 		RecordJob:  func(*corev1.Job) {},
 		ClassifyRefusal: func(err error) (RefusalReason, bool) {
 			var m classifierMarker
@@ -138,7 +139,7 @@ func TestStartRefusalClassifierMapsUnhealthySlot(t *testing.T) {
 // the guard against inventing a refusal reason for every provider hiccup.
 func TestStartRefusalUnclassifiedStaysPlain(t *testing.T) {
 	e, res, _ := newTestEngine(Options{
-		SessionTTL: 24 * time.Hour,
+		SessionTTL: config.DefaultSessionTTL,
 		RecordJob:  func(*corev1.Job) {},
 		ClassifyRefusal: func(err error) (RefusalReason, bool) {
 			return RefusalUnspecified, false
@@ -168,7 +169,7 @@ func TestStartRefusalUnclassifiedStaysPlain(t *testing.T) {
 func TestStartRefusalNoSessionBeatsClassifier(t *testing.T) {
 	claimed := false
 	e, res, _ := newTestEngine(Options{
-		SessionTTL: 24 * time.Hour,
+		SessionTTL: config.DefaultSessionTTL,
 		RecordJob:  func(*corev1.Job) {},
 		ClassifyRefusal: func(err error) (RefusalReason, bool) {
 			claimed = true

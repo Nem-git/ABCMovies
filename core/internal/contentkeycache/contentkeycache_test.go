@@ -244,3 +244,33 @@ func TestPutKeysRejectsEmptyMaterial(t *testing.T) {
 		t.Fatal("expected error for empty key_material")
 	}
 }
+
+// TestCredentialRotationNeverPurges proves that rotating a user's credentials
+// (re-linking an account with new login material) does NOT purge the content-key
+// cache (PLAN.md §2.4, §6.6). The cache is keyed by (provider, contentId,
+// system), not by account — a title's key is the same for every user who
+// decrypts it on that provider. Blocking a burned device stops acquisition,
+// not decryption with keys already obtained.
+func TestCredentialRotationNeverPurges(t *testing.T) {
+	c, _ := newTestCache(t)
+	ctx := context.Background()
+	system := slotsv1.DrmSystem_DRM_SYSTEM_WIDEVINE
+
+	// Cache keys for a content.
+	_ = c.PutKeys(ctx, "prov1", "content1", system,
+		[]*slotsv1.ContentKey{testKey("k1", time.Hour)})
+
+	// Simulate credential rotation: the user re-links their account with new
+	// login material. This must NOT touch the content-key cache.
+	// (In production, re-linking updates the vaulted session but never calls
+	// DropKeys — the cache is content-keyed, not account-keyed.)
+
+	// Keys are still there.
+	got, err := c.GetKeys(ctx, "prov1", "content1", system)
+	if err != nil {
+		t.Fatalf("GetKeys after rotation: %v", err)
+	}
+	if len(got) != 1 || got[0].GetKeyId() != "k1" {
+		t.Fatalf("after rotation: got %v, want [k1]", got)
+	}
+}

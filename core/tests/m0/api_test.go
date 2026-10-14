@@ -10,6 +10,7 @@ import (
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	"github.com/nem-git/abcmovies/core/internal/apiserver"
+	"github.com/nem-git/abcmovies/core/internal/registry"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -23,7 +24,7 @@ import (
 func startWireServer(t *testing.T, stack *fullStack) *grpc.ClientConn {
 	t.Helper()
 
-	lis := bufconn.Listen(1024 * 1024)
+	lis := bufconn.Listen(registry.BufSize)
 	gs := grpc.NewServer(
 		grpc.UnaryInterceptor(apiserver.AuthUnaryInterceptor(stack.session)),
 		grpc.StreamInterceptor(apiserver.AuthStreamInterceptor(stack.session)),
@@ -47,7 +48,7 @@ func startWireServer(t *testing.T, stack *fullStack) *grpc.ClientConn {
 
 // authedCtx returns ctx carrying the bearer token, as a frontend would send it.
 func authedCtx(ctx context.Context, token string) context.Context {
-	return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token)
+	return metadata.AppendToOutgoingContext(ctx, "authorization", apiserver.BearerPrefix+token)
 }
 
 // TestWireAPI_SyncCallAndEvent proves M0's inbound-API criterion over the

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,19 +11,20 @@ import (
 	"reflect"
 	"sort"
 
-	"google.golang.org/protobuf/encoding/protojson"
-
+	"github.com/nem-git/abcmovies/adapters/jellyfin"
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/builtin"
+	"github.com/nem-git/abcmovies/core/internal/fakejellyfin"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/registry"
 	"github.com/nem-git/abcmovies/core/internal/schema"
 	"github.com/nem-git/abcmovies/core/internal/sourcecache"
 	"github.com/nem-git/abcmovies/core/internal/store"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type suite struct {
@@ -65,6 +67,22 @@ type fixture struct {
 	// against the expectation.
 	Accounts        []mergeAccount `json:"accounts"`
 	ExpectedLibrary *mergeLibrary  `json:"expected_library"`
+	// Behavioural conformance fields. When RequestData is present the runner
+	// exercises the real adapter against a fake backend instead of only
+	// validating the message shape.
+	RequestData json.RawMessage `json:"request_data"`
+	// CatalogueItems describe the fake Jellyfin server's catalogue for
+	// behavioural provider fixtures.
+	CatalogueItems []catalogueItem `json:"catalogue_items"`
+}
+
+// catalogueItem is the subset of Jellyfin's BaseItemDto the fake index holds.
+type catalogueItem struct {
+	ID        string            `json:"id"`
+	Type      string            `json:"type"`
+	Name      string            `json:"name"`
+	Year      int               `json:"year"`
+	Providers map[string]string `json:"providers"`
 }
 
 // mergeAccount is one linked account of one provider slot in a pipeline
@@ -327,7 +345,7 @@ func runLibraryMergeCase(s suite, c fixture) error {
 		}
 		// Fixture accounts stand in for host-provided (operator-declared)
 		// slots: public by §2.2, deriving into every user's library.
-		reaches = append(reaches, library.Reach{Sync: syncer, AccountID: acct.ID, Visibility: accounts.VisibilityPublic})
+		reaches = append(reaches, library.Reach{Sync: syncer, AccountID: acct.ID, Provider: "jellyfin", Visibility: accounts.VisibilityPublic})
 	}
 
 	svc, err := library.NewService(reaches, reg, store.NewInMemory(), slog.Default())
@@ -439,6 +457,12 @@ func runProviderCase(s suite, c fixture) error {
 		}
 		return nil
 	case "positive", "negative":
+		// Behavioural conformance: when the fixture carries request_data and
+		// catalogue_items, exercise the real Jellyfin adapter against a fake
+		// backend and compare the actual response against the expected message.
+		if len(c.RequestData) > 0 && len(c.CatalogueItems) > 0 {
+			return runProviderBehaviouralCase(c)
+		}
 		if c.Expected.Valid == nil {
 			return fmt.Errorf("expected.valid is required for provider schema suites")
 		}
@@ -453,6 +477,169 @@ func runProviderCase(s suite, c fixture) error {
 	default:
 		return fmt.Errorf("kind %q is not supported for provider suites", s.Kind)
 	}
+}
+
+// runProviderBehaviouralCase exercises the real Jellyfin adapter against a
+// fake Jellyfin server seeded with the fixture's catalogue items. It sends
+// the fixture's request through the adapter's CatalogueSync and compares the
+// actual response against the fixture's expected message. This proves the
+// adapter implements the contract behaviourally, not just that the message
+// shape is schema-valid.
+func runProviderBehaviouralCase(c fixture) error {
+	ctx := context.Background()
+
+	// Boot the fake Jellyfin server with the fixture's catalogue.
+	items := make([]fakejellyfin.CatalogItem, len(c.CatalogueItems))
+	for i, it := range c.CatalogueItems {
+		items[i] = fakejellyfin.CatalogItem{
+			ID:        it.ID,
+			Type:      it.Type,
+			Name:      it.Name,
+			Year:      it.Year,
+			Providers: it.Providers,
+		}
+	}
+	fake := fakejellyfin.New(items)
+	defer fake.Close()
+
+	// Parse the request.
+	var req slotsv1.CatalogueSyncRequest
+	if err := protojson.Unmarshal(c.RequestData, &req); err != nil {
+		return fmt.Errorf("parse request: %w", err)
+	}
+
+	// Build the Jellyfin adapter pointing at the fake server.
+	accountID := req.GetAccountId()
+	if accountID == "" {
+		return fmt.Errorf("request missing account_id")
+	}
+	// Set a PasswordEnv name and provide the password through the
+	// environment so the adapter performs a fresh login against the fake
+	// server instead of expecting a pre-existing vaulted session.
+	passwordEnv := "FIXTURE_RUNNER_JELLYFIN_PASSWORD"
+	if err := os.Setenv(passwordEnv, "test-password"); err != nil {
+		return fmt.Errorf("set %s: %w", passwordEnv, err)
+	}
+	src := singleAccountSource{
+		Account: jellyfin.Account{
+			ID:          accountID,
+			URL:         fake.URL(),
+			Username:    "testuser",
+			PasswordEnv: passwordEnv,
+		},
+	}
+	slot, err := jellyfin.New([]string{accountID}, src)
+	if err != nil {
+		return fmt.Errorf("jellyfin.New: %w", err)
+	}
+
+	// Drive the adapter's real code path.
+	resp, err := slot.CatalogueSync(ctx, &req)
+	if err != nil {
+		return fmt.Errorf("CatalogueSync: %w", err)
+	}
+
+	// Marshal the actual response and compare against the expected message.
+	// UseProtoNames ensures snake_case field names, matching the fixture format.
+	// EmitUnpopulated includes empty fields (e.g. next_page_token: "").
+	actual, err := protojson.MarshalOptions{UseProtoNames: true, EmitUnpopulated: true}.Marshal(resp)
+	if err != nil {
+		return fmt.Errorf("marshal actual response: %w", err)
+	}
+
+	// Compare semantically: strip empty fields from both sides, compact,
+	// and compare. This makes the comparison robust to EmitUnpopulated
+	// (which includes empty strings, zero values, empty maps/slices) while
+	// still proving every meaningful field matches exactly.
+	expectedStripped := stripEmptyFields(c.Message)
+	actualStripped := stripEmptyFields(actual)
+	var expectedBuf, actualBuf bytes.Buffer
+	if err := json.Compact(&expectedBuf, expectedStripped); err != nil {
+		return fmt.Errorf("compact expected message: %w", err)
+	}
+	if err := json.Compact(&actualBuf, actualStripped); err != nil {
+		return fmt.Errorf("compact actual message: %w", err)
+	}
+	if !bytes.Equal(actualBuf.Bytes(), expectedBuf.Bytes()) {
+		return fmt.Errorf("behavioural mismatch:\n got: %s\nwant: %s",
+			actualBuf.String(), expectedBuf.String())
+	}
+	return nil
+}
+
+// stripEmptyFields removes empty-valued fields (empty strings, zero numbers,
+// empty slices, empty maps) from a JSON document. This lets behavioural
+// comparisons ignore fields that EmitUnpopulated would otherwise include.
+func stripEmptyFields(raw json.RawMessage) json.RawMessage {
+	var v interface{}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return raw
+	}
+	return json.RawMessage(compactJSON(stripEmpty(v)))
+}
+
+// stripEmpty recursively removes empty-valued fields from an unmarshaled JSON
+// value.
+func stripEmpty(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(val))
+		for k, child := range val {
+			sc := stripEmpty(child)
+			if isEmptyValue(sc) {
+				continue
+			}
+			out[k] = sc
+		}
+		return out
+	case []interface{}:
+		out := make([]interface{}, 0, len(val))
+		for _, item := range val {
+			out = append(out, stripEmpty(item))
+		}
+		return out
+	default:
+		return val
+	}
+}
+
+// isEmptyValue reports whether a stripped JSON value is "empty" — an empty
+// string, zero number, empty slice, or empty map.
+func isEmptyValue(v interface{}) bool {
+	switch val := v.(type) {
+	case string:
+		return val == ""
+	case float64:
+		return val == 0
+	case bool:
+		return !val
+	case nil:
+		return true
+	case []interface{}:
+		return len(val) == 0
+	case map[string]interface{}:
+		return len(val) == 0
+	default:
+		return false
+	}
+}
+
+// compactJSON marshals a value back to compact JSON bytes.
+func compactJSON(v interface{}) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
+}
+
+// singleAccountSource resolves every account id to the same fixed account.
+type singleAccountSource struct {
+	Account jellyfin.Account
+}
+
+func (s singleAccountSource) Lookup(_ context.Context, _ string) (jellyfin.Account, error) {
+	return s.Account, nil
 }
 
 func validateProviderMessage(msgType string, msg json.RawMessage) (bool, error) {

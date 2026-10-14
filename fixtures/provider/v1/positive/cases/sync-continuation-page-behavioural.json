@@ -1,0 +1,57 @@
+{
+  "name": "sync-continuation-page-behavioural",
+  "type": "CatalogueSyncResponse",
+  "request_data": {
+    "account_id": "acc_test_001",
+    "page_token": "offset=1"
+  },
+  "catalogue_items": [
+    {
+      "id": "jf-item-001",
+      "type": "Movie",
+      "name": "First Movie",
+      "year": 2020,
+      "providers": { "Imdb": "tt0000001" }
+    },
+    {
+      "id": "jf-item-002",
+      "type": "Movie",
+      "name": "Second Movie",
+      "year": 2021,
+      "providers": { "Imdb": "tt0000002" }
+    },
+    {
+      "id": "jf-item-003",
+      "type": "Series",
+      "name": "Third Series",
+      "year": 2022,
+      "providers": { "Tvdb": "99" }
+    }
+  ],
+  "message": {
+    "items": [
+      {
+        "native_id": "jf-item-002",
+        "kind": "ITEM_KIND_MOVIE",
+        "external_ids": [{ "namespace": "imdb", "value": "tt0000002" }],
+        "metadata": {
+          "title": "Second Movie",
+          "year": 2021
+        }
+      },
+      {
+        "native_id": "jf-item-003",
+        "kind": "ITEM_KIND_SERIES",
+        "external_ids": [{ "namespace": "tvdb", "value": "99" }],
+        "metadata": {
+          "title": "Third Series",
+          "year": 2022
+        }
+      }
+    ],
+    "next_page_token": ""
+  },
+  "expected": {
+    "valid": true
+  }
+}

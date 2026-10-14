@@ -10,8 +10,8 @@ func TestDefaultsHaveTheShippedBaseline(t *testing.T) {
 	if s, ok := d.Streams(); !ok || s != 3 {
 		t.Fatalf("default streams = %d, present %v; want 3, true", s, ok)
 	}
-	if d[KeyBandwidth] != "unlimited" || d[KeyEncode] != "disabled" {
-		t.Fatalf("defaults = %v, want unlimited bandwidth / encode disabled", d)
+	if d[KeyBandwidth] != DefaultBandwidthValue || d[KeyEncode] != DefaultEncodeValue {
+		t.Fatalf("defaults = %v, want %s bandwidth / encode %s", d, DefaultBandwidthValue, DefaultEncodeValue)
 	}
 }
 
@@ -46,7 +46,7 @@ func TestParseInstanceMergesOverDefaults(t *testing.T) {
 	if n, _ := s.Streams(); n != 5 {
 		t.Fatalf("streams = %d, want 5", n)
 	}
-	if s[KeyBandwidth] != "unlimited" {
+	if s[KeyBandwidth] != DefaultBandwidthValue {
 		t.Fatalf("bandwidth fell off the defaults: %v", s)
 	}
 }

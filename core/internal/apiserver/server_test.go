@@ -81,7 +81,7 @@ func TestAuthInterceptor_ValidToken(t *testing.T) {
 		}
 		return "ok", nil
 	}
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+token))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", apiserver.BearerPrefix+token))
 	resp, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "/abcmovies.api.v1.CoreService/GetJob"}, handler)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -346,7 +346,7 @@ func TestServer_SignUp_Login_GetJob_Flow(t *testing.T) {
 		}
 		return "ok", nil
 	}
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+loginResp.Token))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", apiserver.BearerPrefix+loginResp.Token))
 	resp, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "/abcmovies.api.v1.CoreService/GetJob"}, handler)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -432,7 +432,7 @@ func TestPerUserBlobEncryption_FullFlow(t *testing.T) {
 		aliceCtx = ctx
 		return "ok", nil
 	}
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+loginResp.Token))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", apiserver.BearerPrefix+loginResp.Token))
 	_, err = interceptor(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "/abcmovies.api.v1.CoreService/GetJob"}, aliceHandler)
 	if err != nil {
 		t.Fatalf("interceptor: %v", err)
@@ -486,7 +486,7 @@ func TestPerUserBlobEncryption_FullFlow(t *testing.T) {
 		bobCtx = ctx
 		return "ok", nil
 	}
-	bobMeta := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+bobLoginResp.Token))
+	bobMeta := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", apiserver.BearerPrefix+bobLoginResp.Token))
 	_, err = interceptor(bobMeta, nil, &grpc.UnaryServerInfo{FullMethod: "/abcmovies.api.v1.CoreService/GetJob"}, bobHandler)
 	if err != nil {
 		t.Fatalf("interceptor bob: %v", err)

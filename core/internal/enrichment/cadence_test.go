@@ -10,7 +10,7 @@ func TestDrainCadenceDefaultsWhenUnconfigured(t *testing.T) {
 	if err != nil {
 		t.Fatalf("empty config: %v", err)
 	}
-	if d != 15*time.Minute {
+	if d != DefaultDrainCadence {
 		t.Fatalf("default cadence = %v, want 15m", d)
 	}
 }

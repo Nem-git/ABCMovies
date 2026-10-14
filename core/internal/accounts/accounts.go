@@ -142,6 +142,9 @@ func (s *Store) metaKey(id string) string {
 	return metaPrefix + id
 }
 
+// LinkedAccountIDPrefix is the prefix for linked-account identifiers.
+const LinkedAccountIDPrefix = "lnk_"
+
 // NewID returns an opaque linked-account identifier. The lnk_ prefix keeps
 // the linked id namespace disjoint from operator-chosen account ids, so the
 // two can never collide in the vault's shared session key space (a collision
@@ -152,9 +155,9 @@ func NewID() string {
 	if _, err := rand.Read(b[:]); err != nil {
 		// crypto/rand failure on the happy path is unrecoverable; surface it
 		// as a clearly invalid id so the caller fails loudly.
-		return "lnk_<rand-failed>"
+		return LinkedAccountIDPrefix + "<rand-failed>"
 	}
-	return "lnk_" + hex.EncodeToString(b[:])
+	return LinkedAccountIDPrefix + hex.EncodeToString(b[:])
 }
 
 // Add stores a record. A duplicate id is an error, not a silent overwrite:

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/config"
 	"github.com/nem-git/abcmovies/core/internal/policy"
 )
 
@@ -59,8 +60,8 @@ func TestPlayStartStagesMenuAndAnnouncesReady(t *testing.T) {
 	now := time.Now()
 	var announced *Session
 	e := New(Options{
-		SessionTTL:     24 * time.Hour,
-		InstancePolicy: policy.Set{"concurrentStreams": "3"},
+		SessionTTL:     config.DefaultSessionTTL,
+		InstancePolicy: policy.Set{policy.KeyConcurrentStreams: "3"},
 		Now:            func() time.Time { return now },
 		RecordJob:      func(*corev1.Job) {},
 		SourceResolver: &fakeResolver{source: playSource(provider.URL)},
@@ -106,8 +107,8 @@ func TestPlayStartStagesMenuAndAnnouncesReady(t *testing.T) {
 func TestPlayStartSkipsLocationlessTracks(t *testing.T) {
 	relay := NewRelay()
 	e := New(Options{
-		SessionTTL:     24 * time.Hour,
-		InstancePolicy: policy.Set{"concurrentStreams": "3"},
+		SessionTTL:     config.DefaultSessionTTL,
+		InstancePolicy: policy.Set{policy.KeyConcurrentStreams: "3"},
 		RecordJob:      func(*corev1.Job) {},
 		SourceResolver: &fakeResolver{source: &corev1.MediaSource{
 			Type:        corev1.MediaSourceType_MEDIA_SOURCE_TYPE_STATIC,
@@ -165,8 +166,8 @@ func TestPlayEndToEndPassthroughRelay(t *testing.T) {
 	relay := NewRelay()
 	now := time.Now()
 	e := New(Options{
-		SessionTTL:     24 * time.Hour,
-		InstancePolicy: policy.Set{"concurrentStreams": "3"},
+		SessionTTL:     config.DefaultSessionTTL,
+		InstancePolicy: policy.Set{policy.KeyConcurrentStreams: "3"},
 		Now:            func() time.Time { return now },
 		RecordJob:      func(*corev1.Job) {},
 		SourceResolver: &fakeResolver{source: playSource(provider.URL)},

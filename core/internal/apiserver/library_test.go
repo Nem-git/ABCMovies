@@ -40,12 +40,12 @@ func TestGetLibrary_ReturnsFilteredPagedLibrary(t *testing.T) {
 	srv.SetLibrary(lib)
 	ctx := ctxAs(session, "user-1")
 
-	// Page 1: the first libraryPageSize entries, and a continuation token.
+	// Page 1: the first LibraryPageSize entries, and a continuation token.
 	page1, err := srv.GetLibrary(ctx, &apiv1.GetLibraryRequest{})
 	if err != nil {
 		t.Fatalf("GetLibrary page1: %v", err)
 	}
-	if len(page1.GetItems()) != 100 {
+	if len(page1.GetItems()) != apiserver.LibraryPageSize {
 		t.Fatalf("page1 items = %d, want 100", len(page1.GetItems()))
 	}
 	if page1.GetNextPageToken() != "100" {

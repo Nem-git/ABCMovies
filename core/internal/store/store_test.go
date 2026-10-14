@@ -92,17 +92,25 @@ func RunStoreSuite(t *testing.T, newStore func(t *testing.T) Store) {
 	t.Run("ListPrefix", func(t *testing.T) {
 		s := newStore(t)
 		ctx := context.Background()
-		for _, k := range []string{"user:1:a", "user:1:b", "user:2:a", "other:1"} {
+		for _, k := range []string{
+			UserBlobKeyPrefix + "1:a",
+			UserBlobKeyPrefix + "1:b",
+			"user:2:a",
+			"other:1",
+		} {
 			if err := s.Put(ctx, k, []byte("v")); err != nil {
 				t.Fatalf("put %q: %v", k, err)
 			}
 		}
-		keys, err := s.List(ctx, "user:1:")
+		keys, err := s.List(ctx, UserBlobKeyPrefix+"1:")
 		if err != nil {
 			t.Fatalf("list: %v", err)
 		}
 		sort.Strings(keys)
-		want := []string{"user:1:a", "user:1:b"}
+		want := []string{
+			UserBlobKeyPrefix + "1:a",
+			UserBlobKeyPrefix + "1:b",
+		}
 		if len(keys) != len(want) {
 			t.Fatalf("list prefix: got %v, want %v", keys, want)
 		}

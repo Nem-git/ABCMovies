@@ -17,12 +17,12 @@ import (
 // are ignored (meta.proto).
 const cataloguePaceKey = "catalogue.pace-interval"
 
-// defaultCataloguePace is the shipped fallback when neither the operator nor
+// DefaultCataloguePace is the shipped fallback when neither the operator nor
 // the adapter declares a pace: the serial enrichment worker's historical
 // spacing, which keeps a ~5 req/s ceiling on catalogue calls
 // (TECHNICAL-DECISIONS §1.27). It stays the default so declaring nothing is
 // behaviour-preserving.
-const defaultCataloguePace = 200 * time.Millisecond
+const DefaultCataloguePace = 200 * time.Millisecond
 
 // pacedCatalogue spaces one catalogue's calls by the catalogue's declared
 // pace. It is the enforcement point for "the thing that protects the provider

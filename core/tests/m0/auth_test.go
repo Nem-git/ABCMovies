@@ -63,7 +63,7 @@ func TestAuth_SignUp_Login_FullFlow(t *testing.T) {
 		}
 		return "ok", nil
 	}
-	ctx := metadata.NewIncomingContext(t.Context(), metadata.Pairs("authorization", "Bearer "+loginResp.GetToken()))
+	ctx := metadata.NewIncomingContext(t.Context(), metadata.Pairs("authorization", apiserver.BearerPrefix+loginResp.GetToken()))
 	resp, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "/abcmovies.api.v1.CoreService/GetJob"}, handler)
 	if err != nil {
 		t.Fatalf("interceptor: %v", err)

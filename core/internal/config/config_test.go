@@ -123,7 +123,7 @@ func TestParseTokenTTL_Default(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseTokenTTL(\"\") error = %v, want none", err)
 	}
-	want := 168 * time.Hour
+	want := config.DefaultTokenTTL
 	if got != want {
 		t.Fatalf("ParseTokenTTL(\"\") = %v, want %v", got, want)
 	}
@@ -134,7 +134,7 @@ func TestParseTokenTTL_Valid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseTokenTTL(\"24h\") error = %v, want none", err)
 	}
-	want := 24 * time.Hour
+	want := config.DefaultSessionTTL
 	if got != want {
 		t.Fatalf("ParseTokenTTL(\"24h\") = %v, want %v", got, want)
 	}
@@ -420,9 +420,9 @@ func TestParseDeliveryTiming(t *testing.T) {
 	if err != nil {
 		t.Fatalf("defaults: %v", err)
 	}
-	if def.SessionTTL != 24*time.Hour ||
-		def.HeartbeatInterval != 30*time.Second ||
-		def.HeartbeatGrace != 90*time.Second {
+	if def.SessionTTL != config.DefaultSessionTTL ||
+		def.HeartbeatInterval != config.DefaultHeartbeatInterval ||
+		def.HeartbeatGrace != config.DefaultHeartbeatGrace {
 		t.Fatalf("defaults = %+v, want 24h/30s/90s", def)
 	}
 
@@ -449,7 +449,7 @@ func TestParseDeliveryTiming(t *testing.T) {
 	if err != nil {
 		t.Fatalf("partial: %v", err)
 	}
-	if partial.HeartbeatInterval != 45*time.Second || partial.HeartbeatGrace != 90*time.Second {
+	if partial.HeartbeatInterval != 45*time.Second || partial.HeartbeatGrace != config.DefaultHeartbeatGrace {
 		t.Fatalf("partial = %+v, want interval 45s with grace default 90s", partial)
 	}
 }

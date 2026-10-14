@@ -31,13 +31,13 @@ func TestGetInstanceInfo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetInstanceInfo: %v", err)
 	}
-	if resp.GetContractVersion() != "v1" {
+	if resp.GetContractVersion() != apiserver.ContractVersion {
 		t.Errorf("contract version = %q, want v1", resp.GetContractVersion())
 	}
 	if got := resp.GetAuthMethods(); len(got) != 1 || got[0] != "password" {
 		t.Errorf("auth methods = %v, want [password]", got)
 	}
-	if got := resp.GetHeartbeatInterval().AsDuration(); got != 30*time.Second {
+	if got := resp.GetHeartbeatInterval().AsDuration(); got != config.DefaultHeartbeatInterval {
 		t.Errorf("heartbeat interval = %v, want shipped default 30s", got)
 	}
 
@@ -120,7 +120,7 @@ func TestGetInstanceSettings_ReturnsEffectiveValues(t *testing.T) {
 		t.Fatalf("mint: %v", err)
 	}
 
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+token))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", apiserver.BearerPrefix+token))
 	resp, err := srv.GetInstanceSettings(ctx, &apiv1.GetInstanceSettingsRequest{})
 	if err != nil {
 		t.Fatalf("GetInstanceSettings: %v", err)

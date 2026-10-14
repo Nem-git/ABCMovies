@@ -12,6 +12,9 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// AccountKeyPrefix is the key prefix for account session storage.
+const AccountKeyPrefix = "account:"
+
 const vaultSchema = `
 CREATE TABLE IF NOT EXISTS vault (
     key       TEXT PRIMARY KEY,

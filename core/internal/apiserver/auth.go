@@ -110,21 +110,24 @@ func AuthStreamInterceptor(session auth.Session) grpc.StreamServerInterceptor {
 	}
 }
 
+// BearerPrefix is the expected Authorization header prefix.
+const BearerPrefix = "Bearer "
+
 func authenticate(ctx context.Context, session auth.Session) (string, string, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return "", "", status.Error(codes.Unauthenticated, "missing metadata")
 	}
+
 	values := md.Get("authorization")
 	if len(values) == 0 {
 		return "", "", status.Error(codes.Unauthenticated, "missing authorization")
 	}
 	token := values[0]
-	const prefix = "Bearer "
-	if !strings.HasPrefix(token, prefix) {
+	if !strings.HasPrefix(token, BearerPrefix) {
 		return "", "", status.Error(codes.Unauthenticated, "invalid token format")
 	}
-	rawToken := token[len(prefix):]
+	rawToken := token[len(BearerPrefix):]
 
 	uid, err := session.Validate(rawToken)
 	if err != nil {

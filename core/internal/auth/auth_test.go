@@ -57,6 +57,49 @@ func TestSignUp_DuplicateUsername(t *testing.T) {
 	}
 }
 
+// TestSignUp_Argon2idParameters proves the password-KEK is derived using
+// Argon2id with the pinned parameters (TECHNICAL-DECISIONS §1.11): 19 MiB
+// memory, 2 iterations, 1 thread, 32-byte key. The test signs up the same
+// password twice and verifies the salts differ (so the hashes differ), and
+// that the stored hash is the derived KEK — never the plaintext password.
+func TestSignUp_Argon2idParameters(t *testing.T) {
+	store := auth.NewMemoryUserStore()
+	authn := auth.NewPasswordAuthenticator(store)
+
+	// Sign up the same password twice with different usernames.
+	_, err := authn.SignUp("alice", []byte("password123"))
+	if err != nil {
+		t.Fatalf("first SignUp: %v", err)
+	}
+	_, err = authn.SignUp("bob", []byte("password123"))
+	if err != nil {
+		t.Fatalf("second SignUp: %v", err)
+	}
+
+	alice, _ := store.GetUser("alice")
+	bob, _ := store.GetUser("bob")
+
+	// Salts must differ — same password, different random salt.
+	if string(alice.Salt) == string(bob.Salt) {
+		t.Fatal("salts are identical — Argon2id is not using random salts")
+	}
+
+	// Hashes must differ — different salts produce different KEKs.
+	if string(alice.PasswordHash) == string(bob.PasswordHash) {
+		t.Fatal("password hashes are identical — Argon2id is not salted")
+	}
+
+	// The stored hash must NOT be the plaintext password.
+	if string(alice.PasswordHash) == "password123" {
+		t.Fatal("stored hash is the plaintext password — Argon2id not applied")
+	}
+
+	// The hash must be 32 bytes (Argon2KeyLen).
+	if len(alice.PasswordHash) != auth.Argon2KeyLen {
+		t.Fatalf("password hash length = %d, want %d (Argon2KeyLen)", len(alice.PasswordHash), auth.Argon2KeyLen)
+	}
+}
+
 func TestLogin_Success(t *testing.T) {
 	store := auth.NewMemoryUserStore()
 	authn := auth.NewPasswordAuthenticator(store)

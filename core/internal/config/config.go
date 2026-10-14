@@ -590,8 +590,8 @@ func ValidateArticles(articles []string) error {
 	return nil
 }
 
-// defaultTokenTTL is the shipped session-token lifetime: seven days.
-const defaultTokenTTL = 168 * time.Hour
+// DefaultTokenTTL is the shipped session-token lifetime: seven days.
+const DefaultTokenTTL = 168 * time.Hour
 
 // ParseTokenTTL parses the token TTL from the config string. An empty value
 // means the shipped default. A value that does not parse is a boot failure,
@@ -599,7 +599,7 @@ const defaultTokenTTL = 168 * time.Hour
 // lifetime with no signal, so the operator must hear about it at startup.
 func ParseTokenTTL(val string) (time.Duration, error) {
 	if val == "" {
-		return defaultTokenTTL, nil
+		return DefaultTokenTTL, nil
 	}
 	d, err := time.ParseDuration(val)
 	if err != nil {

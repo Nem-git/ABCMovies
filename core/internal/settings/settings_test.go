@@ -1,4 +1,4 @@
-package settings
+package settings_test
 
 import (
 	"context"
@@ -6,22 +6,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nem-git/abcmovies/core/internal/config"
+	"github.com/nem-git/abcmovies/core/internal/settings"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
-func testDefaults() Snapshot {
-	return Snapshot{
+func testDefaults() settings.Snapshot {
+	return settings.Snapshot{
 		AuthMethods:        []string{"password"},
-		HeartbeatInterval:  30 * time.Second,
-		HeartbeatGrace:     90 * time.Second,
-		SessionTTL:         24 * time.Hour,
+		HeartbeatInterval:  config.DefaultHeartbeatInterval,
+		HeartbeatGrace:     config.DefaultHeartbeatGrace,
+		SessionTTL:         config.DefaultSessionTTL,
 		OwnerUserIDVisible: false,
 	}
 }
 
-func mustNew(t *testing.T, backend store.Store, defaults Snapshot) *Provider {
+func mustNew(t *testing.T, backend store.Store, defaults settings.Snapshot) *settings.Provider {
 	t.Helper()
-	p, err := New(backend, defaults)
+	p, err := settings.New(backend, defaults)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -41,7 +43,7 @@ func TestNew_UsesDefaultsWhenStoreEmpty(t *testing.T) {
 	if len(got.AuthMethods) != 1 || got.AuthMethods[0] != "password" {
 		t.Errorf("auth methods = %v, want [password]", got.AuthMethods)
 	}
-	if got.HeartbeatInterval != 30*time.Second || got.HeartbeatGrace != 90*time.Second || got.SessionTTL != 24*time.Hour {
+	if got.HeartbeatInterval != config.DefaultHeartbeatInterval || got.HeartbeatGrace != config.DefaultHeartbeatGrace || got.SessionTTL != config.DefaultSessionTTL {
 		t.Errorf("timing = %v/%v/%v, want defaults", got.HeartbeatInterval, got.HeartbeatGrace, got.SessionTTL)
 	}
 	if got.OwnerUserIDVisible {
@@ -56,7 +58,7 @@ func TestApply_PersistsForNextBoot(t *testing.T) {
 	p := mustNew(t, backend, testDefaults())
 
 	ttl := 48 * time.Hour
-	if _, err := p.Apply(context.Background(), Patch{SessionTTL: &ttl}, LiveApply{}); err != nil {
+	if _, err := p.Apply(context.Background(), settings.Patch{SessionTTL: &ttl}, settings.LiveApply{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -80,14 +82,14 @@ func TestApply_HandsValuesToLiveConsumerBeforePersist(t *testing.T) {
 
 	var seenTTL time.Duration
 	var seenMethods []string
-	live := LiveApply{
+	live := settings.LiveApply{
 		SessionTTL:  func(d time.Duration) error { seenTTL = d; return nil },
 		AuthMethods: func(m []string) error { seenMethods = append([]string(nil), m...); return nil },
 	}
 
 	ttl := time.Hour
 	methods := []string{"password", "password"}
-	if _, err := p.Apply(context.Background(), Patch{SessionTTL: &ttl, AuthMethods: &methods}, live); err != nil {
+	if _, err := p.Apply(context.Background(), settings.Patch{SessionTTL: &ttl, AuthMethods: &methods}, live); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 	if seenTTL != time.Hour {
@@ -105,7 +107,7 @@ func TestApply_RejectsInvalidValueWithoutPersisting(t *testing.T) {
 	p := mustNew(t, backend, testDefaults())
 
 	zero := time.Duration(0)
-	if _, err := p.Apply(context.Background(), Patch{SessionTTL: &zero}, LiveApply{}); err == nil {
+	if _, err := p.Apply(context.Background(), settings.Patch{SessionTTL: &zero}, settings.LiveApply{}); err == nil {
 		t.Fatal("Apply with non-positive session_ttl: want error, got nil")
 	}
 
@@ -116,8 +118,8 @@ func TestApply_RejectsInvalidValueWithoutPersisting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if got.SessionTTL != 24*time.Hour {
-		t.Errorf("session_ttl after rejected write = %v, want untouched default 24h", got.SessionTTL)
+	if got.SessionTTL != config.DefaultSessionTTL {
+		t.Errorf("session_ttl after rejected write = %v, want untouched default", got.SessionTTL)
 	}
 }
 
@@ -128,8 +130,8 @@ func TestApply_RejectsWhenLiveApplyFails(t *testing.T) {
 	p := mustNew(t, backend, testDefaults())
 
 	methods := []string{"password"}
-	live := LiveApply{AuthMethods: func([]string) error { return errors.New("unknown method") }}
-	if _, err := p.Apply(context.Background(), Patch{AuthMethods: &methods}, live); err == nil {
+	live := settings.LiveApply{AuthMethods: func([]string) error { return errors.New("unknown method") }}
+	if _, err := p.Apply(context.Background(), settings.Patch{AuthMethods: &methods}, live); err == nil {
 		t.Fatal("Apply when live apply fails: want error, got nil")
 	}
 
@@ -150,12 +152,12 @@ func TestApply_AbsentFieldKeepsStoredValue(t *testing.T) {
 	p := mustNew(t, backend, testDefaults())
 
 	ttl := 48 * time.Hour
-	if _, err := p.Apply(context.Background(), Patch{SessionTTL: &ttl}, LiveApply{}); err != nil {
+	if _, err := p.Apply(context.Background(), settings.Patch{SessionTTL: &ttl}, settings.LiveApply{}); err != nil {
 		t.Fatalf("Apply ttl: %v", err)
 	}
 
 	visible := true
-	if _, err := p.Apply(context.Background(), Patch{OwnerUserIDVisible: &visible}, LiveApply{}); err != nil {
+	if _, err := p.Apply(context.Background(), settings.Patch{OwnerUserIDVisible: &visible}, settings.LiveApply{}); err != nil {
 		t.Fatalf("Apply visible: %v", err)
 	}
 
@@ -175,10 +177,10 @@ func TestApply_AbsentFieldKeepsStoredValue(t *testing.T) {
 // back to defaults and discarding the operator's settings.
 func TestNew_RejectsCorruptRecord(t *testing.T) {
 	backend := store.NewInMemory()
-	if err := backend.Put(context.Background(), storageKey, []byte("{not json")); err != nil {
+	if err := backend.Put(context.Background(), settings.StorageKey, []byte("{not json")); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	if _, err := New(backend, testDefaults()); err == nil {
+	if _, err := settings.New(backend, testDefaults()); err == nil {
 		t.Fatal("New over a corrupt record: want error, got nil")
 	}
 }
@@ -187,10 +189,10 @@ func TestNew_RejectsCorruptRecord(t *testing.T) {
 // boot failure, not a silent default.
 func TestNew_RejectsInvalidStoredRecord(t *testing.T) {
 	backend := store.NewInMemory()
-	if err := backend.Put(context.Background(), storageKey, []byte(`{"auth_methods":[],"heartbeat_interval_ns":1,"heartbeat_grace_ns":1,"session_ttl_ns":1}`)); err != nil {
+	if err := backend.Put(context.Background(), settings.StorageKey, []byte(`{"auth_methods":[],"heartbeat_interval_ns":1,"heartbeat_grace_ns":1,"session_ttl_ns":1}`)); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	if _, err := New(backend, testDefaults()); err == nil {
+	if _, err := settings.New(backend, testDefaults()); err == nil {
 		t.Fatal("New over an invalid record: want error, got nil")
 	}
 }

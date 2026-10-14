@@ -123,3 +123,48 @@ func TestInMemoryBusInstanceAudienceFailClosed(t *testing.T) {
 	default:
 	}
 }
+
+// TestInMemoryBusEphemeralNoReplay proves the bus is ephemeral (PLAN.md §2.4):
+// events published before a restart are gone — the new bus has no memory of
+// them. This is safe because the job object is queryable (GetJob); a lost
+// notification is free to lose.
+func TestInMemoryBusEphemeralNoReplay(t *testing.T) {
+	bus := apiserver.NewInMemoryBus()
+	subCh := bus.Subscribe("sub-1", "alice")
+
+	bus.Publish(&corev1.EventEnvelope{
+		Type:     corev1.EventType_EVENT_TYPE_JOB_STATUS,
+		Audience: corev1.EventAudience_EVENT_AUDIENCE_USER,
+		UserId:   "alice",
+		Payload: &corev1.EventEnvelope_JobStatus{
+			JobStatus: &corev1.JobStatusEvent{JobId: "job-old"},
+		},
+	})
+
+	// Drain the event.
+	select {
+	case e := <-subCh:
+		if e.GetType() != corev1.EventType_EVENT_TYPE_JOB_STATUS {
+			t.Fatalf("got %v, want job-status", e.GetType())
+		}
+	case <-time.After(time.Second):
+		t.Fatal("should receive the event before restart")
+	}
+
+	// Close the subscriber and bus, then restart both (simulating a process
+	// restart — the bus is in-memory, so all state is lost).
+	bus.Unsubscribe("sub-1")
+	bus.Close()
+
+	bus2 := apiserver.NewInMemoryBus()
+	defer bus2.Close()
+	subCh2 := bus2.Subscribe("sub-1", "alice")
+	defer bus2.Unsubscribe("sub-1")
+
+	// The old event is not replayed — the new bus never saw it.
+	select {
+	case e := <-subCh2:
+		t.Fatalf("ephemeral bus replayed a pre-restart event: %v", e.GetType())
+	case <-time.After(100 * time.Millisecond):
+	}
+}

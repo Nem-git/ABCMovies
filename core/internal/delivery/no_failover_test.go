@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
+	"github.com/nem-git/abcmovies/core/internal/config"
 )
 
 // switchingResolver answers for any provider it is asked about and records
@@ -36,7 +36,7 @@ func TestStartDoesNotFailOverToAnotherProvider(t *testing.T) {
 	res := &switchingResolver{primary: "jellyfin"}
 	var menus, jobs int
 	e := New(Options{
-		SessionTTL:     24 * time.Hour,
+		SessionTTL:     config.DefaultSessionTTL,
 		SourceResolver: res,
 		SinkFactory:    &fakeSinkFactory{},
 		MenuReady:      func(*Session) { menus++ },

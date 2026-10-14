@@ -1,9 +1,12 @@
-package enrichment
+package enrichment_test
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/nem-git/abcmovies/core/internal/enrichment"
+	"github.com/nem-git/abcmovies/core/internal/slotwiring"
 )
 
 // One pacing system: the drain worker applies no pacing of its own — each
@@ -13,12 +16,12 @@ import (
 // entry (600ms for three), so the threshold fails on the old behavior and
 // leaves three stub enrichments four orders of magnitude of headroom.
 func TestDrainAppliesNoPacingOfItsOwn(t *testing.T) {
-	q := NewInMemoryQueue()
+	q := enrichment.NewInMemoryQueue()
 	for _, id := range []string{"a", "b", "c"} {
 		q.Enqueue(id)
 	}
 	var seen []string
-	w := NewWorker(q, func(_ context.Context, id string) error {
+	w := enrichment.NewWorker(q, func(_ context.Context, id string) error {
 		seen = append(seen, id)
 		return nil
 	}, nil)
@@ -32,7 +35,7 @@ func TestDrainAppliesNoPacingOfItsOwn(t *testing.T) {
 	if len(seen) != 3 {
 		t.Fatalf("enriched %v, want 3 entries", seen)
 	}
-	if elapsed >= 200*time.Millisecond {
+	if elapsed >= slotwiring.DefaultCataloguePace {
 		t.Fatalf("drain of 3 stub entries took %v; the worker must not sleep between entries (the catalogue wrapper is the one pacing system)", elapsed)
 	}
 }

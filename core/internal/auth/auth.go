@@ -22,9 +22,11 @@ const (
 	argon2Memory  = 19 * 1024 // 19 MiB in KiB
 	argon2Time    = 2
 	argon2Threads = 1
-	argon2KeyLen  = 32
-	saltLen       = 16
-	dekLen        = 32
+	// Argon2KeyLen is the derived-key length for Argon2id.
+	Argon2KeyLen = 32
+	// SaltLen is the salt length for Argon2id.
+	SaltLen = 16
+	dekLen  = 32
 )
 
 // base32 alphabet (RFC 4648, no padding).
@@ -84,13 +86,13 @@ func (a *PasswordAuthenticator) SignUp(username string, password []byte) (*SignU
 	}
 
 	// Generate random salt.
-	salt := make([]byte, saltLen)
+	salt := make([]byte, SaltLen)
 	if _, err := rand.Read(salt); err != nil {
 		return nil, fmt.Errorf("auth: generate salt: %w", err)
 	}
 
 	// Derive password-KEK using Argon2id.
-	passwordKEK := argon2.IDKey(password, salt, argon2Time, argon2Memory, argon2Threads, argon2KeyLen)
+	passwordKEK := argon2.IDKey(password, salt, argon2Time, argon2Memory, argon2Threads, Argon2KeyLen)
 
 	// Generate random DEK.
 	dek := make([]byte, dekLen)
@@ -156,7 +158,7 @@ func (a *PasswordAuthenticator) Login(username string, password []byte) (*LoginR
 	}
 
 	// Re-derive password-KEK using stored salt.
-	passwordKEK := argon2.IDKey(password, userData.Salt, argon2Time, argon2Memory, argon2Threads, argon2KeyLen)
+	passwordKEK := argon2.IDKey(password, userData.Salt, argon2Time, argon2Memory, argon2Threads, Argon2KeyLen)
 
 	// Verify password hash.
 	if !bytesEqual(passwordKEK, userData.PasswordHash) {

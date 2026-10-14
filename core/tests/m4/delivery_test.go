@@ -54,7 +54,7 @@ func muxSource(providerURL string) *corev1.MediaSource {
 				Media: &corev1.Track_Video{Video: &corev1.VideoTrack{Codec: "hevc"}},
 				Delivery: &corev1.TrackDelivery{
 					Locations:   []string{providerURL + "/mux"},
-					AuthContext: "Bearer provider-secret",
+					AuthContext: apiserver.BearerPrefix + "provider-secret",
 				},
 			},
 		},
@@ -71,11 +71,11 @@ func perTrackSource(providerURL string) *corev1.MediaSource {
 		Tracks: []*corev1.Track{
 			{
 				Id: "v1", Media: &corev1.Track_Video{Video: &corev1.VideoTrack{Codec: "h264"}},
-				Delivery: &corev1.TrackDelivery{Locations: []string{providerURL + "/v1"}, AuthContext: "Bearer provider-secret"},
+				Delivery: &corev1.TrackDelivery{Locations: []string{providerURL + "/v1"}, AuthContext: apiserver.BearerPrefix + "provider-secret"},
 			},
 			{
 				Id: "a1", Media: &corev1.Track_Audio{Audio: &corev1.AudioTrack{Codec: "aac"}},
-				Delivery: &corev1.TrackDelivery{Locations: []string{providerURL + "/a1"}, AuthContext: "Bearer provider-secret"},
+				Delivery: &corev1.TrackDelivery{Locations: []string{providerURL + "/a1"}, AuthContext: apiserver.BearerPrefix + "provider-secret"},
 			},
 		},
 	}
@@ -148,7 +148,7 @@ func (m engineManager) ListJobs(string, string) ([]*corev1.Job, string, error) {
 func buildServer(resolver delivery.Resolver, sinks delivery.SinkFactory) (*apiserver.Server, *delivery.Engine) {
 	eng := delivery.New(delivery.Options{
 		SessionTTL:     time.Hour,
-		InstancePolicy: policy.Set{"concurrentStreams": "3"},
+		InstancePolicy: policy.Set{policy.KeyConcurrentStreams: "3"},
 		SourceResolver: resolver,
 		SinkFactory:    sinks,
 		RecordJob:      func(*corev1.Job) {},
@@ -469,7 +469,7 @@ func (m resolvingDelivery) GetDeliveryOptions(entryID, userID string) (*apiv1.Ge
 
 // ListJobs returns the caller's jobs from the store, paginated.
 func (m resolvingDelivery) ListJobs(userID, pageToken string) ([]*corev1.Job, string, error) {
-	keys, err := m.jobs.List(context.Background(), "job:")
+	keys, err := m.jobs.List(context.Background(), apiserver.JobKeyPrefix)
 	if err != nil {
 		return nil, "", err
 	}
@@ -522,7 +522,7 @@ func TestGetDeliveryOptionsValid(t *testing.T) {
 
 	eng := delivery.New(delivery.Options{
 		SessionTTL:     time.Hour,
-		InstancePolicy: policy.Set{"concurrentStreams": "3"},
+		InstancePolicy: policy.Set{policy.KeyConcurrentStreams: "3"},
 		SourceResolver: &fakeResolver{perTrackSource(provider.URL)},
 		SinkFactory:    sinks,
 		RecordJob:      func(*corev1.Job) {},
@@ -571,7 +571,7 @@ func TestGetDeliveryOptionsValid(t *testing.T) {
 // TestGetDeliveryOptionsEmptyEntryID proves an empty entry_id is rejected
 // with InvalidArgument (schema validation).
 func TestGetDeliveryOptionsEmptyEntryID(t *testing.T) {
-	eng := delivery.New(delivery.Options{SessionTTL: time.Hour, InstancePolicy: policy.Set{"concurrentStreams": "3"}})
+	eng := delivery.New(delivery.Options{SessionTTL: time.Hour, InstancePolicy: policy.Set{policy.KeyConcurrentStreams: "3"}})
 	defer eng.Close()
 	srv := buildDeliveryTestServer(eng, &corev1.LibraryEntry{Id: "le-test1", Kind: corev1.EntryKind_ENTRY_KIND_MOVIE})
 
@@ -588,7 +588,7 @@ func TestGetDeliveryOptionsEmptyEntryID(t *testing.T) {
 func TestGetDeliveryOptionsUnknownEntryDoesNotPanic(t *testing.T) {
 	eng := delivery.New(delivery.Options{
 		SessionTTL:     time.Hour,
-		InstancePolicy: policy.Set{"concurrentStreams": "3"},
+		InstancePolicy: policy.Set{policy.KeyConcurrentStreams: "3"},
 		SourceResolver: &fakeResolver{perTrackSource("http://dummy")},
 	})
 	defer eng.Close()
@@ -607,7 +607,7 @@ func TestGetDeliveryOptionsUnknownEntryDoesNotPanic(t *testing.T) {
 // TestListJobsReturnsCallerJobs proves ListJobs returns only the caller's
 // jobs, excluding other users' jobs.
 func TestListJobsReturnsCallerJobs(t *testing.T) {
-	eng := delivery.New(delivery.Options{SessionTTL: time.Hour, InstancePolicy: policy.Set{"concurrentStreams": "3"}})
+	eng := delivery.New(delivery.Options{SessionTTL: time.Hour, InstancePolicy: policy.Set{policy.KeyConcurrentStreams: "3"}})
 	defer eng.Close()
 
 	// Seed the jobs store with two jobs: one for u1, one for u2
@@ -620,7 +620,7 @@ func TestListJobsReturnsCallerJobs(t *testing.T) {
 		if err != nil {
 			t.Fatalf("marshal job: %v", err)
 		}
-		if err := jobs.Put(context.Background(), "job:"+j.GetId(), val); err != nil {
+		if err := jobs.Put(context.Background(), apiserver.JobKeyPrefix+j.GetId(), val); err != nil {
 			t.Fatalf("put job: %v", err)
 		}
 	}
@@ -649,7 +649,7 @@ func TestListJobsReturnsCallerJobs(t *testing.T) {
 // TestListJobsEmpty proves ListJobs returns an empty list when the caller has
 // no jobs.
 func TestListJobsEmpty(t *testing.T) {
-	eng := delivery.New(delivery.Options{SessionTTL: time.Hour, InstancePolicy: policy.Set{"concurrentStreams": "3"}})
+	eng := delivery.New(delivery.Options{SessionTTL: time.Hour, InstancePolicy: policy.Set{policy.KeyConcurrentStreams: "3"}})
 	defer eng.Close()
 	srv := buildDeliveryTestServer(eng, &corev1.LibraryEntry{Id: "le-test1", Kind: corev1.EntryKind_ENTRY_KIND_MOVIE})
 
