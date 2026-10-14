@@ -11,7 +11,7 @@ export default defineConfig({
     headless: true,
   },
   webServer: {
-    command: 'npm run build && cd ../.. && mkdir -p config frontends/web/serving/dist && cp frontends/web/e2e/instance.yaml config/instance.yaml && cp frontends/web/src/index.html frontends/web/serving/dist/index.html && cp frontends/web/dist/bundle.js frontends/web/serving/dist/bundle.js && go run ./frontends/web',
+    command: 'npm run build && cd ../.. && mkdir -p frontends/web/serving/dist && cp frontends/web/src/index.html frontends/web/serving/dist/index.html && cp frontends/web/dist/bundle.js frontends/web/serving/dist/bundle.js && go run ./frontends/web',
     url: 'http://127.0.0.1:18443/debug/capabilities',
     timeout: 60_000,
     reuseExistingServer: false,
