@@ -1,10 +1,36 @@
 {
   "name": "lookup-title-request-with-kind-and-year",
   "type": "LookupTitleRequest",
-  "message": {
+  "request_data": {
     "query": "Inception",
     "kind": "ITEM_KIND_MOVIE",
     "year": 2010
+  },
+  "responses": {
+    "/search/movie": {
+      "results": [
+        {
+          "id": 27205,
+          "media_type": "movie",
+          "title": "Inception",
+          "original_title": "Inception",
+          "release_date": "2010-07-16",
+          "imdb_id": "tt1375666"
+        }
+      ]
+    }
+  },
+  "message": {
+    "candidates": [
+      {
+        "ref": "tmdb:27205",
+        "kind": "ITEM_KIND_MOVIE",
+        "title": "Inception",
+        "original_title": "Inception",
+        "year": 2010,
+        "external_ids": [{ "namespace": "imdb", "value": "tt1375666" }]
+      }
+    ]
   },
   "expected": {
     "valid": true

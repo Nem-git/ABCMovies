@@ -1,8 +1,62 @@
 {
   "name": "get-metadata-request-native-ref",
   "type": "GetMetadataRequest",
-  "message": {
+  "request_data": {
     "ref": "tmdb:27205"
+  },
+  "responses": {
+    "/movie/27205": {
+      "success": true,
+      "id": 27205,
+      "title": "Inception",
+      "original_title": "Inception",
+      "overview": "A thief who steals corporate secrets through dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O.",
+      "release_date": "2010-07-16",
+      "vote_average": 8.4,
+      "poster_path": "/inception_poster.jpg",
+      "original_language": "en",
+      "runtime": 148,
+      "external_ids": {
+        "imdb_id": "tt1375666"
+      },
+      "credits": {
+        "cast": [
+          { "name": "Leonardo DiCaprio", "order": 0 },
+          { "name": "Joseph Gordon-Levitt", "order": 1 }
+        ],
+        "crew": [
+          { "name": "Christopher Nolan", "job": "Director" }
+        ]
+      },
+      "release_dates": {
+        "results": [
+          {
+            "iso_3166_1": "US",
+            "release_dates": [{ "certification": "PG-13" }]
+          }
+        ]
+      }
+    }
+  },
+  "message": {
+    "metadata": {
+      "title": "Inception",
+      "year": 2010,
+      "description": "A thief who steals corporate secrets through dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O.",
+      "rating": 8.4,
+      "poster_url": "https://image.tmdb.org/t/p/w500/inception_poster.jpg",
+      "original_language": "en",
+      "movie": {
+        "runtime_minutes": 148
+      },
+      "content_rating": "PG-13",
+      "cast": ["Leonardo DiCaprio", "Joseph Gordon-Levitt"],
+      "directors": ["Christopher Nolan"]
+    },
+    "external_ids": [
+      { "namespace": "tmdb", "value": "27205" },
+      { "namespace": "imdb", "value": "tt1375666" }
+    ]
   },
   "expected": {
     "valid": true

@@ -6,18 +6,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
 
 	"github.com/nem-git/abcmovies/adapters/jellyfin"
+	"github.com/nem-git/abcmovies/adapters/tmdb"
 	apiv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/api/v1"
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 	slotsv1 "github.com/nem-git/abcmovies/core/gen/abcmovies/slots/v1"
 	"github.com/nem-git/abcmovies/core/internal/accounts"
 	"github.com/nem-git/abcmovies/core/internal/builtin"
 	"github.com/nem-git/abcmovies/core/internal/fakejellyfin"
+	"github.com/nem-git/abcmovies/core/internal/faketmdb"
 	"github.com/nem-git/abcmovies/core/internal/itemregistry"
 	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/registry"
@@ -25,6 +28,7 @@ import (
 	"github.com/nem-git/abcmovies/core/internal/sourcecache"
 	"github.com/nem-git/abcmovies/core/internal/store"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 type suite struct {
@@ -74,6 +78,9 @@ type fixture struct {
 	// CatalogueItems describe the fake Jellyfin server's catalogue for
 	// behavioural provider fixtures.
 	CatalogueItems []catalogueItem `json:"catalogue_items"`
+	// Responses maps a request URL path (e.g. "/search/movie") to a JSON
+	// response body. The fake backend replays these for behavioural fixtures.
+	Responses map[string]json.RawMessage `json:"responses"`
 }
 
 // catalogueItem is the subset of Jellyfin's BaseItemDto the fake index holds.
@@ -776,6 +783,12 @@ func validateDRMMessage(msgType string, msg json.RawMessage) (bool, error) {
 func runCatalogueCase(s suite, c fixture) error {
 	switch s.Kind {
 	case "positive", "negative":
+		// Behavioural conformance: when the fixture carries request_data and
+		// responses, exercise the real tmdb adapter against a fake backend
+		// and compare the actual response against the expected message.
+		if len(c.RequestData) > 0 && len(c.Responses) > 0 {
+			return runCatalogueBehaviouralCase(c)
+		}
 		if c.Expected.Valid == nil {
 			return fmt.Errorf("expected.valid is required for catalogue schema suites")
 		}
@@ -790,6 +803,84 @@ func runCatalogueCase(s suite, c fixture) error {
 	default:
 		return fmt.Errorf("kind %q is not supported for catalogue suites", s.Kind)
 	}
+}
+
+// runCatalogueBehaviouralCase exercises the real tmdb adapter against a fake
+// TMDB server seeded with the fixture's responses. It sends the fixture's
+// request through the adapter's LookupTitle or GetMetadata and compares the
+// actual response against the fixture's expected message. This proves the
+// adapter implements the contract behaviourally, not just that the message
+// shape is schema-valid.
+func runCatalogueBehaviouralCase(c fixture) error {
+	ctx := context.Background()
+
+	// Build the fake TMDB server from the fixture's response map.
+	handlers := make(map[string]http.HandlerFunc, len(c.Responses))
+	for path, body := range c.Responses {
+		body := body // capture
+		handlers[path] = func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(body)
+		}
+	}
+	fake := faketmdb.New(handlers)
+	defer fake.Close()
+
+	// Build the tmdb adapter pointing at the fake server.
+	slot, err := tmdb.New("FIXTURE_RUNNER_TMDB_TOKEN", tmdb.WithBaseURL(fake.URL()))
+	if err != nil {
+		return fmt.Errorf("tmdb.New: %w", err)
+	}
+
+	// Determine which RPC to call from the fixture type.
+	switch c.Type {
+	case "LookupTitleRequest":
+		var req slotsv1.LookupTitleRequest
+		if err := protojson.Unmarshal(c.RequestData, &req); err != nil {
+			return fmt.Errorf("parse LookupTitleRequest: %w", err)
+		}
+		resp, err := slot.LookupTitle(ctx, &req)
+		if err != nil {
+			return fmt.Errorf("LookupTitle: %w", err)
+		}
+		return compareBehaviouralResponse(resp, c.Message)
+	case "GetMetadataRequest":
+		var req slotsv1.GetMetadataRequest
+		if err := protojson.Unmarshal(c.RequestData, &req); err != nil {
+			return fmt.Errorf("parse GetMetadataRequest: %w", err)
+		}
+		resp, err := slot.GetMetadata(ctx, &req)
+		if err != nil {
+			return fmt.Errorf("GetMetadata: %w", err)
+		}
+		return compareBehaviouralResponse(resp, c.Message)
+	default:
+		return fmt.Errorf("behavioural conformance not supported for catalogue type %q", c.Type)
+	}
+}
+
+// compareBehaviouralResponse marshals a proto response, strips empty fields
+// from both sides, and compares the compacted JSON bytes.
+func compareBehaviouralResponse(resp proto.Message, expected json.RawMessage) error {
+	actual, err := protojson.MarshalOptions{UseProtoNames: true, EmitUnpopulated: true}.Marshal(resp)
+	if err != nil {
+		return fmt.Errorf("marshal actual response: %w", err)
+	}
+	expectedStripped := stripEmptyFields(expected)
+	actualStripped := stripEmptyFields(actual)
+	var expectedBuf, actualBuf bytes.Buffer
+	if err := json.Compact(&expectedBuf, expectedStripped); err != nil {
+		return fmt.Errorf("compact expected message: %w", err)
+	}
+	if err := json.Compact(&actualBuf, actualStripped); err != nil {
+		return fmt.Errorf("compact actual message: %w", err)
+	}
+	if !bytes.Equal(actualBuf.Bytes(), expectedBuf.Bytes()) {
+		return fmt.Errorf("behavioural mismatch:\n got: %s\nwant: %s",
+			actualBuf.String(), expectedBuf.String())
+	}
+	return nil
 }
 
 func validateCatalogueMessage(msgType string, msg json.RawMessage) (bool, error) {
