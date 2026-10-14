@@ -21,7 +21,9 @@ test.describe('frontend smoke', () => {
     await page.click('#signup');
 
     const chip = page.locator('#sessionChip');
-    await expect(chip).toHaveText(`logged in as ${username}`, { timeout: 10_000 });
+    await expect(chip).toHaveText(`logged in as ${username}`, {
+      timeout: 10_000,
+    });
   });
 
   test('recovery key is shown after signup', async ({ page }) => {
@@ -47,9 +49,12 @@ test.describe('frontend smoke', () => {
     await page.fill('#username', username);
     await page.fill('#password', password);
     await page.click('#signup');
-    await expect(page.locator('#sessionChip')).toHaveText(`logged in as ${username}`, {
-      timeout: 10_000,
-    });
+    await expect(page.locator('#sessionChip')).toHaveText(
+      `logged in as ${username}`,
+      {
+        timeout: 10_000,
+      },
+    );
 
     // Log out
     await page.click('#logout');
@@ -59,8 +64,11 @@ test.describe('frontend smoke', () => {
     await page.fill('#username', username);
     await page.fill('#password', password);
     await page.click('#login');
-    await expect(page.locator('#sessionChip')).toHaveText(`logged in as ${username}`, {
-      timeout: 10_000,
-    });
+    await expect(page.locator('#sessionChip')).toHaveText(
+      `logged in as ${username}`,
+      {
+        timeout: 10_000,
+      },
+    );
   });
 });

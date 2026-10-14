@@ -30,12 +30,16 @@ describe('eventPayload (oneof decode)', () => {
   });
 
   it('extracts availability-changed payload', () => {
-    const env = envelope(EventType.EVENT_TYPE_AVAILABILITY_CHANGED, 'availability', {
-      accountId: 'acct-1',
-      provider: 'jellyfin',
-      entryId: 'entry-42',
-      present: true,
-    });
+    const env = envelope(
+      EventType.EVENT_TYPE_AVAILABILITY_CHANGED,
+      'availability',
+      {
+        accountId: 'acct-1',
+        provider: 'jellyfin',
+        entryId: 'entry-42',
+        present: true,
+      },
+    );
     const payload = eventPayload(env, 'availability');
     expect(payload).toBeDefined();
     expect(payload.entryId).toBe('entry-42');
@@ -55,52 +59,72 @@ describe('eventPayload (oneof decode)', () => {
   });
 
   it('extracts provider-switched payload', () => {
-    const env = envelope(EventType.EVENT_TYPE_PROVIDER_SWITCHED, 'providerSwitched', {
-      fromProvider: 'providerA',
-      toProvider: 'providerB',
-      reason: 'dead entry',
-      jobId: 'job-1',
-    });
+    const env = envelope(
+      EventType.EVENT_TYPE_PROVIDER_SWITCHED,
+      'providerSwitched',
+      {
+        fromProvider: 'providerA',
+        toProvider: 'providerB',
+        reason: 'dead entry',
+        jobId: 'job-1',
+      },
+    );
     const payload = eventPayload(env, 'providerSwitched');
     expect(payload).toBeDefined();
     expect(payload.toProvider).toBe('providerB');
   });
 
   it('extracts account-session payload for linked', () => {
-    const env = envelope(EventType.EVENT_TYPE_ACCOUNT_SESSION_LINKED, 'accountSession', {
-      accountId: 'acct-9',
-      provider: 'stremio',
-    });
+    const env = envelope(
+      EventType.EVENT_TYPE_ACCOUNT_SESSION_LINKED,
+      'accountSession',
+      {
+        accountId: 'acct-9',
+        provider: 'stremio',
+      },
+    );
     const payload = eventPayload(env, 'accountSession');
     expect(payload).toBeDefined();
     expect(payload.accountId).toBe('acct-9');
   });
 
   it('extracts account-session payload for expired', () => {
-    const env = envelope(EventType.EVENT_TYPE_ACCOUNT_SESSION_EXPIRED, 'accountSession', {
-      accountId: 'acct-3',
-      provider: 'jellyfin',
-    });
+    const env = envelope(
+      EventType.EVENT_TYPE_ACCOUNT_SESSION_EXPIRED,
+      'accountSession',
+      {
+        accountId: 'acct-3',
+        provider: 'jellyfin',
+      },
+    );
     const payload = eventPayload(env, 'accountSession');
     expect(payload).toBeDefined();
     expect(payload.accountId).toBe('acct-3');
   });
 
   it('extracts play-menu-ready payload', () => {
-    const env = envelope(EventType.EVENT_TYPE_DELIVERY_PLAY_MENU_READY, 'playMenuReady', {
-      jobId: 'job-42',
-    });
+    const env = envelope(
+      EventType.EVENT_TYPE_DELIVERY_PLAY_MENU_READY,
+      'playMenuReady',
+      {
+        jobId: 'job-42',
+      },
+    );
     const payload = eventPayload(env, 'playMenuReady');
     expect(payload).toBeDefined();
     expect(payload.jobId).toBe('job-42');
   });
 
   it('extracts slot-health-transition payload', () => {
-    const env = envelope(EventType.EVENT_TYPE_SLOT_HEALTH_TRANSITION, 'slotHealthTransition', {
-      slotId: 'tmdb',
-      healthy: 0,
-      wasHealthy: 1,
-    });
+    const env = envelope(
+      EventType.EVENT_TYPE_SLOT_HEALTH_TRANSITION,
+      'slotHealthTransition',
+      {
+        slotId: 'tmdb',
+        healthy: 0,
+        wasHealthy: 1,
+      },
+    );
     const payload = eventPayload(env, 'slotHealthTransition');
     expect(payload).toBeDefined();
     expect(payload.slotId).toBe('tmdb');

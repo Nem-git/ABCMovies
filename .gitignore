@@ -1,6 +1,7 @@
 # Local instance config and secrets (never committed)
 .env
 config/instance.yaml
+test-results/
 
 # Store files written by file-backed backends (see stores: in config.example.yaml)
 data/

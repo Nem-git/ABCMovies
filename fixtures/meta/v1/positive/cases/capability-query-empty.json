@@ -1,0 +1,5 @@
+{
+  "name": "capability-query-empty",
+  "type": "CapabilityQueryRequest",
+  "message": {}
+}

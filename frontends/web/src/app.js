@@ -249,7 +249,9 @@ export function createApp({ client, doc, onTokenChange }) {
         const src = playSource(item.entry, accounts);
         slot.append(
           libraryCard(item, {
-            onPlay: src ? () => startPlay(src.provider, src.nativeId) : undefined,
+            onPlay: src
+              ? () => startPlay(src.provider, src.nativeId)
+              : undefined,
             onDownload: src
               ? () => startDownload(item.entry.id, src.provider, src.nativeId)
               : undefined,
@@ -605,7 +607,8 @@ export function createApp({ client, doc, onTokenChange }) {
         }
       }
     } catch (err) {
-      if (!subAbort.signal.aborted) log(`subscription failed: ${describe(err)}`);
+      if (!subAbort.signal.aborted)
+        log(`subscription failed: ${describe(err)}`);
     } finally {
       subAbort = null;
       $('subscribeToggle').textContent = 'Subscribe';
@@ -688,7 +691,9 @@ export function createApp({ client, doc, onTokenChange }) {
           const src = playSource(item.entry, accounts);
           slot.append(
             libraryCard(item, {
-              onPlay: src ? () => startPlay(src.provider, src.nativeId) : undefined,
+              onPlay: src
+                ? () => startPlay(src.provider, src.nativeId)
+                : undefined,
               onDownload: src
                 ? () => startDownload(item.entry.id, src.provider, src.nativeId)
                 : undefined,
@@ -815,14 +820,17 @@ export function createApp({ client, doc, onTokenChange }) {
 
     // Event filter options
     for (const [name, value] of Object.entries(EventType)) {
-      if (typeof value !== 'number' || value === EventType.UNSPECIFIED) continue;
+      if (typeof value !== 'number' || value === EventType.UNSPECIFIED)
+        continue;
       const option = doc.createElement('option');
       option.value = String(value);
       option.textContent = eventTypeLabel(value);
       $('eventFilter').append(option);
     }
 
-    $('eventFilter').addEventListener('change', () => applyFilter($('eventFilter').value));
+    $('eventFilter').addEventListener('change', () =>
+      applyFilter($('eventFilter').value),
+    );
 
     $('subscribeToggle').addEventListener('click', () => {
       if (subAbort) stopSubscription();

@@ -39,7 +39,10 @@ describe('accountForDelivery', () => {
 
   it('returns null when the account is not linked', () => {
     expect(
-      accountForDelivery([linked({ status: AccountStatus.EXPIRED })], 'jellyfin'),
+      accountForDelivery(
+        [linked({ status: AccountStatus.EXPIRED })],
+        'jellyfin',
+      ),
     ).toBeNull();
   });
 
@@ -91,7 +94,11 @@ describe('playSource', () => {
     };
     const entry = entryWithCoverage({ 'jellyfin:item-1': { present: true } });
     const src = playSource(entry, [acct]);
-    expect(src).toEqual({ provider: 'jellyfin', nativeId: 'item-1', key: 'jellyfin:item-1' });
+    expect(src).toEqual({
+      provider: 'jellyfin',
+      nativeId: 'item-1',
+      key: 'jellyfin:item-1',
+    });
   });
 
   it('does not match when the no-colon key differs from the provider', () => {

@@ -18,25 +18,39 @@ function makeMockDoc() {
     className: '',
     classList: {
       _set: new Set(),
-      add(c) { this._set.add(c); },
-      remove(c) { this._set.delete(c); },
+      add(c) {
+        this._set.add(c);
+      },
+      remove(c) {
+        this._set.delete(c);
+      },
       toggle(c, force) {
         if (force === true) this._set.add(c);
         else if (force === false) this._set.delete(c);
         else if (this._set.has(c)) this._set.delete(c);
         else this._set.add(c);
       },
-      contains(c) { return this._set.has(c); },
+      contains(c) {
+        return this._set.has(c);
+      },
     },
     style: {},
     dataset: {},
     children: [],
-    appendChild(child) { this.children.push(child); },
-    append(...nodes) { this.children.push(...nodes); },
-    prepend(child) { this.children.unshift(child); },
+    appendChild(child) {
+      this.children.push(child);
+    },
+    append(...nodes) {
+      this.children.push(...nodes);
+    },
+    prepend(child) {
+      this.children.unshift(child);
+    },
     removeAttribute() {},
     setAttribute() {},
-    querySelectorAll() { return []; },
+    querySelectorAll() {
+      return [];
+    },
     addEventListener() {},
     removeEventListener() {},
     scrollTop: 0,
@@ -53,7 +67,9 @@ function makeMockDoc() {
       el.tag = tag;
       return el;
     },
-    querySelectorAll() { return []; },
+    querySelectorAll() {
+      return [];
+    },
     body: makeEl('body'),
   };
 }
@@ -79,9 +95,13 @@ function makeMockClient(overrides = {}) {
       // Never yields by default; tests override
     }),
     linkAccount: vi.fn().mockResolvedValue({ accountId: 'acct-1' }),
-    updateAccount: vi.fn().mockResolvedValue({ account: { accountId: 'acct-1' } }),
+    updateAccount: vi
+      .fn()
+      .mockResolvedValue({ account: { accountId: 'acct-1' } }),
     removeAccount: vi.fn().mockResolvedValue({}),
-    signUp: vi.fn().mockResolvedValue({ userId: 'u1', token: 'tok-1', recoveryKey: 'rk-1' }),
+    signUp: vi
+      .fn()
+      .mockResolvedValue({ userId: 'u1', token: 'tok-1', recoveryKey: 'rk-1' }),
     login: vi.fn().mockResolvedValue({ token: 'tok-1' }),
     liveSearch: vi.fn().mockResolvedValue({ hits: [], rejected: {} }),
     ...overrides,

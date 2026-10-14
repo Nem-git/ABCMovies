@@ -1,6 +1,21 @@
 {
   "name": "sync-page-with-movie-and-external-ids",
   "type": "CatalogueSyncResponse",
+  "request_data": {
+    "account_id": "acc_test_001"
+  },
+  "catalogue_items": [
+    {
+      "id": "jellyfin-0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+      "type": "Movie",
+      "name": "The Shawshank Redemption",
+      "year": 1994,
+      "providers": {
+        "Imdb": "tt0111161",
+        "Tmdb": "278"
+      }
+    }
+  ],
   "message": {
     "items": [
       {
