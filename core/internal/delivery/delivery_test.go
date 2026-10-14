@@ -139,6 +139,9 @@ func newTestEngine(opts Options) (*Engine, *fakeResolver, *fakeSinkFactory) {
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
+	if opts.Relay == nil {
+		opts.Relay = NewRelay()
+	}
 	return New(opts), res, fac
 }
 
@@ -160,7 +163,7 @@ func TestStartCreatesSession(t *testing.T) {
 		Provider:     "jellyfin",
 		AccountID:    "acc1",
 		NativeID:     "item1",
-		Sink:         "device",
+		Sink:         "relay",
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -195,7 +198,7 @@ func TestStartCreatesDistinctSessions(t *testing.T) {
 		Provider:     "jellyfin",
 		AccountID:    "acc1",
 		NativeID:     "item1",
-		Sink:         "device",
+		Sink:         "relay",
 	}
 	a, err := e.Start(context.Background(), req)
 	if err != nil {
@@ -219,7 +222,7 @@ func TestStartRejectsInvalidManifest(t *testing.T) {
 	defer e.Close()
 	_, err := e.Start(context.Background(), StartRequest{
 		Goal: GoalPlay, MemberUserID: "u",
-		Provider: "jellyfin", AccountID: "a", Sink: "device",
+		Provider: "jellyfin", AccountID: "a", Sink: "relay",
 	})
 	if err == nil || !strings.Contains(err.Error(), "invalid manifest") {
 		t.Fatalf("expected invalid manifest error, got %v", err)
@@ -270,7 +273,7 @@ func TestStartAcceptsDRMWithClient(t *testing.T) {
 
 	s, err := e.Start(t.Context(), StartRequest{
 		Goal: GoalPlay, MemberUserID: "u",
-		Provider: "jellyfin", AccountID: "a", Sink: "device",
+		Provider: "jellyfin", AccountID: "a", Sink: "relay",
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -291,11 +294,11 @@ func TestStartRefusesDRMTrackLoudly(t *testing.T) {
 			Now:            time.Now,
 			RecordJob:      func(j *corev1.Job) { recorded = append(recorded, j) },
 			SourceResolver: &fakeResolver{source: drmSource()},
-			SinkFactory:    &DeviceSinkFactory{Relay: NewRelay(), Opener: NewOpener(nil, nil, nil)},
+			SinkFactory:    &RelaySinkFactory{Relay: NewRelay(), Opener: NewOpener(nil, nil, nil)},
 		})
 		_, err := e.Start(context.Background(), StartRequest{
 			Goal: goal, MemberUserID: "u",
-			Provider: "jellyfin", AccountID: "a", NativeID: "item1", Sink: "device",
+			Provider: "jellyfin", AccountID: "a", NativeID: "item1", Sink: "relay",
 		})
 		if err == nil || !strings.Contains(err.Error(), "DRM-encrypted") {
 			t.Fatalf("%s: expected DRM refusal, got %v", goal, err)
@@ -322,7 +325,7 @@ func TestHeartbeatBoundaries(t *testing.T) {
 	defer e.Close()
 	s, _ := e.Start(context.Background(), StartRequest{
 		Goal: GoalPlay, MemberUserID: "u",
-		Provider: "jellyfin", AccountID: "a", Sink: "device",
+		Provider: "jellyfin", AccountID: "a", Sink: "relay",
 	})
 	if err := e.Heartbeat(s.ID, "u"); err != nil {
 		t.Fatalf("Heartbeat active: %v", err)
@@ -443,7 +446,7 @@ func TestPlayHeartbeatTimeoutEvicts(t *testing.T) {
 
 	s, _ := e.Start(context.Background(), StartRequest{
 		Goal: GoalPlay, MemberUserID: "u",
-		Provider: "jellyfin", AccountID: "a", Sink: "device",
+		Provider: "jellyfin", AccountID: "a", Sink: "relay",
 	})
 	// Advance time past heartbeat timeout without a heartbeat.
 	now = now.Add(40 * time.Second)
@@ -598,7 +601,7 @@ func TestStartRejectsMissingFields(t *testing.T) {
 	defer e.Close()
 	base := StartRequest{
 		Goal: GoalPlay, MemberUserID: "u",
-		Provider: "jellyfin", AccountID: "a", Sink: "device",
+		Provider: "jellyfin", AccountID: "a", Sink: "relay",
 	}
 	cases := []struct {
 		name string
@@ -648,7 +651,7 @@ func TestWatchLoopEvictsAndCloseReturns(t *testing.T) {
 
 	s, err := e.Start(context.Background(), StartRequest{
 		Goal: GoalPlay, MemberUserID: "u",
-		Provider: "jellyfin", AccountID: "a", Sink: "device",
+		Provider: "jellyfin", AccountID: "a", Sink: "relay",
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)

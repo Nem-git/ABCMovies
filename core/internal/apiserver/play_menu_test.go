@@ -34,10 +34,11 @@ func TestGetPlayInfo_ReturnsStagedMenu(t *testing.T) {
 	if resp.GetContainer() != "mkv" {
 		t.Fatalf("container = %q, want mkv", resp.GetContainer())
 	}
-	if len(resp.GetTracks()) != 1 {
-		t.Fatalf("tracks = %d, want 1", len(resp.GetTracks()))
+	tracks := resp.GetTracks().GetTracks()
+	if len(tracks) != 1 {
+		t.Fatalf("tracks = %d, want 1", len(tracks))
 	}
-	pt := resp.GetTracks()[0]
+	pt := tracks[0]
 	if pt.GetTrackId() != "v1" || pt.GetRelayUrl() != "/media/relay/tok-v1" {
 		t.Fatalf("track = %+v", pt)
 	}

@@ -69,7 +69,7 @@ policy:
 			Provider:  "jellyfin",
 			AccountId: link.GetAccountId(),
 			NativeId:  "movie-1",
-			Sink:      "device",
+			Sink:      "relay",
 		})
 		if err != nil {
 			t.Fatalf("StartDelivery: %v", err)

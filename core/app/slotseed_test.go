@@ -37,7 +37,7 @@ stores:
 func seedJellyfinSlots(t *testing.T, s *Stack, providerID, serverURL string) {
 	t.Helper()
 	putSlot(t, s, operatorJellyfinSlot(providerID, serverURL))
-	putSlot(t, s, deviceSinkSlot("device"))
+	putSlot(t, s, deviceSinkSlot("relay"))
 	applyStoredSlots(t, s)
 }
 
@@ -67,7 +67,7 @@ func deviceSinkSlot(sinkID string) *corev1.Slot {
 		Id:   sinkID,
 		Kind: corev1.SlotKind_SLOT_KIND_SINK,
 
-		Config: &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "device"}},
+		Config: &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "relay"}},
 	}
 }
 

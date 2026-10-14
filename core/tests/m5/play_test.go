@@ -32,7 +32,7 @@ func TestM5JobStatusAnnouncedExactlyOnce(t *testing.T) {
 		Provider:  stack.ns,
 		AccountId: "lnk_alice_home",
 		NativeId:  "movie-gondwana",
-		Sink:      "device",
+		Sink:      "relay",
 	})
 	if err != nil {
 		t.Fatalf("StartDelivery: %v", err)
@@ -85,7 +85,7 @@ func TestM5PlayEndToEndProvesRelayNotes(t *testing.T) {
 		Provider:  stack.ns,
 		AccountId: "lnk_alice_home",
 		NativeId:  "movie-gondwana",
-		Sink:      "device",
+		Sink:      "relay",
 	})
 	if err != nil {
 		t.Fatalf("StartDelivery: %v", err)
@@ -129,10 +129,10 @@ func TestM5PlayEndToEndProvesRelayNotes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetPlayInfo: %v", err)
 	}
-	if len(info.GetTracks()) != 1 {
-		t.Fatalf("play menu has %d tracks, want the single video container", len(info.GetTracks()))
+	if len(info.GetTracks().GetTracks()) != 1 {
+		t.Fatalf("play menu has %d tracks, want the single video container", len(info.GetTracks().GetTracks()))
 	}
-	tr := info.GetTracks()[0]
+	tr := info.GetTracks().GetTracks()[0]
 	if tr.GetVideo() == nil || tr.GetVideo().GetCodec() != "hevc" {
 		t.Fatalf("play track is %v, want a hevc video track", tr)
 	}
@@ -193,7 +193,7 @@ func TestM5PlayInfoCrossUserDenied(t *testing.T) {
 		Provider:  stack.ns,
 		AccountId: "lnk_alice_home",
 		NativeId:  "movie-gondwana",
-		Sink:      "device",
+		Sink:      "relay",
 	})
 	if err != nil {
 		t.Fatalf("StartDelivery: %v", err)

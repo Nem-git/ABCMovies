@@ -56,7 +56,7 @@ func TestM6ProviderCapIsTheAccountCeiling(t *testing.T) {
 		func(*corev1.Job) {},
 	)
 	defer e.Close()
-	req := delivery.StartRequest{Goal: delivery.GoalDownload, MemberUserID: "u1", Provider: "jellyfin", AccountID: "acc1", Sink: "device"}
+	req := delivery.StartRequest{Goal: delivery.GoalDownload, MemberUserID: "u1", Provider: "jellyfin", AccountID: "acc1", Sink: "relay"}
 	if _, err := e.Start(ctx(), req); err != nil {
 		t.Fatalf("1st: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestM6MemberLimitSpansAccounts(t *testing.T) {
 		func(*corev1.Job) {},
 	)
 	defer e.Close()
-	r1 := delivery.StartRequest{Goal: delivery.GoalDownload, MemberUserID: "u1", Provider: "jellyfin", AccountID: "acc1", Sink: "device"}
+	r1 := delivery.StartRequest{Goal: delivery.GoalDownload, MemberUserID: "u1", Provider: "jellyfin", AccountID: "acc1", Sink: "relay"}
 	r2 := r1
 	r2.AccountID = "acc2"
 	if _, err := e.Start(ctx(), r1); err != nil {
@@ -122,7 +122,7 @@ func TestM6JobRecordsEffectivePolicyAndCap(t *testing.T) {
 		func(j *corev1.Job) { recordCalls = append(recordCalls, j) },
 	)
 	defer e.Close()
-	_, err := e.Start(ctx(), delivery.StartRequest{Goal: delivery.GoalDownload, MemberUserID: "u1", Provider: "jellyfin", AccountID: "acc1", Sink: "device"})
+	_, err := e.Start(ctx(), delivery.StartRequest{Goal: delivery.GoalDownload, MemberUserID: "u1", Provider: "jellyfin", AccountID: "acc1", Sink: "relay"})
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}

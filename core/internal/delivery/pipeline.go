@@ -24,6 +24,12 @@ const (
 	// and drops streams (e.g. removing subtitles/audio) while re-containerizing
 	// (§6.3). v1 implements a container-copy route.
 	StepRemux StepKind = "remux"
+	// StepPackage assembles the session's staged per-track relay tokens into a
+	// manifest (playlist) the player opens and pulls renditions from. It is the
+	// play-side terminal assembly step: the pull-sibling of Compose (which
+	// serves downloads). It never copies bytes — it reads the relay tickets the
+	// sink already granted and references their URLs.
+	StepPackage StepKind = "package"
 	// StepTranscode encodes from the best qualifying native track to a target;
 	// never upscales (fallback-only, §6.3). v1 ships no encoder, so it is
 	// declined loudly and logged, never faked.
@@ -67,6 +73,7 @@ type StepParams struct {
 	Passthrough *PassthroughParams
 	Decrypt     *DecryptParams
 	Remux       *RemuxParams
+	Package     *PackageParams
 	Transcode   *TranscodeParams
 	Compose     *ComposeParams
 	Record      *RecordParams
@@ -99,6 +106,15 @@ type TrackFilter struct {
 	Video    bool
 	Audio    bool
 	Subtitle bool
+}
+
+// PackageParams names the manifest format the Package step builds. The format
+// is a player request (PLAN.md §6.1), not a sink property: the engine owns
+// whether to package, the player owns what format it wants, and the sink is
+// never consulted.
+type PackageParams struct {
+	// Format is the manifest format to build (HLS in v1; DASH reserved).
+	Format PackagingFormat
 }
 
 // TranscodeParams describes one or more encode targets (§6.3 targets).
@@ -139,16 +155,37 @@ func hasDRM(src *corev1.MediaSource) bool {
 	return false
 }
 
+// PackagingFormat names the manifest format a play session's Package step
+// builds. It is a player request (PLAN.md §6.1), not a sink property: the
+// engine owns whether to package, the player owns what format it wants, and
+// the sink is never consulted.
+type PackagingFormat string
+
+const (
+	// PackagingNone is the zero value: an unspecified format serves raw
+	// per-track relay tokens (no manifest). The zero value is "no packaging"
+	// so an unset StartRequest.Format never accidentally selects a Package
+	// step.
+	PackagingNone PackagingFormat = ""
+	// PackagingHLS builds an HLS master playlist (v1).
+	PackagingHLS PackagingFormat = "hls"
+	// PackagingDASH is reserved; not implemented in v1.
+	PackagingDASH PackagingFormat = "dash"
+)
+
 // SelectPipeline chooses the ordered step chain for a session, by §6.3
 // precedence (user request > instance config > delivery goal > engine default).
 // It never fabricates a step it cannot honour: a selection that would need
 // real byte-level re-encoding or muxing is rejected explicitly rather than
 // silently downgraded (PLAN.md §2.5). v1 selects only executable steps —
-// passthrough, container-copy remux (with stream selection), and compose.
+// passthrough, container-copy remux (with stream selection), compose, and
+// package (manifest of staged relay tokens).
 // When a DRM client supports the content's DRM system (M8), a decrypt step
 // is prepended for DRM content (§6.2: "DRM before anything", §6.6).
 // decryptSupported is resolved by the engine before calling SelectPipeline.
-func SelectPipeline(goal Goal, src *corev1.MediaSource, container string, decryptSupported bool) (Plan, error) {
+// format is the player's packaging request for a play session (PLAN.md §6.1);
+// PackagingNone selects no Package step.
+func SelectPipeline(goal Goal, src *corev1.MediaSource, container string, format PackagingFormat, decryptSupported bool) (Plan, error) {
 	if src == nil {
 		return Plan{}, fmt.Errorf("pipeline: nil manifest")
 	}
@@ -163,19 +200,27 @@ func SelectPipeline(goal Goal, src *corev1.MediaSource, container string, decryp
 	switch goal {
 	case GoalPlay:
 		// A play serves the native manifest to the player. A per-track source
-		// is always passthrough. A whole-mux source is passthrough unless the
-		// sink explicitly asks for a different container, in which case we
+		// is passthrough when unpackaged; a whole-mux source is passthrough
+		// unless the player asks for a different container, in which case we
 		// re-container it (v1 container copy).
 		if src.GetAddressable() == corev1.Addressable_ADDRESSABLE_PER_TRACK {
+			if format == PackagingNone {
+				steps = append(steps, Step{Kind: StepPassthrough})
+				return Plan{Steps: steps}, nil
+			}
 			steps = append(steps, Step{Kind: StepPassthrough})
-			return Plan{Steps: steps}, nil
+			return appendPackageStep(steps, format), nil
 		}
 		if container == "" {
+			if format == PackagingNone {
+				steps = append(steps, Step{Kind: StepPassthrough})
+				return Plan{Steps: steps}, nil
+			}
 			steps = append(steps, Step{Kind: StepPassthrough})
-			return Plan{Steps: steps}, nil
+			return appendPackageStep(steps, format), nil
 		}
 		steps = append(steps, Step{Kind: StepRemux, Params: StepParams{Remux: &RemuxParams{Container: container}}})
-		return Plan{Steps: steps}, nil
+		return appendPackageStep(steps, format), nil
 	case GoalDownload:
 		// A download always lands as a named container (compose). A whole-mux
 		// source is remux'd to the requested container (or its native one when
@@ -196,6 +241,16 @@ func SelectPipeline(goal Goal, src *corev1.MediaSource, container string, decryp
 	}
 }
 
+// appendPackageStep appends a Package step when the player requested a manifest
+// format, or returns the chain unchanged for PackagingNone. A download never
+// reaches this (compose is its terminal step), so format is a play-only knob.
+func appendPackageStep(steps []Step, format PackagingFormat) Plan {
+	if format == PackagingNone {
+		return Plan{Steps: steps}
+	}
+	return Plan{Steps: append(steps, Step{Kind: StepPackage, Params: StepParams{Package: &PackageParams{Format: format}}})}
+}
+
 // executableKinds is the set of steps this engine can genuinely run (no
 // re-encode, no live record). DRM decrypt is executable only when a DRM
 // client supports the content's DRM system (M8); without one, it is declined
@@ -203,6 +258,7 @@ func SelectPipeline(goal Goal, src *corev1.MediaSource, container string, decryp
 var executableKinds = map[StepKind]bool{
 	StepPassthrough: true,
 	StepRemux:       true,
+	StepPackage:     true,
 	StepCompose:     true,
 }
 
@@ -212,6 +268,8 @@ func notExecutableReason(k StepKind) string {
 	switch k {
 	case StepDecrypt:
 		return "DRM decrypt has no DRM client that supports this content's DRM system (§6.6)"
+	case StepPackage:
+		return "package format is not implemented in v1 (only HLS; DASH is reserved)"
 	case StepTranscode:
 		return "transcode is not implemented (no encoder; the native-first, encode-only-as-fallback rule of §6.3 is unimplemented)"
 	case StepRecord:
@@ -241,6 +299,31 @@ func ValidatePlan(p Plan, decryptSupported bool) error {
 		}
 	}
 	return nil
+}
+
+// Terminal returns the kind of the last step in the plan, or "" for an empty
+// plan. It is the engine's check for whether a session's pipeline ends in an
+// assembly step — the Package step for play, Compose for download.
+func (p Plan) Terminal() StepKind {
+	if len(p.Steps) == 0 {
+		return ""
+	}
+	return p.Steps[len(p.Steps)-1].Kind
+}
+
+// Packages returns the manifest format the plan's terminal step builds, or
+// PackagingNone when the plan does not end in a Package step (raw play, or any
+// download). It is the engine's read of "is this session packaged, and in what
+// format" — the answer GetPlayInfo's menu shape follows.
+func (p Plan) Packages() PackagingFormat {
+	if p.Terminal() != StepPackage {
+		return PackagingNone
+	}
+	step := p.Steps[len(p.Steps)-1]
+	if step.Params.Package == nil {
+		return PackagingNone
+	}
+	return step.Params.Package.Format
 }
 
 // Lineage returns a compact, human-readable rendering of the step chain

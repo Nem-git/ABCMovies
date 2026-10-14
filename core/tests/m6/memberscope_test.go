@@ -91,7 +91,7 @@ func TestM6StartDeliveryAttributesTokenUser(t *testing.T) {
 	srv, _, dm := newMemberscopeServer()
 	_, err := srv.StartDelivery(apiserver.WithUserID(context.Background(), "u1"), &apiv1.StartDeliveryRequest{
 		Goal: apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY, Provider: "jellyfin", AccountId: "acc1",
-		NativeId: "item1", Sink: "device",
+		NativeId: "item1", Sink: "relay",
 	})
 	if err != nil {
 		t.Fatalf("start delivery: %v", err)
@@ -107,14 +107,14 @@ func TestM6StartDeliveryRejectsUnreachableAccount(t *testing.T) {
 	// never confirms what exists beyond the caller's reach (PLAN.md §8.1).
 	_, err := srv.StartDelivery(apiserver.WithUserID(context.Background(), "u1"), &apiv1.StartDeliveryRequest{
 		Goal: apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY, Provider: "jellyfin", AccountId: "acc2",
-		NativeId: "item1", Sink: "device",
+		NativeId: "item1", Sink: "relay",
 	})
 	if status.Code(err) != codes.NotFound {
 		t.Fatalf("account belonging to another member: got %v, want NotFound", status.Code(err))
 	}
 	if _, err := srv.StartDelivery(apiserver.WithUserID(context.Background(), "u1"), &apiv1.StartDeliveryRequest{
 		Goal: apiv1.DeliveryGoal_DELIVERY_GOAL_PLAY, Provider: "jellyfin", AccountId: "nope",
-		NativeId: "item1", Sink: "device",
+		NativeId: "item1", Sink: "relay",
 	}); status.Code(err) != codes.NotFound {
 		t.Fatalf("unknown account: got %v, want NotFound", status.Code(err))
 	}
@@ -146,7 +146,7 @@ func TestM6HeartbeatRejectsNonMember(t *testing.T) {
 	defer eng.Close()
 	sess, err := eng.Start(context.Background(), delivery.StartRequest{
 		Goal: delivery.GoalDownload, MemberUserID: "u1", Provider: "jellyfin",
-		AccountID: "acc1", Sink: "device", NativeID: "item1",
+		AccountID: "acc1", Sink: "relay", NativeID: "item1",
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)

@@ -215,7 +215,7 @@ func TestM5RemoveAccountEndsLiveSessions(t *testing.T) {
 		Provider:  stack.ns,
 		AccountId: "lnk_alice_home",
 		NativeId:  "movie-gondwana",
-		Sink:      "device",
+		Sink:      "relay",
 	})
 	if err != nil {
 		t.Fatalf("StartDelivery: %v", err)

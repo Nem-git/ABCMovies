@@ -29,7 +29,14 @@ type PlayMenu struct {
 	// Container is the source's container name (e.g. "mkv", "mp4"), when the
 	// plan resolved it; empty otherwise.
 	Container string
-	Tracks    []PlayMenuTrack
+	// Format is the session's packaging format (PLAN.md §6.1): empty for a raw
+	// per-track menu; a manifest format when the Package step ran. It decides
+	// which GetPlayInfo menu branch is set.
+	Format delivery.PackagingFormat
+	// ManifestToken is the relay token serving the session's manifest, set only
+	// when Format is non-empty. Empty for a raw per-track menu.
+	ManifestToken string
+	Tracks        []PlayMenuTrack
 }
 
 // ErrPlayMenuNotFound marks a delivery-manager PlayMenu miss: the session has
@@ -67,6 +74,15 @@ func (s *Server) GetPlayInfo(ctx context.Context, req *apiv1.GetPlayInfoRequest)
 	if menu.MemberUserID != "" && menu.MemberUserID != uid {
 		return nil, status.Error(codes.NotFound, "play menu not found")
 	}
+	if menu.Format != "" {
+		// Packaged: the menu is a manifest the Package step granted. The
+		// manifest references the same per-track relay tokens the raw branch
+		// would list; the player opens it and pulls the renditions it selects.
+		return &apiv1.GetPlayInfoResponse{
+			Menu:      &apiv1.GetPlayInfoResponse_ManifestUrl{ManifestUrl: relayPrefix + menu.ManifestToken},
+			Container: menu.Container,
+		}, nil
+	}
 	tracks := make([]*apiv1.PlayTrack, 0, len(menu.Tracks))
 	for _, t := range menu.Tracks {
 		var media *apiv1.PlayTrack
@@ -86,5 +102,5 @@ func (s *Server) GetPlayInfo(ctx context.Context, req *apiv1.GetPlayInfoRequest)
 		media.RelayUrl = relayPrefix + t.RelayToken
 		tracks = append(tracks, media)
 	}
-	return &apiv1.GetPlayInfoResponse{Tracks: tracks, Container: menu.Container}, nil
+	return &apiv1.GetPlayInfoResponse{Menu: &apiv1.GetPlayInfoResponse_Tracks{Tracks: &apiv1.PlayMenuList{Tracks: tracks}}, Container: menu.Container}, nil
 }

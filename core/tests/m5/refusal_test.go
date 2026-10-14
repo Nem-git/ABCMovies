@@ -24,7 +24,7 @@ func TestM5StartDeliveryTypedAtCapacityRefusal(t *testing.T) {
 			Provider:  stack.ns,
 			AccountId: "lnk_alice_home",
 			NativeId:  "movie-gondwana",
-			Sink:      "device",
+			Sink:      "relay",
 		})
 		return err
 	}

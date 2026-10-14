@@ -57,7 +57,7 @@ func TestSetupSinksMediaServerRegistered(t *testing.T) {
 		Id:   "mediaserver",
 		Kind: corev1.SlotKind_SLOT_KIND_SINK,
 		Config: &corev1.Slot_Sink{
-			Sink: &corev1.SinkConfig{Adapter: "mediaserver"},
+			Sink: &corev1.SinkConfig{Adapter: "relay"},
 		},
 	}}, delivery.NewRelay(), delivery.NewOpener(nil, nil, nil))
 	if err != nil {

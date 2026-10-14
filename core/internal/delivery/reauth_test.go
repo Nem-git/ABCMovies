@@ -29,7 +29,7 @@ func reauthStart() StartRequest {
 		Provider:     "jellyfin",
 		AccountID:    "lnk_a",
 		MemberUserID: "u1",
-		Sink:         "device",
+		Sink:         "relay",
 		NativeID:     "movie-1",
 	}
 }

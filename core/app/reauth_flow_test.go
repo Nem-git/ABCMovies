@@ -84,7 +84,7 @@ stores:
 		Provider:  "jellyfin",
 		AccountId: id,
 		NativeId:  "movie-1",
-		Sink:      "device",
+		Sink:      "relay",
 	}); err == nil {
 		t.Fatal("a play against a dead session must fail")
 	}
@@ -171,7 +171,7 @@ stores:
 			Provider:  "jellyfin",
 			AccountId: id,
 			NativeId:  "movie-1",
-			Sink:      "device",
+			Sink:      "relay",
 		})
 		if err == nil {
 			break

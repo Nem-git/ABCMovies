@@ -379,8 +379,8 @@ func newM5Stack(t *testing.T, jf *fakeJellyfin) *m5Stack {
 
 	relay := delivery.NewRelay()
 	sinks, err := slotwiring.SetupSinks([]*corev1.Slot{{
-		Id: "device", Kind: corev1.SlotKind_SLOT_KIND_SINK,
-		Config: &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "device"}},
+		Id: "relay", Kind: corev1.SlotKind_SLOT_KIND_SINK,
+		Config: &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "relay"}},
 	}}, relay, delivery.NewOpener(nil, nil, nil))
 	if err != nil {
 		t.Fatalf("SetupSinks: %v", err)
@@ -492,7 +492,7 @@ func (m m5Delivery) PlayMenu(sessionID string) (*apiserver.PlayMenu, error) {
 	if sess.Goal != delivery.GoalPlay || sess.Sink == nil || len(sess.Menu) == 0 {
 		return nil, apiserver.ErrPlayMenuNotFound
 	}
-	device, ok := sess.Sink.(*delivery.DeviceSink)
+	device, ok := sess.Sink.(*delivery.RelaySink)
 	if !ok {
 		return nil, apiserver.ErrPlayMenuNotFound
 	}

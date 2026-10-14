@@ -10,7 +10,7 @@ import (
 
 func TestSelectPipelinePlayPerTrackPassthrough(t *testing.T) {
 	src := staticSource() // PER_TRACK
-	p, err := SelectPipeline(GoalPlay, src, "", false)
+	p, err := SelectPipeline(GoalPlay, src, "", PackagingNone, false)
 	if err != nil {
 		t.Fatalf("SelectPipeline: %v", err)
 	}
@@ -20,7 +20,7 @@ func TestSelectPipelinePlayPerTrackPassthrough(t *testing.T) {
 }
 
 func TestSelectPipelinePlayWholeMuxUntouchedPassthrough(t *testing.T) {
-	p, err := SelectPipeline(GoalPlay, wholeMuxSource(), "", false)
+	p, err := SelectPipeline(GoalPlay, wholeMuxSource(), "", PackagingNone, false)
 	if err != nil {
 		t.Fatalf("SelectPipeline: %v", err)
 	}
@@ -30,7 +30,7 @@ func TestSelectPipelinePlayWholeMuxUntouchedPassthrough(t *testing.T) {
 }
 
 func TestSelectPipelinePlayWholeMuxRemuxToRequestedContainer(t *testing.T) {
-	p, err := SelectPipeline(GoalPlay, wholeMuxSource(), "mp4", false)
+	p, err := SelectPipeline(GoalPlay, wholeMuxSource(), "mp4", PackagingNone, false)
 	if err != nil {
 		t.Fatalf("SelectPipeline: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestSelectPipelinePlayWholeMuxRemuxToRequestedContainer(t *testing.T) {
 }
 
 func TestSelectPipelineDownloadWholeMuxRemuxCompose(t *testing.T) {
-	p, err := SelectPipeline(GoalDownload, wholeMuxSource(), "mkv", false)
+	p, err := SelectPipeline(GoalDownload, wholeMuxSource(), "mkv", PackagingNone, false)
 	if err != nil {
 		t.Fatalf("SelectPipeline: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestSelectPipelineDownloadWholeMuxRemuxCompose(t *testing.T) {
 func TestSelectPipelineDownloadPerTrackNeedsMuxingRejected(t *testing.T) {
 	// v1 cannot compose a per-track source into a single container; the
 	// selection must be rejected, never silently downgraded (§2.5).
-	if _, err := SelectPipeline(GoalDownload, staticSource(), "mkv", false); err == nil {
+	if _, err := SelectPipeline(GoalDownload, staticSource(), "mkv", PackagingNone, false); err == nil {
 		t.Fatal("per-track download to a container should be rejected in v1")
 	}
 }
@@ -108,7 +108,7 @@ func TestSelectPipelineRejectsExecutableOnly(t *testing.T) {
 		{GoalPlay, "mp4"},
 		{GoalDownload, "mkv"},
 	} {
-		p, err := SelectPipeline(tc.goal, wholeMuxSource(), tc.container, false)
+		p, err := SelectPipeline(tc.goal, wholeMuxSource(), tc.container, PackagingNone, false)
 		if err != nil {
 			t.Fatalf("SelectPipeline(%s, %q): %v", tc.goal, tc.container, err)
 		}
@@ -161,7 +161,7 @@ func TestSelectPipelinePlayDRMPrependsDecrypt(t *testing.T) {
 	// With a DRM client that supports the content's system, a play of DRM
 	// content prepends a decrypt step before passthrough (§6.2: "DRM before
 	// anything", §6.6).
-	p, err := SelectPipeline(GoalPlay, drmSource(), "", true)
+	p, err := SelectPipeline(GoalPlay, drmSource(), "", PackagingNone, true)
 	if err != nil {
 		t.Fatalf("SelectPipeline: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestSelectPipelinePlayDRMPrependsDecrypt(t *testing.T) {
 func TestSelectPipelineDRMRejectedWithoutClient(t *testing.T) {
 	// Without a DRM client that supports the content's system, DRM content
 	// is refused loudly (§2.5).
-	if _, err := SelectPipeline(GoalPlay, drmSource(), "", false); err == nil {
+	if _, err := SelectPipeline(GoalPlay, drmSource(), "", PackagingNone, false); err == nil {
 		t.Fatal("DRM content without a DRM client should be rejected")
 	}
 }
@@ -205,5 +205,73 @@ func TestLineageRendersChain(t *testing.T) {
 	}})
 	if got != "remux-main:remux → compose" {
 		t.Errorf("lineage = %q, want \"remux-main:remux → compose\"", got)
+	}
+}
+
+func TestSelectPipelinePlayPerTrackPackage(t *testing.T) {
+	p, err := SelectPipeline(GoalPlay, staticSource(), "", PackagingHLS, false)
+	if err != nil {
+		t.Fatalf("SelectPipeline: %v", err)
+	}
+	if len(p.Steps) != 2 || p.Steps[0].Kind != StepPassthrough || p.Steps[1].Kind != StepPackage {
+		t.Fatalf("steps = %#v, want [passthrough, package]", p.Steps)
+	}
+	if f := p.Packages(); f != PackagingHLS {
+		t.Errorf("Packages() = %q, want hls", f)
+	}
+	if p.Terminal() != StepPackage {
+		t.Errorf("Terminal() = %q, want package", p.Terminal())
+	}
+}
+
+func TestSelectPipelinePlayWholeMuxRemuxPackage(t *testing.T) {
+	p, err := SelectPipeline(GoalPlay, wholeMuxSource(), "mp4", PackagingHLS, false)
+	if err != nil {
+		t.Fatalf("SelectPipeline: %v", err)
+	}
+	if len(p.Steps) != 2 || p.Steps[0].Kind != StepRemux || p.Steps[1].Kind != StepPackage {
+		t.Fatalf("steps = %#v, want [remux, package]", p.Steps)
+	}
+	if f := p.Packages(); f != PackagingHLS {
+		t.Errorf("Packages() = %q, want hls", f)
+	}
+}
+
+func TestSelectPipelinePlayPackageWithDecrypt(t *testing.T) {
+	p, err := SelectPipeline(GoalPlay, drmSource(), "", PackagingHLS, true)
+	if err != nil {
+		t.Fatalf("SelectPipeline: %v", err)
+	}
+	if len(p.Steps) != 3 || p.Steps[0].Kind != StepDecrypt || p.Steps[1].Kind != StepPassthrough || p.Steps[2].Kind != StepPackage {
+		t.Fatalf("steps = %#v, want [decrypt, passthrough, package]", p.Steps)
+	}
+}
+
+func TestSelectPipelineDownloadIgnoresFormat(t *testing.T) {
+	p, err := SelectPipeline(GoalDownload, wholeMuxSource(), "mkv", PackagingHLS, false)
+	if err != nil {
+		t.Fatalf("SelectPipeline: %v", err)
+	}
+	if len(p.Steps) != 2 || p.Steps[0].Kind != StepRemux || p.Steps[1].Kind != StepCompose {
+		t.Fatalf("steps = %#v, want [remux, compose]", p.Steps)
+	}
+	if f := p.Packages(); f != PackagingNone {
+		t.Errorf("Packages() = %q, want none (download ignores format)", f)
+	}
+	if p.Terminal() != StepCompose {
+		t.Errorf("Terminal() = %q, want compose", p.Terminal())
+	}
+}
+
+func TestSelectPipelineEmptyFormatIsNone(t *testing.T) {
+	p, err := SelectPipeline(GoalPlay, staticSource(), "", "", false)
+	if err != nil {
+		t.Fatalf("SelectPipeline: %v", err)
+	}
+	if len(p.Steps) != 1 || p.Steps[0].Kind != StepPassthrough {
+		t.Fatalf("steps = %#v, want [passthrough] (empty format = none)", p.Steps)
+	}
+	if f := p.Packages(); f != PackagingNone {
+		t.Errorf("Packages() = %q, want none", f)
 	}
 }

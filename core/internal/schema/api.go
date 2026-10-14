@@ -377,20 +377,31 @@ func ValidateListAccountsResponse(r *apiv1.ListAccountsResponse) error {
 }
 
 // ValidateGetPlayInfoResponse checks a GetPlayInfoResponse (PLAN.md §6.1).
+// The menu is a oneof: exactly one branch is set — a raw per-track list, or a
+// packaged manifest URL. Each branch is validated for its own required fields.
 func ValidateGetPlayInfoResponse(r *apiv1.GetPlayInfoResponse) error {
 	if r == nil {
 		return fmt.Errorf("play_info_response: nil")
 	}
-	for i, t := range r.GetTracks() {
-		if t == nil {
-			return fmt.Errorf("play_info_response: track %d is nil", i)
+	switch m := r.GetMenu().(type) {
+	case *apiv1.GetPlayInfoResponse_Tracks:
+		for i, t := range m.Tracks.GetTracks() {
+			if t == nil {
+				return fmt.Errorf("play_info_response: track %d is nil", i)
+			}
+			if t.GetTrackId() == "" {
+				return fmt.Errorf("play_info_response: track %d: track_id is required", i)
+			}
+			if t.GetRelayUrl() == "" {
+				return fmt.Errorf("play_info_response: track %d: relay_url is required", i)
+			}
 		}
-		if t.GetTrackId() == "" {
-			return fmt.Errorf("play_info_response: track %d: track_id is required", i)
+	case *apiv1.GetPlayInfoResponse_ManifestUrl:
+		if m.ManifestUrl == "" {
+			return fmt.Errorf("play_info_response: manifest_url is required")
 		}
-		if t.GetRelayUrl() == "" {
-			return fmt.Errorf("play_info_response: track %d: relay_url is required", i)
-		}
+	default:
+		return fmt.Errorf("play_info_response: menu must carry one branch (tracks or manifest_url)")
 	}
 	return nil
 }

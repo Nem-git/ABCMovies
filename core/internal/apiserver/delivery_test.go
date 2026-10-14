@@ -77,7 +77,7 @@ func runningSession() *delivery.Session {
 		Context: corev1.DeliveryContext{
 			Provider:  "jellyfin",
 			AccountId: "acc-1",
-			Sink:      "device",
+			Sink:      "relay",
 		},
 	}
 }
@@ -96,7 +96,7 @@ func TestStartDelivery_Success(t *testing.T) {
 		Provider:  "jellyfin",
 		AccountId: "acc-1",
 		NativeId:  "item-42",
-		Sink:      "device",
+		Sink:      "relay",
 	})
 	if err != nil {
 		t.Fatalf("StartDelivery: %v", err)
@@ -120,7 +120,7 @@ func TestStartDelivery_Unconfigured(t *testing.T) {
 		Provider:  "jellyfin",
 		AccountId: "acc-1",
 		NativeId:  "item",
-		Sink:      "device",
+		Sink:      "relay",
 	})
 	if got := status.Code(err); got != codes.Unavailable {
 		t.Fatalf("code = %v, want Unavailable", got)
@@ -166,7 +166,7 @@ func TestStartDelivery_TypedRefusalCarriesDetail(t *testing.T) {
 		Provider:  "jellyfin",
 		AccountId: "acc-1",
 		NativeId:  "item-42",
-		Sink:      "device",
+		Sink:      "relay",
 	})
 	if status.Code(err) != codes.ResourceExhausted {
 		t.Fatalf("code = %v, want ResourceExhausted", status.Code(err))
@@ -204,7 +204,7 @@ func TestStartDelivery_UntypedFailureStaysPlain(t *testing.T) {
 		Provider:  "jellyfin",
 		AccountId: "acc-1",
 		NativeId:  "item-42",
-		Sink:      "device",
+		Sink:      "relay",
 	})
 	if status.Code(err) != codes.Unknown {
 		t.Fatalf("code = %v, want Unknown for an unclassified failure", status.Code(err))

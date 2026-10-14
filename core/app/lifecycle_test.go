@@ -175,7 +175,7 @@ func startPlay(t *testing.T, srv *apiserver.Server, ctx context.Context, account
 		Provider:  "jellyfin",
 		AccountId: accountID,
 		NativeId:  "movie-1",
-		Sink:      "device",
+		Sink:      "relay",
 	})
 	if err != nil {
 		t.Fatalf("StartDelivery: %v", err)

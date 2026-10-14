@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -219,9 +220,14 @@ type Options struct {
 	SourceResolver     Resolver
 	DRMClient          DRMClient
 	ContentKeyCache    ContentKeyCache
-	Opener             *Opener
-	SinkFactory        SinkFactory
-	RecordJob          func(*corev1.Job)
+	// Relay is the engine's media relay: pull sinks stage their tickets in it,
+	// and the Package step reads those tickets to assemble the play manifest
+	// (PLAN.md §6.1). A nil relay means no pull sink is wired, so no
+	// packaging can run — the composition root always wires one.
+	Relay       *Relay
+	Opener      *Opener
+	SinkFactory SinkFactory
+	RecordJob   func(*corev1.Job)
 	// MenuReady announces that a play session's menu is fully staged, once
 	// Start has delivered every track to the sink. The app publishes the
 	// delivery-play-menu-ready event through it (PLAN.md §6.2); nil mutes the
@@ -275,6 +281,7 @@ type Engine struct {
 	resolver        Resolver
 	drm             DRMClient
 	contentKeyCache ContentKeyCache
+	relay           *Relay
 	opener          *Opener
 	sinkMaker       SinkFactory
 	recordJob       func(*corev1.Job)
@@ -311,6 +318,7 @@ func New(opts Options) *Engine {
 		resolver:        opts.SourceResolver,
 		drm:             opts.DRMClient,
 		contentKeyCache: opts.ContentKeyCache,
+		relay:           opts.Relay,
 		opener:          opts.Opener,
 		sinkMaker:       opts.SinkFactory,
 		recordJob:       opts.RecordJob,
@@ -365,6 +373,14 @@ type StartRequest struct {
 	// composition) (PLAN.md §6.3, §6.5).
 	SelectedTarget string
 	Container      string
+	// Format is the player's packaging request for a play session (PLAN.md
+	// §6.1): PackagingNone serves raw per-track relay tokens; PackagingHLS
+	// (v1) or PackagingDASH (reserved) ends the pipeline in a Package step that
+	// assembles the staged relay tokens into a manifest. It is a player
+	// request, not a sink property — the engine owns whether to package, the
+	// player owns the format, and the sink is never consulted. Downloads ignore
+	// it (compose is their terminal step).
+	Format PackagingFormat
 	// IdempotencyKey makes retries safe (PLAN.md §9.1): a client generates one
 	// per user gesture and re-sends it on retry; a retry with a key the engine
 	// has already seen returns the same job instead of creating a second.
@@ -470,7 +486,7 @@ func (e *Engine) start(ctx context.Context, req StartRequest) (*Session, error) 
 		}
 	}
 
-	plan, err := SelectPipeline(req.Goal, src, req.Container, decryptSupported)
+	plan, err := SelectPipeline(req.Goal, src, req.Container, req.Format, decryptSupported)
 	if err != nil {
 		return nil, errInvalid("cannot satisfy delivery: %v", err)
 	}
@@ -615,6 +631,18 @@ func (e *Engine) start(ctx context.Context, req StartRequest) (*Session, error) 
 	}
 	sess.mu.Unlock()
 
+	// The Package step (play + packaging requested) runs AFTER staging: it reads
+	// the per-track relay tokens the sink just granted and assembles them into
+	// a manifest. It needs the staged tokens to exist, so it runs here — not in
+	// the per-track loop — and it reads the relay, never the sink (PLAN.md
+	// §6.1). A Package step that fails leaves the per-track tokens staged but
+	// no manifest, so the player gets a loud error, not a half-built menu.
+	if staged && sess.Plan.Terminal() == StepPackage {
+		if err := e.runPackage(ctx, sess); err != nil {
+			return nil, fmt.Errorf("package play menu: %w", err)
+		}
+	}
+
 	// Announce the complete menu only after the session lock is dropped:
 	// subscribers read back into the engine (GetPlayInfo, Job) and must never
 	// find the staging path holding the write lock.
@@ -676,6 +704,63 @@ func (e *Engine) deliverDownload(ctx context.Context, sess *Session, src *corev1
 	}
 
 	_ = e.Complete(ctx, sess.ID)
+}
+
+// defaultManifestTTL bounds a manifest ticket; the manifest references
+// per-track relay tokens with their own TTL, so it is short-lived and the
+// player re-fetches it to refresh them.
+const defaultManifestTTL = 30 * time.Minute
+
+// runPackage is the Package pipeline step's execution: it reads the session's
+// staged per-track relay tokens from the relay, assembles them into the
+// player-requested manifest format (HLS in v1), and grants a manifest ticket
+// whose fetch closure serves the playlist bytes. It runs after the staging
+// loop (it needs the per-track tokens to exist) and reads the relay — never
+// the sink — so it is sink-agnostic (PLAN.md §6.1). It needs no opener/DRM:
+// it operates on already-granted tokens, not bytes.
+func (e *Engine) runPackage(ctx context.Context, sess *Session) error {
+	format := sess.Plan.Packages()
+	if format == PackagingNone {
+		return nil
+	}
+	tickets := e.relay.SessionTickets(sess.ID)
+	tracks := sess.Menu
+	if len(tickets) == 0 || len(tracks) == 0 {
+		return fmt.Errorf("package: no staged tokens to assemble")
+	}
+
+	var manifest string
+	var contentType string
+	switch format {
+	case PackagingHLS:
+		var err error
+		manifest, err = BuildHLS(tracks, func(trackID string) (string, error) {
+			for _, t := range tickets {
+				if t.TrackID == trackID {
+					return RelayPrefix + t.Token, nil
+				}
+			}
+			return "", fmt.Errorf("track %q has no staged relay token", trackID)
+		})
+		if err != nil {
+			return fmt.Errorf("package: build manifest: %w", err)
+		}
+		contentType = "application/vnd.apple.mpegurl"
+	default:
+		return fmt.Errorf("package: format %q is not implemented in v1", format)
+	}
+
+	_, err := e.relay.Grant(sess.ID, ".m3u8", func(_ context.Context, _ string) (FetchResult, error) {
+		return FetchResult{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{contentType}},
+			Body:       io.NopCloser(strings.NewReader(manifest)),
+		}, nil
+	}, defaultManifestTTL)
+	if err != nil {
+		return fmt.Errorf("package: grant manifest ticket: %w", err)
+	}
+	return nil
 }
 
 // fetchDirect fetches a track's provider source without DRM processing.
@@ -790,6 +875,23 @@ func (e *Engine) Heartbeat(id string, memberUserID string) error {
 	}
 	s.lastHeartbeat = e.now()
 	return nil
+}
+
+// ManifestToken returns the relay token serving a packaged session's manifest,
+// or ok=false when the session is not packaged or has no manifest token. The
+// Package step granted the manifest as a relay ticket (track id ".m3u8"); this
+// reads it back so GetPlayInfo can stamp the manifest URL — the one place the
+// player learns the playlist address (PLAN.md §6.1).
+func (e *Engine) ManifestToken(id string) (string, bool) {
+	if e.relay == nil {
+		return "", false
+	}
+	for _, t := range e.relay.SessionTickets(id) {
+		if t.TrackID == ".m3u8" {
+			return t.Token, true
+		}
+	}
+	return "", false
 }
 
 // Progress records download progress; for downloads, progress is the

@@ -83,8 +83,8 @@ func createOperatorSlots(t *testing.T, ctx context.Context, client apiv1connect.
 	}
 	if _, err := client.CreateSlot(ctx, connect.NewRequest(&apiv1.CreateSlotRequest{
 		Slot: &corev1.Slot{
-			Id: "device", Kind: corev1.SlotKind_SLOT_KIND_SINK,
-			Config: &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "device"}},
+			Id: "relay", Kind: corev1.SlotKind_SLOT_KIND_SINK,
+			Config: &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "relay"}},
 		},
 	})); err != nil {
 		t.Fatalf("CreateSlot sink over gRPC-Web: %v", err)
@@ -251,7 +251,7 @@ func TestWebBrowser_AccountsLibraryPlay(t *testing.T) {
 		Provider:  "jf",
 		AccountId: "jf-op",
 		NativeId:  "movie-gondwana",
-		Sink:      "device",
+		Sink:      "relay",
 	}))
 	if err != nil {
 		t.Fatalf("StartDelivery over gRPC-Web: %v", err)
@@ -286,13 +286,13 @@ deadline:
 		t.Fatalf("GetPlayInfo over gRPC-Web: %v", err)
 	}
 	var video *apiv1.PlayTrack
-	for _, tr := range info.Msg.GetTracks() {
+	for _, tr := range info.Msg.GetTracks().GetTracks() {
 		if tr.GetVideo() != nil {
 			video = tr
 		}
 	}
 	if video == nil {
-		t.Fatalf("no video track in menu: %d tracks", len(info.Msg.GetTracks()))
+		t.Fatalf("no video track in menu: %d tracks", len(info.Msg.GetTracks().GetTracks()))
 	}
 	if !strings.HasPrefix(video.GetRelayUrl(), "/media/relay/") {
 		t.Fatalf("relay url %q not under /media/relay/", video.GetRelayUrl())

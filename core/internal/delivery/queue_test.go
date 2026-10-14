@@ -32,7 +32,7 @@ func downloadStart(member string) StartRequest {
 		Provider:     "jellyfin",
 		AccountID:    "acc1",
 		NativeID:     "movie-1",
-		Sink:         "device",
+		Sink:         "relay",
 	}
 }
 

@@ -367,6 +367,7 @@ func (s *Server) StartDelivery(ctx context.Context, req *apiv1.StartDeliveryRequ
 		Sink:           req.GetSink(),
 		SelectedTarget: req.GetSelectedTarget(),
 		Container:      req.GetContainer(),
+		Format:         packagingFormat(req.GetFormat()),
 		IdempotencyKey: req.GetIdempotencyKey(),
 	})
 	if err != nil {
@@ -475,6 +476,22 @@ func deliveryGoal(g apiv1.DeliveryGoal) (delivery.Goal, error) {
 		return delivery.GoalDownload, nil
 	default:
 		return "", status.Error(codes.InvalidArgument, "unknown delivery goal")
+	}
+}
+
+// packagingFormat maps the API's PackagingFormat enum to the engine's
+// packaging format. UNSPECIFIED and NONE both map to the engine's zero value
+// (PackagingNone — raw per-track relay tokens); HLS maps to the v1 manifest
+// format; DASH is reserved and maps to the engine's PackagingDASH, which the
+// Package step declines as not-implemented in v1.
+func packagingFormat(f apiv1.PackagingFormat) delivery.PackagingFormat {
+	switch f {
+	case apiv1.PackagingFormat_PACKAGING_FORMAT_HLS:
+		return delivery.PackagingHLS
+	case apiv1.PackagingFormat_PACKAGING_FORMAT_DASH:
+		return delivery.PackagingDASH
+	default:
+		return delivery.PackagingNone
 	}
 }
 

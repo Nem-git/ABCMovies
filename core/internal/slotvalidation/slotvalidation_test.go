@@ -19,7 +19,7 @@ func provider(id string) *corev1.Slot {
 
 func sink(id string) *corev1.Slot {
 	s := &corev1.Slot{Id: id, Kind: corev1.SlotKind_SLOT_KIND_SINK}
-	s.Config = &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "device"}}
+	s.Config = &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "relay"}}
 	return s
 }
 
@@ -64,7 +64,7 @@ func TestValidateSlotRejections(t *testing.T) {
 		want string
 	}{
 		{"nil", nil, "nil"},
-		{"missing-id", &corev1.Slot{Kind: corev1.SlotKind_SLOT_KIND_SINK, Config: &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "device"}}}, "id is required"},
+		{"missing-id", &corev1.Slot{Kind: corev1.SlotKind_SLOT_KIND_SINK, Config: &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "relay"}}}, "id is required"},
 		{"unspecified-kind", &corev1.Slot{Id: "x"}, "kind is required"},
 		{"unknown-kind", &corev1.Slot{Id: "x", Kind: corev1.SlotKind(99)}, "unknown kind"},
 

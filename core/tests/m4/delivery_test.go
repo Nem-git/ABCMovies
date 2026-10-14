@@ -271,7 +271,7 @@ func TestM4PassthroughPlayToDeviceEndToEnd(t *testing.T) {
 	defer provider.Close()
 
 	relay := delivery.NewRelay()
-	srv, eng := buildServer(&fakeResolver{perTrackSource(provider.URL)}, &delivery.DeviceSinkFactory{Relay: relay, Opener: delivery.NewOpener(nil, nil, nil)})
+	srv, eng := buildServer(&fakeResolver{perTrackSource(provider.URL)}, &delivery.RelaySinkFactory{Relay: relay, Opener: delivery.NewOpener(nil, nil, nil)})
 	defer eng.Close()
 
 	resp, err := srv.StartDelivery(apiserver.WithUserID(context.Background(), "u1"), &apiv1.StartDeliveryRequest{
@@ -279,7 +279,7 @@ func TestM4PassthroughPlayToDeviceEndToEnd(t *testing.T) {
 		Provider:  "jellyfin",
 		AccountId: "acc1",
 		NativeId:  "item1",
-		Sink:      "device",
+		Sink:      "relay",
 	})
 	if err != nil {
 		t.Fatalf("StartDelivery: %v", err)
@@ -291,9 +291,9 @@ func TestM4PassthroughPlayToDeviceEndToEnd(t *testing.T) {
 	if len(sess.Plan.Steps) != 1 || sess.Plan.Steps[0].Kind != delivery.StepPassthrough {
 		t.Fatalf("step chain = passthrough, got %#v", sess.Plan.Steps)
 	}
-	device, ok := sess.Sink.(*delivery.DeviceSink)
+	device, ok := sess.Sink.(*delivery.RelaySink)
 	if !ok {
-		t.Fatalf("sink is %T, want *DeviceSink", sess.Sink)
+		t.Fatalf("sink is %T, want *RelaySink", sess.Sink)
 	}
 
 	want := map[string]string{"v1": "video-bytes", "a1": "audio-bytes"}
@@ -339,7 +339,7 @@ func TestM4DRMRefusedNotSilentlyDelivered(t *testing.T) {
 	}))
 	defer provider.Close()
 
-	factory := &countingFactory{SinkFactory: &delivery.DeviceSinkFactory{Relay: delivery.NewRelay(), Opener: delivery.NewOpener(nil, nil, nil)}}
+	factory := &countingFactory{SinkFactory: &delivery.RelaySinkFactory{Relay: delivery.NewRelay(), Opener: delivery.NewOpener(nil, nil, nil)}}
 	srv, eng := buildServer(&fakeResolver{drmPerTrackSource(provider.URL)}, factory)
 	defer eng.Close()
 
@@ -348,7 +348,7 @@ func TestM4DRMRefusedNotSilentlyDelivered(t *testing.T) {
 		Provider:  "jellyfin",
 		AccountId: "acc1",
 		NativeId:  "item1",
-		Sink:      "device",
+		Sink:      "relay",
 	})
 	if status.Code(err) != codes.InvalidArgument || !strings.Contains(err.Error(), "DRM-encrypted") {
 		t.Fatalf("want a loud InvalidArgument DRM refusal, got code=%v err=%v", status.Code(err), err)

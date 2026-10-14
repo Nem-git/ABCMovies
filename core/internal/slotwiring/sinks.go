@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	adapterDisk   = "disk"
-	adapterDevice = "device"
+	adapterDisk  = "disk"
+	adapterRelay = "relay"
 )
 
 // compositeSinkFactory dispatches a delivery session to the concrete sink
@@ -50,9 +50,11 @@ func RegisterSink(name string, b SinkBuilder) {
 
 // SetupSinks wires the enabled sink slots into one composite factory over a
 // shared relay. v1 ships two co-equal sinks (TECHNICAL-DECISIONS.md §1.13):
-// the instance-local disk (declared; must name a path) and the user's device
-// (built-in; its config is the frontend's). Each enabled slot is reachable by
-// its slot id. Zero enabled sinks yields a factory that rejects every start.
+// the instance-local disk (declared; must name a path) and the relay pull
+// sink (built-in; stages per-track relay tickets for any conformant player —
+// a user's device or a media server — and never knows about packaging). Each
+// enabled slot is reachable by its slot id. Zero enabled sinks yields a
+// factory that rejects every start.
 func SetupSinks(slots []*corev1.Slot, relay *delivery.Relay, opener *delivery.Opener) (delivery.SinkFactory, error) {
 	composite := &compositeSinkFactory{factories: map[string]delivery.SinkFactory{}}
 	for _, slot := range slots {
@@ -74,11 +76,11 @@ func SetupSinks(slots []*corev1.Slot, relay *delivery.Relay, opener *delivery.Op
 }
 
 // The two co-equal v1 sinks register here: the instance-local disk (declared;
-// must name a path) and the user's device (built-in; its config is the
-// frontend's).
+// must name a path) and the relay pull sink (built-in; stages per-track relay
+// tickets for any conformant player).
 func init() {
 	RegisterSink(adapterDisk, buildDisk)
-	RegisterSink(adapterDevice, buildDevice)
+	RegisterSink(adapterRelay, buildRelay)
 }
 
 func buildDisk(slot *corev1.Slot, _ *delivery.Relay, _ *delivery.Opener) (delivery.SinkFactory, error) {
@@ -89,9 +91,9 @@ func buildDisk(slot *corev1.Slot, _ *delivery.Relay, _ *delivery.Opener) (delive
 	return delivery.NewDiskFactory(path)
 }
 
-func buildDevice(_ *corev1.Slot, relay *delivery.Relay, opener *delivery.Opener) (delivery.SinkFactory, error) {
+func buildRelay(_ *corev1.Slot, relay *delivery.Relay, opener *delivery.Opener) (delivery.SinkFactory, error) {
 	if relay == nil {
 		return nil, fmt.Errorf("no relay wired")
 	}
-	return &delivery.DeviceSinkFactory{Relay: relay, Opener: opener}, nil
+	return &delivery.RelaySinkFactory{Relay: relay, Opener: opener}, nil
 }

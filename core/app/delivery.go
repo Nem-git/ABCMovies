@@ -77,17 +77,33 @@ func (m managedDelivery) PlayMenu(sessionID string) (*apiserver.PlayMenu, error)
 	if len(staged) == 0 {
 		return nil, apiserver.ErrPlayMenuNotFound
 	}
-	device, ok := sess.Sink.(*delivery.DeviceSink)
+	relay, ok := sess.Sink.(*delivery.RelaySink)
 	if !ok {
 		return nil, apiserver.ErrPlayMenuNotFound
 	}
+
+	format := sess.Plan.Packages()
+	if format != delivery.PackagingNone {
+		// Packaged: the menu is a manifest the Package step granted. The
+		// manifest references the same per-track relay tokens the raw branch
+		// would list, so there is no second granting path.
+		token, _ := m.eng.ManifestToken(sess.ID)
+		return &apiserver.PlayMenu{
+			SessionID:     sess.ID,
+			MemberUserID:  sess.Context.GetMemberUserId(),
+			Container:     planContainer(sess.Plan),
+			Format:        format,
+			ManifestToken: token,
+		}, nil
+	}
+
 	menu := &apiserver.PlayMenu{
 		SessionID:    sess.ID,
 		MemberUserID: sess.Context.GetMemberUserId(),
 		Container:    planContainer(sess.Plan),
 	}
 	for _, tr := range staged {
-		token, ok := device.RelayToken(tr.GetId())
+		token, ok := relay.RelayToken(tr.GetId())
 		if !ok {
 			// A carried-in track has no location and thus no relay ticket; the
 			// player reads it off the carrier track's delivery (WHOLE_MUX),
@@ -193,6 +209,7 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 		HeartbeatInterval: timing.HeartbeatInterval,
 		HeartbeatGrace:    timing.HeartbeatGrace,
 		InstancePolicy:    instancePolicy,
+		Relay:             s.relay,
 		Opener:            opener,
 		DRMClient:         drmClient,
 		AccountConstraints: func(ctx context.Context, provider, accountID string) (policy.Set, policy.ProviderCaps, error) {

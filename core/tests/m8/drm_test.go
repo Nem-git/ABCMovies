@@ -225,7 +225,7 @@ func TestM8DecryptToClearOnMockFixtures(t *testing.T) {
 		Provider:     "jellyfin",
 		AccountID:    "a",
 		NativeID:     "item-1",
-		Sink:         "device",
+		Sink:         "relay",
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -340,7 +340,7 @@ func TestM8SetupSinksWithOpener(t *testing.T) {
 			Id:   "device",
 			Kind: corev1.SlotKind_SLOT_KIND_SINK,
 			Config: &corev1.Slot_Sink{
-				Sink: &corev1.SinkConfig{Adapter: "device"},
+				Sink: &corev1.SinkConfig{Adapter: "relay"},
 			},
 		},
 	}, relay, opener)

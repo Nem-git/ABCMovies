@@ -37,7 +37,7 @@ func sinkSlot(id string) *corev1.Slot {
 		Id:   id,
 		Kind: corev1.SlotKind_SLOT_KIND_SINK,
 	}
-	s.Config = &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "device"}}
+	s.Config = &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "relay"}}
 	return s
 }
 

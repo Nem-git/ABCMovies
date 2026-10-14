@@ -69,7 +69,7 @@ func sinkSlotReq(id, owner string) *apiv1.CreateSlotRequest {
 		Id:          id,
 		Kind:        corev1.SlotKind_SLOT_KIND_SINK,
 		OwnerUserId: owner,
-		Config:      &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "device"}},
+		Config:      &corev1.Slot_Sink{Sink: &corev1.SinkConfig{Adapter: "relay"}},
 	}}
 }
 
@@ -85,18 +85,18 @@ func TestCreateSlot_Authz(t *testing.T) {
 	}
 
 	// A regular user cannot create an operator-owned slot.
-	_, err := srv.CreateSlot(userSlotCtx(t), sinkSlotReq("device", ""))
+	_, err := srv.CreateSlot(userSlotCtx(t), sinkSlotReq("relay", ""))
 	if status.Code(err) != codes.PermissionDenied {
 		t.Fatalf("user create operator slot = %v, want PermissionDenied", err)
 	}
 
 	// A regular user may create their own slot.
-	if _, err := srv.CreateSlot(userSlotCtx(t), sinkSlotReq("device", "user:alice")); err != nil {
+	if _, err := srv.CreateSlot(userSlotCtx(t), sinkSlotReq("relay", "user:alice")); err != nil {
 		t.Fatalf("user create own slot: %v", err)
 	}
 
 	// Nobody may create a slot owned by another user.
-	_, err = srv.CreateSlot(operatorSlotCtx(t), sinkSlotReq("device", "user:alice"))
+	_, err = srv.CreateSlot(operatorSlotCtx(t), sinkSlotReq("relay", "user:alice"))
 	if status.Code(err) != codes.PermissionDenied {
 		t.Fatalf("create slot owned by another = %v, want PermissionDenied", err)
 	}

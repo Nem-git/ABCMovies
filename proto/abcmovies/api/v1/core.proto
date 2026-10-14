@@ -585,6 +585,20 @@ message StartDeliveryRequest {
   // Absent = no deduplication (the legacy behavior). Keys are retained for a
   // bounded window, after which a retry is treated as a new request.
   string idempotency_key = 8;
+
+  // How the player wants to consume a play session's tracks (PLAN.md §6.1).
+  // Optional; UNSPECIFIED = NONE (raw per-track relay tokens), preserving
+  // current behavior. Downloads ignore it (compose is their terminal step).
+  PackagingFormat format = 9;
+}
+
+// PackagingFormat names how the player consumes a play session's tracks.
+// v1 honors UNSPECIFIED/NONE and HLS; DASH is reserved.
+enum PackagingFormat {
+  PACKAGING_FORMAT_UNSPECIFIED = 0;
+  PACKAGING_FORMAT_NONE = 1;
+  PACKAGING_FORMAT_HLS = 2;
+  PACKAGING_FORMAT_DASH = 3;
 }
 
 message StartDeliveryResponse {
@@ -671,9 +685,23 @@ message PlayTrack {
 }
 
 message GetPlayInfoResponse {
-  // The session's play menu. Empty until the menu is staged; the
-  // delivery-play-menu-ready event announces when it is.
-  repeated PlayTrack tracks = 1;
-  // The source container, when known (e.g. "mkv", "mp4"). Empty otherwise.
+  // One menu per session, whose shape follows the session's packaging
+  // (PLAN.md §6.1): raw per-track relay tokens, or a manifest referencing
+  // them. Exactly one branch is set — never both.
+  oneof menu {
+    // Raw per-track relay tokens: one entry per located track.
+    PlayMenuList tracks = 1;
+    // Packaged: the session's playlist URL (the manifest the Package step
+    // granted). The player opens it and pulls the renditions it lists.
+    string manifest_url = 3;
+  }
+  // The source container, when known (e.g. "mkv", "mp4"). Applies to both
+  // menu branches; empty otherwise.
   string container = 2;
+}
+
+// PlayMenuList is the raw per-track menu branch of GetPlayInfoResponse: one
+// entry per located track, each with its relay URL.
+message PlayMenuList {
+  repeated PlayTrack tracks = 1;
 }

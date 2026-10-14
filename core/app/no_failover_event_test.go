@@ -71,7 +71,7 @@ stores:
 		Provider:  "jellyfin",
 		AccountId: link.GetAccountId(),
 		NativeId:  "movie-1",
-		Sink:      "device",
+		Sink:      "relay",
 	}); err == nil {
 		t.Fatal("a play against a dead session must fail, never switch providers")
 	}

@@ -16,11 +16,10 @@ import (
 )
 
 // TestM8SecondSinkTypeWorksWithoutCoreChanges is the M8 pluggability proof:
-// the media-server sink (a second sink type) is declared as a slot, built by
-// the generic sink registry, and driven by the engine exactly like a device
-// sink — with no core dispatch change naming it (PLAN.md §6.4: sinks are added
-// without touching the core). It stages a manifest and per-track relay tickets,
-// and a pull serves clear bytes through the opener.
+// a play session that requests packaging (Format: HLS) ends in a Package step,
+// stages per-track relay tokens, and the Package step assembles them into a
+// manifest the player pulls. The sink is a RelaySink (the collapsed pull sink);
+// the pipeline owns the manifest, not the sink.
 func TestM8SecondSinkTypeWorksWithoutCoreChanges(t *testing.T) {
 	srv := encServer()
 	defer srv.Close()
@@ -35,13 +34,11 @@ func TestM8SecondSinkTypeWorksWithoutCoreChanges(t *testing.T) {
 	opener := delivery.NewOpener(drmClient, cache, nil)
 	relay := delivery.NewRelay()
 
-	// The media-server sink is registered by its own wiring shim; the engine's
-	// sink setup builds it through the generic registry.
 	sinkFactory, err := slotwiring.SetupSinks([]*corev1.Slot{{
-		Id:   "mediaserver",
+		Id:   "relay",
 		Kind: corev1.SlotKind_SLOT_KIND_SINK,
 		Config: &corev1.Slot_Sink{
-			Sink: &corev1.SinkConfig{Adapter: "mediaserver"},
+			Sink: &corev1.SinkConfig{Adapter: "relay"},
 		},
 	}}, relay, opener)
 	if err != nil {
@@ -50,6 +47,7 @@ func TestM8SecondSinkTypeWorksWithoutCoreChanges(t *testing.T) {
 
 	e := delivery.New(delivery.Options{
 		SessionTTL:      time.Hour,
+		Relay:           relay,
 		Now:             time.Now,
 		RecordJob:       func(*corev1.Job) {},
 		SourceResolver:  &fakeResolver{source: drmSource(srv.URL)},
@@ -66,22 +64,26 @@ func TestM8SecondSinkTypeWorksWithoutCoreChanges(t *testing.T) {
 		Provider:     "jellyfin",
 		AccountID:    "a",
 		NativeID:     "item-1",
-		Sink:         "mediaserver",
+		Sink:         "relay",
+		Format:       delivery.PackagingHLS,
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	ms, ok := s.Sink.(*delivery.MediaServerSink)
+	rs, ok := s.Sink.(*delivery.RelaySink)
 	if !ok {
-		t.Fatalf("sink = %T, want *delivery.MediaServerSink", s.Sink)
+		t.Fatalf("sink = %T, want *delivery.RelaySink", s.Sink)
 	}
-	if ms.Pushes() {
-		t.Fatal("media-server sink must be a pull sink")
+	if rs.Pushes() {
+		t.Fatal("relay sink must be a pull sink")
+	}
+	if s.Plan.Terminal() != delivery.StepPackage {
+		t.Fatalf("terminal step = %q, want package", s.Plan.Terminal())
 	}
 
-	manifestTok, err := ms.ManifestToken()
-	if err != nil {
-		t.Fatalf("ManifestToken: %v", err)
+	manifestTok, ok := e.ManifestToken(s.ID)
+	if !ok {
+		t.Fatal("no manifest token granted")
 	}
 	res, err := relay.Open(context.Background(), manifestTok)
 	if err != nil {
@@ -93,7 +95,7 @@ func TestM8SecondSinkTypeWorksWithoutCoreChanges(t *testing.T) {
 		t.Fatalf("manifest = %q, want an HLS playlist", manifest)
 	}
 
-	trackTok, ok := ms.TrackToken("v1")
+	trackTok, ok := rs.RelayToken("v1")
 	if !ok {
 		t.Fatal("v1 not staged")
 	}

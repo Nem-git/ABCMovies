@@ -64,21 +64,21 @@ func TestPlayStartStagesMenuAndAnnouncesReady(t *testing.T) {
 		Now:            func() time.Time { return now },
 		RecordJob:      func(*corev1.Job) {},
 		SourceResolver: &fakeResolver{source: playSource(provider.URL)},
-		SinkFactory:    &DeviceSinkFactory{Relay: relay, Opener: NewOpener(nil, nil, nil)},
+		SinkFactory:    &RelaySinkFactory{Relay: relay, Opener: NewOpener(nil, nil, nil)},
 		MenuReady:      func(s *Session) { announced = s },
 	})
 	defer e.Close()
 
 	sess, err := e.Start(context.Background(), StartRequest{
 		Goal: GoalPlay, MemberUserID: "u1",
-		Provider: "jellyfin", AccountID: "acc1", NativeID: "item1", Sink: "device",
+		Provider: "jellyfin", AccountID: "acc1", NativeID: "item1", Sink: "relay",
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	device, ok := sess.Sink.(*DeviceSink)
+	device, ok := sess.Sink.(*RelaySink)
 	if !ok {
-		t.Fatalf("sink is %T, want *DeviceSink", sess.Sink)
+		t.Fatalf("sink is %T, want *RelaySink", sess.Sink)
 	}
 	for _, id := range []string{"v1", "a1"} {
 		tok, ok := device.RelayToken(id)
@@ -118,20 +118,20 @@ func TestPlayStartSkipsLocationlessTracks(t *testing.T) {
 				{Id: "audio-1", Media: &corev1.Track_Audio{}, Delivery: &corev1.TrackDelivery{CarriedIn: "container"}},
 			},
 		}},
-		SinkFactory: &DeviceSinkFactory{Relay: relay, Opener: NewOpener(nil, nil, nil)},
+		SinkFactory: &RelaySinkFactory{Relay: relay, Opener: NewOpener(nil, nil, nil)},
 	})
 	defer e.Close()
 
 	sess, err := e.Start(context.Background(), StartRequest{
 		Goal: GoalPlay, MemberUserID: "u1",
-		Provider: "jellyfin", AccountID: "acc1", NativeID: "item1", Sink: "device",
+		Provider: "jellyfin", AccountID: "acc1", NativeID: "item1", Sink: "relay",
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	device, ok := sess.Sink.(*DeviceSink)
+	device, ok := sess.Sink.(*RelaySink)
 	if !ok {
-		t.Fatalf("sink is %T, want *DeviceSink", sess.Sink)
+		t.Fatalf("sink is %T, want *RelaySink", sess.Sink)
 	}
 	if tok, ok := device.RelayToken("container"); !ok || tok == "" {
 		t.Error("container track should have a staged token")
@@ -170,13 +170,13 @@ func TestPlayEndToEndPassthroughRelay(t *testing.T) {
 		Now:            func() time.Time { return now },
 		RecordJob:      func(*corev1.Job) {},
 		SourceResolver: &fakeResolver{source: playSource(provider.URL)},
-		SinkFactory:    &DeviceSinkFactory{Relay: relay, Opener: NewOpener(nil, nil, nil)},
+		SinkFactory:    &RelaySinkFactory{Relay: relay, Opener: NewOpener(nil, nil, nil)},
 	})
 	defer e.Close()
 
 	sess, err := e.Start(context.Background(), StartRequest{
 		Goal: GoalPlay, MemberUserID: "u1",
-		Provider: "jellyfin", AccountID: "acc1", NativeID: "item1", Sink: "device",
+		Provider: "jellyfin", AccountID: "acc1", NativeID: "item1", Sink: "relay",
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -184,9 +184,9 @@ func TestPlayEndToEndPassthroughRelay(t *testing.T) {
 	if len(sess.Plan.Steps) != 1 || sess.Plan.Steps[0].Kind != StepPassthrough {
 		t.Fatalf("step chain = %#v, want a single passthrough", sess.Plan.Steps)
 	}
-	device, ok := sess.Sink.(*DeviceSink)
+	device, ok := sess.Sink.(*RelaySink)
 	if !ok {
-		t.Fatalf("sink is %T, want *DeviceSink", sess.Sink)
+		t.Fatalf("sink is %T, want *RelaySink", sess.Sink)
 	}
 
 	// Minimal built-in consumer: stage each track, pull its bytes via the

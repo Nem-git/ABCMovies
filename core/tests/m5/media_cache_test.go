@@ -29,7 +29,7 @@ func TestM5MediaBytesNeverReachAStore(t *testing.T) {
 		Provider:  stack.ns,
 		AccountId: "lnk_alice_home",
 		NativeId:  "movie-gondwana",
-		Sink:      "device",
+		Sink:      "relay",
 	})
 	if err != nil {
 		t.Fatalf("StartDelivery: %v", err)
@@ -43,15 +43,16 @@ func TestM5MediaBytesNeverReachAStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetPlayInfo: %v", err)
 	}
-	if len(info.GetTracks()) != 1 || info.GetTracks()[0].GetRelayUrl() == "" {
-		t.Fatalf("expected one relay track, got %v", info.GetTracks())
+	tracks := info.GetTracks().GetTracks()
+	if len(tracks) != 1 || tracks[0].GetRelayUrl() == "" {
+		t.Fatalf("expected one relay track, got %v", tracks)
 	}
 
 	// The player pulls the payload through the relay: a plain HTTP GET
 	// authenticated by the relay token only (PLAN.md §3.6).
 	relaySrv := httptest.NewServer(&delivery.RelayHandler{Relay: stack.relay})
 	defer relaySrv.Close()
-	res, err := http.Get(relaySrv.URL + info.GetTracks()[0].GetRelayUrl())
+	res, err := http.Get(relaySrv.URL + tracks[0].GetRelayUrl())
 	if err != nil {
 		t.Fatalf("relay pull: %v", err)
 	}

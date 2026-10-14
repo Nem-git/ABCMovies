@@ -109,7 +109,7 @@ func TestLastAccountOfUserSlotRetiresIt(t *testing.T) {
 		t.Fatalf("stack: %v", err)
 	}
 	putSlot(t, stack, operatorJellyfinSlot("jf", fakeA.URL()))
-	putSlot(t, stack, deviceSinkSlot("device"))
+	putSlot(t, stack, deviceSinkSlot("relay"))
 	// Seed a linked account on a DIFFERENT server than the operator slot's,
 	// before composition, so boot provisions a user-owned (synthetic) slot for
 	// it rather than routing it to the configured operator slot.

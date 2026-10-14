@@ -36,7 +36,7 @@ func TestEngineFlowDRMPull(t *testing.T) {
 		Provider:     "jellyfin",
 		AccountID:    "a",
 		NativeID:     "item-1",
-		Sink:         "device",
+		Sink:         "relay",
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -200,7 +200,7 @@ func TestEngineFlowRealDRM(t *testing.T) {
 		Provider:     "jellyfin",
 		AccountID:    "a",
 		NativeID:     "item-1",
-		Sink:         "device",
+		Sink:         "relay",
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)

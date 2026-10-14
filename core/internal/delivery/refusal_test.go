@@ -44,7 +44,7 @@ func TestStartRefusalAtCapacityIsTyped(t *testing.T) {
 		Provider:     "jellyfin",
 		AccountID:    "acc1",
 		NativeID:     "movie-1",
-		Sink:         "device",
+		Sink:         "relay",
 	}); err != nil {
 		t.Fatalf("first start: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestStartRefusalAtCapacityIsTyped(t *testing.T) {
 		Provider:     "jellyfin",
 		AccountID:    "acc1",
 		NativeID:     "movie-1",
-		Sink:         "device",
+		Sink:         "relay",
 	})
 	if err == nil {
 		t.Fatal("second start should hit the cap of 1")

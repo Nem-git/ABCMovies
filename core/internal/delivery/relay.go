@@ -30,6 +30,7 @@ type Relay struct {
 type ticket struct {
 	sessionID string
 	trackID   string
+	token     string
 	fetch     FetchFunc
 	expiry    time.Time
 }
@@ -74,6 +75,7 @@ func (r *Relay) Grant(sessionID, trackID string, fetch FetchFunc, ttl time.Durat
 	r.tickets[tok] = &ticket{
 		sessionID: sessionID,
 		trackID:   trackID,
+		token:     tok,
 		fetch:     fetch,
 		expiry:    r.now().Add(ttl),
 	}
@@ -136,6 +138,33 @@ func (r *Relay) TokenTrack(token string) (sessionID, trackID string, ok bool) {
 		return "", "", false
 	}
 	return t.sessionID, t.trackID, true
+}
+
+// SessionTicket is one staged relay ticket for a session: the track it serves
+// and the opaque token that resolves to it. The token is what reaches a sink or
+// frontend; the relay never exposes the fetch closure or the provider's
+// auth_context (PLAN.md §6.2).
+type SessionTicket struct {
+	TrackID string
+	Token   string
+}
+
+// SessionTickets lists every live ticket granted to a session, in grant order.
+// It is the relay's read surface for a session's staged bytes — the Package
+// pipeline step reads the per-track tokens to assemble the play manifest, so a
+// manifest references exactly the tokens the sink staged, with no second
+// granting path. A session with no grants (a download, or a play that staged
+// nothing) yields an empty slice, never an error.
+func (r *Relay) SessionTickets(sessionID string) []SessionTicket {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]SessionTicket, 0, len(r.tickets))
+	for _, t := range r.tickets {
+		if t.sessionID == sessionID {
+			out = append(out, SessionTicket{TrackID: t.trackID, Token: t.token})
+		}
+	}
+	return out
 }
 
 // Revoke drops every ticket granted to a session (on finalize, abort, or

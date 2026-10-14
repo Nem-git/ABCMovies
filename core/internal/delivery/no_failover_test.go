@@ -50,7 +50,7 @@ func TestStartDoesNotFailOverToAnotherProvider(t *testing.T) {
 		Provider:     "jellyfin",
 		AccountID:    "acc1",
 		NativeID:     "movie-1",
-		Sink:         "device",
+		Sink:         "relay",
 	})
 	if err == nil {
 		t.Fatal("a failing provider must fail the start, not switch to another")
