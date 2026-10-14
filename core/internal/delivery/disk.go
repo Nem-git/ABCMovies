@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 )
@@ -26,6 +27,10 @@ type DiskSink struct {
 	path string // final output path (deduped at Finalize)
 	tmp  string // partial file written before finalize
 	file *os.File
+	// mu serializes Deliver/Finalize/Abort. A sink's methods may be called
+	// concurrently — the engine's push goroutine and a caller can both drive a
+	// download session — so the partial-file handle is guarded, not bare.
+	mu sync.Mutex
 }
 
 var _ Sink = (*DiskSink)(nil)
@@ -71,6 +76,8 @@ func (f *DiskFactory) NewSink(_ context.Context, s *Session, _ []*corev1.Track) 
 // Deliver writes one track's bytes to the partial file. A download writes
 // each selected track's bytes in delivery order.
 func (d *DiskSink) Deliver(_ context.Context, _ *Session, _ *corev1.Track, body io.Reader) (int64, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if d.file == nil {
 		return 0, fmt.Errorf("disk sink: delivery after finalize")
 	}
@@ -84,6 +91,8 @@ func (d *DiskSink) Deliver(_ context.Context, _ *Session, _ *corev1.Track, body 
 // Finalize flushes and renames the partial to its final output path, deduping
 // a collision with a numeric suffix per §1.15.
 func (d *DiskSink) Finalize(_ context.Context, _ *Session) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if d.file == nil {
 		return fmt.Errorf("disk sink: finalize after finalize")
 	}
@@ -109,6 +118,8 @@ func (d *DiskSink) Finalize(_ context.Context, _ *Session) error {
 
 // Abort discards the partial deliverable.
 func (d *DiskSink) Abort(_ context.Context, _ *Session) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if d.file != nil {
 		_ = d.file.Close()
 		d.file = nil
