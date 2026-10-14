@@ -219,6 +219,27 @@ func TestCancelRunningDownload(t *testing.T) {
 	}
 }
 
+// A download starts immediately when the system is idle — no queue wait.
+// This is the fast-path: when there is capacity, downloads start right away.
+func TestDownloadStartsImmediatelyWhenIdle(t *testing.T) {
+	e, _, _, _ := queueTestEngine(t)
+	defer e.Close()
+
+	sess, err := e.Start(context.Background(), downloadStart("u1"))
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if sess == nil {
+		t.Fatal("start returned nil session")
+	}
+	if sess.Status != StatusRunning {
+		t.Errorf("status = %s, want running", sess.Status)
+	}
+	if len(e.queue["u1"]) != 0 {
+		t.Errorf("queue length = %d, want 0 (fast-path should not queue)", len(e.queue["u1"]))
+	}
+}
+
 // A download that waits longer than the queue TTL is failed, not left
 // forever (PLAN.md §6.5).
 func TestQueuedDownloadExpiresAfterTTL(t *testing.T) {

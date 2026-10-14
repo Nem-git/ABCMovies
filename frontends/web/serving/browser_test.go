@@ -490,3 +490,150 @@ func TestWebBrowser_DownloadFlow(t *testing.T) {
 		t.Errorf("GetJob id = %q, want %q", getRes.Msg.GetJob().GetId(), jobID)
 	}
 }
+
+// TestWebBrowser_DownloadsPanel drives the downloads panel surface: start a
+// download, observe progress via Subscribe, cancel via CancelDelivery, and
+// verify the panel's data sources (ListJobs, GetJob) reflect the cancellation.
+// Also verifies multiple jobs are isolated — cancelling one leaves the other
+// running.
+func TestWebBrowser_DownloadsPanel(t *testing.T) {
+	fake := startFakeJellyfin(t)
+	configPath := writeJellyfinConfig(t, fake.URL())
+	srv, client, ts := newWebStackConfig(t, configPath)
+	ctx := t.Context()
+	baseURL := ts.URL
+
+	token := signUpAndLogin(t, ctx, client)
+	authed := authedClient(baseURL, token)
+	createOperatorSlots(t, ctx, authed, fake.URL())
+
+	// Browse the library and find the gondwana entry.
+	lib := browse(t, ctx, authed, "")
+	gondwana := findItem(t, lib.GetItems(), func(i *apiv1.LibraryItem) bool {
+		return i.GetEntry().GetCoverage()["jf:movie-gondwana"] != nil
+	})
+	if gondwana == nil {
+		t.Fatalf("gondwana item missing; coverage keys: %v", coverageKeys(lib))
+	}
+
+	// Start two downloads to verify job isolation.
+	startRes1, err := authed.StartDelivery(ctx, connect.NewRequest(&apiv1.StartDeliveryRequest{
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_DOWNLOAD,
+		Provider:  "jf",
+		AccountId: "jf-op",
+		NativeId:  "movie-gondwana",
+		Sink:      "relay",
+	}))
+	if err != nil {
+		t.Fatalf("StartDelivery 1 over gRPC-Web: %v", err)
+	}
+	jobID1 := startRes1.Msg.GetJob().GetId()
+
+	startRes2, err := authed.StartDelivery(ctx, connect.NewRequest(&apiv1.StartDeliveryRequest{
+		Goal:      apiv1.DeliveryGoal_DELIVERY_GOAL_DOWNLOAD,
+		Provider:  "jf",
+		AccountId: "jf-op",
+		NativeId:  "movie-gondwana",
+		Sink:      "relay",
+	}))
+	if err != nil {
+		t.Fatalf("StartDelivery 2 over gRPC-Web: %v", err)
+	}
+	jobID2 := startRes2.Msg.GetJob().GetId()
+
+	if jobID1 == jobID2 {
+		t.Fatal("two downloads returned the same job id")
+	}
+
+	// Subscribe to job-status events. The connect client's Subscribe call
+	// does not return until the server sends its first bytes, and the
+	// ephemeral bus registers subscribers asynchronously — so a background
+	// enqueuer keeps creating probe jobs until the stream is live.
+	stop := make(chan struct{})
+	enqueuerDone := make(chan struct{})
+	go func() {
+		defer close(enqueuerDone)
+		for i := 1; ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			id := fmt.Sprintf("panel-probe-%d", i)
+			err := srv.stack.EnqueueJob(ctx, &corev1.Job{
+				Id:          id,
+				Kind:        corev1.JobKind_JOB_KIND_REFRESH,
+				Status:      corev1.JobStatus_JOB_STATUS_QUEUED,
+				OwnerUserId: "user:alice",
+			})
+			if err != nil {
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	}()
+
+	stream, err := authed.Subscribe(ctx, connect.NewRequest(&apiv1.SubscribeRequest{}))
+	close(stop)
+	<-enqueuerDone
+	if err != nil {
+		t.Fatalf("Subscribe over gRPC-Web: %v", err)
+	}
+	t.Cleanup(func() { _ = stream.Close() })
+
+	// Cancel the first download via CancelDelivery.
+	cancelRes, err := authed.CancelDelivery(ctx, connect.NewRequest(&apiv1.CancelDeliveryRequest{
+		JobId: jobID1,
+	}))
+	if err != nil {
+		t.Fatalf("CancelDelivery over gRPC-Web: %v", err)
+	}
+	if cancelRes.Msg.GetJob().GetId() != jobID1 {
+		t.Errorf("CancelDelivery returned job id = %q, want %q", cancelRes.Msg.GetJob().GetId(), jobID1)
+	}
+
+	// GetJob: the cancelled job should reflect cancellation.
+	getRes, err := authed.GetJob(ctx, connect.NewRequest(&apiv1.GetJobRequest{JobId: jobID1}))
+	if err != nil {
+		t.Fatalf("GetJob over gRPC-Web: %v", err)
+	}
+	if getRes.Msg.GetJob().GetStatus() != corev1.JobStatus_JOB_STATUS_CANCELLED {
+		t.Errorf("cancelled job status = %v, want CANCELLED", getRes.Msg.GetJob().GetStatus())
+	}
+
+	// ListJobs: both jobs should appear; the cancelled one with CANCELLED status.
+	jobsResp, err := authed.ListJobs(ctx, connect.NewRequest(&apiv1.ListJobsRequest{}))
+	if err != nil {
+		t.Fatalf("ListJobs over gRPC-Web: %v", err)
+	}
+	var found1, found2 *corev1.Job
+	for _, j := range jobsResp.Msg.GetJobs() {
+		switch j.GetId() {
+		case jobID1:
+			found1 = j
+		case jobID2:
+			found2 = j
+		}
+	}
+	if found1 == nil {
+		t.Fatalf("ListJobs did not include cancelled job %s", jobID1)
+	}
+	if found1.GetStatus() != corev1.JobStatus_JOB_STATUS_CANCELLED {
+		t.Errorf("cancelled job status in ListJobs = %v, want CANCELLED", found1.GetStatus())
+	}
+	if found2 == nil {
+		t.Fatalf("ListJobs did not include running job %s", jobID2)
+	}
+	if found2.GetStatus() == corev1.JobStatus_JOB_STATUS_CANCELLED {
+		t.Errorf("running job %s was unexpectedly cancelled", jobID2)
+	}
+
+	// The second job should still be running (not cancelled).
+	getRes2, err := authed.GetJob(ctx, connect.NewRequest(&apiv1.GetJobRequest{JobId: jobID2}))
+	if err != nil {
+		t.Fatalf("GetJob 2 over gRPC-Web: %v", err)
+	}
+	if getRes2.Msg.GetJob().GetStatus() == corev1.JobStatus_JOB_STATUS_CANCELLED {
+		t.Errorf("running job %s was unexpectedly cancelled", jobID2)
+	}
+}

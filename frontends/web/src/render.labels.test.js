@@ -25,7 +25,9 @@ describe('label helpers derive from generated contracts', () => {
 
   it('eventTypeLabel renders known event types', () => {
     expect(eventTypeLabel(EventType.JOB_STATUS)).toBe('job-status');
-    expect(eventTypeLabel(EventType.AVAILABILITY_CHANGED)).toBe('availability-changed');
+    expect(eventTypeLabel(EventType.AVAILABILITY_CHANGED)).toBe(
+      'availability-changed',
+    );
     expect(eventTypeLabel(EventType.MERGE_CONFLICT)).toBe('merge-conflict');
   });
 
