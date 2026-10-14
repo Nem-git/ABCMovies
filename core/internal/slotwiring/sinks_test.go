@@ -45,3 +45,25 @@ func TestSetupSinksUnknownAdapterRejected(t *testing.T) {
 		t.Fatalf("want unknown-adapter error, got %v", err)
 	}
 }
+
+// TestSetupSinksMediaServerRegistered is the M8 pluggability proof: the
+// media-server sink (a second sink type) is registered by its own wiring
+// shim's init(), and SetupSinks builds it through the generic registry — no
+// core dispatch change names it (PLAN.md §6.4: sinks are added without
+// touching the core).
+func TestSetupSinksMediaServerRegistered(t *testing.T) {
+	t.Parallel()
+	sinks, err := SetupSinks([]*corev1.Slot{{
+		Id:   "mediaserver",
+		Kind: corev1.SlotKind_SLOT_KIND_SINK,
+		Config: &corev1.Slot_Sink{
+			Sink: &corev1.SinkConfig{Adapter: "mediaserver"},
+		},
+	}}, delivery.NewRelay(), delivery.NewOpener(nil, nil, nil))
+	if err != nil {
+		t.Fatalf("SetupSinks: %v", err)
+	}
+	if sinks == nil {
+		t.Fatal("sinks is nil")
+	}
+}

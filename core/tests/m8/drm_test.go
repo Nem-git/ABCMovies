@@ -270,12 +270,6 @@ func TestM8ContentKeyCacheFailFast(t *testing.T) {
 	}
 }
 
-// TestM8SecondSinkTypeWorksWithoutCoreChanges verifies that the media-server
-// sink (a second sink type) works without core changes.
-func TestM8SecondSinkTypeWorksWithoutCoreChanges(t *testing.T) {
-	var _ delivery.Sink = (*recordingSink)(nil)
-}
-
 // TestM8RelayPullOfDRMTrackReturnsClearBytes verifies that a relay pull of
 // a DRM track returns clear bytes through the opener.
 func TestM8RelayPullOfDRMTrackReturnsClearBytes(t *testing.T) {

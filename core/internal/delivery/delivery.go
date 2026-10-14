@@ -95,6 +95,7 @@ type Session struct {
 	createdAt     time.Time
 	lastHeartbeat time.Time
 	lastProgress  time.Time
+	now           func() time.Time
 }
 
 // queuedRequest is a download waiting for a seat (PLAN.md §6.5). It holds the
@@ -553,6 +554,7 @@ func (e *Engine) start(ctx context.Context, req StartRequest) (*Session, error) 
 		createdAt:     now,
 		lastHeartbeat: now,
 		lastProgress:  now,
+		now:           e.now,
 		Context: corev1.DeliveryContext{
 			Provider:       req.Provider,
 			AccountId:      req.AccountID,
@@ -1098,10 +1100,15 @@ func (e *Engine) sweep() {
 		}
 		now := e.now()
 		if s.Goal == GoalPlay {
-			// A play session must heartbeat within interval+grace (§9.1).
-			if now.Sub(s.lastHeartbeat) > e.interval+e.grace {
+			// A play session is kept alive by a heartbeat (our own frontend)
+			// or by pull activity (a generic player on a media-server sink,
+			// which never heartbeats). It ends only when both are idle — so a
+			// paused-but-attached device stays alive, and a generic-player
+			// stream with no traffic for the window is evicted (§9.1).
+			idle := e.interval + e.grace
+			if now.Sub(s.lastHeartbeat) > idle && now.Sub(s.lastProgress) > idle {
 				s.Status = StatusFailed
-				s.Error = "heartbeat timed out"
+				s.Error = "play session idle (no heartbeat and no pull activity)"
 				dead = append(dead, s)
 				s.mu.Unlock()
 				continue
@@ -1162,6 +1169,20 @@ func (s *Session) isActive() bool {
 // isActiveLocked is isActive for a caller already holding s.mu's write lock.
 func (s *Session) isActiveLocked() bool {
 	return s.Status == StatusQueued || s.Status == StatusRunning
+}
+
+// NoteActivity records pull/progress activity on the session, refreshing the
+// progress timestamp the watchdog uses for liveness. A generic player never
+// heartbeats, so a media-server sink's pulls call this to stay alive
+// (PLAN.md §9.1 — the same rule downloads use: activity is the heartbeat).
+func (s *Session) NoteActivity() {
+	s.mu.Lock()
+	if s.now != nil {
+		s.lastProgress = s.now()
+	} else {
+		s.lastProgress = time.Now()
+	}
+	s.mu.Unlock()
 }
 
 // StagedMenu returns the session's staged play menu under the session's
