@@ -34,7 +34,7 @@ func TestGetPlayInfo_ReturnsStagedMenu(t *testing.T) {
 	if resp.GetContainer() != "mkv" {
 		t.Fatalf("container = %q, want mkv", resp.GetContainer())
 	}
-	tracks := resp.GetTracks().GetTracks()
+	tracks := resp.GetRawTracks().GetTracks()
 	if len(tracks) != 1 {
 		t.Fatalf("tracks = %d, want 1", len(tracks))
 	}

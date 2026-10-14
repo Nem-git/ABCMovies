@@ -129,10 +129,10 @@ func TestM5PlayEndToEndProvesRelayNotes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetPlayInfo: %v", err)
 	}
-	if len(info.GetTracks().GetTracks()) != 1 {
-		t.Fatalf("play menu has %d tracks, want the single video container", len(info.GetTracks().GetTracks()))
+	if len(info.GetRawTracks().GetTracks()) != 1 {
+		t.Fatalf("play menu has %d tracks, want the single video container", len(info.GetRawTracks().GetTracks()))
 	}
-	tr := info.GetTracks().GetTracks()[0]
+	tr := info.GetRawTracks().GetTracks()[0]
 	if tr.GetVideo() == nil || tr.GetVideo().GetCodec() != "hevc" {
 		t.Fatalf("play track is %v, want a hevc video track", tr)
 	}

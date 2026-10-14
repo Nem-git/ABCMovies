@@ -384,8 +384,8 @@ func ValidateGetPlayInfoResponse(r *apiv1.GetPlayInfoResponse) error {
 		return fmt.Errorf("play_info_response: nil")
 	}
 	switch m := r.GetMenu().(type) {
-	case *apiv1.GetPlayInfoResponse_Tracks:
-		for i, t := range m.Tracks.GetTracks() {
+	case *apiv1.GetPlayInfoResponse_RawTracks:
+		for i, t := range m.RawTracks.GetTracks() {
 			if t == nil {
 				return fmt.Errorf("play_info_response: track %d is nil", i)
 			}

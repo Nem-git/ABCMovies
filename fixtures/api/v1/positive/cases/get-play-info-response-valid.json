@@ -4,7 +4,7 @@
   "declaration": [],
   "expected": { "valid": true },
   "message": {
-    "tracks": {
+    "raw_tracks": {
       "tracks": [
         {
           "trackId": "v1",

@@ -286,13 +286,13 @@ deadline:
 		t.Fatalf("GetPlayInfo over gRPC-Web: %v", err)
 	}
 	var video *apiv1.PlayTrack
-	for _, tr := range info.Msg.GetTracks().GetTracks() {
+	for _, tr := range info.Msg.GetRawTracks().GetTracks() {
 		if tr.GetVideo() != nil {
 			video = tr
 		}
 	}
 	if video == nil {
-		t.Fatalf("no video track in menu: %d tracks", len(info.Msg.GetTracks().GetTracks()))
+		t.Fatalf("no video track in menu: %d tracks", len(info.Msg.GetRawTracks().GetTracks()))
 	}
 	if !strings.HasPrefix(video.GetRelayUrl(), "/media/relay/") {
 		t.Fatalf("relay url %q not under /media/relay/", video.GetRelayUrl())

@@ -43,7 +43,7 @@ func TestM5MediaBytesNeverReachAStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetPlayInfo: %v", err)
 	}
-	tracks := info.GetTracks().GetTracks()
+	tracks := info.GetRawTracks().GetTracks()
 	if len(tracks) != 1 || tracks[0].GetRelayUrl() == "" {
 		t.Fatalf("expected one relay track, got %v", tracks)
 	}

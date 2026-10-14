@@ -690,7 +690,7 @@ message GetPlayInfoResponse {
   // them. Exactly one branch is set — never both.
   oneof menu {
     // Raw per-track relay tokens: one entry per located track.
-    PlayMenuList tracks = 1;
+    PlayMenuList raw_tracks = 1;
     // Packaged: the session's playlist URL (the manifest the Package step
     // granted). The player opens it and pulls the renditions it lists.
     string manifest_url = 3;

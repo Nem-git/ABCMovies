@@ -102,5 +102,5 @@ func (s *Server) GetPlayInfo(ctx context.Context, req *apiv1.GetPlayInfoRequest)
 		media.RelayUrl = relayPrefix + t.RelayToken
 		tracks = append(tracks, media)
 	}
-	return &apiv1.GetPlayInfoResponse{Menu: &apiv1.GetPlayInfoResponse_Tracks{Tracks: &apiv1.PlayMenuList{Tracks: tracks}}, Container: menu.Container}, nil
+	return &apiv1.GetPlayInfoResponse{Menu: &apiv1.GetPlayInfoResponse_RawTracks{RawTracks: &apiv1.PlayMenuList{Tracks: tracks}}, Container: menu.Container}, nil
 }
