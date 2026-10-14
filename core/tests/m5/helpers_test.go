@@ -484,6 +484,14 @@ func (m m5Delivery) Cancel(jobID string) (*delivery.Session, error) {
 	return m.eng.Cancel(jobID)
 }
 
+func (m m5Delivery) GetDeliveryOptions(string) (*apiv1.GetDeliveryOptionsResponse, error) {
+	return &apiv1.GetDeliveryOptionsResponse{}, nil
+}
+
+func (m m5Delivery) ListJobs(string, string) ([]*corev1.Job, string, error) {
+	return nil, "", nil
+}
+
 func (m m5Delivery) PlayMenu(sessionID string) (*apiserver.PlayMenu, error) {
 	sess, ok := m.eng.Get(sessionID)
 	if !ok {

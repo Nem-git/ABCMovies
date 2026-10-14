@@ -56,6 +56,14 @@ func (d *updDelivery) ApplyAccountCap(ctx context.Context, provider, accountID s
 
 func (d *updDelivery) Cancel(string) (*delivery.Session, error) { return nil, nil }
 
+func (d *updDelivery) GetDeliveryOptions(string) (*apiv1.GetDeliveryOptionsResponse, error) {
+	return &apiv1.GetDeliveryOptionsResponse{}, nil
+}
+
+func (d *updDelivery) ListJobs(string, string) ([]*corev1.Job, string, error) {
+	return nil, "", nil
+}
+
 type updLibrary struct {
 	users          map[string][]string
 	reaches        map[string]library.Reach

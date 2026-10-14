@@ -1339,6 +1339,24 @@ func cloneContext(d *corev1.DeliveryContext) *corev1.DeliveryContext {
 	return proto.Clone(d).(*corev1.DeliveryContext)
 }
 
+// ResolveManifest resolves a manifest for one item through the engine's
+// resolver without starting a session (PLAN.md §6.3, §6.4). This backs the
+// GetDeliveryOptions RPC: it lets a caller preview what a delivery *would*
+// look like before committing to a play or download.
+func (e *Engine) ResolveManifest(ctx context.Context, provider, accountID, nativeID string) (*corev1.MediaSource, error) {
+	if e.resolver == nil {
+		return nil, errInvalid("no source resolver wired; cannot resolve manifest")
+	}
+	src, err := e.resolver.ProduceSources(ctx, provider, accountID, nativeID)
+	if err != nil {
+		return nil, fmt.Errorf("resolve sources: %w", err)
+	}
+	if err := ValidateManifest(src); err != nil {
+		return nil, errInvalid("provider returned an invalid manifest: %v", err)
+	}
+	return src, nil
+}
+
 // ValidateManifest asserts a resolved manifest conforms to the MediaSource
 // contract's essential rules before any session runs on it (PLAN.md §2.5:
 // reject, never downgrade). The rules mirror PLAN.md §6.2; full validation

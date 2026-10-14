@@ -72,6 +72,18 @@ service CoreService {
   // running session (PLAN.md §6.5). Owner-only; the caller must own the job.
   rpc CancelDelivery(CancelDeliveryRequest) returns (CancelDeliveryResponse);
 
+  // Delivery: the options for composing a play or download session — the
+  // title's available tracks (for recipe selection before download, or menu
+  // preview before play), the caller's available sinks, and whether metadata
+  // attachment is possible. Read-only; starts no session.
+  rpc GetDeliveryOptions(GetDeliveryOptionsRequest) returns (GetDeliveryOptionsResponse);
+
+  // Jobs: list the caller's jobs across all kinds (delivery, refresh,
+  // re-auth), one page at a time (PLAN.md §9.1). The frontend filters by
+  // kind and goal for specific views (e.g. downloads panel filters to
+  // DELIVERY jobs with goal "download").
+  rpc ListJobs(ListJobsRequest) returns (ListJobsResponse);
+
   // Delivery: report a play session is still alive (PLAN.md §9.1). A paused
   // session still heartbeats, so it is not killed.
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
@@ -616,6 +628,62 @@ message CancelDeliveryRequest {
 message CancelDeliveryResponse {
   // The cancelled job.
   abcmovies.core.v1.Job job = 1;
+}
+
+// --- Download options messages (PLAN.md §6.3, §6.4) ---
+
+message GetDeliveryOptionsRequest {
+  // The library entry id to inspect. Required.
+  string entry_id = 1;
+}
+
+// DownloadTrack is one track available for delivery recipe selection, without
+// relay URLs (no session is started by GetDeliveryOptions).
+message DownloadTrack {
+  // Stable track id within the entry's manifest.
+  string track_id = 1;
+  // The track's media properties, exactly one matching its media type.
+  oneof media {
+    abcmovies.core.v1.VideoTrack video = 2;
+    abcmovies.core.v1.AudioTrack audio = 3;
+    abcmovies.core.v1.SubtitleTrack subtitle = 4;
+  }
+}
+
+// DownloadSink is one sink the caller can download to.
+message DownloadSink {
+  // The sink id (e.g. "device", or a disk sink id).
+  string sink_id = 1;
+  // The sink kind (e.g. DEVICE, DISK).
+  abcmovies.core.v1.SlotKind kind = 2;
+  // Human-readable label for the sink.
+  string label = 3;
+}
+
+message GetDeliveryOptionsResponse {
+  // The entry's available tracks for recipe selection.
+  repeated DownloadTrack tracks = 1;
+  // The caller's available sinks.
+  repeated DownloadSink sinks = 2;
+  // Whether metadata attachment is possible for this title (depends on
+  // enrichment data being available and policy allowing it).
+  bool metadata_attachment_possible = 3;
+  // The target container options the user can choose from.
+  repeated string containers = 4;
+}
+
+// --- Job listing messages (PLAN.md §9.1) ---
+
+message ListJobsRequest {
+  // Continuation token for the next page; empty for the first page.
+  string page_token = 1;
+}
+
+message ListJobsResponse {
+  // This page of the caller's jobs.
+  repeated abcmovies.core.v1.Job jobs = 1;
+  // Continuation token for the next page; empty when this is the last page.
+  string next_page_token = 2;
 }
 
 // Why a StartDelivery was refused. A refused start returns a non-OK status

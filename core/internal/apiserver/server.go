@@ -68,6 +68,12 @@ type DeliveryManager interface {
 	// Cancel removes a queued download or ends a running one. Owner-only;
 	// the caller must own the job (PLAN.md §6.5).
 	Cancel(jobID string) (*delivery.Session, error)
+	// GetDeliveryOptions returns the tracks, sinks, and metadata availability
+	// for a title without starting a session (PLAN.md §6.3, §6.4).
+	GetDeliveryOptions(entryID string) (*apiv1.GetDeliveryOptionsResponse, error)
+	// ListJobs returns the caller's jobs across all kinds, one page at a time
+	// (PLAN.md §9.1).
+	ListJobs(userID, pageToken string) ([]*corev1.Job, string, error)
 }
 
 // jobKeyPrefix is the jobs keyspace: every job is stored under
@@ -414,6 +420,43 @@ func (s *Server) CancelDelivery(ctx context.Context, req *apiv1.CancelDeliveryRe
 	// A queued job has no session; the engine already recorded the
 	// cancellation. Re-read the job to return its current state.
 	return &apiv1.CancelDeliveryResponse{Job: jobResp.GetJob()}, nil
+}
+
+// GetDeliveryOptions returns the tracks, sinks, and metadata availability for
+// composing a play or download session (PLAN.md §6.3, §6.4). Read-only; starts
+// no session.
+func (s *Server) GetDeliveryOptions(ctx context.Context, req *apiv1.GetDeliveryOptionsRequest) (*apiv1.GetDeliveryOptionsResponse, error) {
+	if err := schema.ValidateGetDeliveryOptionsRequest(req); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	if s.delivery == nil {
+		return nil, status.Error(codes.Unavailable, "delivery engine not configured")
+	}
+	opts, err := s.delivery.GetDeliveryOptions(req.GetEntryId())
+	if err != nil {
+		return nil, status.Error(codes.Code(delivery.Code(err)), err.Error())
+	}
+	return opts, nil
+}
+
+// ListJobs returns the caller's jobs across all kinds (PLAN.md §9.1). The
+// frontend filters by kind and goal for specific views.
+func (s *Server) ListJobs(ctx context.Context, req *apiv1.ListJobsRequest) (*apiv1.ListJobsResponse, error) {
+	if err := schema.ValidateListJobsRequest(req); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	if s.delivery == nil {
+		return nil, status.Error(codes.Unavailable, "delivery engine not configured")
+	}
+	uid, _ := UserIDFromContext(ctx)
+	jobs, nextToken, err := s.delivery.ListJobs(uid, req.GetPageToken())
+	if err != nil {
+		return nil, status.Error(codes.Code(delivery.Code(err)), err.Error())
+	}
+	return &apiv1.ListJobsResponse{
+		Jobs:          jobs,
+		NextPageToken: nextToken,
+	}, nil
 }
 
 // Heartbeat keeps a play session alive (PLAN.md §9.1).

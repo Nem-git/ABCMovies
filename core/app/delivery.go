@@ -31,8 +31,10 @@ import (
 // staged menu to what GetPlayInfo returns. The provider is never touched
 // again after Start: every later pull flows through the relay.
 type managedDelivery struct {
-	eng   *delivery.Engine
-	relay *delivery.Relay
+	eng     *delivery.Engine
+	relay   *delivery.Relay
+	library apiserver.LibrarySeam
+	jobs    store.Store
 }
 
 var _ apiserver.DeliveryManager = (*managedDelivery)(nil)
@@ -59,6 +61,109 @@ func (m managedDelivery) ApplyAccountCap(ctx context.Context, provider, accountI
 
 func (m managedDelivery) Cancel(jobID string) (*delivery.Session, error) {
 	return m.eng.Cancel(jobID)
+}
+
+// GetDeliveryOptions returns the tracks, sinks, and metadata availability for
+// a title without starting a session (PLAN.md §6.3, §6.4). The composition
+// root resolves the entry through the library seam, then uses the engine's
+// resolver to produce the manifest options.
+func (m managedDelivery) GetDeliveryOptions(entryID string) (*apiv1.GetDeliveryOptionsResponse, error) {
+	entries, err := m.library.Library(context.Background(), "")
+	if err != nil {
+		return nil, fmt.Errorf("library: %w", err)
+	}
+	var entry *corev1.LibraryEntry
+	for _, e := range entries {
+		if e.GetId() == entryID {
+			entry = e
+			break
+		}
+	}
+	if entry == nil {
+		return nil, fmt.Errorf("entry %q not found", entryID)
+	}
+
+	var sinks []*apiv1.DownloadSink
+	sinks = append(sinks, &apiv1.DownloadSink{
+		SinkId: "device",
+		Kind:   corev1.SlotKind_SLOT_KIND_SINK,
+		Label:  "This device",
+	})
+
+	tracks := make([]*apiv1.DownloadTrack, 0)
+	containers := []string{"mp4", "mkv"}
+	metadataPossible := entry.GetMetadataRef() != ""
+
+	cov := entry.GetCoverage()
+	for key, c := range cov {
+		if !c.GetPresent() {
+			continue
+		}
+		sep := -1
+		for i, ch := range key {
+			if ch == ':' {
+				sep = i
+				break
+			}
+		}
+		if sep == -1 {
+			continue
+		}
+		provider := key[:sep]
+		nativeId := key[sep+1:]
+		src, err := m.eng.ResolveManifest(context.Background(), provider, "", nativeId)
+		if err != nil {
+			continue
+		}
+		for _, t := range src.GetTracks() {
+			dt := &apiv1.DownloadTrack{TrackId: t.GetId()}
+			switch t.GetMedia().(type) {
+			case *corev1.Track_Video:
+				dt.Media = &apiv1.DownloadTrack_Video{Video: t.GetVideo()}
+			case *corev1.Track_Audio:
+				dt.Media = &apiv1.DownloadTrack_Audio{Audio: t.GetAudio()}
+			case *corev1.Track_Subtitle:
+				dt.Media = &apiv1.DownloadTrack_Subtitle{Subtitle: t.GetSubtitle()}
+			}
+			tracks = append(tracks, dt)
+		}
+	}
+
+	return &apiv1.GetDeliveryOptionsResponse{
+		Tracks:                     tracks,
+		Sinks:                      sinks,
+		MetadataAttachmentPossible: metadataPossible,
+		Containers:                 containers,
+	}, nil
+}
+
+// ListJobs returns the caller's jobs across all kinds, one page at a time
+// (PLAN.md §9.1). The composition root queries the jobs store directly.
+func (m managedDelivery) ListJobs(userID, pageToken string) ([]*corev1.Job, string, error) {
+	keys, err := m.jobs.List(context.Background(), "job:")
+	if err != nil {
+		return nil, "", fmt.Errorf("jobs store: %w", err)
+	}
+	var jobs []*corev1.Job
+	for _, key := range keys {
+		val, err := m.jobs.Get(context.Background(), key)
+		if err != nil {
+			continue
+		}
+		job := &corev1.Job{}
+		if err := proto.Unmarshal(val, job); err != nil {
+			continue
+		}
+		if job.GetOwnerUserId() == userID {
+			jobs = append(jobs, job)
+		}
+	}
+	// Simple pagination: return first 50 jobs, next token if more exist
+	const pageSize = 50
+	if len(jobs) <= pageSize {
+		return jobs, "", nil
+	}
+	return jobs[:pageSize], jobs[pageSize].GetId(), nil
 }
 
 // PlayMenu recovers a session's staged play menu, attaching each
@@ -280,7 +385,7 @@ func (s *Stack) armDelivery(rt *SlotRuntime, logger *slog.Logger) error {
 	// The liveness interval the engine enforces is the one clients must
 	// heartbeat on — publish the same value, never a second copy of it.
 	srv.SetHeartbeatInterval(timing.HeartbeatInterval)
-	srv.SetDelivery(managedDelivery{eng: eng, relay: rt.Relay})
+	srv.SetDelivery(managedDelivery{eng: eng, relay: rt.Relay, library: stackLibrary{s: s}, jobs: s.stores.Jobs})
 	// Everything below reads the runtime that is live at call time, so a live
 	// slot reload takes effect on the next call without re-arming the server.
 	// Probers are the exception: their set is replaced wholesale by the reload

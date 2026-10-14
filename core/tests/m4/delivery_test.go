@@ -133,6 +133,14 @@ func (m engineManager) Cancel(jobID string) (*delivery.Session, error) {
 	return m.eng.Cancel(jobID)
 }
 
+func (m engineManager) GetDeliveryOptions(string) (*apiv1.GetDeliveryOptionsResponse, error) {
+	return &apiv1.GetDeliveryOptionsResponse{}, nil
+}
+
+func (m engineManager) ListJobs(string, string) ([]*corev1.Job, string, error) {
+	return nil, "", nil
+}
+
 // buildServer wires the delivery engine over the given resolver and sink
 // factory and returns an armed CoreService together with the engine its
 // harness drives.

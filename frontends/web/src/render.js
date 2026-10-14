@@ -603,7 +603,7 @@ export function accountCard(account, { onRemove, onUpdate } = {}) {
   return card;
 }
 
-export function libraryCard(item, { onPlay, payload } = {}) {
+export function libraryCard(item, { onPlay, onDownload, payload } = {}) {
   const entry = item.entry;
   const md = item.metadata;
   const identity = (entry.externalIdentities ?? [])[0];
@@ -689,11 +689,10 @@ export function libraryCard(item, { onPlay, payload } = {}) {
       subSection('play source', row('provider:nativeId', payload.key)),
     );
   card.append(body);
-  if (onPlay) {
-    card.append(
-      el(
-        'div',
-        { class: 'card-body' },
+  if (onPlay || onDownload) {
+    const actions = el('div', { class: 'card-body' });
+    if (onPlay) {
+      actions.append(
         el('button', {
           class: 'play-item',
           text: 'Play',
@@ -702,8 +701,21 @@ export function libraryCard(item, { onPlay, payload } = {}) {
             ? {}
             : { disabled: true, title: 'no deliverable provider coverage' }),
         }),
-      ),
-    );
+      );
+    }
+    if (onDownload) {
+      actions.append(
+        el('button', {
+          class: 'play-item',
+          text: 'Download',
+          onclick: onDownload,
+          ...(payload
+            ? {}
+            : { disabled: true, title: 'no deliverable provider coverage' }),
+        }),
+      );
+    }
+    card.append(actions);
   }
   card.append(
     el(
@@ -808,5 +820,188 @@ export function playMenu(info, { onShow } = {}) {
       el('pre', { text: toJsonString(GetPlayInfoResponseSchema, info) }),
     ),
   );
+  return body;
+}
+
+// --- Delivery options dialog (PLAN.md §6.3, §6.4) ---
+
+export function deliveryDialog(opts, { onConfirm, onCancel } = {}) {
+  const body = el('div', { class: 'delivery-dialog' });
+  const tracks = opts.tracks ?? [];
+  const sinks = opts.sinks ?? [];
+
+  // Track selection
+  if (tracks.length > 0) {
+    const trackSection = el('div', { class: 'sub' });
+    trackSection.append(el('div', { class: 'sub-title', text: 'Recipe' }));
+
+    // Video: single select
+    const videoTracks = tracks.filter((t) => t.media?.case === 'video');
+    if (videoTracks.length > 0) {
+      const videoSelect = el('select', { id: 'recipeVideo' });
+      for (const t of videoTracks) {
+        const p = t.media?.value ?? {};
+        videoSelect.append(
+          option(
+            t.trackId,
+            `${p.codec} ${p.width}x${p.height} @${p.frameRate}`,
+            t.trackId === videoTracks[0]?.trackId,
+          ),
+        );
+      }
+      trackSection.append(
+        el(
+          'div',
+          { class: 'row' },
+          el('span', { class: 'label', text: 'video' }),
+          videoSelect,
+        ),
+      );
+    }
+
+    // Audio: multi-select
+    const audioTracks = tracks.filter((t) => t.media?.case === 'audio');
+    if (audioTracks.length > 0) {
+      const audioList = el('div', { class: 'track-list' });
+      for (const t of audioTracks) {
+        const p = t.media?.value ?? {};
+        const cb = el('input', { type: 'checkbox', id: `audio-${t.trackId}` });
+        if (t === audioTracks[0]) cb.checked = true;
+        audioList.append(
+          el(
+            'label',
+            { class: 'track-option' },
+            cb,
+            el('span', {
+              text: `${p.codec} ${p.language}${p.channels ? ` ${p.channels}ch` : ''}`,
+            }),
+          ),
+        );
+      }
+      trackSection.append(
+        el(
+          'div',
+          { class: 'row' },
+          el('span', { class: 'label', text: 'audio' }),
+          audioList,
+        ),
+      );
+    }
+
+    // Subtitles: multi-select
+    const subTracks = tracks.filter((t) => t.media?.case === 'subtitle');
+    if (subTracks.length > 0) {
+      const subList = el('div', { class: 'track-list' });
+      for (const t of subTracks) {
+        const p = t.media?.value ?? {};
+        subList.append(
+          el(
+            'label',
+            { class: 'track-option' },
+            el('input', { type: 'checkbox', id: `sub-${t.trackId}` }),
+            el('span', { text: `${p.codec} ${p.language}` }),
+          ),
+        );
+      }
+      trackSection.append(
+        el(
+          'div',
+          { class: 'row' },
+          el('span', { class: 'label', text: 'subtitles' }),
+          subList,
+        ),
+      );
+    }
+
+    body.append(trackSection);
+  }
+
+  // Sink selection
+  if (sinks.length > 0) {
+    const sinkSection = el('div', { class: 'sub' });
+    sinkSection.append(el('div', { class: 'sub-title', text: 'Destination' }));
+    const sinkSelect = el('select', { id: 'sinkSelect' });
+    for (const s of sinks) {
+      sinkSelect.append(
+        option(s.sinkId, s.label, s.sinkId === sinks[0]?.sinkId),
+      );
+    }
+    sinkSection.append(
+      el(
+        'div',
+        { class: 'row' },
+        el('span', { class: 'label', text: 'sink' }),
+        sinkSelect,
+      ),
+    );
+    body.append(sinkSection);
+  }
+
+  // Container selection
+  const containers = opts.containers ?? [];
+  if (containers.length > 0) {
+    const containerSection = el('div', { class: 'sub' });
+    containerSection.append(
+      el('div', { class: 'sub-title', text: 'Container' }),
+    );
+    const containerSelect = el('select', { id: 'containerSelect' });
+    for (const c of containers) {
+      containerSelect.append(option(c, c, c === containers[0]));
+    }
+    containerSection.append(
+      el(
+        'div',
+        { class: 'row' },
+        el('span', { class: 'label', text: 'container' }),
+        containerSelect,
+      ),
+    );
+    body.append(containerSection);
+  }
+
+  // Metadata toggle
+  if (opts.metadataAttachmentPossible) {
+    const metaSection = el('div', { class: 'sub' });
+    metaSection.append(
+      el(
+        'label',
+        { class: 'track-option' },
+        el('input', { type: 'checkbox', id: 'metadataToggle' }),
+        el('span', { text: 'Attach metadata tags' }),
+      ),
+    );
+    body.append(metaSection);
+  }
+
+  // Actions
+  const actions = el('div', { class: 'card-body' });
+  if (onConfirm) {
+    actions.append(
+      el('button', {
+        class: 'play-item',
+        text: 'Start Download',
+        onclick: onConfirm,
+      }),
+    );
+  }
+  if (onCancel) {
+    actions.append(el('button', { text: 'Cancel', onclick: onCancel }));
+  }
+  body.append(actions);
+
+  return body;
+}
+
+// --- Downloads panel (PLAN.md §9.1) ---
+
+export function downloadsPanel(jobs) {
+  const body = el('div', {});
+  if (!jobs || jobs.length === 0) {
+    body.append(el('div', { class: 'empty', text: 'no jobs yet' }));
+    return body;
+  }
+  for (const job of jobs) {
+    body.append(jobCard(job));
+  }
   return body;
 }

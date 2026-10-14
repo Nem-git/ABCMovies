@@ -43,6 +43,14 @@ func (s *stubDelivery) PlayMenu(string) (*apiserver.PlayMenu, error) {
 }
 func (s *stubDelivery) RevokeAllOnAccount(string) int { return 0 }
 
+func (s *stubDelivery) GetDeliveryOptions(string) (*apiv1.GetDeliveryOptionsResponse, error) {
+	return &apiv1.GetDeliveryOptionsResponse{}, nil
+}
+
+func (s *stubDelivery) ListJobs(string, string) ([]*corev1.Job, string, error) {
+	return nil, "", nil
+}
+
 type stubLibrary struct {
 	reachable map[string][]string
 }

@@ -14,9 +14,11 @@ import {
   GetJobRequestSchema,
   GetLibraryRequestSchema,
   GetPlayInfoRequestSchema,
+  GetDeliveryOptionsRequestSchema,
   HeartbeatRequestSchema,
   LinkAccountRequestSchema,
   ListAccountsRequestSchema,
+  ListJobsRequestSchema,
   LiveSearchRequestSchema,
   LoginRequestSchema,
   PasswordLoginSchema,
@@ -30,6 +32,8 @@ import {
 import { EventType } from './gen/abcmovies/core/v1/event_pb.js';
 import {
   accountCard,
+  deliveryDialog,
+  downloadsPanel,
   eventCard,
   eventPayload,
   eventTypeLabel,
@@ -114,9 +118,11 @@ function updateSessionUI() {
     'listAccounts',
     'browse',
     'liveSearch',
+    'refreshDownloads',
   ]) {
     $(id).disabled = !loggedIn;
   }
+  $('downloads').classList.toggle('hidden', !loggedIn);
 }
 
 // --- Provider accounts (PLAN.md §7.5) ---
@@ -296,6 +302,9 @@ async function refreshLibrary() {
       slot.append(
         libraryCard(item, {
           onPlay: src ? () => startPlay(src.provider, src.nativeId) : undefined,
+          onDownload: src
+            ? () => startDownload(item.entry.id, src.provider, src.nativeId)
+            : undefined,
           payload: src,
         }),
       );
@@ -341,6 +350,9 @@ $('nextPage').addEventListener('click', async () => {
       slot.append(
         libraryCard(item, {
           onPlay: src ? () => startPlay(src.provider, src.nativeId) : undefined,
+          onDownload: src
+            ? () => startDownload(item.entry.id, src.provider, src.nativeId)
+            : undefined,
           payload: src,
         }),
       );
@@ -504,6 +516,98 @@ async function refreshPlayInfo() {
   }
 }
 
+// --- Download flow (PLAN.md §6, §6.4) ---
+
+// The delivery options fetched for the current download dialog.
+let currentDeliveryOptions = null;
+
+// startDownload fetches delivery options, shows the dialog, and starts the
+// download when the user confirms their recipe.
+async function startDownload(entryId, provider, nativeId) {
+  const account = accountForDelivery(provider);
+  if (!account) {
+    log(`start download: no deliverable account for provider ${provider}`);
+    return;
+  }
+  try {
+    const res = await client.getDeliveryOptions(
+      create(GetDeliveryOptionsRequestSchema, { entryId }),
+    );
+    currentDeliveryOptions = res;
+    const slot = $('deliveryDialog');
+    slot.innerHTML = '';
+    slot.append(
+      deliveryDialog(res, {
+        onConfirm: () => confirmDownload(res, account, provider, nativeId),
+        onCancel: () => {
+          slot.classList.add('hidden');
+        },
+      }),
+    );
+    slot.classList.remove('hidden');
+    log('delivery options fetched — select recipe and sink');
+  } catch (err) {
+    log(`get delivery options failed: ${describe(err)}`);
+  }
+}
+
+// confirmDownload reads the user's recipe selections from the dialog and
+// starts the download delivery session.
+async function confirmDownload(opts, account, provider, nativeId) {
+  const videoTrackId = $('recipeVideo')?.value || '';
+  const audioTrackIds = Array.from(
+    document.querySelectorAll('[id^="audio-"]:checked'),
+  ).map((cb) => cb.id.replace('audio-', ''));
+  const subTrackIds = Array.from(
+    document.querySelectorAll('[id^="sub-"]:checked'),
+  ).map((cb) => cb.id.replace('sub-', ''));
+  const sink = $('sinkSelect')?.value || 'device';
+  const container = $('containerSelect')?.value || '';
+  const attachMetadata = $('metadataToggle')?.checked ?? false;
+
+  try {
+    const res = await client.startDelivery(
+      create(StartDeliveryRequestSchema, {
+        goal: DeliveryGoal.DOWNLOAD,
+        provider,
+        accountId: account.accountId,
+        nativeId,
+        sink,
+        container: container || undefined,
+      }),
+    );
+    const jobId = res.job?.id;
+    if (!jobId) {
+      log('start download: response carried no job id');
+      return;
+    }
+    $('deliveryDialog').classList.add('hidden');
+    log(
+      `download started: ${jobId} (${provider}:${nativeId} via ${account.accountId}, sink ${sink})`,
+    );
+    await refreshDownloads();
+  } catch (err) {
+    log(`start download failed: ${describe(err)}`);
+  }
+}
+
+// refreshDownloads lists the caller's jobs and renders the downloads panel.
+// The frontend filters to download jobs; other kinds are shown in a separate
+// view.
+async function refreshDownloads() {
+  try {
+    const res = await client.listJobs(create(ListJobsRequestSchema, {}));
+    const downloadJobs = (res.jobs ?? []).filter(
+      (j) => j.kind === 1 && j.delivery?.goal === 'download',
+    );
+    const slot = $('downloadsPanel');
+    slot.innerHTML = '';
+    slot.append(downloadsPanel(downloadJobs));
+  } catch (err) {
+    log(`list jobs failed: ${describe(err)}`);
+  }
+}
+
 $('logout').addEventListener('click', () => {
   stopSubscription();
   stopHeartbeat();
@@ -512,6 +616,8 @@ $('logout').addEventListener('click', () => {
   activeSessionId = null;
   $('player').classList.add('hidden');
   $('playVideo').removeAttribute('src');
+  $('deliveryDialog').classList.add('hidden');
+  $('downloads').classList.add('hidden');
   $('accountList').innerHTML = '';
   $('libraryGrid').innerHTML = '';
   $('nextPage').classList.add('hidden');
@@ -519,6 +625,10 @@ $('logout').addEventListener('click', () => {
   $('copyRecovery').classList.add('hidden');
   updateSessionUI();
   log('logged out; token discarded');
+});
+
+$('refreshDownloads').addEventListener('click', () => {
+  refreshDownloads();
 });
 
 // --- Account ---

@@ -105,6 +105,25 @@ func ValidateCancelDeliveryRequest(r *apiv1.CancelDeliveryRequest) error {
 	return nil
 }
 
+// ValidateGetDeliveryOptionsRequest checks a GetDeliveryOptionsRequest.
+func ValidateGetDeliveryOptionsRequest(r *apiv1.GetDeliveryOptionsRequest) error {
+	if r == nil {
+		return fmt.Errorf("get_delivery_options_request: nil")
+	}
+	if r.GetEntryId() == "" {
+		return fmt.Errorf("get_delivery_options_request: entry_id is required")
+	}
+	return nil
+}
+
+// ValidateListJobsRequest checks a ListJobsRequest.
+func ValidateListJobsRequest(r *apiv1.ListJobsRequest) error {
+	if r == nil {
+		return fmt.Errorf("list_jobs_request: nil")
+	}
+	return nil
+}
+
 // --- Slot admin validation (D8) ---
 
 func ValidateCreateSlotRequest(r *apiv1.CreateSlotRequest) error {

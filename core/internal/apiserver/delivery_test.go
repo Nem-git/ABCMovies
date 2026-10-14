@@ -69,6 +69,14 @@ func (s *stubDelivery) ApplyAccountCap(ctx context.Context, provider, accountID 
 
 func (s *stubDelivery) Cancel(string) (*delivery.Session, error) { return nil, nil }
 
+func (s *stubDelivery) GetDeliveryOptions(string) (*apiv1.GetDeliveryOptionsResponse, error) {
+	return &apiv1.GetDeliveryOptionsResponse{}, nil
+}
+
+func (s *stubDelivery) ListJobs(string, string) ([]*corev1.Job, string, error) {
+	return nil, "", nil
+}
+
 func runningSession() *delivery.Session {
 	return &delivery.Session{
 		ID:     "del-1",

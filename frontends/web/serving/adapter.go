@@ -186,6 +186,28 @@ func (a *coreServiceAdapter) GetInstanceSettings(
 	return connect.NewResponse(resp), nil
 }
 
+func (a *coreServiceAdapter) GetDeliveryOptions(
+	ctx context.Context,
+	req *connect.Request[apiv1.GetDeliveryOptionsRequest],
+) (*connect.Response[apiv1.GetDeliveryOptionsResponse], error) {
+	resp, err := a.srv.GetDeliveryOptions(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (a *coreServiceAdapter) ListJobs(
+	ctx context.Context,
+	req *connect.Request[apiv1.ListJobsRequest],
+) (*connect.Response[apiv1.ListJobsResponse], error) {
+	resp, err := a.srv.ListJobs(ctx, req.Msg)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
 func (a *coreServiceAdapter) Subscribe(
 	ctx context.Context,
 	req *connect.Request[apiv1.SubscribeRequest],
