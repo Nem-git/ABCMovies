@@ -1,90 +1,380 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "instructions": ["AGENTS.md"],
-  "permission": {
-    "edit": {
-      "*": "allow",
-      "**/proto/**": "ask",
-      "**/docs/**": "ask",
-      "**/.tool-versions": "ask",
-      "**/Containerfile": "ask",
-      "**/Makefile": "ask",
-      "**/.github/**": "ask",
-      "**/renovate.json": "ask",
-      "**/config.example": "ask",
-      "**/.env.example": "ask",
-      "**/AGENTS.md": "ask",
-      "**/opencode.json": "ask"
+  "permissions": [
+    {
+      "action": "edit",
+      "resource": "*",
+      "effect": "allow"
     },
-    "bash": {
-      "*": "allow",
-      "sudo *": "ask",
-      "make run": "ask",
-      "make run *": "ask",
-      "make deps": "ask",
-      "make deps *": "ask",
-      "podman *": "ask",
-      "docker *": "ask",
-      "curl *": "ask",
-      "wget *": "ask",
-      "git init": "ask",
-      "git add *": "ask",
-      "git commit *": "ask",
-      "git push *": "ask",
-      "git pull *": "ask",
-      "git clone *": "ask",
-      "git remote *": "ask",
-      "git checkout *": "ask",
-      "git switch *": "ask",
-      "git branch *": "ask",
-      "git merge *": "ask",
-      "git rebase *": "ask",
-      "git reset *": "ask",
-      "git stash *": "ask",
-      "git tag *": "ask",
-      "git config *": "ask",
-      "systemctl *": "ask",
-      "service *": "ask",
-      "kill *": "ask",
-      "pkill *": "ask",
-      "killall *": "ask",
-      "apt *": "ask",
-      "apt-get *": "ask",
-      "dnf *": "ask",
-      "yum *": "ask",
-      "brew install *": "ask",
-      "npm install *": "ask",
-      "npm i *": "ask",
-      "npm ci": "ask",
-      "pnpm install *": "ask",
-      "pnpm add *": "ask",
-      "yarn install *": "ask",
-      "yarn add *": "ask",
-      "bun install *": "ask",
-      "bun add *": "ask",
-      "pip install *": "ask",
-      "pip3 install *": "ask",
-      "uv add *": "ask",
-      "go get *": "ask",
-      "go install *": "ask",
-      "go mod tidy": "ask",
-      "go mod vendor": "ask"
+    {
+      "action": "edit",
+      "resource": "**/proto/**",
+      "effect": "ask"
+    },
+    {
+      "action": "edit",
+      "resource": "**/docs/**",
+      "effect": "ask"
+    },
+    {
+      "action": "edit",
+      "resource": "**/.tool-versions",
+      "effect": "ask"
+    },
+    {
+      "action": "edit",
+      "resource": "**/Containerfile",
+      "effect": "ask"
+    },
+    {
+      "action": "edit",
+      "resource": "**/Makefile",
+      "effect": "ask"
+    },
+    {
+      "action": "edit",
+      "resource": "**/.github/**",
+      "effect": "ask"
+    },
+    {
+      "action": "edit",
+      "resource": "**/renovate.json",
+      "effect": "ask"
+    },
+    {
+      "action": "edit",
+      "resource": "**/config.example",
+      "effect": "ask"
+    },
+    {
+      "action": "edit",
+      "resource": "**/.env.example",
+      "effect": "ask"
+    },
+    {
+      "action": "edit",
+      "resource": "**/decisions/**",
+      "effect": "ask"
+    },
+    {
+      "action": "edit",
+      "resource": "**/go.mod",
+      "effect": "ask"
+    },
+    {
+      "action": "edit",
+      "resource": "**/go.sum",
+      "effect": "ask"
+    },
+    {
+      "action": "edit",
+      "resource": "**/.gitignore",
+      "effect": "ask"
+    },
+    {
+      "action": "edit",
+      "resource": "**/CONTRIBUTING.md",
+      "effect": "ask"
+    },
+    {
+      "action": "edit",
+      "resource": "**/SECURITY.md",
+      "effect": "ask"
+    },
+    {
+      "action": "edit",
+      "resource": "**/LICENSE",
+      "effect": "ask"
+    },
+    {
+      "action": "edit",
+      "resource": "**/AGENTS.md",
+      "effect": "ask"
+    },
+    {
+      "action": "edit",
+      "resource": "**/opencode.json",
+      "effect": "ask"
+    },
+    {
+      "action": "edit",
+      "resource": "**/opencode.jsonc",
+      "effect": "ask"
+    },
+
+    {
+      "action": "shell",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "sudo *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "podman *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "docker *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git init *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git add *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git commit *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git push *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git pull *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git clone *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git remote *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git checkout *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git switch *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git branch *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git merge *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git rebase *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git reset *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git stash *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git tag *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git config *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git clean *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "systemctl *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "service *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "kill *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "pkill *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "killall *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "rm -rf *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "rm -fr *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "rm -r *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "find * -delete*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "apt *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "apt-get *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "dnf *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "yum *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "brew install *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "npm install *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "npm i *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "npm ci *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "pnpm install *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "pnpm add *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "yarn install *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "yarn add *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "bun install *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "bun add *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "pip install *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "pip3 install *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "uv add *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "go get *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "go install *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "go mod tidy *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "go mod vendor *",
+      "effect": "ask"
     }
-  },
+  ],
   "mcp": {
-    "github": {
-      "type": "remote",
-      "url": "https://api.githubcopilot.com/mcp/",
-      "enabled": true,
-      "oauth": false,
-      "headers": {
-        "Authorization": "Bearer {env:GITHUB_TOKEN}"
+    "servers": {
+      "github": {
+        "type": "remote",
+        "url": "https://api.githubcopilot.com/mcp/",
+        "disabled": false,
+        "oauth": false,
+        "headers": {
+          "Authorization": "Bearer {env:GITHUB_TOKEN}"
+        }
+      },
+      "context7": {
+        "type": "remote",
+        "url": "https://mcp.context7.com/mcp",
+        "disabled": false
       }
-    },
-    "context7": {
-      "type": "remote",
-      "url": "https://mcp.context7.com/mcp",
-      "enabled": true
     }
   }
 }
