@@ -1,6 +1,6 @@
 # ADR 0010: Frontend/core split — deployable gRPC core and HTTP-facing frontends
 
-- Status: Proposed
+- Status: Accepted
 - Type: Technical
 - Date: 2026-11-08
 - Owners: TBD
@@ -43,6 +43,5 @@ Implementation work surfaced that the browser-facing HTTP layer and the gRPC cor
 
 ## Follow-up
 
-- Update this ADR's Status to Accepted (or supersede) after review in PR #34.
-- Revisit gRPC transport security when cross-host deployment is targeted.
+- gRPC transport security: revisit when cross-host deployment is targeted.
 - Revisit frontend packaging (ADR 0009, still Proposed) and browser transport/gRPC-web (ADR 0003, still Proposed) as Build 1 grows.
