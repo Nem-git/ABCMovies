@@ -201,6 +201,43 @@ func (s *Store) DeleteSession(ctx context.Context, id string) error {
 	return nil
 }
 
+// GetAdminCredentials returns the user_id and username of the initial admin
+// (the first user), or ErrNotFound when the instance is not initialized.
+func (s *Store) GetAdminCredentials(ctx context.Context) (*User, error) {
+	u := &User{}
+	err := s.db.QueryRowContext(ctx,
+		`SELECT user_id, username, hash, created FROM users ORDER BY created ASC, user_id ASC LIMIT 1`).Scan(&u.UserID, &u.Username, &u.Hash, &u.Created)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get admin credentials: %w", err)
+	}
+	return u, nil
+}
+
+// SetPassword updates the given user's password hash and invalidates all of
+// that user's sessions. It returns the number of sessions invalidated.
+func (s *Store) SetPassword(ctx context.Context, userID, hash string) (int64, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("set password: begin: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE users SET hash = ? WHERE user_id = ?`, hash, userID); err != nil {
+		_ = tx.Rollback()
+		return 0, fmt.Errorf("set password: update hash: %w", err)
+	}
+	res, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, userID)
+	if err != nil {
+		_ = tx.Rollback()
+		return 0, fmt.Errorf("set password: delete sessions: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("set password: commit: %w", err)
+	}
+	return res.RowsAffected()
+}
+
 // DeleteExpiredSessions removes sessions whose expiry has passed. It is
 // best-effort hygiene; validation already ignores expired sessions.
 func (s *Store) DeleteExpiredSessions(ctx context.Context) (int64, error) {
