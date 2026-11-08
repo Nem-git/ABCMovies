@@ -64,9 +64,11 @@ examples:
   once they exist: additive changes are reviewed as additive; breaking changes
   require a new version/compatibility plan and an accepted decision.
 - Version pins and build/CI definitions, once they exist: `.tool-versions`,
-  lockfiles' pin sources, `Containerfile`/`Dockerfile`, `Makefile` or task
-  runner config, CI config (`.github/workflows/`), dependency automation config.
+  lockfiles' pin sources, `go.mod`/`go.sum`, `Containerfile`/`Dockerfile`,
+  `Makefile` or task runner config, `.gitignore`, CI config (`.github/workflows/`),
+  dependency automation config.
 - Config and secrets templates: `*.example`, `.env.example`, sample config.
+- Governance files: `CONTRIBUTING.md`, `SECURITY.md`, `LICENSE`.
 - `AGENTS.md` and `opencode.json`.
 
 "Explicit approval" means the user has said yes to the concrete proposal, not a
@@ -89,8 +91,10 @@ vague "go ahead".
   end-to-end journeys for user-visible flows. A requirement without a way to
   verify it is not done.
 - When a standard check recipe exists (CI, task runner, test command), run the
-  same recipe locally before claiming work is done. Never invent a substitute
-  that hides failures.
+  same recipe locally before claiming work is done. For this repository, the
+  standard local check is `make check` (it runs `go vet ./...` and `go test ./...`).
+  Never invent a substitute that hides failures. If a check cannot be run, say
+  exactly what was skipped and why.
 - Reject, never downgrade: do not work around a failing check or silently reduce
   what is claimed.
 - Never claim something is verified that you did not actually run.
