@@ -92,26 +92,55 @@ func TestBuild1Journey(t *testing.T) {
 		}
 
 		// Create the initial admin (browser calls same-origin /api/*, proxied to the API).
+		// Setup establishes a session like registration (see decisions/tech/0010).
 		resp = postJSON(t, client, base+"/api/setup", map[string]string{
 			"username": "admin",
 			"password": "testpass1234",
 		})
+		setupBody, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 		if resp.StatusCode != http.StatusCreated {
 			t.Fatalf("POST /api/setup status = %d, want 201", resp.StatusCode)
 		}
+		var setupResp map[string]any
+		if err := json.Unmarshal(setupBody, &setupResp); err != nil {
+			t.Fatalf("decode setup response: %v", err)
+		}
+		if setupResp["user_id"] == "" || setupResp["username"] != "admin" {
+			t.Fatalf("setup response = %v, want user_id and username=admin", setupResp)
+		}
 
-		// After setup, the home page redirects to /login.
+		// Setup signs the admin in: home renders signed-in immediately.
 		resp, err = client.Get(base + "/")
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET / after setup status = %d, want 200 (setup signs in)", resp.StatusCode)
+		}
+		if !bytes.Contains(body, []byte("admin")) {
+			t.Fatalf("GET / body after setup missing username: %q", body)
+		}
+
+		// A fresh, unauthenticated client is redirected to /login.
+		anonClient := httpClient(t)
+		resp, err = anonClient.Get(base + "/")
 		if err != nil {
 			t.Fatal(err)
 		}
 		_ = resp.Body.Close()
 		if resp.Request.URL.Path != "/login" {
-			t.Fatalf("GET / after setup = %q, want redirect to /login", resp.Request.URL.Path)
+			t.Fatalf("GET / with no session = %q, want redirect to /login", resp.Request.URL.Path)
 		}
 
-		// Wrong password is rejected.
+		// Sign out; then wrong password is rejected.
+		resp = postJSON(t, client, base+"/api/logout", nil)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("POST /api/logout status = %d, want 200", resp.StatusCode)
+		}
 		resp = postJSON(t, client, base+"/api/login", map[string]string{
 			"username": "admin",
 			"password": "wrongpassword",
@@ -144,7 +173,7 @@ func TestBuild1Journey(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		body, _ := io.ReadAll(resp.Body)
+		body, _ = io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("GET / signed-in status = %d, want 200", resp.StatusCode)

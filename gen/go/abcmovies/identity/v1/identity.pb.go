@@ -161,11 +161,14 @@ func (x *SetupAdminRequest) GetPassword() string {
 	return ""
 }
 
-// SetupAdminResponse indicates the initial user was created.
+// SetupAdminResponse indicates the initial user was created and carries the
+// session created for it, so first-run setup behaves like registration.
 type SetupAdminResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// session_id is an opaque, server-side session identifier for the new user.
+	SessionId string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	// user_id is the stable unique identifier of the created user.
-	UserId        string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -198,6 +201,13 @@ func (x *SetupAdminResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use SetupAdminResponse.ProtoReflect.Descriptor instead.
 func (*SetupAdminResponse) Descriptor() ([]byte, []int) {
 	return file_abcmovies_identity_v1_identity_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *SetupAdminResponse) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
 }
 
 func (x *SetupAdminResponse) GetUserId() string {
@@ -612,9 +622,11 @@ const file_abcmovies_identity_v1_identity_proto_rawDesc = "" +
 	"\vinitialized\x18\x01 \x01(\bR\vinitialized\"K\n" +
 	"\x11SetupAdminRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
-	"\bpassword\x18\x02 \x01(\tR\bpassword\"-\n" +
-	"\x12SetupAdminResponse\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\")\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\"L\n" +
+	"\x12SetupAdminResponse\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\")\n" +
 	"\x0eGetUserRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\"F\n" +
 	"\x0fGetUserResponse\x12\x17\n" +

@@ -18,7 +18,7 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: data.get('username'), password: data.get('password') }),
     });
-    if (res.ok) { location.href = '/login'; return; }
+    if (res.ok) { location.href = '/'; return; }
     const body = await res.json().catch(() => ({}));
     err.textContent = body.error || 'Could not create admin.';
   });

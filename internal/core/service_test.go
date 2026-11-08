@@ -35,7 +35,27 @@ func setupAdmin(t *testing.T, svc *IdentityService) *identityv1.SetupAdminRespon
 	if resp.GetUserId() == "" {
 		t.Fatal("SetupAdmin returned no user_id")
 	}
+	if resp.GetSessionId() == "" {
+		t.Fatal("SetupAdmin returned no session_id")
+	}
 	return resp
+}
+
+func TestSetupAdminEstablishesSession(t *testing.T) {
+	svc, _ := newTestService(t)
+	ctx := context.Background()
+
+	resp := setupAdmin(t, svc)
+	sess, err := svc.ValidateSession(ctx, &identityv1.ValidateSessionRequest{SessionId: resp.GetSessionId()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sess.GetValid() {
+		t.Fatal("ValidateSession.Valid = false for the session returned by setup")
+	}
+	if sess.GetUserId() != resp.GetUserId() {
+		t.Fatalf("session user_id = %q, want %q", sess.GetUserId(), resp.GetUserId())
+	}
 }
 
 func TestGetStatusFreshAndInitialized(t *testing.T) {

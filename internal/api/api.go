@@ -121,7 +121,8 @@ func (s *Server) apiStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, statusResponse{Initialized: st.GetInitialized()})
 }
 
-// apiSetup creates the initial admin on an uninitialized instance.
+// apiSetup creates the initial admin on an uninitialized instance and signs
+// it in (first-run setup behaves like registration).
 func (s *Server) apiSetup(w http.ResponseWriter, r *http.Request) {
 	c, ok := decodeCredentials(w, r)
 	if !ok {
@@ -140,7 +141,14 @@ func (s *Server) apiSetup(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]string{"user_id": resp.GetUserId()})
+	profile, err := s.client.GetUser(r.Context(), &identityv1.GetUserRequest{UserId: resp.GetUserId()})
+	if err != nil {
+		slog.Error("core get user failed", "err", err)
+		writeError(w, http.StatusServiceUnavailable, "setup failed")
+		return
+	}
+	http.SetCookie(w, sessionCookie(resp.GetSessionId(), isHTTPS(r)))
+	writeJSON(w, http.StatusCreated, loginResponse{OK: true, UserID: resp.GetUserId(), Username: profile.GetUsername()})
 }
 
 // apiLogin verifies credentials and sets the session cookie.

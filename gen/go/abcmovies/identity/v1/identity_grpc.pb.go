@@ -40,8 +40,9 @@ type IdentityServiceClient interface {
 	// user exists). Interfaces use it to choose between the first-run setup
 	// and the login flow.
 	GetStatus(ctx context.Context, in *GetStatusRequest, opts ...grpc.CallOption) (*GetStatusResponse, error)
-	// SetupAdmin creates the initial admin on an uninitialized instance.
-	// It fails with FailedPrecondition if the instance is already initialized.
+	// SetupAdmin creates the initial admin on an uninitialized instance and
+	// returns a session for it. It fails with FailedPrecondition if the
+	// instance is already initialized.
 	SetupAdmin(ctx context.Context, in *SetupAdminRequest, opts ...grpc.CallOption) (*SetupAdminResponse, error)
 	// GetUser returns profile data for the user identified by user_id.
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
@@ -132,8 +133,9 @@ type IdentityServiceServer interface {
 	// user exists). Interfaces use it to choose between the first-run setup
 	// and the login flow.
 	GetStatus(context.Context, *GetStatusRequest) (*GetStatusResponse, error)
-	// SetupAdmin creates the initial admin on an uninitialized instance.
-	// It fails with FailedPrecondition if the instance is already initialized.
+	// SetupAdmin creates the initial admin on an uninitialized instance and
+	// returns a session for it. It fails with FailedPrecondition if the
+	// instance is already initialized.
 	SetupAdmin(context.Context, *SetupAdminRequest) (*SetupAdminResponse, error)
 	// GetUser returns profile data for the user identified by user_id.
 	GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error)

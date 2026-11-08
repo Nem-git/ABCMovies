@@ -24,6 +24,7 @@ Implementation work surfaced that the browser-facing HTTP layer and the gRPC cor
 - **`user_id` is the stable unique identifier of a local user** everywhere (store keys, session subject, identifier fields in RPCs). `username` remains a login credential and display/profile attribute, not an identifier. (Glossary: "Account" is reserved for a user's access credentials/session for a source.)
 - **Session/identity contract shape:** `Login` and `ValidateSession` return the identifier (`user_id`) only. Profile data is resolved via a dedicated `GetUser(user_id)` RPC rather than being embedded in session responses.
 - `GetStatus` (`initialized: bool`) remains in `IdentityService` for now. `ListAccounts`/account management is deferred until account management is a real requirement.
+- First-run setup (`SetupAdmin`) also establishes the initial session (`session_id` + `user_id`), so creating the admin behaves like registration — no separate sign-in step after setup. The HTTP API sets the session cookie itself.
 - Build 1 keeps **stdlib `html/template` with embedded templates** for SSR; richer component approaches are deferred until the UI grows.
 
 ## Options considered

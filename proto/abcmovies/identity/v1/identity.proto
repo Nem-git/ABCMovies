@@ -13,8 +13,9 @@ service IdentityService {
   // and the login flow.
   rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
 
-  // SetupAdmin creates the initial admin on an uninitialized instance.
-  // It fails with FailedPrecondition if the instance is already initialized.
+  // SetupAdmin creates the initial admin on an uninitialized instance and
+  // returns a session for it. It fails with FailedPrecondition if the
+  // instance is already initialized.
   rpc SetupAdmin(SetupAdminRequest) returns (SetupAdminResponse);
 
   // GetUser returns profile data for the user identified by user_id.
@@ -47,10 +48,13 @@ message SetupAdminRequest {
   string password = 2;
 }
 
-// SetupAdminResponse indicates the initial user was created.
+// SetupAdminResponse indicates the initial user was created and carries the
+// session created for it, so first-run setup behaves like registration.
 message SetupAdminResponse {
+  // session_id is an opaque, server-side session identifier for the new user.
+  string session_id = 1;
   // user_id is the stable unique identifier of the created user.
-  string user_id = 1;
+  string user_id = 2;
 }
 
 // GetUserRequest carries the user to look up.

@@ -45,7 +45,8 @@ func (i *IdentityService) GetStatus(ctx context.Context, _ *identityv1.GetStatus
 	return &identityv1.GetStatusResponse{Initialized: initialized}, nil
 }
 
-// SetupAdmin creates the initial admin on an uninitialized instance.
+// SetupAdmin creates the initial admin on an uninitialized instance and
+// establishes a session for it (first-run setup behaves like registration).
 func (i *IdentityService) SetupAdmin(ctx context.Context, req *identityv1.SetupAdminRequest) (*identityv1.SetupAdminResponse, error) {
 	username := strings.TrimSpace(req.GetUsername())
 	if len(username) < minUsernameLength {
@@ -71,7 +72,11 @@ func (i *IdentityService) SetupAdmin(ctx context.Context, req *identityv1.SetupA
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create user: %v", err)
 	}
-	return &identityv1.SetupAdminResponse{UserId: user.UserID}, nil
+	sess, err := i.store.CreateSession(ctx, user.UserID, sessionTTL)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "create session: %v", err)
+	}
+	return &identityv1.SetupAdminResponse{SessionId: sess.ID, UserId: user.UserID}, nil
 }
 
 // GetUser returns profile data for the user identified by user_id.
