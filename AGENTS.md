@@ -103,6 +103,10 @@ vague "go ahead".
   implemented until scheduled.
 - A change outside the current scope is a discussion, not a silent
   implementation.
+- All changes go through pull requests. Do not push directly to `dev` or
+  `main`. When working on a GitHub issue/ticket, deliver that ticket’s work in
+  one focused PR that links the issue. If the work is too large, split the
+  ticket first.
 - Product or technical decisions surfaced by the work become decision records
   and/or decision issues — with the user's approval — never only in code.
 - Follow `CONTRIBUTING.md`, issue templates, and the PR template when they

@@ -10,6 +10,8 @@ ABCMovies is being rewritten from a clean spec. Read [`docs/README.md`](docs/REA
 
 ## Pull requests
 
+- All changes go through pull requests. Do not push directly to `dev` or `main`.
+- One PR per ticket: when working on a GitHub issue, deliver that ticket’s work in a single focused PR that links the issue. If the work is too large, split the ticket first; do not bundle unrelated tickets into one PR.
 - Keep PRs focused. Link the issue(s) they implement.
 - Run the project’s standard checks before opening a PR when they exist. CI should run the same checks.
 - Include tests or acceptance evidence for behavior changes. Cover negative/error and permission cases where relevant.
