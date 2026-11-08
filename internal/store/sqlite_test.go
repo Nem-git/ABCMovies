@@ -172,3 +172,43 @@ func TestSessionLifecycle(t *testing.T) {
 		t.Fatalf("ValidateSession after DeleteSession err = %v, want ErrNotFound", err)
 	}
 }
+
+func TestDeleteExpiredSessions(t *testing.T) {
+	s := openTest(t)
+	ctx := context.Background()
+	user, err := s.CreateUser(ctx, "admin", "test-hash-sentinel-not-a-real-digest")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	valid, err := s.CreateSession(ctx, user.UserID, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expired, err := s.CreateSession(ctx, user.UserID, -time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := s.DeleteExpiredSessions(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("DeleteExpiredSessions removed %d, want 1", n)
+	}
+
+	if _, err := s.ValidateSession(ctx, valid.ID); err != nil {
+		t.Fatalf("valid session missing after cleanup: %v", err)
+	}
+	// Expired session was never valid via ValidateSession; confirm it is gone by
+	// ensuring cleanup is idempotent.
+	n, err = s.DeleteExpiredSessions(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("second cleanup removed %d, want 0", n)
+	}
+	_ = expired
+}

@@ -71,7 +71,10 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
-	return &Store{db: db}, nil
+	s := &Store{db: db}
+	// Best-effort cleanup of expired sessions on startup.
+	_, _ = s.DeleteExpiredSessions(context.Background())
+	return s, nil
 }
 
 // Close closes the database.
@@ -161,15 +164,16 @@ func (s *Store) CreateSession(ctx context.Context, userID string, ttl time.Durat
 	if _, err := rand.Read(token); err != nil {
 		return nil, fmt.Errorf("generate session id: %w", err)
 	}
+	now := time.Now().UTC()
 	sess := &Session{
 		ID:      hex.EncodeToString(token),
 		UserID:  userID,
-		Created: time.Now(),
-		Expires: time.Now().Add(ttl),
+		Created: now,
+		Expires: now.Add(ttl),
 	}
 	if _, err := s.db.ExecContext(ctx,
-		`INSERT INTO sessions (id, user_id, expires) VALUES (?, ?, ?)`,
-		sess.ID, sess.UserID, sess.Expires); err != nil {
+		`INSERT INTO sessions (id, user_id, created, expires) VALUES (?, ?, ?, ?)`,
+		sess.ID, sess.UserID, sess.Created, sess.Expires); err != nil {
 		return nil, fmt.Errorf("insert session: %w", err)
 	}
 	return sess, nil
@@ -179,7 +183,7 @@ func (s *Store) CreateSession(ctx context.Context, userID string, ttl time.Durat
 func (s *Store) ValidateSession(ctx context.Context, id string) (*Session, error) {
 	sess := &Session{}
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, user_id, created, expires FROM sessions WHERE id = ? AND expires > CURRENT_TIMESTAMP`, id).Scan(&sess.ID, &sess.UserID, &sess.Created, &sess.Expires)
+		`SELECT id, user_id, created, expires FROM sessions WHERE id = ? AND expires > ?`, id, time.Now().UTC()).Scan(&sess.ID, &sess.UserID, &sess.Created, &sess.Expires)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
@@ -195,4 +199,14 @@ func (s *Store) DeleteSession(ctx context.Context, id string) error {
 		return fmt.Errorf("delete session: %w", err)
 	}
 	return nil
+}
+
+// DeleteExpiredSessions removes sessions whose expiry has passed. It is
+// best-effort hygiene; validation already ignores expired sessions.
+func (s *Store) DeleteExpiredSessions(ctx context.Context) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE expires <= ?`, time.Now().UTC())
+	if err != nil {
+		return 0, fmt.Errorf("delete expired sessions: %w", err)
+	}
+	return res.RowsAffected()
 }
