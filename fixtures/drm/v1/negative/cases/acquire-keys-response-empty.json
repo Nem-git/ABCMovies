@@ -1,8 +1,0 @@
-{
-  "name": "acquire-keys-response-empty",
-  "type": "AcquireKeysResponse",
-  "message": {},
-  "expected": {
-    "valid": false
-  }
-}

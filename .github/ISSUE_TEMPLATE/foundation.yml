@@ -1,0 +1,23 @@
+name: Foundation
+description: Repo, tooling, CI, docs, or operational groundwork
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks / verification

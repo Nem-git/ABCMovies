@@ -1,7 +1,0 @@
-{
-  "contract": "catalogue",
-  "version": "v1",
-  "kind": "positive",
-  "slot": "tmdb",
-  "transport": "schema"
-}

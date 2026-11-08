@@ -1,8 +1,0 @@
-{
-  "name": "get-library-valid-empty",
-  "request": "",
-  "declaration": [],
-  "expected": { "valid": true },
-  "message": {},
-  "type": "GetLibraryRequest"
-}

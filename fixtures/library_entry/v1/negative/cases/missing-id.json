@@ -1,9 +1,0 @@
-{
-  "name": "missing-id",
-  "message": {
-    "kind": "ENTRY_KIND_MOVIE"
-  },
-  "expected": {
-    "valid": false
-  }
-}

@@ -1,8 +1,0 @@
-{
-  "name": "list-accounts-valid-empty",
-  "request": "",
-  "declaration": [],
-  "expected": { "valid": true },
-  "message": {},
-  "type": "ListAccountsRequest"
-}

@@ -1,8 +1,0 @@
-{
-  "name": "list-jobs-valid-empty-page",
-  "request": "",
-  "declaration": [],
-  "expected": { "valid": true },
-  "message": {},
-  "type": "ListJobsRequest"
-}

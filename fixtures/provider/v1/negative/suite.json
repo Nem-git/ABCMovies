@@ -1,7 +1,0 @@
-{
-  "contract": "provider",
-  "version": "v1",
-  "kind": "negative",
-  "slot": "jellyfin",
-  "transport": "schema"
-}

@@ -1,0 +1,34 @@
+name: Decision
+description: Record a product or technical decision
+labels: ["needs-decision"]
+body:
+  - type: input
+    id: id
+    attributes:
+      label: Decision ID
+      placeholder: DEC-001 / ADR 0001
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Why now / constraints
+  - type: textarea
+    id: options
+    attributes:
+      label: Options and tradeoffs
+    validations:
+      required: true
+  - type: textarea
+    id: recommendation
+    attributes:
+      label: Recommendation / current leaning
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome (fill on close)
+      description: Decision, date, owner, ADR link, affected requirements/issues.

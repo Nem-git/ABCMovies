@@ -1,36 +1,13 @@
 # ABCMovies
 
-A self-hosted media hub: one catalog to search and browse across many streaming services, and one place to watch, download, and manage access. ABCMovies aggregates your own legitimate access — it orchestrates, it does not invent content or bundle secrets.
+A self-hosted media hub: one catalog per user, assembled from the sources and shared access they can reach. ABCMovies aggregates legitimate access — it does not provide, host, or bundle media, accounts, or secrets.
 
-## The plan
+## Start here
 
-The project is specified before it is built. The documents are designed to be reusable references: PLAN.md fixes *what* the system is, and the implementation-specific choices are kept out of it.
-
-| Document | Fixes |
-| --- | --- |
-| [PLAN.md](docs/PLAN.md) | The spec: what the project is, contracts, how parts work together; decision log in §11 |
-| [IMPLEMENTATION.md](docs/IMPLEMENTATION.md) | How it is built and kept buildable; milestone roadmap M0–M9 |
-| [ENVIRONMENT.md](docs/ENVIRONMENT.md) | What a developer machine must contain; reproducibility (local == CI) |
-| [TESTING.md](docs/TESTING.md) | What "tested" means: fixture suites, test pyramid, vault/secrets suite |
-| [CI-CD.md](docs/CI-CD.md) | How changes are integrated, verified, and shipped |
-| [SCOPE.md](docs/SCOPE.md) | What v1 is (M0–M6), what is deferred, what "v1 done" means |
-| [TECHNICAL-DECISIONS.md](docs/TECHNICAL-DECISIONS.md) | The implementation choices the references stay agnostic about |
-| [RESEARCH.md](docs/RESEARCH.md) | Feasibility evidence behind decisions (spike findings) |
-| [THREAT-MODEL.md](docs/THREAT-MODEL.md) | What is protected, against whom, and the tests that verify it |
-| [OPERATIONS.md](docs/OPERATIONS.md) | Running a live instance: deployment, vault, key rotation, capacity |
-
-Implementation-specific choices (core language, API transport, tooling) live in **TECHNICAL-DECISIONS.md** — not in the reference documents, so those stay usable for anyone building a different implementation of the same spec.
-
-## Getting started
-
-1. Read PLAN.md §1 and SCOPE.md first — understand what this is and what v1 delivers.
-2. Set up the environment: [ENVIRONMENT.md](docs/ENVIRONMENT.md).
-3. Build and verify: run the standard verify recipe locally — CI runs the identical recipes ([ENVIRONMENT.md](docs/ENVIRONMENT.md) §5, [CI-CD.md](docs/CI-CD.md)).
-4. Contribute per [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Status
-
-Planning is complete (Phase 0–3: decisions, scope, research scaffolding, threat model, ops). The project is built milestone-by-milestone per the roadmap in IMPLEMENTATION.md §3; each milestone ends with its fixtures and the CI gate green. The current milestone is the first entry in that table whose acceptance tests (`core/tests/mN`) are not yet green on this branch.
+1. Read [`docs/README.md`](docs/README.md).
+2. Read [`docs/VISION.md`](docs/VISION.md) and [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md).
+3. Check [`decisions/README.md`](decisions/README.md) and the GitHub project before implementing.
+4. Follow [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`AGENTS.md`](AGENTS.md).
 
 ## License
 

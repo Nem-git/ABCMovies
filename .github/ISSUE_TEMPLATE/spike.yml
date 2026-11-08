@@ -1,0 +1,21 @@
+name: Spike
+description: Timeboxed investigation
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+    validations:
+      required: true
+  - type: input
+    id: timebox
+    attributes:
+      label: Timebox
+  - type: textarea
+    id: method
+    attributes:
+      label: Method
+  - type: textarea
+    id: findings
+    attributes:
+      label: Findings / recommendation / follow-ups

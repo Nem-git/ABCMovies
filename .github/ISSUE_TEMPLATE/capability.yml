@@ -1,0 +1,34 @@
+name: Capability
+description: A product capability or requirement slice
+labels: []
+body:
+  - type: input
+    id: ids
+    attributes:
+      label: Requirement / decision IDs
+      placeholder: REQ-LIB-01, DEC-001
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance examples
+      description: Happy path, failure/empty state, and permission case where relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Out of scope
+  - type: textarea
+    id: blockers
+    attributes:
+      label: Blocking decisions or dependencies
+  - type: textarea
+    id: tests
+    attributes:
+      label: Test plan / docs

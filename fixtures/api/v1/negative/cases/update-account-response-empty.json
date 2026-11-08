@@ -1,8 +1,0 @@
-{
-  "name": "update-account-response-empty",
-  "request": "",
-  "declaration": [],
-  "expected": { "valid": false },
-  "message": {},
-  "type": "UpdateAccountResponse"
-}

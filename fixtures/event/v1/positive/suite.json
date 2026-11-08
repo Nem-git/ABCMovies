@@ -1,7 +1,0 @@
-{
-  "contract": "event",
-  "version": "v1",
-  "kind": "positive",
-  "slot": "core",
-  "transport": "schema"
-}

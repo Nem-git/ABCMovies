@@ -1,0 +1,29 @@
+name: Bug
+description: Something behaves incorrectly
+labels: []
+body:
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+  - type: textarea
+    id: context
+    attributes:
+      label: Version/build context
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs / screenshots
+      description: Remove secrets and private data.

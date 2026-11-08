@@ -1,8 +1,0 @@
-{
-  "name": "heartbeat-missing-session",
-  "request": "",
-  "declaration": [],
-  "expected": { "valid": false },
-  "message": {},
-  "type": "HeartbeatRequest"
-}
