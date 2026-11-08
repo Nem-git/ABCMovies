@@ -141,14 +141,16 @@ func (s *Server) apiSetup(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	profile, err := s.client.GetUser(r.Context(), &identityv1.GetUserRequest{UserId: resp.GetUserId()})
-	if err != nil {
-		slog.Error("core get user failed", "err", err)
-		writeError(w, http.StatusServiceUnavailable, "setup failed")
-		return
+	username := ""
+	if profile, err := s.client.GetUser(r.Context(), &identityv1.GetUserRequest{UserId: resp.GetUserId()}); err != nil {
+		// Setup already succeeded and a session was created; keep the client signed
+		// in rather than returning a failure they cannot recover from cleanly.
+		slog.Warn("core get user failed after setup", "err", err, "user_id", resp.GetUserId())
+	} else {
+		username = profile.GetUsername()
 	}
 	http.SetCookie(w, sessionCookie(resp.GetSessionId(), isHTTPS(r)))
-	writeJSON(w, http.StatusCreated, loginResponse{OK: true, UserID: resp.GetUserId(), Username: profile.GetUsername()})
+	writeJSON(w, http.StatusCreated, loginResponse{OK: true, UserID: resp.GetUserId(), Username: username})
 }
 
 // apiLogin verifies credentials and sets the session cookie.
@@ -168,14 +170,16 @@ func (s *Server) apiLogin(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	profile, err := s.client.GetUser(r.Context(), &identityv1.GetUserRequest{UserId: resp.GetUserId()})
-	if err != nil {
-		slog.Error("core get user failed", "err", err)
-		writeError(w, http.StatusServiceUnavailable, "login failed")
-		return
+	username := ""
+	if profile, err := s.client.GetUser(r.Context(), &identityv1.GetUserRequest{UserId: resp.GetUserId()}); err != nil {
+		// Login already succeeded and a session was created; keep the client signed
+		// in rather than returning a failure they cannot recover from cleanly.
+		slog.Warn("core get user failed after login", "err", err, "user_id", resp.GetUserId())
+	} else {
+		username = profile.GetUsername()
 	}
 	http.SetCookie(w, sessionCookie(resp.GetSessionId(), isHTTPS(r)))
-	writeJSON(w, http.StatusOK, loginResponse{OK: true, UserID: resp.GetUserId(), Username: profile.GetUsername()})
+	writeJSON(w, http.StatusOK, loginResponse{OK: true, UserID: resp.GetUserId(), Username: username})
 }
 
 // apiLogout ends the current session and clears the cookie.
