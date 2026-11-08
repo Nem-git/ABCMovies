@@ -1,0 +1,24 @@
+{{define "content"}}<h1>Sign in</h1>
+<form id="login">
+  <label>Username<br><input name="username" required autocomplete="username"></label>
+  <label>Password<br><input name="password" type="password" required autocomplete="current-password"></label>
+  <button type="submit">Sign in</button>
+</form>
+<p class="error" id="err" role="alert"></p>
+<script>
+  const form = document.getElementById('login');
+  const err = document.getElementById('err');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    err.textContent = '';
+    const data = new FormData(form);
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: data.get('username'), password: data.get('password') }),
+    });
+    if (res.ok) { location.href = '/'; return; }
+    const body = await res.json().catch(() => ({}));
+    err.textContent = body.error || 'Invalid username or password.';
+  });
+</script>{{end}}

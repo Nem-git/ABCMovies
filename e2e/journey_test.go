@@ -12,20 +12,41 @@ import (
 	"github.com/Nem-git/ABCMovies/internal/app"
 )
 
-// startApp starts a full app instance (store + gRPC core + web frontend) on
-// ephemeral ports and returns its HTTP base URL.
-func startApp(t *testing.T) *app.App {
-	t.Helper()
-	db := filepath.Join(t.TempDir(), "e2e.db")
-	a, err := app.Start(t.Context(), app.Config{Bind: "127.0.0.1", HTTPPort: 0, GRPCPort: 0, DBPath: db})
-	if err != nil {
-		t.Fatalf("app.Start: %v", err)
-	}
-	t.Cleanup(a.Close)
-	return a
+// stack is a running core + API + web frontend wired to each other.
+type stack struct {
+	Core *app.Core
+	API  *app.API
+	Web  *app.Web
 }
 
-func httpClient(t *testing.T, base string) *http.Client {
+func startStack(t *testing.T) *stack {
+	t.Helper()
+	db := filepath.Join(t.TempDir(), "e2e.db")
+
+	core, err := app.StartCore(app.CoreConfig{Bind: "127.0.0.1", Port: 0, DB: db})
+	if err != nil {
+		t.Fatalf("StartCore: %v", err)
+	}
+	api, err := app.StartAPI(app.APIConfig{Bind: "127.0.0.1", Port: 0, CoreGRPCAddr: core.GRPCAddr})
+	if err != nil {
+		core.Close()
+		t.Fatalf("StartAPI: %v", err)
+	}
+	web, err := app.StartWeb(app.WebConfig{Bind: "127.0.0.1", Port: 0, APIBaseURL: "http://" + api.HTTPAddr})
+	if err != nil {
+		api.Close()
+		core.Close()
+		t.Fatalf("StartWeb: %v", err)
+	}
+	t.Cleanup(func() {
+		web.Close()
+		api.Close()
+		core.Close()
+	})
+	return &stack{Core: core, API: api, Web: web}
+}
+
+func httpClient(t *testing.T) *http.Client {
 	t.Helper()
 	jar, err := cookiejar.New(nil)
 	if err != nil {
@@ -37,8 +58,10 @@ func httpClient(t *testing.T, base string) *http.Client {
 func postJSON(t *testing.T, client *http.Client, url string, body any) *http.Response {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(body); err != nil {
-		t.Fatal(err)
+	if body != nil {
+		if err := json.NewEncoder(&buf).Encode(body); err != nil {
+			t.Fatal(err)
+		}
 	}
 	req, err := http.NewRequest(http.MethodPost, url, &buf)
 	if err != nil {
@@ -54,9 +77,9 @@ func postJSON(t *testing.T, client *http.Client, url string, body any) *http.Res
 
 func TestBuild1Journey(t *testing.T) {
 	t.Run("first-run-admin-and-login", func(t *testing.T) {
-		a := startApp(t)
-		client := httpClient(t, a.HTTPURL)
-		base := a.HTTPURL
+		s := startStack(t)
+		client := httpClient(t)
+		base := "http://" + s.Web.HTTPAddr
 
 		// Fresh instance redirects to /setup.
 		resp, err := client.Get(base + "/")
@@ -68,7 +91,7 @@ func TestBuild1Journey(t *testing.T) {
 			t.Fatalf("GET / on fresh instance = %q, want redirect to /setup", resp.Request.URL.Path)
 		}
 
-		// Create the initial admin.
+		// Create the initial admin (browser calls same-origin /api/*, proxied to the API).
 		resp = postJSON(t, client, base+"/api/setup", map[string]string{
 			"username": "admin",
 			"password": "testpass1234",
@@ -103,12 +126,20 @@ func TestBuild1Journey(t *testing.T) {
 			"username": "admin",
 			"password": "testpass1234",
 		})
+		loginBody, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("POST /api/login status = %d, want 200", resp.StatusCode)
 		}
+		var loginResp map[string]any
+		if err := json.Unmarshal(loginBody, &loginResp); err != nil {
+			t.Fatalf("decode login response: %v", err)
+		}
+		if loginResp["user_id"] == "" || loginResp["username"] != "admin" {
+			t.Fatalf("login response = %v, want user_id and username=admin", loginResp)
+		}
 
-		// Signed-in user can see the home page.
+		// Signed-in user can see the home page (username rendered server-side).
 		resp, err = client.Get(base + "/")
 		if err != nil {
 			t.Fatal(err)
@@ -127,6 +158,16 @@ func TestBuild1Journey(t *testing.T) {
 		_ = resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("POST /api/logout status = %d, want 200", resp.StatusCode)
+		}
+
+		// After logout, home redirects to /login again.
+		resp, err = client.Get(base + "/")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if resp.Request.URL.Path != "/login" {
+			t.Fatalf("GET / after logout = %q, want redirect to /login", resp.Request.URL.Path)
 		}
 	})
 

@@ -1,0 +1,162 @@
+package core
+
+import (
+	"context"
+	"path/filepath"
+	"testing"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
+	"github.com/Nem-git/ABCMovies/internal/store"
+)
+
+func newTestService(t *testing.T) (*IdentityService, *store.Store) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "test.db")
+	st, err := store.Open(path)
+	if err != nil {
+		t.Fatalf("store.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	return NewIdentityService(st), st
+}
+
+func setupAdmin(t *testing.T, svc *IdentityService) *identityv1.SetupAdminResponse {
+	t.Helper()
+	resp, err := svc.SetupAdmin(context.Background(), &identityv1.SetupAdminRequest{
+		Username: "admin",
+		Password: "correct horse battery staple",
+	})
+	if err != nil {
+		t.Fatalf("SetupAdmin: %v", err)
+	}
+	if resp.GetUserId() == "" {
+		t.Fatal("SetupAdmin returned no user_id")
+	}
+	return resp
+}
+
+func TestGetStatusFreshAndInitialized(t *testing.T) {
+	svc, _ := newTestService(t)
+	ctx := context.Background()
+
+	st, err := svc.GetStatus(ctx, &identityv1.GetStatusRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.GetInitialized() {
+		t.Fatal("GetStatus.Initialized = true on fresh instance")
+	}
+
+	setupAdmin(t, svc)
+	st, err = svc.GetStatus(ctx, &identityv1.GetStatusRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.GetInitialized() {
+		t.Fatal("GetStatus.Initialized = false after setup")
+	}
+}
+
+func TestSetupAdminFailsWhenInitialized(t *testing.T) {
+	svc, _ := newTestService(t)
+	setupAdmin(t, svc)
+
+	_, err := svc.SetupAdmin(context.Background(), &identityv1.SetupAdminRequest{
+		Username: "admin2",
+		Password: "correct horse battery staple",
+	})
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("SetupAdmin err code = %v, want FailedPrecondition", status.Code(err))
+	}
+}
+
+func TestSetupAdminValidatesInput(t *testing.T) {
+	svc, _ := newTestService(t)
+	ctx := context.Background()
+
+	if _, err := svc.SetupAdmin(ctx, &identityv1.SetupAdminRequest{Username: "a", Password: "correct horse battery staple"}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("short username code = %v, want InvalidArgument", status.Code(err))
+	}
+	if _, err := svc.SetupAdmin(ctx, &identityv1.SetupAdminRequest{Username: "admin", Password: "short"}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("short password code = %v, want InvalidArgument", status.Code(err))
+	}
+}
+
+func TestLoginValidateLogoutAndGetUser(t *testing.T) {
+	svc, _ := newTestService(t)
+	ctx := context.Background()
+	created := setupAdmin(t, svc)
+
+	login, err := svc.Login(ctx, &identityv1.LoginRequest{
+		Username: "admin",
+		Password: "correct horse battery staple",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if login.GetUserId() != created.GetUserId() {
+		t.Fatalf("Login user_id = %q, want %q", login.GetUserId(), created.GetUserId())
+	}
+	if login.GetSessionId() == "" {
+		t.Fatal("Login returned no session id")
+	}
+
+	sess, err := svc.ValidateSession(ctx, &identityv1.ValidateSessionRequest{SessionId: login.GetSessionId()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sess.GetValid() {
+		t.Fatal("ValidateSession.Valid = false for fresh session")
+	}
+	if sess.GetUserId() != created.GetUserId() {
+		t.Fatalf("ValidateSession.user_id = %q, want %q", sess.GetUserId(), created.GetUserId())
+	}
+
+	profile, err := svc.GetUser(ctx, &identityv1.GetUserRequest{UserId: created.GetUserId()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile.GetUsername() != "admin" {
+		t.Fatalf("GetUser.username = %q, want admin", profile.GetUsername())
+	}
+
+	if _, err := svc.Logout(ctx, &identityv1.LogoutRequest{SessionId: login.GetSessionId()}); err != nil {
+		t.Fatal(err)
+	}
+	sess, err = svc.ValidateSession(ctx, &identityv1.ValidateSessionRequest{SessionId: login.GetSessionId()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sess.GetValid() {
+		t.Fatal("ValidateSession.Valid = true after logout")
+	}
+}
+
+func TestLoginRejectsWrongCredentialsWithoutProbing(t *testing.T) {
+	svc, _ := newTestService(t)
+	setupAdmin(t, svc)
+	ctx := context.Background()
+
+	wrongPass, err := svc.Login(ctx, &identityv1.LoginRequest{Username: "admin", Password: "wrong password"})
+	unknownUser, err2 := svc.Login(ctx, &identityv1.LoginRequest{Username: "nobody", Password: "correct horse battery staple"})
+	if wrongPass != nil || unknownUser != nil {
+		t.Fatal("expected no login response for invalid credentials")
+	}
+	if status.Code(err) != codes.Unauthenticated || status.Code(err2) != codes.Unauthenticated {
+		t.Fatalf("codes = (%v, %v), want Unauthenticated for both", status.Code(err), status.Code(err2))
+	}
+	if status.Convert(err).Message() != status.Convert(err2).Message() {
+		t.Fatal("error messages reveal whether the username exists")
+	}
+}
+
+func TestGetUserNotFound(t *testing.T) {
+	svc, _ := newTestService(t)
+	_, err := svc.GetUser(context.Background(), &identityv1.GetUserRequest{UserId: "usr_does_not_exist"})
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("GetUser code = %v, want NotFound", status.Code(err))
+	}
+}

@@ -1,0 +1,25 @@
+{{define "content"}}<h1>Welcome to ABCMovies</h1>
+<p>Create the initial admin account to start this instance.</p>
+<form id="setup" novalidate>
+  <label>Username<br><input name="username" required minlength="2" autocomplete="username"></label>
+  <label>Password<br><input name="password" type="password" required minlength="8" autocomplete="new-password"></label>
+  <button type="submit">Create admin</button>
+</form>
+<p class="error" id="err" role="alert"></p>
+<script>
+  const form = document.getElementById('setup');
+  const err = document.getElementById('err');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    err.textContent = '';
+    const data = new FormData(form);
+    const res = await fetch('/api/setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: data.get('username'), password: data.get('password') }),
+    });
+    if (res.ok) { location.href = '/login'; return; }
+    const body = await res.json().catch(() => ({}));
+    err.textContent = body.error || 'Could not create admin.';
+  });
+</script>{{end}}

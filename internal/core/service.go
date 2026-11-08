@@ -3,15 +3,16 @@ package core
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
 	"github.com/Nem-git/ABCMovies/internal/auth"
 	"github.com/Nem-git/ABCMovies/internal/store"
-	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
 )
 
 // sessionTTL is how long a login session lasts.
@@ -37,11 +38,11 @@ func NewIdentityService(s *store.Store) *IdentityService {
 
 // GetStatus reports whether the instance has been initialized.
 func (i *IdentityService) GetStatus(ctx context.Context, _ *identityv1.GetStatusRequest) (*identityv1.GetStatusResponse, error) {
-	n, err := i.store.AdminCount(ctx)
+	initialized, err := i.store.HasUser(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "read state: %v", err)
 	}
-	return &identityv1.GetStatusResponse{Initialized: n > 0}, nil
+	return &identityv1.GetStatusResponse{Initialized: initialized}, nil
 }
 
 // SetupAdmin creates the initial admin on an uninitialized instance.
@@ -54,11 +55,11 @@ func (i *IdentityService) SetupAdmin(ctx context.Context, req *identityv1.SetupA
 		return nil, status.Errorf(codes.InvalidArgument, "password must be at least %d characters", minPasswordLength)
 	}
 
-	n, err := i.store.AdminCount(ctx)
+	initialized, err := i.store.HasUser(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "read state: %v", err)
 	}
-	if n > 0 {
+	if initialized {
 		return nil, status.Errorf(codes.FailedPrecondition, "instance already initialized")
 	}
 
@@ -66,10 +67,26 @@ func (i *IdentityService) SetupAdmin(ctx context.Context, req *identityv1.SetupA
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "hash password: %v", err)
 	}
-	if err := i.store.CreateAdmin(ctx, username, hash); err != nil {
-		return nil, status.Errorf(codes.Internal, "create admin: %v", err)
+	user, err := i.store.CreateUser(ctx, username, hash)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "create user: %v", err)
 	}
-	return &identityv1.SetupAdminResponse{}, nil
+	return &identityv1.SetupAdminResponse{UserId: user.UserID}, nil
+}
+
+// GetUser returns profile data for the user identified by user_id.
+func (i *IdentityService) GetUser(ctx context.Context, req *identityv1.GetUserRequest) (*identityv1.GetUserResponse, error) {
+	if strings.TrimSpace(req.GetUserId()) == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "user_id is required")
+	}
+	user, err := i.store.GetUserByID(ctx, req.GetUserId())
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return nil, status.Errorf(codes.NotFound, "user not found")
+		}
+		return nil, status.Errorf(codes.Internal, "read user: %v", err)
+	}
+	return &identityv1.GetUserResponse{UserId: user.UserID, Username: user.Username}, nil
 }
 
 // Login verifies credentials and creates a server-side session.
@@ -79,12 +96,15 @@ func (i *IdentityService) Login(ctx context.Context, req *identityv1.LoginReques
 		return nil, status.Errorf(codes.InvalidArgument, "username and password are required")
 	}
 
-	admin, err := i.store.GetAdmin(ctx, username)
+	user, err := i.store.GetUserByUsername(ctx, username)
 	if err != nil {
-		// Report as invalid credentials (do not reveal whether the username exists).
-		return nil, status.Errorf(codes.Unauthenticated, "invalid username or password")
+		if errors.Is(err, store.ErrNotFound) {
+			// Report as invalid credentials (do not reveal whether the username exists).
+			return nil, status.Errorf(codes.Unauthenticated, "invalid username or password")
+		}
+		return nil, status.Errorf(codes.Internal, "look up user: %v", err)
 	}
-	match, err := auth.VerifyPassword(admin.Hash, req.GetPassword())
+	match, err := auth.VerifyPassword(user.Hash, req.GetPassword())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "verify password: %v", err)
 	}
@@ -92,20 +112,23 @@ func (i *IdentityService) Login(ctx context.Context, req *identityv1.LoginReques
 		return nil, status.Errorf(codes.Unauthenticated, "invalid username or password")
 	}
 
-	sess, err := i.store.CreateSession(ctx, username, sessionTTL)
+	sess, err := i.store.CreateSession(ctx, user.UserID, sessionTTL)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create session: %v", err)
 	}
-	return &identityv1.LoginResponse{SessionId: sess.ID, Username: username}, nil
+	return &identityv1.LoginResponse{SessionId: sess.ID, UserId: user.UserID}, nil
 }
 
 // ValidateSession checks whether a session is valid.
 func (i *IdentityService) ValidateSession(ctx context.Context, req *identityv1.ValidateSessionRequest) (*identityv1.ValidateSessionResponse, error) {
 	sess, err := i.store.ValidateSession(ctx, req.GetSessionId())
 	if err != nil {
-		return &identityv1.ValidateSessionResponse{Valid: false}, nil
+		if errors.Is(err, store.ErrNotFound) {
+			return &identityv1.ValidateSessionResponse{Valid: false}, nil
+		}
+		return nil, status.Errorf(codes.Internal, "validate session: %v", err)
 	}
-	return &identityv1.ValidateSessionResponse{Valid: true, Username: sess.Username}, nil
+	return &identityv1.ValidateSessionResponse{Valid: true, UserId: sess.UserID}, nil
 }
 
 // Logout ends a session.
