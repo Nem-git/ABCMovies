@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"path/filepath"
 	"testing"
 
@@ -69,6 +70,37 @@ func postJSON(t *testing.T, client *http.Client, url string, body any) *http.Res
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
+}
+
+// sessionCookieValue returns the abcmovies_session cookie in client's jar for base.
+func sessionCookieValue(t *testing.T, client *http.Client, base string) string {
+	t.Helper()
+	u, err := url.Parse(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range client.Jar.Cookies(u) {
+		if c.Name == "abcmovies_session" {
+			return c.Value
+		}
+	}
+	t.Fatal("no abcmovies_session cookie in jar")
+	return ""
+}
+
+// getWithSession performs a raw GET with the given session cookie (no jar).
+func getWithSession(t *testing.T, url, sessionID string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Cookie", "abcmovies_session="+sessionID)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,6 +229,63 @@ func TestBuild1Journey(t *testing.T) {
 		_ = resp.Body.Close()
 		if resp.Request.URL.Path != "/login" {
 			t.Fatalf("GET / after logout = %q, want redirect to /login", resp.Request.URL.Path)
+		}
+	})
+
+	t.Run("signed-in-user-and-multiple-sessions", func(t *testing.T) {
+		s := startStack(t)
+		client := httpClient(t)
+		base := "http://" + s.Web.HTTPAddr
+		apiBase := "http://" + s.API.HTTPAddr
+
+		// Set up the admin (registration-like: returns session A).
+		resp := postJSON(t, client, base+"/api/setup", map[string]string{
+			"username": "admin",
+			"password": "testpass1234",
+		})
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("POST /api/setup status = %d, want 201", resp.StatusCode)
+		}
+		sessionA := sessionCookieValue(t, client, base)
+
+		// /login for a signed-in user redirects home instead of rendering the form.
+		resp, err := client.Get(base + "/login")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if resp.Request.URL.Path != "/" {
+			t.Fatalf("GET /login while signed in = %q, want redirect to /", resp.Request.URL.Path)
+		}
+
+		// Re-login with the same account succeeds and issues a new session.
+		resp = postJSON(t, client, base+"/api/login", map[string]string{
+			"username": "admin",
+			"password": "testpass1234",
+		})
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("POST /api/login (re-login) status = %d, want 200", resp.StatusCode)
+		}
+		sessionB := sessionCookieValue(t, client, base)
+		if sessionB == sessionA {
+			t.Fatal("re-login reused the old session id")
+		}
+
+		// A: the previous session is still valid (multiple sessions allowed).
+		resp = getWithSession(t, apiBase+"/api/me", sessionA)
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET /api/me with original session status = %d, want 200 (multi-session), body=%s", resp.StatusCode, body)
+		}
+
+		// B: the new session is valid too.
+		resp = getWithSession(t, apiBase+"/api/me", sessionB)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET /api/me with new session status = %d, want 200", resp.StatusCode)
 		}
 	})
 

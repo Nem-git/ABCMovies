@@ -166,6 +166,15 @@ func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/setup", http.StatusSeeOther)
 		return
 	}
+	// Signed-in users don't need the form — send them home.
+	if _, code, err := s.currentUser(r); err != nil {
+		slog.Error("api me unavailable", "err", err)
+		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+		return
+	} else if code == http.StatusOK {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
 	s.render(w, "login", pageData{Title: "Sign in"})
 }
 

@@ -180,3 +180,33 @@ func TestGetUserNotFound(t *testing.T) {
 		t.Fatalf("GetUser code = %v, want NotFound", status.Code(err))
 	}
 }
+
+func TestLoginAllowsMultipleSessions(t *testing.T) {
+	svc, _ := newTestService(t)
+	ctx := context.Background()
+	setupAdmin(t, svc)
+
+	l1, err := svc.Login(ctx, &identityv1.LoginRequest{Username: "admin", Password: "correct horse battery staple"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	l2, err := svc.Login(ctx, &identityv1.LoginRequest{Username: "admin", Password: "correct horse battery staple"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l1.GetSessionId() == l2.GetSessionId() {
+		t.Fatal("re-login reused the session id")
+	}
+	for i, sess := range []string{l1.GetSessionId(), l2.GetSessionId()} {
+		v, err := svc.ValidateSession(ctx, &identityv1.ValidateSessionRequest{SessionId: sess})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !v.GetValid() {
+			t.Fatalf("session %d is not valid; multiple sessions must remain valid", i+1)
+		}
+		if v.GetUserId() != l1.GetUserId() {
+			t.Fatalf("session %d user_id = %q, want %q", i+1, v.GetUserId(), l1.GetUserId())
+		}
+	}
+}
