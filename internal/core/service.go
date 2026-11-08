@@ -19,9 +19,11 @@ import (
 const sessionTTL = 7 * 24 * time.Hour
 
 // minUsernameLength and minPasswordLength enforce basic hygiene on credentials.
+// maxPasswordLength bounds argon2 work on attacker-controlled input.
 const (
 	minUsernameLength = 2
 	minPasswordLength = 8
+	maxPasswordLength = 1024
 )
 
 // IdentityService implements identityv1.IdentityServiceServer.
@@ -54,6 +56,9 @@ func (i *IdentityService) SetupAdmin(ctx context.Context, req *identityv1.SetupA
 	}
 	if len(req.GetPassword()) < minPasswordLength {
 		return nil, status.Errorf(codes.InvalidArgument, "password must be at least %d characters", minPasswordLength)
+	}
+	if len(req.GetPassword()) > maxPasswordLength {
+		return nil, status.Errorf(codes.InvalidArgument, "password must be at most %d characters", maxPasswordLength)
 	}
 
 	hash, err := auth.HashPassword(req.GetPassword())
@@ -93,6 +98,9 @@ func (i *IdentityService) GetUser(ctx context.Context, req *identityv1.GetUserRe
 func (i *IdentityService) Login(ctx context.Context, req *identityv1.LoginRequest) (*identityv1.LoginResponse, error) {
 	username := strings.TrimSpace(req.GetUsername())
 	if username == "" || req.GetPassword() == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "username and password are required")
+	}
+	if len(req.GetPassword()) > maxPasswordLength {
 		return nil, status.Errorf(codes.InvalidArgument, "username and password are required")
 	}
 

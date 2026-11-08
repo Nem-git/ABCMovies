@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"google.golang.org/grpc/codes"
@@ -102,6 +103,22 @@ func TestSetupAdminValidatesInput(t *testing.T) {
 	}
 	if _, err := svc.SetupAdmin(ctx, &identityv1.SetupAdminRequest{Username: "admin", Password: "short"}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("short password code = %v, want InvalidArgument", status.Code(err))
+	}
+	if _, err := svc.SetupAdmin(ctx, &identityv1.SetupAdminRequest{Username: "admin", Password: strings.Repeat("x", maxPasswordLength+1)}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("long password code = %v, want InvalidArgument", status.Code(err))
+	}
+}
+
+func TestLoginRejectsOverlongPassword(t *testing.T) {
+	svc, _ := newTestService(t)
+	setupAdmin(t, svc)
+
+	_, err := svc.Login(context.Background(), &identityv1.LoginRequest{
+		Username: "admin",
+		Password: strings.Repeat("x", maxPasswordLength+1),
+	})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("Login overlong password code = %v, want InvalidArgument", status.Code(err))
 	}
 }
 
