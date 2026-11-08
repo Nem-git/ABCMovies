@@ -23,8 +23,9 @@ The classic pyramid maps onto this system in a specific way. The names are chose
 | **Round-trip / fuzz tests** | Schema encode→decode is lossless; unknown fields are preserved (§3.4 of PLAN.md) | Exercised on the load-bearing contracts first | per schema |
 | **Unit tests** | Pure logic, no I/O: normalization (§5.3), matching heuristics (§5.3), target resolution (§6.3) | Fast, hermetic | colocated with code |
 | **Integration / vertical-slice tests** | One request enters the API, crosses the core, touches one store, returns (IMPLEMENTATION.md §4.3) | The thinnest end-to-end path per capability | per milestone |
+| **Browser journey tests** | A whole journey a user takes works end to end — sign up, link a provider, browse, play, download — through the real UI | A real browser over the app's own pages, against the real serving layer and core | `frontends/web/e2e/journey/` |
 
-The **fixture suite is the top tier and the quality floor** (IMPLEMENTATION.md §4.2). The other three levels exist to keep it meaningful: round-trips prove the wire format, units prove the heuristics, slices prove the wiring.
+The **fixture suite is the top tier and the quality floor** (IMPLEMENTATION.md §4.2). The other levels exist to keep it meaningful: round-trips prove the wire format, units prove the heuristics, slices prove the wiring, and browser journeys prove the wiring a user actually reaches.
 
 ### 2.1 Why the pyramid is inverted here
 
@@ -76,6 +77,10 @@ These are fast and are what `make test-unit` runs.
 
 One request enters the API, crosses the core, touches one store, returns (IMPLEMENTATION.md §4.3). These are the milestone acceptance criteria made runnable: M1's "a real provider's catalogue lands in the account source cache," M4's "one passthrough play session and one remux download session end-to-end," M5's "a browser renders accounts, library, and a played title over gRPC-Web," M6's "revocation kills live sessions." They run against real transports (in-process and, where the milestone adds one, subprocess/network) but against **mocked provider bytes** — providers are never contacted in the test suite. Frontend milestones verify through the frontend's own serving layer: the web suite boots the serving layer and drives the RPC surface over real gRPC-Web against a self-contained fake provider.
 
+### 4.4 Browser journey tests
+
+The vertical slice proves the wiring one request deep; the browser journey proves the wiring a user actually reaches. It drives the app's own pages in a real browser — sign up, link a provider account, browse the library, play a title, open the download dialog — against the real serving layer and core, with a self-contained fake provider standing in for the network (§8). It asserts the UI's own affordances — cards, menus, the played `<video>`'s relay URL — so a frontend that leaves the RPC surface correct but the page wrong is caught here, not by a user. Its fixtures live in `frontends/web/e2e/journey/` and run under the frontend's own Playwright config, after the smoke suite.
+
 ## 5. Storage class tests
 
 One test set per row of the §2.4 table, proving the class's defining property — this is what "tested, not assumed" (IMPLEMENTATION.md §6) means mechanically:
@@ -121,11 +126,12 @@ Real decryption cannot be a fixture (decrypting real content is not something a 
 - **`fixtures/<contract>/v<version>/`** — the immutable per-version suites, plus `handshake/` and `negative/` subdirectories.
 - **Milestone tests under `<component>/tests/`** — white-box tests for a milestone's acceptance criteria live beside the component they verify (e.g. `core/tests/m0`), mirroring M0–M9; Go's internal-package rule keeps them inside their component. The top-level `tests/` tree is reserved for black-box suites over public seams and fixtures.
 - **Unit tests colocated with code** — the normal convention, since they test pure logic.
+- **Browser journey tests under `<frontend>/e2e/journey/`** — the real UI driven end to end (§4.4).
 - **One requirement → one fixture** (IMPLEMENTATION.md §1.1): each requirement keyword (MUST/SHOULD/MAY) is traceable to a fixture by name, so "is this done?" has a mechanical answer.
 
 ## 10. Running the suite
 
-The check recipe runs everything — lint, build, unit, round-trip, integration, and the fixture suites for every built-in adapter (ENVIRONMENT.md §5). CI runs the identical recipes (CI-CD.md §2). There is no separate "CI-only" test set; anything worth testing in CI is worth running locally, and vice versa.
+The check recipe runs everything — lint, build, unit, round-trip, integration, browser journeys, and the fixture suites for every built-in adapter (ENVIRONMENT.md §5). CI runs the identical recipes (CI-CD.md §2). There is no separate "CI-only" test set; anything worth testing in CI is worth running locally, and vice versa.
 
 ## 11. Relationship to the other documents
 

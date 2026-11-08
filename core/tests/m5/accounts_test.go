@@ -14,9 +14,10 @@ import (
 
 // TestM5SeedLinkVisibleToOwnerAndInvisibleToOthers proves the linked-account
 // read surface over the wire: alice's pre-seeded private link shows up in her
-// ListAccounts exactly as it was linked (caller_linked, provider, server),
-// and it stays invisible to bob — a private linked account feeds only its
-// owner's view (PLAN.md §5.1, §7.5).
+// ListAccounts as the contract projects it (caller_linked, provider slot,
+// server), and it stays invisible to bob — a private linked account feeds only
+// its owner's view (PLAN.md §5.1, §7.5). The provider is the slot the link
+// provisions (the delivery/coverage namespace), not the adapter name.
 func TestM5SeedLinkVisibleToOwnerAndInvisibleToOthers(t *testing.T) {
 	stack := newM5Stack(t, fakeJellyfinServer(t))
 	client := apiv1.NewCoreServiceClient(startWireServer(t, stack))
@@ -35,8 +36,8 @@ func TestM5SeedLinkVisibleToOwnerAndInvisibleToOthers(t *testing.T) {
 	if !a.GetCallerLinked() {
 		t.Error("caller_linked = false, want true (alice linked this account)")
 	}
-	if a.GetProvider() != "jellyfin" {
-		t.Errorf("provider = %q, want jellyfin", a.GetProvider())
+	if a.GetProvider() != stack.ns {
+		t.Errorf("provider = %q, want the provider slot %q", a.GetProvider(), stack.ns)
 	}
 	if got := strings.TrimRight(a.GetBaseUrl(), "/"); got != stack.baseURL {
 		t.Errorf("base_url = %q, want %q", a.GetBaseUrl(), stack.baseURL)

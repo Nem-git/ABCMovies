@@ -46,13 +46,6 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	h(w, r)
 }
 
-// writeJSON writes a JSON response with the given status code.
-func writeJSON(w http.ResponseWriter, status int, body any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
-}
-
 // WriteJSON marshals a value to a compact JSON string, for embedding in
 // fixture response bodies.
 func WriteJSON(v any) string {

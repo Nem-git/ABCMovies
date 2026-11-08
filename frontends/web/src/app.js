@@ -41,6 +41,7 @@ import {
   liveSearchHitCard,
   metadataPanel,
   playMenu,
+  playTracks,
   registryPanel,
   sourceCachePanel,
 } from './render.js';
@@ -406,9 +407,10 @@ export function createApp({ client, doc, onTokenChange }) {
       const res = await client.getPlayInfo(
         create(GetPlayInfoRequestSchema, { sessionId: activeSessionId }),
       );
+      const tracks = playTracks(res);
       $('playTrackList').innerHTML = '';
       $('playTrackList').append(playMenu(res));
-      const video = res.tracks?.find((t) => t.media?.case === 'video');
+      const video = tracks.find((t) => t.media?.case === 'video');
       const hint = $('playerHint');
       if (video) {
         const url = window.location.origin + video.relayUrl;

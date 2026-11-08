@@ -148,6 +148,15 @@ type SlotRuntime struct {
 	// nothing is vaulted that the probe rejected). Empty when no provider
 	// adapter arms a prober.
 	Probers map[string]apiserver.CredentialProber
+
+	// ctx and cancel are the runtime's own context: it outlives the request
+	// that composed it (a live admin-API reload passes a request context,
+	// which is canceled the moment the RPC returns), and is canceled only
+	// when the runtime is retired — the next reload or Close. Syncs and
+	// other background work run on ctx, so a runtime that is replaced stops
+	// its in-flight work instead of leaking it.
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // providerFor finds the built provider slot whose adapter and declared server
@@ -313,6 +322,12 @@ func ComposeSlots(ctx context.Context, slots []*corev1.Slot, enrich config.Enric
 	queue := enrichment.NewInMemoryQueue()
 
 	rt := &SlotRuntime{Bus: apiBus, Queue: queue}
+	// The runtime's own context, derived from the composition context. A live
+	// admin-API reload passes a request context that is canceled when the
+	// RPC returns; the composition root hands ComposeSlots a long-lived
+	// context instead, so a runtime's syncs survive the request that created
+	// it and stop only when the runtime is retired (see reloadSlots).
+	rt.ctx, rt.cancel = context.WithCancel(ctx)
 	mux := &eventMux{bus: rt.Bus, log: logger}
 	rt.eventMux = mux
 	rt.Relay = delivery.NewRelay()
@@ -324,7 +339,7 @@ func ComposeSlots(ctx context.Context, slots []*corev1.Slot, enrich config.Enric
 		return nil, fmt.Errorf("policy: %w", err)
 	}
 	deps := slotwiring.Deps{
-		Ctx:            ctx,
+		Ctx:            rt.ctx,
 		Registry:       reg,
 		Accounts:       accounts.NewStore(vault, logger),
 		SourceCache:    sourceCache,
@@ -334,7 +349,7 @@ func ComposeSlots(ctx context.Context, slots []*corev1.Slot, enrich config.Enric
 		Enqueue:        queue.Enqueue,
 		InstancePolicy: instanceSet,
 	}
-	jobs, reaches, cats, resolvers, built, err := slotwiring.SetupAll(ctx, slots, deps)
+	jobs, reaches, cats, resolvers, built, err := slotwiring.SetupAll(rt.ctx, slots, deps)
 	if err != nil {
 		return nil, fmt.Errorf("slots: %w", err)
 	}

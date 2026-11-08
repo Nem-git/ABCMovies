@@ -59,7 +59,13 @@
         "runtime_minutes": 148
       },
       "content_rating": "PG-13",
-      "cast": ["Leonardo DiCaprio", "Joseph Gordon-Levitt", "Elliot Page", "Tom Hardy", "Ken Watanabe"],
+      "cast": [
+        "Leonardo DiCaprio",
+        "Joseph Gordon-Levitt",
+        "Elliot Page",
+        "Tom Hardy",
+        "Ken Watanabe"
+      ],
       "directors": ["Christopher Nolan"]
     },
     "external_ids": [

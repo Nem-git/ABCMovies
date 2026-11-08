@@ -88,7 +88,9 @@ function makeMockClient(overrides = {}) {
     listJobs: vi.fn().mockResolvedValue({ jobs: [] }),
     getJob: vi.fn().mockResolvedValue({ job: null }),
     startDelivery: vi.fn().mockResolvedValue({ job: { id: 'job-1' } }),
-    getPlayInfo: vi.fn().mockResolvedValue({ tracks: [] }),
+    getPlayInfo: vi.fn().mockResolvedValue({
+      menu: { case: 'rawTracks', value: { tracks: [] } },
+    }),
     getDeliveryOptions: vi.fn().mockResolvedValue({}),
     heartbeat: vi.fn().mockResolvedValue({}),
     subscribe: vi.fn().mockImplementation(async function* () {
@@ -235,7 +237,9 @@ describe('createApp wire-down', () => {
     const doc = makeMockDoc();
     const client = makeMockClient({
       startDelivery: vi.fn().mockResolvedValue({ job: { id: 'job-99' } }),
-      getPlayInfo: vi.fn().mockResolvedValue({ tracks: [] }),
+      getPlayInfo: vi.fn().mockResolvedValue({
+        menu: { case: 'rawTracks', value: { tracks: [] } },
+      }),
     });
 
     const app = createApp({ client, doc });

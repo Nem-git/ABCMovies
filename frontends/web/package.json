@@ -6,7 +6,7 @@
   "scripts": {
     "build": "esbuild src/main.js --bundle --format=esm --target=es2020 --outfile=dist/bundle.js",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test && playwright test -c playwright.journey.config.js"
   },
   "engines": {
     "node": ">=26"

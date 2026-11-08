@@ -68,7 +68,7 @@ func (m managedDelivery) Cancel(jobID string) (*delivery.Session, error) {
 // root resolves the entry through the library seam, then uses the engine's
 // resolver to produce the manifest options.
 func (m managedDelivery) GetDeliveryOptions(entryID, userID string) (*apiv1.GetDeliveryOptionsResponse, error) {
-	entries, err := m.library.Library(context.Background(), "")
+	entries, err := m.library.Library(context.Background(), userID)
 	if err != nil {
 		return nil, fmt.Errorf("library: %w", err)
 	}

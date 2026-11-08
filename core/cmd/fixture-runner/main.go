@@ -827,8 +827,14 @@ func runCatalogueBehaviouralCase(c fixture) error {
 	fake := faketmdb.New(handlers)
 	defer fake.Close()
 
-	// Build the tmdb adapter pointing at the fake server.
-	slot, err := tmdb.New("FIXTURE_RUNNER_TMDB_TOKEN", tmdb.WithBaseURL(fake.URL()))
+	// Build the tmdb adapter pointing at the fake server. Set a dummy
+	// token via the environment so the adapter initialises without
+	// requiring external setup — the fake server does not validate it.
+	tokenEnv := "FIXTURE_RUNNER_TMDB_TOKEN"
+	if err := os.Setenv(tokenEnv, "test-token"); err != nil {
+		return fmt.Errorf("set %s: %w", tokenEnv, err)
+	}
+	slot, err := tmdb.New(tokenEnv, tmdb.WithBaseURL(fake.URL()))
 	if err != nil {
 		return fmt.Errorf("tmdb.New: %w", err)
 	}

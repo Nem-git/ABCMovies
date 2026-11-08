@@ -2,6 +2,10 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
+  // The journey suite runs under its own config against a fresh server
+  // (playwright.journey.config.js): it needs the bootstrap operator, which
+  // is the first signup on the instance.
+  testIgnore: '**/journey/**',
   timeout: 30_000,
   retries: 0,
   workers: 1,

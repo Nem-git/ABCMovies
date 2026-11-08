@@ -777,9 +777,20 @@ export function liveSearchHitCard(hit, { onPlay } = {}) {
   return card;
 }
 
+// playTracks returns the located tracks of a GetPlayInfo response's menu. The
+// menu is a oneof (PLAN.md §6.1): the raw branch carries one relay token per
+// located track; the packaged branch carries a manifest URL and no per-track
+// entries. Only the raw branch yields tracks here — audio/subtitle carried in
+// a muxed track are read off their carrier, not listed as their own entries.
+export function playTracks(info) {
+  return info?.menu?.case === 'rawTracks'
+    ? (info.menu.value?.tracks ?? [])
+    : [];
+}
+
 export function playMenu(info, { onShow } = {}) {
   const body = el('div', {});
-  const tracks = info.tracks ?? [];
+  const tracks = playTracks(info);
   if (tracks.length === 0) {
     body.append(
       el('div', {

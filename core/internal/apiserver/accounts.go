@@ -347,7 +347,12 @@ func (s *Server) UpdateAccount(ctx context.Context, req *apiv1.UpdateAccountRequ
 		_, _ = s.delivery.ApplyAccountCap(ctx, rec.Provider, rec.ID, enforceNow)
 	}
 
-	return &apiv1.UpdateAccountResponse{Account: accountView(rec, uid, s.capChangeDefault, s.ownerUserIDVisible(ctx))}, nil
+	slots := providerSlots(s.reachesFor(uid))
+	provider := rec.Provider
+	if p, ok := slots[rec.ID]; ok {
+		provider = p
+	}
+	return &apiv1.UpdateAccountResponse{Account: accountView(rec, provider, uid, s.capChangeDefault, s.ownerUserIDVisible(ctx))}, nil
 }
 
 // effectiveCapPolicy resolves an account's own choice with the instance
@@ -387,11 +392,11 @@ func sameMembers(a, b []string) bool {
 // from non-owners unless the instance setting reveals it: an owner always
 // sees their own id, but a member or guest sees it only when
 // owner_user_id_visible is set (PLAN.md §11, TECHNICAL-DECISIONS.md §1.45).
-func accountView(rec accounts.Record, uid string, defaultPolicy accounts.CapChangePolicy, ownerVisible bool) *apiv1.Account {
+func accountView(rec accounts.Record, provider, uid string, defaultPolicy accounts.CapChangePolicy, ownerVisible bool) *apiv1.Account {
 	owner := rec.OwnerUserID == uid
 	a := &apiv1.Account{
 		AccountId:    rec.ID,
-		Provider:     rec.Provider,
+		Provider:     provider,
 		BaseUrl:      rec.BaseURL,
 		CallerLinked: owner,
 		Status:       apiStatus(rec.Status),
@@ -439,11 +444,20 @@ func (s *Server) ListAccounts(ctx context.Context, req *apiv1.ListAccountsReques
 	out := make([]*apiv1.Account, 0, len(records))
 	add := func(a *apiv1.Account) { out = append(out, a) }
 	ownerVisible := s.ownerUserIDVisible(ctx)
+	// Report each account under its provider slot — the delivery and coverage
+	// namespace — not the adapter name the link was filed under. The contract
+	// documents Account.provider as the provider slot, and the UI matches it
+	// against coverage keys and the delivery resolver, both keyed by slot.
+	slots := providerSlots(s.reachesFor(uid))
 	for _, rec := range records {
 		if rec.OwnerUserID != uid && !s.reachableFor(uid, rec.ID) {
 			continue
 		}
-		add(accountView(rec, uid, s.capChangeDefault, ownerVisible))
+		provider := rec.Provider
+		if p, ok := slots[rec.ID]; ok {
+			provider = p
+		}
+		add(accountView(rec, provider, uid, s.capChangeDefault, ownerVisible))
 	}
 	for _, r := range s.reachesFor(uid) {
 		if seen := containsAccount(out, r.AccountID); seen {
@@ -535,6 +549,19 @@ func providerOf(r library.Reach) string {
 		return ""
 	}
 	return r.Sync.Provider()
+}
+
+// providerSlots indexes reaches by account id so an account view can report the
+// provider slot the account belongs to (the delivery and coverage namespace),
+// not the adapter name the link was filed under.
+func providerSlots(reaches []library.Reach) map[string]string {
+	m := make(map[string]string, len(reaches))
+	for _, r := range reaches {
+		if p := providerOf(r); p != "" {
+			m[r.AccountID] = p
+		}
+	}
+	return m
 }
 
 func containsAccount(accs []*apiv1.Account, id string) bool {

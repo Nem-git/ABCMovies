@@ -59,25 +59,18 @@ func TestWireAPI_SyncCallAndEvent(t *testing.T) {
 	client := apiv1.NewCoreServiceClient(startWireServer(t, stack))
 	ctx := t.Context()
 
-	// Sign up and log in over the wire — no token needed for these.
-	if _, err := client.SignUp(ctx, &apiv1.SignUpRequest{
+	// Sign up over the wire.
+	signupResp, err := client.SignUp(ctx, &apiv1.SignUpRequest{
 		Username: "alice",
 		AuthMethod: &apiv1.SignUpRequest_Password{
 			Password: &apiv1.PasswordSignUp{Password: []byte("password123")},
 		},
-	}); err != nil {
-		t.Fatalf("SignUp: %v", err)
-	}
-	loginResp, err := client.Login(ctx, &apiv1.LoginRequest{
-		Username: "alice",
-		AuthMethod: &apiv1.LoginRequest_Password{
-			Password: &apiv1.PasswordLogin{Password: []byte("password123")},
-		},
 	})
 	if err != nil {
-		t.Fatalf("Login: %v", err)
+		t.Fatalf("Signup: %v", err)
 	}
-	authed := authedCtx(ctx, loginResp.GetToken())
+
+	authed := authedCtx(ctx, signupResp.GetToken())
 
 	// Subscribe before creating the job — the bus is ephemeral, no replay.
 	//

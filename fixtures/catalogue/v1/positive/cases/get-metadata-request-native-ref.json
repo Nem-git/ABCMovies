@@ -24,9 +24,7 @@
           { "name": "Leonardo DiCaprio", "order": 0 },
           { "name": "Joseph Gordon-Levitt", "order": 1 }
         ],
-        "crew": [
-          { "name": "Christopher Nolan", "job": "Director" }
-        ]
+        "crew": [{ "name": "Christopher Nolan", "job": "Director" }]
       },
       "release_dates": {
         "results": [

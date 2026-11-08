@@ -1,13 +1,16 @@
 package app
 
 import (
+	"context"
 	"log/slog"
 	"testing"
 
 	corev1 "github.com/nem-git/abcmovies/core/gen/abcmovies/core/v1"
 
 	"github.com/nem-git/abcmovies/core/internal/accounts"
+	"github.com/nem-git/abcmovies/core/internal/library"
 	"github.com/nem-git/abcmovies/core/internal/policy"
+	"github.com/nem-git/abcmovies/core/internal/sourcecache"
 	"github.com/nem-git/abcmovies/core/internal/store"
 )
 
@@ -76,5 +79,57 @@ func TestResolveAccountConstraints(t *testing.T) {
 	}
 	if _, declared := cap.Streams(); declared {
 		t.Fatalf("zero cap should mean unbound, got %v", cap)
+	}
+}
+
+// scopedLibrary is a LibrarySeam that serves a fixed entry set per user, so a
+// test can prove which user's library the caller's entry was resolved through.
+type scopedLibrary struct {
+	entries map[string][]*corev1.LibraryEntry
+}
+
+func (l scopedLibrary) Library(_ context.Context, userID string) ([]*corev1.LibraryEntry, error) {
+	return l.entries[userID], nil
+}
+
+func (l scopedLibrary) Metadata(context.Context, string) (*corev1.TitleMetadata, bool, error) {
+	return nil, false, nil
+}
+
+func (l scopedLibrary) ReachAuthorized(string, string) (library.Reach, bool) {
+	return library.Reach{}, false
+}
+
+func (l scopedLibrary) ReachesForUser(string) []library.Reach { return nil }
+
+func (l scopedLibrary) SetReachSharing(string, accounts.Visibility, []string) error { return nil }
+
+func (l scopedLibrary) RemoveReach(string) {}
+
+func (l scopedLibrary) RefreshAvailability(context.Context, string, []string) (sourcecache.Stats, error) {
+	return sourcecache.Stats{}, nil
+}
+
+// GetDeliveryOptions resolves the entry through the *caller's* derived library
+// (PLAN.md §5.1, §6.3): a regular user's entry from their own linked account
+// must resolve for that user, and must not resolve for anyone else. The entry
+// carries no coverage, so the engine's manifest resolver is never reached and
+// the test stays hermetic.
+func TestGetDeliveryOptionsScopesEntryToCaller(t *testing.T) {
+	lib := scopedLibrary{entries: map[string][]*corev1.LibraryEntry{
+		"user-1": {{Id: "le-1"}},
+	}}
+	m := managedDelivery{library: lib}
+
+	resp, err := m.GetDeliveryOptions("le-1", "user-1")
+	if err != nil {
+		t.Fatalf("GetDeliveryOptions(user-1): %v", err)
+	}
+	if len(resp.GetSinks()) == 0 || len(resp.GetContainers()) == 0 {
+		t.Fatalf("options = %+v, want a sink and containers", resp)
+	}
+
+	if _, err := m.GetDeliveryOptions("le-1", "user-2"); err == nil {
+		t.Fatal("GetDeliveryOptions resolved an entry outside the caller's library")
 	}
 }

@@ -128,6 +128,15 @@ type Stack struct {
 	// appliedSlots is the slot set currently composed into slots, kept so a
 	// failed reload can restore the composition that was live (D8).
 	appliedSlots []*corev1.Slot
+	// slotCtx is the stack's long-lived context for composing slot runtimes.
+	// A live admin-API reload passes a request context that is canceled the
+	// moment the RPC returns; composing a runtime on it would cancel the
+	// runtime's syncs before they ever run. slotCtx lives until Close, so a
+	// composed runtime survives the request that created it. Each runtime
+	// derives its own child (canceled on retirement) from the context the
+	// composition root hands ComposeSlots.
+	slotCtx    context.Context
+	slotCancel context.CancelFunc
 	// delivery is the composed delivery engine, armed onto the API service
 	// once buildSlots has run; nil until then.
 	delivery *delivery.Engine
@@ -255,6 +264,7 @@ func build(configPath string, logger *slog.Logger) (*Stack, error) {
 		srv.SetSlotHealth(slotHP)
 	}
 
+	slotCtx, slotCancel := context.WithCancel(context.Background())
 	return &Stack{
 		service:         srv,
 		session:         &sessionSeam{session: session},
@@ -269,6 +279,8 @@ func build(configPath string, logger *slog.Logger) (*Stack, error) {
 		composite:       composite,
 		slotStore:       slotStore,
 		slotSched:       scheduler.New(0, logger),
+		slotCtx:         slotCtx,
+		slotCancel:      slotCancel,
 	}, nil
 }
 
@@ -525,7 +537,11 @@ func (s *Stack) composeSlotSet(ctx context.Context, slots []*corev1.Slot, logger
 	if s.relay == nil {
 		s.relay = delivery.NewRelay()
 	}
-	return ComposeSlots(ctx, slots, cfg.Enrichment, cfg.Library,
+	// Compose on the stack's long-lived slotCtx, never the caller's context:
+	// a live admin-API reload passes a request context that is canceled the
+	// moment the RPC returns, which would cancel the new runtime's syncs
+	// before they ever run. slotCtx lives until Close.
+	return ComposeSlots(s.slotCtx, slots, cfg.Enrichment, cfg.Library,
 		s.registry, s.stores.SourceCache, s.stores.MetadataCache, s.stores.Vault, s.stores.Cache,
 		s.bus, logger, cfg.Policy, WithScheduler(s.slotSched), WithRelay(s.relay))
 }
@@ -561,6 +577,13 @@ func (s *Stack) retireRuntime(rt *SlotRuntime) {
 	}
 	for _, j := range rt.Jobs {
 		s.slotSched.Remove(j.Name)
+	}
+	// Stop the retired runtime's in-flight work (its syncs) before the next
+	// composition starts: the runtime is being replaced, so anything still
+	// running on its context would leak and write to shared stores behind the
+	// new runtime's back.
+	if rt.cancel != nil {
+		rt.cancel()
 	}
 }
 
@@ -724,10 +747,14 @@ func (s *Stack) Close() {
 	s.closed = true
 	cancel := s.startCancel
 	schedulerDone := s.schedulerDone
+	slotCancel := s.slotCancel
 	s.lifecycleMu.Unlock()
 
 	if cancel != nil {
 		cancel()
+	}
+	if slotCancel != nil {
+		slotCancel()
 	}
 	if s.delivery != nil {
 		s.delivery.Close()

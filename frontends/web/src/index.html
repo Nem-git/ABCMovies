@@ -300,9 +300,10 @@
         <button id="listAccounts" disabled>List accounts</button>
       </div>
       <p id="linkNote" class="hint hidden">
-        Accounts linked here are probed and stored in the vault; the slot
-        provisioning reads them at the next boot, so a freshly linked account
-        feeds the library after a server reload.
+        Accounts linked here are probed and stored in the vault and wired into
+        their slot straight away — the first catalogue sync runs in the
+        background, so a freshly linked account feeds the library within
+        seconds, no reload needed.
       </p>
       <div id="accountList"></div>
     </section>

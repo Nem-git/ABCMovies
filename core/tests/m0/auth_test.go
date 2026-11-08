@@ -149,13 +149,7 @@ func TestAuth_TokenExpiry(t *testing.T) {
 		t.Fatalf("SignUp: %v", err)
 	}
 
-	// Create a short-lived session.
-	shortSession := auth.NewSessionHandler(
-		auth.NewStoreTokenStore(stack.stores.Sessions),
-		auth.NewMemoryDEKCache(),
-		1, // 1 nanosecond — expires immediately
-	)
-	loginResp, err := stack.server.Login(t.Context(), &apiv1.LoginRequest{
+	_, err = stack.server.Login(t.Context(), &apiv1.LoginRequest{
 		Username: "alice",
 		AuthMethod: &apiv1.LoginRequest_Password{
 			Password: &apiv1.PasswordLogin{Password: []byte("password123")},
@@ -164,7 +158,13 @@ func TestAuth_TokenExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Login: %v", err)
 	}
-	_ = loginResp
+
+	// Create a short-lived session.
+	shortSession := auth.NewSessionHandler(
+		auth.NewStoreTokenStore(stack.stores.Sessions),
+		auth.NewMemoryDEKCache(),
+		0, // expires immediately
+	)
 
 	// The token was minted with the long-lived session. For this test,
 	// we mint a fresh token with the short-lived session directly.
@@ -174,7 +174,6 @@ func TestAuth_TokenExpiry(t *testing.T) {
 	}
 
 	// Wait and validate — should be expired.
-	// (The 1ns TTL means it's already expired by the time we validate.)
 	_, err = shortSession.Validate(token)
 	if err == nil {
 		t.Fatal("expected error for expired token")
