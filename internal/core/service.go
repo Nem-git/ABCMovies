@@ -56,20 +56,15 @@ func (i *IdentityService) SetupAdmin(ctx context.Context, req *identityv1.SetupA
 		return nil, status.Errorf(codes.InvalidArgument, "password must be at least %d characters", minPasswordLength)
 	}
 
-	initialized, err := i.store.HasUser(ctx)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "read state: %v", err)
-	}
-	if initialized {
-		return nil, status.Errorf(codes.FailedPrecondition, "instance already initialized")
-	}
-
 	hash, err := auth.HashPassword(req.GetPassword())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "hash password: %v", err)
 	}
-	user, err := i.store.CreateUser(ctx, username, hash)
+	user, err := i.store.CreateInitialUser(ctx, username, hash)
 	if err != nil {
+		if errors.Is(err, store.ErrAlreadyInitialized) {
+			return nil, status.Errorf(codes.FailedPrecondition, "instance already initialized")
+		}
 		return nil, status.Errorf(codes.Internal, "create user: %v", err)
 	}
 	sess, err := i.store.CreateSession(ctx, user.UserID, sessionTTL)

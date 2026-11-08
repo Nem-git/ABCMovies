@@ -16,6 +16,10 @@ import (
 // ErrNotFound is returned when a requested row does not exist.
 var ErrNotFound = errors.New("not found")
 
+// ErrAlreadyInitialized is returned when the instance already has an initial
+// user and cannot be initialized again.
+var ErrAlreadyInitialized = errors.New("already initialized")
+
 // User represents a local ABCMovies user (e.g. the initial admin).
 // user_id is the stable unique identifier; username is a login/display name.
 type User struct {
@@ -60,6 +64,9 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
+	// SQLite supports a single writer; serializing connections avoids SQLITE_BUSY
+	// under concurrent access.
+	db.SetMaxOpenConns(1)
 	if _, err := db.ExecContext(context.Background(), schema); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
@@ -90,6 +97,32 @@ func (s *Store) CreateUser(ctx context.Context, username, hash string) (*User, e
 	if _, err := s.db.ExecContext(ctx,
 		`INSERT INTO users (user_id, username, hash) VALUES (?, ?, ?)`, u.UserID, u.Username, u.Hash); err != nil {
 		return nil, fmt.Errorf("insert user: %w", err)
+	}
+	return u, nil
+}
+
+// CreateInitialUser atomically creates the initial user only if no users exist.
+// It returns ErrAlreadyInitialized when the instance is already initialized.
+func (s *Store) CreateInitialUser(ctx context.Context, username, hash string) (*User, error) {
+	id := make([]byte, 16)
+	if _, err := rand.Read(id); err != nil {
+		return nil, fmt.Errorf("generate user id: %w", err)
+	}
+	u := &User{UserID: "usr_" + hex.EncodeToString(id), Username: username, Hash: hash}
+	res, err := s.db.ExecContext(ctx,
+		`INSERT INTO users (user_id, username, hash)
+		SELECT ?, ?, ?
+		WHERE NOT EXISTS (SELECT 1 FROM users)`,
+		u.UserID, u.Username, u.Hash)
+	if err != nil {
+		return nil, fmt.Errorf("insert initial user: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("insert initial user: %w", err)
+	}
+	if n == 0 {
+		return nil, ErrAlreadyInitialized
 	}
 	return u, nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -86,6 +87,58 @@ func TestGetUserNotFound(t *testing.T) {
 	}
 	if _, err := s.GetUserByID(ctx, "usr_missing"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("GetUserByID err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestCreateInitialUser(t *testing.T) {
+	s := openTest(t)
+	ctx := context.Background()
+
+	user, err := s.CreateInitialUser(ctx, "admin", "test-hash-sentinel-not-a-real-digest")
+	if err != nil {
+		t.Fatalf("CreateInitialUser: %v", err)
+	}
+	if user.UserID == "" {
+		t.Fatal("CreateInitialUser returned no user_id")
+	}
+
+	if _, err := s.CreateInitialUser(ctx, "other", "test-hash-sentinel-not-a-real-digest"); !errors.Is(err, ErrAlreadyInitialized) {
+		t.Fatalf("second CreateInitialUser err = %v, want ErrAlreadyInitialized", err)
+	}
+}
+
+func TestCreateInitialUserConcurrent(t *testing.T) {
+	s := openTest(t)
+	ctx := context.Background()
+
+	const n = 8
+	var wg sync.WaitGroup
+	errs := make([]error, n)
+	users := make([]*User, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			users[i], errs[i] = s.CreateInitialUser(ctx, "admin", "test-hash-sentinel-not-a-real-digest")
+		}(i)
+	}
+	wg.Wait()
+
+	var okCount int
+	for i := 0; i < n; i++ {
+		if errs[i] == nil {
+			okCount++
+			if users[i] == nil || users[i].UserID == "" {
+				t.Fatalf("attempt %d succeeded without user", i)
+			}
+			continue
+		}
+		if !errors.Is(errs[i], ErrAlreadyInitialized) {
+			t.Fatalf("attempt %d err = %v, want nil or ErrAlreadyInitialized", i, errs[i])
+		}
+	}
+	if okCount != 1 {
+		t.Fatalf("successful initializations = %d, want 1", okCount)
 	}
 }
 
