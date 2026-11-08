@@ -10,7 +10,6 @@ import (
 	"google.golang.org/grpc"
 
 	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
-	"github.com/Nem-git/ABCMovies/internal/config"
 	"github.com/Nem-git/ABCMovies/internal/core"
 	"github.com/Nem-git/ABCMovies/internal/store"
 )
@@ -50,7 +49,7 @@ func StartCore(cfg CoreConfig) (*Core, error) {
 	if err != nil {
 		return nil, err
 	}
-	lis, addr, err := config.Listen(bind, cfg.Port)
+	lis, addr, err := Listen(bind, cfg.Port)
 	if err != nil {
 		_ = st.Close()
 		return nil, fmt.Errorf("listen grpc: %w", err)

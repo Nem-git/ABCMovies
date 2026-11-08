@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Nem-git/ABCMovies/internal/config"
 	"github.com/Nem-git/ABCMovies/internal/web"
 )
 
@@ -38,11 +37,11 @@ func StartWeb(cfg WebConfig) (*Web, error) {
 	if err != nil {
 		return nil, err
 	}
-	lis, addr, err := config.Listen(bind, cfg.Port)
+	lis, addr, err := Listen(bind, cfg.Port)
 	if err != nil {
 		return nil, fmt.Errorf("listen http: %w", err)
 	}
-	srv := config.NewHTTPServer(httpServer.Handler())
+	srv := NewHTTPServer(httpServer.Handler())
 	go func() { _ = srv.Serve(lis) }()
 	return &Web{HTTPAddr: addr, httpSrv: srv, listener: lis}, nil
 }

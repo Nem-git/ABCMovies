@@ -13,7 +13,6 @@ import (
 
 	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
 	"github.com/Nem-git/ABCMovies/internal/api"
-	"github.com/Nem-git/ABCMovies/internal/config"
 )
 
 // APIConfig holds configuration for the HTTP API frontend.
@@ -48,12 +47,12 @@ func StartAPI(cfg APIConfig) (*API, error) {
 		return nil, fmt.Errorf("dial core: %w", err)
 	}
 	handler := api.NewServer(identityv1.NewIdentityServiceClient(conn)).Handler()
-	lis, addr, err := config.Listen(bind, cfg.Port)
+	lis, addr, err := Listen(bind, cfg.Port)
 	if err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("listen http: %w", err)
 	}
-	srv := config.NewHTTPServer(handler)
+	srv := NewHTTPServer(handler)
 	go func() { _ = srv.Serve(lis) }()
 	return &API{HTTPAddr: addr, conn: conn, httpSrv: srv, listener: lis}, nil
 }
