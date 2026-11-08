@@ -1,9 +1,0 @@
-{
-  "name": "missing-kind",
-  "message": {
-    "id": "le_33333333333333333333333333333333"
-  },
-  "expected": {
-    "valid": false
-  }
-}

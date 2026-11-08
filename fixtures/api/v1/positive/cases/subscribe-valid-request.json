@@ -1,8 +1,0 @@
-{
-  "name": "subscribe-valid-request",
-  "request": "",
-  "declaration": [],
-  "expected": { "valid": true },
-  "message": { "scopes": ["user:1"] },
-  "type": "SubscribeRequest"
-}

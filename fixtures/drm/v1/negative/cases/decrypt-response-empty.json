@@ -1,8 +1,0 @@
-{
-  "name": "decrypt-response-empty",
-  "type": "DecryptResponse",
-  "message": {},
-  "expected": {
-    "valid": false
-  }
-}
