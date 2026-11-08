@@ -17,3 +17,6 @@ Durable decision records for ABCMovies.
 | ID | Title | Type | Status | GitHub |
 |---|---|---|---|---|
 | 0000 | Open items carried from prior plan | Product | Proposed | — |
+| product/0001 | First-run admin, signup/invites, and recovery | Product | Accepted | #16 |
+| product/0002 | Source/server identity (Jellyfin-first) | Product | Accepted | #15 |
+| product/0003 | DRM/protected-content stance | Product | Accepted (expected to be superseded later) | #17 |
