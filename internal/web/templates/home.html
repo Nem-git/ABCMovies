@@ -1,0 +1,10 @@
+{{define "content"}}<h1>Hello, {{.Username}}</h1>
+<p>You are signed in to ABCMovies.</p>
+<form id="logout"><button type="submit">Sign out</button></form>
+<script>
+  document.getElementById('logout').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await fetch('/api/logout', { method: 'POST' });
+    location.href = '/login';
+  });
+</script>{{end}}

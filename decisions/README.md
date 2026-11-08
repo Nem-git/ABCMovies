@@ -26,6 +26,7 @@ Durable decision records for ABCMovies.
 | tech/0007 | CI and dependency updates | Technical | Accepted | #22 |
 | tech/0008 | Config and secrets | Technical | Accepted | #22 |
 | tech/0009 | Frontend packaging | Technical | Proposed (migration draft) | #22 |
+| tech/0010 | Frontend/core split — gRPC core, HTTP session edge | Technical | Accepted | #34 |
 | product/0001 | First-run admin, signup/invites, and recovery | Product | Accepted | #16 |
 | product/0002 | Source/server identity (Jellyfin-first) | Product | Accepted | #15 |
 | product/0003 | DRM/protected-content stance | Product | Accepted (expected to be superseded later) | #17 |

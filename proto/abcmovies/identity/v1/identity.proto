@@ -1,0 +1,111 @@
+// Identity service: first-run setup and session management for Build 1.
+syntax = "proto3";
+
+package abcmovies.identity.v1;
+
+option go_package = "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1;identityv1";
+
+// Identity manages the local ABCMovies users of the instance and the
+// sessions established with/for them.
+service IdentityService {
+  // GetStatus reports whether the instance has been initialized (an initial
+  // user exists). Interfaces use it to choose between the first-run setup
+  // and the login flow.
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+
+  // SetupAdmin creates the initial admin on an uninitialized instance and
+  // returns a session for it. It fails with FailedPrecondition if the
+  // instance is already initialized.
+  rpc SetupAdmin(SetupAdminRequest) returns (SetupAdminResponse);
+
+  // GetUser returns profile data for the user identified by user_id.
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+
+  // Login verifies credentials and creates a server-side session.
+  rpc Login(LoginRequest) returns (LoginResponse);
+
+  // ValidateSession checks whether a session is valid.
+  rpc ValidateSession(ValidateSessionRequest) returns (ValidateSessionResponse);
+
+  // Logout ends a session.
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+}
+
+// GetStatusRequest carries no fields.
+message GetStatusRequest {}
+
+// GetStatusResponse describes the initialization state of the instance.
+message GetStatusResponse {
+  // initialized is true once the initial user has been created.
+  bool initialized = 1;
+}
+
+// SetupAdminRequest carries the desired initial admin's credentials.
+message SetupAdminRequest {
+  // username is the admin's login name. It is not a stable identifier.
+  string username = 1;
+  // password is the admin's password. It is hashed at rest with argon2id.
+  string password = 2;
+}
+
+// SetupAdminResponse indicates the initial user was created and carries the
+// session created for it, so first-run setup behaves like registration.
+message SetupAdminResponse {
+  // session_id is an opaque, server-side session identifier for the new user.
+  string session_id = 1;
+  // user_id is the stable unique identifier of the created user.
+  string user_id = 2;
+}
+
+// GetUserRequest carries the user to look up.
+message GetUserRequest {
+  // user_id is the stable unique identifier of the user.
+  string user_id = 1;
+}
+
+// GetUserResponse carries profile data for a user.
+message GetUserResponse {
+  // user_id is the stable unique identifier of the user.
+  string user_id = 1;
+  // username is the user's login name. Not an identifier.
+  string username = 2;
+}
+
+// LoginRequest carries a user's credentials.
+message LoginRequest {
+  // username is the user's login name.
+  string username = 1;
+  // password is the user's password.
+  string password = 2;
+}
+
+// LoginResponse carries the created session's identifier.
+message LoginResponse {
+  // session_id is an opaque, server-side session identifier.
+  string session_id = 1;
+  // user_id is the stable unique identifier of the authenticated user.
+  string user_id = 2;
+}
+
+// ValidateSessionRequest carries the session to validate.
+message ValidateSessionRequest {
+  // session_id is the opaque session identifier.
+  string session_id = 1;
+}
+
+// ValidateSessionResponse describes whether the session is currently valid.
+message ValidateSessionResponse {
+  // valid is true if the session is known and not expired.
+  bool valid = 1;
+  // user_id is the stable unique identifier of the session's user, when valid.
+  string user_id = 2;
+}
+
+// LogoutRequest carries the session to end.
+message LogoutRequest {
+  // session_id is the opaque session identifier.
+  string session_id = 1;
+}
+
+// LogoutResponse indicates the session was ended (or was already unknown).
+message LogoutResponse {}
