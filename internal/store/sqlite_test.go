@@ -212,3 +212,102 @@ func TestDeleteExpiredSessions(t *testing.T) {
 	}
 	_ = expired
 }
+
+func TestSourceLifecycle(t *testing.T) {
+	s := openTest(t)
+	ctx := context.Background()
+	const active int32 = 1 // aligned to abcmovies.source.v1.SourceStatus_ACTIVE; mapped in core
+
+	src, err := s.CreateSource(ctx, Source{
+		ConnectorID:        "jellyfin",
+		VerifiedExternalID: "srv-verified-id-1", // upstream identity, not a secret
+		Endpoint:           "https://media.example.test",
+		DisplayName:        "Living Room Jellyfin",
+		Status:             active,
+		CreatedBy:          "usr_actor",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if src.SourceID == "" || src.CreatedBy != "usr_actor" {
+		t.Fatalf("created source = %+v", src)
+	}
+
+	byID, err := s.GetSource(ctx, src.SourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if byID.VerifiedExternalID != "srv-verified-id-1" || byID.Status != active {
+		t.Fatalf("GetSource = %+v", byID)
+	}
+
+	byVer, err := s.GetSourceByVerifiedIdentity(ctx, "jellyfin", "srv-verified-id-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if byVer.SourceID != src.SourceID {
+		t.Fatalf("dedup lookup source_id = %q, want %q", byVer.SourceID, src.SourceID)
+	}
+
+	list, err := s.ListSources(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].SourceID != src.SourceID {
+		t.Fatalf("ListSources = %+v, want 1 source", list)
+	}
+
+	updated, err := s.UpdateSource(ctx, src.SourceID, "https://media2.example.test", "Renamed", active, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Endpoint != "https://media2.example.test" || updated.DisplayName != "Renamed" {
+		t.Fatalf("UpdateSource = %+v", updated)
+	}
+	// Verified identity is immutable across updates.
+	if updated.VerifiedExternalID != "srv-verified-id-1" {
+		t.Fatalf("verified_external_id changed: %+v", updated)
+	}
+}
+
+func TestSourceDuplicateVerifiedIdentity(t *testing.T) {
+	s := openTest(t)
+	ctx := context.Background()
+	const active int32 = 1
+	_, err := s.CreateSource(ctx, Source{
+		ConnectorID: "jellyfin", VerifiedExternalID: "srv-same",
+		Endpoint: "https://a.example.test", DisplayName: "A", Status: active, CreatedBy: "usr_1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Core dedups first; the UNIQUE constraint is the final guard.
+	if _, err := s.CreateSource(ctx, Source{
+		ConnectorID: "jellyfin", VerifiedExternalID: "srv-same",
+		Endpoint: "https://b.example.test", DisplayName: "B", Status: active, CreatedBy: "usr_1",
+	}); err == nil {
+		t.Fatal("duplicate (connector_id, verified_external_id) unexpectedly succeeded")
+	}
+	// A different verified server is allowed.
+	if _, err := s.CreateSource(ctx, Source{
+		ConnectorID: "jellyfin", VerifiedExternalID: "srv-other",
+		Endpoint: "https://c.example.test", DisplayName: "C", Status: active, CreatedBy: "usr_1",
+	}); err != nil {
+		t.Fatalf("different verified id: %v", err)
+	}
+}
+
+func TestSourceNotFound(t *testing.T) {
+	s := openTest(t)
+	ctx := context.Background()
+	const errStatus int32 = 3 // aligned to abcmovies.source.v1.SourceStatus_ERROR
+	if _, err := s.GetSource(ctx, "src_missing"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("GetSource err = %v, want ErrNotFound", err)
+	}
+	if _, err := s.GetSourceByVerifiedIdentity(ctx, "jellyfin", "srv_missing"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("GetSourceByVerifiedIdentity err = %v, want ErrNotFound", err)
+	}
+	if _, err := s.UpdateSource(ctx, "src_missing", "https://x", "x", errStatus, "x"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("UpdateSource err = %v, want ErrNotFound", err)
+	}
+}
