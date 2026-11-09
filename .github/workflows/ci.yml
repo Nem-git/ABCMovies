@@ -19,3 +19,9 @@ jobs:
 
       - name: check
         run: make check
+
+      - name: proto lint
+        run: make proto-lint
+
+      - name: proto generate up to date
+        run: make proto-generate
