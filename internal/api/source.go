@@ -76,7 +76,7 @@ func (s *Server) requireSession(w http.ResponseWriter, r *http.Request) (actorID
 		writeError(w, http.StatusUnauthorized, "not signed in")
 		return "", false
 	}
-	sess, err := s.client.ValidateSession(r.Context(), &identityv1.ValidateSessionRequest{SessionId: c.Value})
+	sess, err := s.identityClient.ValidateSession(r.Context(), &identityv1.ValidateSessionRequest{SessionId: c.Value})
 	if err != nil {
 		slog.Error("core validate session failed", "err", err)
 		writeError(w, http.StatusServiceUnavailable, "service unavailable")
