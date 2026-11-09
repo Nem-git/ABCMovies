@@ -1,5 +1,9 @@
 SHELL := /bin/sh
 
+# Load .env if present so `make run-*` uses the same values as .env.example
+-include .env
+export
+
 BUF_VERSION ?= 1.75.0
 BUF_DIR     := bin/tools
 BUF         := $(BUF_DIR)/buf-$(BUF_VERSION)
@@ -55,7 +59,7 @@ run-web:
 
 # Runs core, api, web in this one command. Ctrl-C stops all three.
 # Logs are interleaved (no per-process prefixing).
-# Export env vars first if needed, e.g.: set -a; . .env; set +a; make run-all
+# Loads .env automatically if present; no manual export needed.
 run-all:
 	@pids=''; \
 		trap 'kill $$pids 2>/dev/null' INT TERM EXIT; \

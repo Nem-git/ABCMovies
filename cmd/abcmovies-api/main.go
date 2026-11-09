@@ -18,7 +18,7 @@ import (
 func main() {
 	cfg := app.APIConfig{
 		Bind:         config.Env("API_BIND_ADDRESS", "127.0.0.1"),
-		Port:         config.EnvPort("API_HTTP_PORT", 8096),
+		Port:         config.EnvPort("API_HTTP_PORT", 8098),
 		CoreGRPCAddr: config.Env("CORE_GRPC_ADDR", "127.0.0.1:9876"),
 	}
 
