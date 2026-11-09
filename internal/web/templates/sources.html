@@ -20,48 +20,51 @@
 </section>
 <section>
   <h2>Connect a source</h2>
-  <form id="connect">
-    <label>Endpoint<br><input name="endpoint" required placeholder="https://jellyfin.example.test"></label>
-    <label>Display name (optional)<br><input name="display_name"></label>
+  <form id="connect" method="post" action="/sources/connect">
+    <input type="hidden" name="connector_id" value="jellyfin">
+    <label>Endpoint<br><input name="endpoint" required placeholder="https://jellyfin.example.test" value="{{.ConnectEndpoint}}"></label>
+    <label>Display name (optional)<br><input name="display_name" value="{{.ConnectDisplayName}}"></label>
     <fieldset>
       <legend>Credentials</legend>
-      <label><input type="radio" name="cred_type" value="password" checked> Username / password</label>
-      <label><input type="radio" name="cred_type" value="api_key"> API key</label>
+      <label><input type="radio" name="cred_type" value="password" {{if not (eq .ConnectCredType "api_key")}}checked{{end}}> Username / password</label>
+      <label><input type="radio" name="cred_type" value="api_key" {{if eq .ConnectCredType "api_key"}}checked{{end}}> API key</label>
       <div id="passwordFields">
-        <label>Username<br><input name="username" autocomplete="username"></label>
+        <label>Username<br><input name="username" autocomplete="username" value="{{.ConnectUsername}}"></label>
         <label>Password<br><input name="password" type="password" autocomplete="current-password"></label>
       </div>
-      <div id="apikeyFields" hidden>
+      <div id="apikeyFields">
         <label>API key<br><input name="api_key" type="password" autocomplete="off"></label>
       </div>
     </fieldset>
     <button type="submit">Connect</button>
   </form>
-  <p class="error" id="connectErr" role="alert"></p>
-  <div id="duplicatePanel" hidden>
+  <p class="error" id="connectErr" role="alert">{{.ConnectError}}</p>
+  <div id="duplicatePanel" {{if not .Duplicate}}hidden{{end}}>
     <h3>Already connected</h3>
-    <p id="duplicateInfo"></p>
-    <button id="useExistingBtn" type="button">Use existing</button>
+    <p id="duplicateInfo">{{if .Duplicate}}This server is already connected as "{{.Duplicate.DisplayName}}" ({{.Duplicate.Endpoint}}).{{end}}</p>
+    <form method="get" action="/sources">
+      <button id="useExistingBtn" type="submit">Use existing</button>
+      <button id="cancelDuplicateBtn" type="submit">Cancel</button>
+    </form>
     <button id="showUpdateBtn" type="button">Update endpoint + config</button>
-    <button id="cancelDuplicateBtn" type="button">Cancel</button>
-    <form id="update" hidden>
-      <label>New endpoint<br><input name="endpoint" placeholder="https://jellyfin.example.test"></label>
-      <label>Display name<br><input name="display_name"></label>
+    <form id="update" method="post" action="{{if .Duplicate}}/sources/{{.Duplicate.SourceID}}/update{{else}}/sources{{end}}" {{if not .Duplicate}}hidden{{end}}>
+      <label>New endpoint<br><input name="endpoint" placeholder="https://jellyfin.example.test" value="{{.UpdateEndpoint}}"></label>
+      <label>Display name<br><input name="display_name" value="{{.UpdateDisplayName}}"></label>
       <fieldset>
         <legend>Credentials</legend>
-        <label><input type="radio" name="cred_type" value="password" checked> Username / password</label>
-        <label><input type="radio" name="cred_type" value="api_key"> API key</label>
+        <label><input type="radio" name="cred_type" value="password" {{if not (eq .UpdateCredType "api_key")}}checked{{end}}> Username / password</label>
+        <label><input type="radio" name="cred_type" value="api_key" {{if eq .UpdateCredType "api_key"}}checked{{end}}> API key</label>
         <div id="updatePasswordFields">
-          <label>Username<br><input name="username" autocomplete="username"></label>
+          <label>Username<br><input name="username" autocomplete="username" value="{{.UpdateUsername}}"></label>
           <label>Password<br><input name="password" type="password" autocomplete="current-password"></label>
         </div>
-        <div id="updateApikeyFields" hidden>
+        <div id="updateApikeyFields">
           <label>API key<br><input name="api_key" type="password" autocomplete="off"></label>
         </div>
       </fieldset>
       <button type="submit">Update source</button>
     </form>
-    <p class="error" id="updateErr" role="alert"></p>
+    <p class="error" id="updateErr" role="alert">{{.UpdateError}}</p>
   </div>
 </section>
 <script>
@@ -77,6 +80,7 @@
   function setVisible(prefix, type) {
     const pw = document.getElementById(prefix + 'PasswordFields');
     const key = document.getElementById(prefix + 'ApikeyFields');
+    if (!pw || !key) return;
     const isPassword = type === 'password';
     pw.hidden = !isPassword;
     key.hidden = isPassword;
@@ -87,6 +91,9 @@
   updateForm.querySelectorAll('input[name="cred_type"]').forEach((radio) => {
     radio.addEventListener('change', () => setVisible('update', radio.value));
   });
+  // Initial toggle for the JS-enabled view (no-JS sees both sections).
+  setVisible('', connectForm.querySelector('input[name="cred_type"]:checked')?.value || 'password');
+  setVisible('update', updateForm.querySelector('input[name="cred_type"]:checked')?.value || 'password');
 
   function buildCredentials(form, prefix) {
     const type = form.querySelector('input[name="cred_type"]:checked').value;
@@ -122,6 +129,13 @@
       duplicateInfo.textContent =
         'This server is already connected as "' + (body.source.display_name || body.source.source_id) + '" (' + body.source.endpoint + ').';
       duplicatePanel.hidden = false;
+      updateForm.action = '/sources/' + encodeURIComponent(duplicateSourceId) + '/update';
+      // Prefill update fields server-side parity: keep current values if
+      // present, otherwise use the existing source's endpoint/display name.
+      const epInput = updateForm.elements.namedItem('endpoint');
+      const nameInput = updateForm.elements.namedItem('display_name');
+      if (!epInput.value) epInput.value = body.source.endpoint || '';
+      if (!nameInput.value) nameInput.value = body.source.display_name || '';
       updateForm.hidden = true;
       updateErr.textContent = '';
       return;
@@ -129,8 +143,8 @@
     connectErr.textContent = body.error || 'Could not connect. Check the endpoint and credentials and try again.';
   });
 
-  document.getElementById('useExistingBtn').addEventListener('click', () => { location.reload(); });
-  document.getElementById('cancelDuplicateBtn').addEventListener('click', () => { duplicatePanel.hidden = true; });
+  document.getElementById('useExistingBtn').addEventListener('click', (e) => { e.preventDefault(); location.href = '/sources'; });
+  document.getElementById('cancelDuplicateBtn').addEventListener('click', (e) => { e.preventDefault(); duplicatePanel.hidden = true; });
   document.getElementById('showUpdateBtn').addEventListener('click', () => { updateForm.hidden = false; });
 
   updateForm.addEventListener('submit', async (e) => {

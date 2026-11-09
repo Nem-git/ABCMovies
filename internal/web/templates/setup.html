@@ -1,11 +1,11 @@
 {{define "content"}}<h1>Welcome to ABCMovies</h1>
 <p>Create the initial admin account to start this instance.</p>
-<form id="setup" novalidate>
-  <label>Username<br><input name="username" required minlength="2" autocomplete="username"></label>
+<form id="setup" method="post" action="/setup">
+  <label>Username<br><input name="username" required minlength="2" autocomplete="username" value="{{.FormUsername}}"></label>
   <label>Password<br><input name="password" type="password" required minlength="8" autocomplete="new-password"></label>
   <button type="submit">Create admin</button>
 </form>
-<p class="error" id="err" role="alert"></p>
+<p class="error" id="err" role="alert">{{.Error}}</p>
 <script>
   const form = document.getElementById('setup');
   const err = document.getElementById('err');
