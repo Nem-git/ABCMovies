@@ -285,8 +285,8 @@ func TestSourceDuplicateVerifiedIdentity(t *testing.T) {
 	if _, err := s.CreateSource(ctx, Source{
 		ConnectorID: "jellyfin", VerifiedExternalID: "srv-same",
 		Endpoint: "https://b.example.test", DisplayName: "B", Status: active, CreatedBy: "usr_1",
-	}); err == nil {
-		t.Fatal("duplicate (connector_id, verified_external_id) unexpectedly succeeded")
+	}); !errors.Is(err, ErrDuplicateVerifiedIdentity) {
+		t.Fatalf("duplicate (connector_id, verified_external_id) err = %v, want ErrDuplicateVerifiedIdentity", err)
 	}
 	// A different verified server is allowed.
 	if _, err := s.CreateSource(ctx, Source{

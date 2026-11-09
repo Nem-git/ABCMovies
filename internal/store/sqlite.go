@@ -8,9 +8,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
-	_ "modernc.org/sqlite"
+	"modernc.org/sqlite"
 )
 
 // ErrNotFound is returned when a requested row does not exist.
@@ -19,6 +20,10 @@ var ErrNotFound = errors.New("not found")
 // ErrAlreadyInitialized is returned when the instance already has an initial
 // user and cannot be initialized again.
 var ErrAlreadyInitialized = errors.New("already initialized")
+
+// ErrDuplicateVerifiedIdentity is returned by CreateSource when a source with
+// the same (connector_id, verified_external_id) already exists.
+var ErrDuplicateVerifiedIdentity = errors.New("source with the same verified identity already exists")
 
 // User represents a local ABCMovies user (e.g. the initial admin).
 // user_id is the stable unique identifier; username is a login/display name.
@@ -319,6 +324,9 @@ func (s *Store) CreateSource(ctx context.Context, in Source) (*Source, error) {
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		src.SourceID, src.ConnectorID, src.VerifiedExternalID, src.Endpoint, src.DisplayName, src.Status, src.StatusDetail, src.CreatedBy, src.Created, src.Updated,
 	); err != nil {
+		if isUniqueConstraint(err) {
+			return nil, ErrDuplicateVerifiedIdentity
+		}
 		return nil, fmt.Errorf("insert source: %w", err)
 	}
 	return &src, nil
@@ -384,4 +392,17 @@ func (s *Store) UpdateSource(ctx context.Context, sourceID, endpoint, displayNam
 		return nil, ErrNotFound
 	}
 	return s.GetSource(ctx, sourceID)
+}
+
+// isUniqueConstraint reports whether err is an SQLite UNIQUE/PRIMARY KEY
+// constraint violation. modernc sqlite reports extended code 2067
+// (SQLITE_CONSTRAINT_UNIQUE) / 1555; match the message text as well so the
+// checks stay robust across driver versions.
+func isUniqueConstraint(err error) bool {
+	var serr *sqlite.Error
+	if errors.As(err, &serr) {
+		return serr.Code() == 2067 || serr.Code() == 1555 || serr.Code()&0xff == 19
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "UNIQUE constraint failed") || strings.Contains(msg, "2067") || strings.Contains(msg, "1555")
 }

@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc"
 
 	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
+	sourcev1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1"
 	"github.com/Nem-git/ABCMovies/internal/core"
 	"github.com/Nem-git/ABCMovies/internal/store"
 )
@@ -30,7 +31,7 @@ type Core struct {
 	listener net.Listener
 }
 
-// StartCore opens the store and serves the identity gRPC service.
+// StartCore opens the store and serves the identity and source gRPC services.
 // Port 0 selects an ephemeral port (useful in tests).
 func StartCore(cfg CoreConfig) (*Core, error) {
 	bind := cfg.Bind
@@ -56,6 +57,7 @@ func StartCore(cfg CoreConfig) (*Core, error) {
 	}
 	grpcSrv := grpc.NewServer()
 	identityv1.RegisterIdentityServiceServer(grpcSrv, core.NewIdentityService(st))
+	sourcev1.RegisterSourceServiceServer(grpcSrv, core.NewSourceService(st))
 	go func() { _ = grpcSrv.Serve(lis) }()
 	return &Core{GRPCAddr: addr, store: st, grpcSrv: grpcSrv, listener: lis}, nil
 }
