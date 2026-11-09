@@ -1,0 +1,107 @@
+// Source service: connect and manage external sources and linked access.
+// RPCs are system-wide; connector implementations (e.g. Jellyfin) are selected
+// by connector_id. Build 1: Jellyfin first.
+syntax = "proto3";
+
+package abcmovies.source.v1;
+
+option go_package = "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1;sourcev1";
+
+service SourceService {
+  // ConnectSource verifies and connects a source. Credentials are input-only.
+  // Returns an outcome: connected, or duplicate with safe existing-source info
+  // (DEC-001, Option 2). Hard failures return gRPC errors with safe messages.
+  rpc ConnectSource(ConnectSourceRequest) returns (ConnectSourceResponse);
+
+  // UpdateSource applies allowed changes. Endpoint/connection changes require
+  // fresh credentials, re-verification, and the same verified external identity
+  // (no silent reassociation to a different upstream source).
+  rpc UpdateSource(UpdateSourceRequest) returns (UpdateSourceResponse);
+
+  // ListSources returns non-sensitive source summaries.
+  rpc ListSources(ListSourcesRequest) returns (ListSourcesResponse);
+
+  // GetSource returns one non-sensitive source summary.
+  rpc GetSource(GetSourceRequest) returns (GetSourceResponse);
+}
+
+enum SourceStatus {
+  SOURCE_STATUS_UNSPECIFIED = 0;
+  SOURCE_STATUS_ACTIVE = 1;
+  SOURCE_STATUS_NEEDS_REVERIFICATION = 2;
+  SOURCE_STATUS_ERROR = 3;
+}
+
+enum ConnectSourceOutcome {
+  CONNECT_SOURCE_OUTCOME_UNSPECIFIED = 0;
+  CONNECT_SOURCE_OUTCOME_CONNECTED = 1;
+  CONNECT_SOURCE_OUTCOME_DUPLICATE = 2; // same verified upstream source exists; response.source is the existing source
+}
+
+// PasswordCredentials carries a username/password for source verification.
+// Input only; never returned or logged.
+message PasswordCredentials {
+  string username = 1;
+  string password = 2;
+}
+
+// Source is a non-sensitive summary of a connected source. Never contains
+// credentials or linked access secrets.
+message Source {
+  string source_id = 1;             // opaque internal ID
+  string connector_id = 2;          // e.g. "jellyfin"; validated server-side
+  string verified_external_id = 3;  // upstream verified identity (DEC-001)
+  string endpoint = 4;              // normalized endpoint
+  string display_name = 5;          // standard display name
+  SourceStatus status = 6;
+  string status_detail = 7;         // optional, safe, actionable
+}
+
+message ConnectSourceRequest {
+  string actor_user_id = 1;         // authenticated ABCMovies user (resolved by API/session edge)
+  string connector_id = 2;
+  string endpoint = 3;
+  string display_name = 4;          // optional
+  oneof credentials {               // input only
+    PasswordCredentials password = 5;
+    string api_key = 6;
+  }
+}
+
+message ConnectSourceResponse {
+  ConnectSourceOutcome outcome = 1;
+  Source source = 2;                // CONNECTED: connected source; DUPLICATE: existing source
+  string detail = 3;                // optional, safe
+}
+
+message UpdateSourceRequest {
+  string actor_user_id = 1;
+  string source_id = 2;
+  string endpoint = 3;              // if changed, re-verification required
+  string display_name = 4;
+  oneof credentials {               // required when re-verification is needed
+    PasswordCredentials password = 5;
+    string api_key = 6;
+  }
+}
+
+message UpdateSourceResponse {
+  Source source = 1;
+}
+
+message ListSourcesRequest {
+  string actor_user_id = 1;
+}
+
+message ListSourcesResponse {
+  repeated Source sources = 1;
+}
+
+message GetSourceRequest {
+  string actor_user_id = 1;
+  string source_id = 2;
+}
+
+message GetSourceResponse {
+  Source source = 1;
+}
