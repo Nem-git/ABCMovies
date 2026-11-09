@@ -122,6 +122,17 @@ func TestVerifyAPIKey(t *testing.T) {
 	}
 }
 
+func TestAuthHeaderUsesLiteralQuotes(t *testing.T) {
+	t.Parallel()
+	header := NewClient().authHeader("token-value")
+	if !strings.Contains(header, `Token="token-value"`) {
+		t.Fatalf("Authorization header did not quote Token literally: %q", header)
+	}
+	if strings.Contains(header, "%22") {
+		t.Fatalf("Authorization header percent-encoded its quotes: %q", header)
+	}
+}
+
 func TestVerifyBadPassword(t *testing.T) {
 	t.Parallel()
 	f := newJellyfinFixture(t, "jf-sys-id-3", "Nope", "10.10.7")
@@ -247,9 +258,10 @@ func TestVerifyBasePathPreserved(t *testing.T) {
 	}
 }
 
-// parseMediaBrowserHeader parses `MediaBrowser Key="value", ...` into a map.
-// Values are percent-decoded per the MediaBrowser scheme; this keeps the test
-// from depending on exact raw formatting while still checking semantics.
+// parseMediaBrowserHeader parses `MediaBrowser Key="value", ...` into a map the
+// way Jellyfin does: the delimiters must be literal quotes, then the value is
+// URL-decoded. A percent-encoded delimiter such as %22 is not a delimiter, so
+// it remains part of the value and fails token comparisons.
 func parseMediaBrowserHeader(h string) (map[string]string, bool) {
 	if !strings.HasPrefix(h, "MediaBrowser ") {
 		return nil, false
@@ -264,19 +276,15 @@ func parseMediaBrowserHeader(h string) (map[string]string, bool) {
 			return nil, false
 		}
 		v := strings.TrimSpace(kv[1])
-		if len(v) >= 2 && strings.HasPrefix(v, `"`) && strings.HasSuffix(v, `"`) {
-			v = v[1 : len(v)-1]
-		} else {
-			decoded, err := url.PathUnescape(v)
-			if err != nil {
-				return nil, false
-			}
-			v = decoded
-			if len(v) >= 2 && strings.HasPrefix(v, `"`) && strings.HasSuffix(v, `"`) {
-				v = v[1 : len(v)-1]
-			}
+		if len(v) < 2 || !strings.HasPrefix(v, `"`) || !strings.HasSuffix(v, `"`) {
+			return nil, false
 		}
-		out[strings.TrimSpace(kv[0])] = v
+		v = v[1 : len(v)-1]
+		decoded, err := url.QueryUnescape(v)
+		if err != nil {
+			return nil, false
+		}
+		out[strings.TrimSpace(kv[0])] = decoded
 	}
 	return out, true
 }

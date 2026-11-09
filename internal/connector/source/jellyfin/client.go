@@ -225,7 +225,7 @@ func (c *Client) authHeader(token string) string {
 		if v == "" {
 			return ""
 		}
-		return k + `=` + url.QueryEscape(`"`+v+`"`)
+		return k + `="` + v + `"`
 	}
 	parts := []string{part("Client", clientValue(c.ClientName, defaultClientName)),
 		part("Device", "abcmovies-server"),
