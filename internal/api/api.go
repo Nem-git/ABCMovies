@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
+	sourcev1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1"
 )
 
 // SessionCookieName is the HttpOnly cookie holding the session ID.
@@ -22,20 +23,22 @@ const SessionCookieName = "abcmovies_session"
 
 const maxCredentialsBody = int64(4 << 10)
 
-// Server wires HTTP routes to the core identity gRPC service.
+// Server wires HTTP routes to the core gRPC services.
 type Server struct {
-	client identityv1.IdentityServiceClient
-	mux    *http.ServeMux
+	client       identityv1.IdentityServiceClient
+	sourceClient sourcev1.SourceServiceClient
+	mux          *http.ServeMux
 }
 
-// NewServer returns a Server using client for core calls.
-func NewServer(client identityv1.IdentityServiceClient) *Server {
-	s := &Server{client: client, mux: http.NewServeMux()}
+// NewServer returns a Server using the given clients for core calls.
+func NewServer(client identityv1.IdentityServiceClient, sourceClient sourcev1.SourceServiceClient) *Server {
+	s := &Server{client: client, sourceClient: sourceClient, mux: http.NewServeMux()}
 	s.mux.HandleFunc("GET /api/status", s.apiStatus)
 	s.mux.HandleFunc("POST /api/setup", s.apiSetup)
 	s.mux.HandleFunc("POST /api/login", s.apiLogin)
 	s.mux.HandleFunc("POST /api/logout", s.apiLogout)
 	s.mux.HandleFunc("GET /api/me", s.apiMe)
+	s.registerSourceRoutes()
 	return s
 }
 
@@ -197,22 +200,11 @@ func (s *Server) apiLogout(w http.ResponseWriter, r *http.Request) {
 
 // apiMe returns the current session's user, or 401.
 func (s *Server) apiMe(w http.ResponseWriter, r *http.Request) {
-	c, err := r.Cookie(SessionCookieName)
-	if err != nil || c.Value == "" {
-		writeError(w, http.StatusUnauthorized, "not signed in")
+	userID, ok := s.requireSession(w, r)
+	if !ok {
 		return
 	}
-	sess, err := s.client.ValidateSession(r.Context(), &identityv1.ValidateSessionRequest{SessionId: c.Value})
-	if err != nil {
-		slog.Error("core validate session failed", "err", err)
-		writeError(w, http.StatusServiceUnavailable, "service unavailable")
-		return
-	}
-	if !sess.GetValid() {
-		writeError(w, http.StatusUnauthorized, "not signed in")
-		return
-	}
-	profile, err := s.client.GetUser(r.Context(), &identityv1.GetUserRequest{UserId: sess.GetUserId()})
+	profile, err := s.client.GetUser(r.Context(), &identityv1.GetUserRequest{UserId: userID})
 	if err != nil {
 		slog.Error("core get user failed", "err", err)
 		writeError(w, http.StatusServiceUnavailable, "service unavailable")
