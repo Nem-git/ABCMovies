@@ -1,6 +1,12 @@
 SHELL := /bin/sh
 
-.PHONY: check build test run-core run-api run-web run-all
+BUF_VERSION ?= 1.75.0
+BUF_DIR     := bin/tools
+BUF         := $(BUF_DIR)/buf-$(BUF_VERSION)
+BUF_ASSET   = buf-$(shell uname -s)-$(shell uname -m)
+
+.PHONY: check test build proto proto-check proto-lint proto-generate \
+        run-core run-api run-web run-all
 
 # Standard recipe (CI runs this; do not change its behavior).
 check:
@@ -10,6 +16,25 @@ check:
 # Convenience alias for test-only iteration.
 test:
 	go test ./...
+
+# Pinned buf (no system install). Download URL/asset names match buf v1.x releases.
+$(BUF):
+	@mkdir -p $(BUF_DIR)
+	@echo "downloading buf v$(BUF_VERSION) ($(BUF_ASSET))"
+	@curl -fsSL "https://github.com/bufbuild/buf/releases/download/v$(BUF_VERSION)/$(BUF_ASSET)" -o "$@.tmp"
+	@chmod +x "$@.tmp"
+	@mv "$@.tmp" "$@"
+
+proto-lint: $(BUF)
+	$(BUF) lint
+
+# Regenerates into gen/go (buf.gen.yaml: clean+out) and fails if tracked output differs.
+proto-generate: $(BUF)
+	$(BUF) generate
+	git diff --exit-code -- gen/go
+
+proto-check: proto-lint proto-generate
+proto: proto-check
 
 # Build the three deployable binaries into bin/ (gitignored).
 build:
