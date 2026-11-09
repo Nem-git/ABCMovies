@@ -24,6 +24,7 @@ var templates embed.FS
 type pageData struct {
 	Title    string
 	Username string
+	Sources  []sourceSummary
 }
 
 // Server wires HTTP pages to the ABCMovies HTTP API frontend.
@@ -44,7 +45,7 @@ func NewServer(apiAddr string) (*Server, error) {
 	}
 
 	pages := map[string]*template.Template{}
-	for _, page := range []string{"setup", "login", "home"} {
+	for _, page := range []string{"setup", "login", "home", "sources"} {
 		tmpl, err := template.ParseFS(templates, "templates/layout.html", "templates/"+page+".html")
 		if err != nil {
 			return nil, fmt.Errorf("parse template %q: %w", page, err)
@@ -71,6 +72,7 @@ func NewServer(apiAddr string) (*Server, error) {
 	s.mux.HandleFunc("GET /setup", s.setupPage)
 	s.mux.HandleFunc("GET /login", s.loginPage)
 	s.mux.HandleFunc("GET /{$}", s.home)
+	s.mux.HandleFunc("GET /sources", s.sourcesPage)
 	return s, nil
 }
 
@@ -91,6 +93,20 @@ type statusResponse struct {
 
 type meResponse struct {
 	Username string `json:"username"`
+}
+
+type sourceSummary struct {
+	SourceID           string `json:"source_id"`
+	ConnectorID        string `json:"connector_id"`
+	VerifiedExternalID string `json:"verified_external_id"`
+	Endpoint           string `json:"endpoint"`
+	DisplayName        string `json:"display_name"`
+	Status             string `json:"status"`
+	StatusDetail       string `json:"status_detail,omitempty"`
+}
+
+type listResponse struct {
+	Sources []sourceSummary `json:"sources"`
 }
 
 // apiGet performs a server-side GET against the HTTP API, forwarding the
@@ -200,4 +216,44 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.render(w, "home", pageData{Title: "ABCMovies", Username: username})
+}
+
+func (s *Server) sourcesPage(w http.ResponseWriter, r *http.Request) {
+	initialized, err := s.initialized(r)
+	if err != nil {
+		slog.Error("api status unavailable", "err", err)
+		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if !initialized {
+		http.Redirect(w, r, "/setup", http.StatusSeeOther)
+		return
+	}
+	username, code, err := s.currentUser(r)
+	if err != nil {
+		slog.Error("api me unavailable", "err", err)
+		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if code != http.StatusOK {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	var list listResponse
+	code, err = s.apiGet(r, "/api/source", &list)
+	if err != nil {
+		slog.Error("api list sources unavailable", "err", err)
+		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if code != http.StatusOK {
+		if code == http.StatusUnauthorized {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		slog.Error("api list sources failed", "code", code)
+		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	s.render(w, "sources", pageData{Title: "Sources", Username: username, Sources: list.Sources})
 }

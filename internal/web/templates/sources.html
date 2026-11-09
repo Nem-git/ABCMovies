@@ -1,0 +1,155 @@
+{{define "content"}}<h1>Sources</h1>
+<p><a href="/">Home</a></p>
+<section>
+  <h2>Connected sources</h2>
+  {{if .Sources}}
+  <ul>
+    {{range .Sources}}
+    <li>
+      <strong>{{.DisplayName}}</strong>
+      — {{.ConnectorID}} — {{.Endpoint}}
+      — status: {{.Status}}{{if .StatusDetail}} ({{.StatusDetail}}){{end}}
+      — verified: {{.VerifiedExternalID}}
+      <span data-source-id="{{.SourceID}}"></span>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p>No sources connected yet.</p>
+  {{end}}
+</section>
+<section>
+  <h2>Connect a source</h2>
+  <form id="connect">
+    <label>Endpoint<br><input name="endpoint" required placeholder="https://jellyfin.example.test"></label>
+    <label>Display name (optional)<br><input name="display_name"></label>
+    <fieldset>
+      <legend>Credentials</legend>
+      <label><input type="radio" name="cred_type" value="password" checked> Username / password</label>
+      <label><input type="radio" name="cred_type" value="api_key"> API key</label>
+      <div id="passwordFields">
+        <label>Username<br><input name="username" autocomplete="username"></label>
+        <label>Password<br><input name="password" type="password" autocomplete="current-password"></label>
+      </div>
+      <div id="apikeyFields" hidden>
+        <label>API key<br><input name="api_key" type="password" autocomplete="off"></label>
+      </div>
+    </fieldset>
+    <button type="submit">Connect</button>
+  </form>
+  <p class="error" id="connectErr" role="alert"></p>
+  <div id="duplicatePanel" hidden>
+    <h3>Already connected</h3>
+    <p id="duplicateInfo"></p>
+    <button id="useExistingBtn" type="button">Use existing</button>
+    <button id="showUpdateBtn" type="button">Update endpoint + config</button>
+    <button id="cancelDuplicateBtn" type="button">Cancel</button>
+    <form id="update" hidden>
+      <label>New endpoint<br><input name="endpoint" placeholder="https://jellyfin.example.test"></label>
+      <label>Display name<br><input name="display_name"></label>
+      <fieldset>
+        <legend>Credentials</legend>
+        <label><input type="radio" name="cred_type" value="password" checked> Username / password</label>
+        <label><input type="radio" name="cred_type" value="api_key"> API key</label>
+        <div id="updatePasswordFields">
+          <label>Username<br><input name="username" autocomplete="username"></label>
+          <label>Password<br><input name="password" type="password" autocomplete="current-password"></label>
+        </div>
+        <div id="updateApikeyFields" hidden>
+          <label>API key<br><input name="api_key" type="password" autocomplete="off"></label>
+        </div>
+      </fieldset>
+      <button type="submit">Update source</button>
+    </form>
+    <p class="error" id="updateErr" role="alert"></p>
+  </div>
+</section>
+<script>
+(function () {
+  const connectForm = document.getElementById('connect');
+  const connectErr = document.getElementById('connectErr');
+  const duplicatePanel = document.getElementById('duplicatePanel');
+  const duplicateInfo = document.getElementById('duplicateInfo');
+  const updateForm = document.getElementById('update');
+  const updateErr = document.getElementById('updateErr');
+  let duplicateSourceId = '';
+
+  function setVisible(prefix, type) {
+    const pw = document.getElementById(prefix + 'PasswordFields');
+    const key = document.getElementById(prefix + 'ApikeyFields');
+    const isPassword = type === 'password';
+    pw.hidden = !isPassword;
+    key.hidden = isPassword;
+  }
+  connectForm.querySelectorAll('input[name="cred_type"]').forEach((radio) => {
+    radio.addEventListener('change', () => setVisible('', radio.value));
+  });
+  updateForm.querySelectorAll('input[name="cred_type"]').forEach((radio) => {
+    radio.addEventListener('change', () => setVisible('update', radio.value));
+  });
+
+  function buildCredentials(form, prefix) {
+    const type = form.querySelector('input[name="cred_type"]:checked').value;
+    if (type === 'api_key') {
+      return { api_key: form.elements.namedItem('api_key').value.trim() };
+    }
+    return {
+      username: form.elements.namedItem('username').value.trim(),
+      password: form.elements.namedItem('password').value,
+    };
+  }
+
+  connectForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    connectErr.textContent = '';
+    duplicatePanel.hidden = true;
+    const data = new FormData(connectForm);
+    const payload = {
+      connector_id: 'jellyfin',
+      endpoint: data.get('endpoint').trim(),
+      display_name: data.get('display_name').trim(),
+      credentials: buildCredentials(connectForm, ''),
+    };
+    const res = await fetch('/api/source/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (body.outcome === 'connected') { location.reload(); return; }
+    if (body.outcome === 'duplicate' && body.source) {
+      duplicateSourceId = body.source.source_id;
+      duplicateInfo.textContent =
+        'This server is already connected as "' + (body.source.display_name || body.source.source_id) + '" (' + body.source.endpoint + ').';
+      duplicatePanel.hidden = false;
+      updateForm.hidden = true;
+      updateErr.textContent = '';
+      return;
+    }
+    connectErr.textContent = body.error || 'Could not connect. Check the endpoint and credentials and try again.';
+  });
+
+  document.getElementById('useExistingBtn').addEventListener('click', () => { location.reload(); });
+  document.getElementById('cancelDuplicateBtn').addEventListener('click', () => { duplicatePanel.hidden = true; });
+  document.getElementById('showUpdateBtn').addEventListener('click', () => { updateForm.hidden = false; });
+
+  updateForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    updateErr.textContent = '';
+    if (!duplicateSourceId) { updateErr.textContent = 'No source selected.'; return; }
+    const payload = {
+      endpoint: updateForm.elements.namedItem('endpoint').value.trim(),
+      display_name: updateForm.elements.namedItem('display_name').value.trim(),
+      credentials: buildCredentials(updateForm, 'update'),
+    };
+    const res = await fetch('/api/source/' + encodeURIComponent(duplicateSourceId) + '/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (res.ok) { location.reload(); return; }
+    updateErr.textContent = body.error || 'Could not update. If the endpoint changed, provide credentials for the new server and try again.';
+  });
+})();
+</script>{{end}}
