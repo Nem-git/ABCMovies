@@ -1,0 +1,128 @@
+// Library service: sync a connected source's library and present titles for
+// browsing, search, and detail. Build 1: Jellyfin-first, single-source,
+// instance-scope. Credentials are input-only and never stored, returned, or
+// logged.
+syntax = "proto3";
+
+package abcmovies.library.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/Nem-git/ABCMovies/gen/go/abcmovies/library/v1;libraryv1";
+
+service LibraryService {
+  // SyncSource refreshes the library snapshot for a connected source using
+  // transient credentials. Credentials are required (no stored credentials in
+  // Build 1). The connect flow may trigger a sync after connect; manual
+  // re-sync requires the user to supply credentials again.
+  rpc SyncSource(SyncSourceRequest) returns (SyncSourceResponse);
+
+  // ListTitles returns titles from the reachable library (browse).
+  rpc ListTitles(ListTitlesRequest) returns (ListTitlesResponse);
+
+  // SearchTitles returns titles matching a query across the reachable library.
+  rpc SearchTitles(SearchTitlesRequest) returns (SearchTitlesResponse);
+
+  // GetTitle returns one title with detail and availability.
+  rpc GetTitle(GetTitleRequest) returns (GetTitleResponse);
+}
+
+enum SyncOutcome {
+  SYNC_OUTCOME_UNSPECIFIED = 0;
+  SYNC_OUTCOME_SUCCESS = 1;
+  SYNC_OUTCOME_PARTIAL = 2; // some titles synced; prior snapshot retained where needed
+  SYNC_OUTCOME_FAILED = 3;  // sync could not complete; prior snapshot retained
+}
+
+enum TitleKind {
+  TITLE_KIND_UNSPECIFIED = 0;
+  TITLE_KIND_MOVIE = 1;
+  TITLE_KIND_SERIES = 2;
+  TITLE_KIND_OTHER = 3;
+}
+
+enum AvailabilityState {
+  AVAILABILITY_STATE_UNSPECIFIED = 0;
+  AVAILABILITY_STATE_AVAILABLE = 1;   // in latest snapshot of a reachable source
+  AVAILABILITY_STATE_UNAVAILABLE = 2; // not currently accessible
+}
+
+// PasswordCredentials carries a username/password for source access. Input only.
+message PasswordCredentials {
+  string username = 1;
+  string password = 2;
+}
+
+// SourceSyncState is the per-source sync/freshness state (safe, non-sensitive).
+message SourceSyncState {
+  string source_id = 1;
+  string source_display_name = 2;
+  SyncOutcome last_outcome = 3;
+  google.protobuf.Timestamp last_synced_at = 4; // unset if never synced
+  string detail = 5;         // safe, actionable
+  int32 title_count = 6;     // titles in the current snapshot for this source
+}
+
+// Title is a non-sensitive library title (summary or detail fields populated as
+// relevant). Build 1: one source per title.
+message Title {
+  string title_id = 1;           // opaque internal ID
+  string source_id = 2;
+  string source_display_name = 3;
+  string external_id = 4;        // upstream item ID (non-secret)
+  string name = 5;
+  TitleKind kind = 6;
+  int32 year = 7;                // 0 if unknown
+  string overview = 8;           // may be empty in list results
+  AvailabilityState availability = 9;
+  string availability_detail = 10; // safe, actionable
+}
+
+message SyncSourceRequest {
+  string actor_user_id = 1;
+  string source_id = 2;
+  oneof credentials {            // input only; required
+    PasswordCredentials password = 3;
+    string api_key = 4;
+  }
+}
+
+message SyncSourceResponse {
+  string source_id = 1;
+  SyncOutcome outcome = 2;
+  SourceSyncState state = 3;
+}
+
+message ListTitlesRequest {
+  string actor_user_id = 1;
+  int32 limit = 2;   // 0 = server default
+  int32 offset = 3;  // 0-based
+}
+
+message ListTitlesResponse {
+  repeated Title titles = 1;
+  repeated SourceSyncState sync_states = 2; // per-source freshness (Build 1: one)
+  int32 total_count = 3;
+}
+
+message SearchTitlesRequest {
+  string actor_user_id = 1;
+  string query = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message SearchTitlesResponse {
+  repeated Title titles = 1;
+  repeated SourceSyncState sync_states = 2;
+  int32 total_count = 3;
+}
+
+message GetTitleRequest {
+  string actor_user_id = 1;
+  string title_id = 2;
+}
+
+message GetTitleResponse {
+  Title title = 1;
+}
