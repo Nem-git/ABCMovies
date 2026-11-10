@@ -10,7 +10,27 @@
       — {{.ConnectorID}} — {{.Endpoint}}
       — status: {{.Status}}{{if .StatusDetail}} ({{.StatusDetail}}){{end}}
       — verified: {{.VerifiedExternalID}}
-      <span data-source-id="{{.SourceID}}"></span>
+      <details class="updateDetails" data-source-id="{{.SourceID}}" {{if eq .SourceID $.UpdateSourceID}}open{{end}}>
+        <summary>Update this source</summary>
+        <form class="updateForm" data-source-id="{{.SourceID}}" method="post" action="/sources/{{.SourceID}}/update">
+          <label>New endpoint<br><input name="endpoint" placeholder="https://jellyfin.example.test" value="{{if eq .SourceID $.UpdateSourceID}}{{$.UpdateEndpoint}}{{else}}{{.Endpoint}}{{end}}"></label>
+          <label>Display name<br><input name="display_name" value="{{if eq .SourceID $.UpdateSourceID}}{{$.UpdateDisplayName}}{{else}}{{.DisplayName}}{{end}}"></label>
+          <fieldset>
+            <legend>Credentials</legend>
+            <label><input type="radio" name="cred_type" value="password" {{if not (and (eq .SourceID $.UpdateSourceID) (eq $.UpdateCredType "api_key"))}}checked{{end}}> Username / password</label>
+            <label><input type="radio" name="cred_type" value="api_key" {{if and (eq .SourceID $.UpdateSourceID) (eq $.UpdateCredType "api_key")}}checked{{end}}> API key</label>
+            <div data-cred-panel="password">
+              <label>Username<br><input name="username" autocomplete="username" value="{{if eq .SourceID $.UpdateSourceID}}{{$.UpdateUsername}}{{end}}"></label>
+              <label>Password<br><input name="password" type="password" autocomplete="current-password"></label>
+            </div>
+            <div data-cred-panel="api_key">
+              <label>API key<br><input name="api_key" type="password" autocomplete="off"></label>
+            </div>
+          </fieldset>
+          <button type="submit">Update source</button>
+        </form>
+        <p class="error updateErr" role="alert">{{if eq .SourceID $.UpdateSourceID}}{{$.UpdateError}}{{end}}</p>
+      </details>
     </li>
     {{end}}
   </ul>
@@ -28,11 +48,11 @@
       <legend>Credentials</legend>
       <label><input type="radio" name="cred_type" value="password" {{if not (eq .ConnectCredType "api_key")}}checked{{end}}> Username / password</label>
       <label><input type="radio" name="cred_type" value="api_key" {{if eq .ConnectCredType "api_key"}}checked{{end}}> API key</label>
-      <div id="passwordFields">
+      <div data-cred-panel="password">
         <label>Username<br><input name="username" autocomplete="username" value="{{.ConnectUsername}}"></label>
         <label>Password<br><input name="password" type="password" autocomplete="current-password"></label>
       </div>
-      <div id="apikeyFields">
+      <div data-cred-panel="api_key">
         <label>API key<br><input name="api_key" type="password" autocomplete="off"></label>
       </div>
     </fieldset>
@@ -46,25 +66,7 @@
       <button id="useExistingBtn" type="submit">Use existing</button>
       <button id="cancelDuplicateBtn" type="submit">Cancel</button>
     </form>
-    <button id="showUpdateBtn" type="button">Update endpoint + config</button>
-    <form id="update" method="post" action="{{if .Duplicate}}/sources/{{.Duplicate.SourceID}}/update{{else}}/sources{{end}}" {{if not .Duplicate}}hidden{{end}}>
-      <label>New endpoint<br><input name="endpoint" placeholder="https://jellyfin.example.test" value="{{.UpdateEndpoint}}"></label>
-      <label>Display name<br><input name="display_name" value="{{.UpdateDisplayName}}"></label>
-      <fieldset>
-        <legend>Credentials</legend>
-        <label><input type="radio" name="cred_type" value="password" {{if not (eq .UpdateCredType "api_key")}}checked{{end}}> Username / password</label>
-        <label><input type="radio" name="cred_type" value="api_key" {{if eq .UpdateCredType "api_key"}}checked{{end}}> API key</label>
-        <div id="updatePasswordFields">
-          <label>Username<br><input name="username" autocomplete="username" value="{{.UpdateUsername}}"></label>
-          <label>Password<br><input name="password" type="password" autocomplete="current-password"></label>
-        </div>
-        <div id="updateApikeyFields">
-          <label>API key<br><input name="api_key" type="password" autocomplete="off"></label>
-        </div>
-      </fieldset>
-      <button type="submit">Update source</button>
-    </form>
-    <p class="error" id="updateErr" role="alert">{{.UpdateError}}</p>
+    <p>To change it, use “Update this source” under the connected source above.</p>
   </div>
 </section>
 <script>
@@ -73,29 +75,31 @@
   const connectErr = document.getElementById('connectErr');
   const duplicatePanel = document.getElementById('duplicatePanel');
   const duplicateInfo = document.getElementById('duplicateInfo');
-  const updateForm = document.getElementById('update');
-  const updateErr = document.getElementById('updateErr');
-  let duplicateSourceId = '';
+  const updateForms = document.querySelectorAll('.updateForm');
 
-  function setVisible(prefix, type) {
-    const pw = document.getElementById(prefix + 'PasswordFields');
-    const key = document.getElementById(prefix + 'ApikeyFields');
+  // Credential panels are looked up inside each form (scoped, no global
+  // ids), so the two forms can share the same markup without colliding.
+  function setVisible(form, type) {
+    if (!form) return;
+    const pw = form.querySelector('[data-cred-panel="password"]');
+    const key = form.querySelector('[data-cred-panel="api_key"]');
     if (!pw || !key) return;
     const isPassword = type === 'password';
     pw.hidden = !isPassword;
     key.hidden = isPassword;
   }
-  connectForm.querySelectorAll('input[name="cred_type"]').forEach((radio) => {
-    radio.addEventListener('change', () => setVisible('', radio.value));
-  });
-  updateForm.querySelectorAll('input[name="cred_type"]').forEach((radio) => {
-    radio.addEventListener('change', () => setVisible('update', radio.value));
-  });
-  // Initial toggle for the JS-enabled view (no-JS sees both sections).
-  setVisible('', connectForm.querySelector('input[name="cred_type"]:checked')?.value || 'password');
-  setVisible('update', updateForm.querySelector('input[name="cred_type"]:checked')?.value || 'password');
+  function initCredToggle(form) {
+    if (!form) return;
+    form.querySelectorAll('input[name="cred_type"]').forEach((radio) => {
+      radio.addEventListener('change', () => setVisible(form, radio.value));
+    });
+    // Initial toggle for the JS-enabled view (no-JS sees both sections).
+    setVisible(form, form.querySelector('input[name="cred_type"]:checked')?.value || 'password');
+  }
+  initCredToggle(connectForm);
+  updateForms.forEach(initCredToggle);
 
-  function buildCredentials(form, prefix) {
+  function buildCredentials(form) {
     const type = form.querySelector('input[name="cred_type"]:checked').value;
     if (type === 'api_key') {
       return { api_key: form.elements.namedItem('api_key').value.trim() };
@@ -115,7 +119,7 @@
       connector_id: 'jellyfin',
       endpoint: data.get('endpoint').trim(),
       display_name: data.get('display_name').trim(),
-      credentials: buildCredentials(connectForm, ''),
+      credentials: buildCredentials(connectForm),
     };
     const res = await fetch('/api/source/connect', {
       method: 'POST',
@@ -125,19 +129,16 @@
     const body = await res.json().catch(() => ({}));
     if (body.outcome === 'connected') { location.reload(); return; }
     if (body.outcome === 'duplicate' && body.source) {
-      duplicateSourceId = body.source.source_id;
       duplicateInfo.textContent =
         'This server is already connected as "' + (body.source.display_name || body.source.source_id) + '" (' + body.source.endpoint + ').';
       duplicatePanel.hidden = false;
-      updateForm.action = '/sources/' + encodeURIComponent(duplicateSourceId) + '/update';
-      // Prefill update fields server-side parity: keep current values if
-      // present, otherwise use the existing source's endpoint/display name.
-      const epInput = updateForm.elements.namedItem('endpoint');
-      const nameInput = updateForm.elements.namedItem('display_name');
-      if (!epInput.value) epInput.value = body.source.endpoint || '';
-      if (!nameInput.value) nameInput.value = body.source.display_name || '';
-      updateForm.hidden = true;
-      updateErr.textContent = '';
+      // Open that source's own update section in the list above.
+      document.querySelectorAll('.updateDetails').forEach((details) => {
+        if (details.dataset.sourceId === body.source.source_id) {
+          details.open = true;
+          details.scrollIntoView({ block: 'center' });
+        }
+      });
       return;
     }
     connectErr.textContent = body.error || 'Could not connect. Check the endpoint and credentials and try again.';
@@ -145,25 +146,30 @@
 
   document.getElementById('useExistingBtn').addEventListener('click', (e) => { e.preventDefault(); location.href = '/sources'; });
   document.getElementById('cancelDuplicateBtn').addEventListener('click', (e) => { e.preventDefault(); duplicatePanel.hidden = true; });
-  document.getElementById('showUpdateBtn').addEventListener('click', () => { updateForm.hidden = false; });
 
-  updateForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    updateErr.textContent = '';
-    if (!duplicateSourceId) { updateErr.textContent = 'No source selected.'; return; }
-    const payload = {
-      endpoint: updateForm.elements.namedItem('endpoint').value.trim(),
-      display_name: updateForm.elements.namedItem('display_name').value.trim(),
-      credentials: buildCredentials(updateForm, 'update'),
-    };
-    const res = await fetch('/api/source/' + encodeURIComponent(duplicateSourceId) + '/update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+  updateForms.forEach((updateForm) => {
+    updateForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const details = updateForm.closest('.updateDetails');
+      const updateErr = details ? details.querySelector('.updateErr') : null;
+      if (updateErr) updateErr.textContent = '';
+      const sourceId = updateForm.dataset.sourceId;
+      if (!sourceId) { if (updateErr) updateErr.textContent = 'No source selected.'; return; }
+      const payload = {
+        endpoint: updateForm.elements.namedItem('endpoint').value.trim(),
+        display_name: updateForm.elements.namedItem('display_name').value.trim(),
+        credentials: buildCredentials(updateForm),
+      };
+      const res = await fetch('/api/source/' + encodeURIComponent(sourceId) + '/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) { location.reload(); return; }
+      if (details) details.open = true;
+      if (updateErr) updateErr.textContent = body.error || 'Could not update. If the endpoint changed, provide credentials for the new server and try again.';
     });
-    const body = await res.json().catch(() => ({}));
-    if (res.ok) { location.reload(); return; }
-    updateErr.textContent = body.error || 'Could not update. If the endpoint changed, provide credentials for the new server and try again.';
   });
 })();
 </script>{{end}}

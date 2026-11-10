@@ -38,6 +38,11 @@ type pageData struct {
 	// Duplicate is the already-connected source, when the duplicate panel
 	// should be visible without JS. Nil hides the panel.
 	Duplicate *sourceSummary
+	// UpdateSourceID is the source whose per-source update section should
+	// be expanded on re-render (a failed no-JS update, or a duplicate
+	// connect pointing at that source), so the form and error show without
+	// another click. Empty leaves every update section collapsed.
+	UpdateSourceID string
 	// Preserved non-secret form values so a failed no-JS post re-renders with
 	// context. Secrets (password, API key) are never preserved or echoed.
 	ConnectEndpoint    string
@@ -577,8 +582,9 @@ func (s *Server) connectPost(w http.ResponseWriter, r *http.Request) {
 		if json.Unmarshal(body, &cresp) == nil && cresp.Outcome == "duplicate" && cresp.Source.SourceID != "" {
 			dupe := cresp.Source
 			data.Duplicate = &dupe
-			// Prefill the update form from the existing source so the
-			// no-JS flow can complete without re-typing the endpoint.
+			// Expand that source's update section in the list so the no-JS
+			// flow can complete without re-typing the endpoint.
+			data.UpdateSourceID = dupe.SourceID
 			data.UpdateEndpoint = dupe.Endpoint
 			data.UpdateDisplayName = dupe.DisplayName
 			data.UpdateCredType = "password"
@@ -646,20 +652,14 @@ func (s *Server) updatePost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	// Re-render with the duplicate panel for the source being updated so the
-	// user can correct and resubmit.
-	var dupe sourceSummary
-	var src sourceSummary
-	if c, err := s.apiGet(r, "/api/source/"+url.PathEscape(sourceID), &src); err == nil && c == http.StatusOK && src.SourceID != "" {
-		dupe = src
-	} else {
-		dupe = sourceSummary{SourceID: sourceID}
-	}
+	// Re-render with that source's update section expanded so the user
+	// can correct and resubmit. No duplicate notice: this is an update
+	// of an existing source, not a duplicate connect.
 	data := pageData{
 		Title:             "Sources",
 		Username:          username,
 		Sources:           list.Sources,
-		Duplicate:         &dupe,
+		UpdateSourceID:    sourceID,
 		UpdateEndpoint:    endpoint,
 		UpdateDisplayName: displayName,
 		UpdateCredType:    credType,

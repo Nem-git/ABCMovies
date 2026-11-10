@@ -141,6 +141,15 @@ func TestNoJSSourcesConnect(t *testing.T) {
 	if !bytes.Contains(body, []byte(`action="/sources/connect"`)) || !bytes.Contains(body, []byte(`method="post"`)) {
 		t.Fatal("sources page missing native connect form")
 	}
+	// Credential swapping is JS-only: without JS both groups render (no
+	// server-side hiding) and the server branches on the selected cred_type.
+	if !bytes.Contains(body, []byte(`data-cred-panel="password"`)) || !bytes.Contains(body, []byte(`data-cred-panel="api_key"`)) {
+		t.Fatal("sources page missing credential groups for no-JS submit")
+	}
+	// No sources yet, so no per-source update forms.
+	if bytes.Contains(body, []byte(`class="updateForm"`)) {
+		t.Fatal("empty sources page should not render update forms")
+	}
 
 	// Connect via native form (API key).
 	resp = postForm(t, client, base+"/sources/connect", url.Values{
@@ -185,6 +194,25 @@ func TestNoJSSourcesConnect(t *testing.T) {
 		t.Fatal("empty source_id")
 	}
 
+	// Each connected source carries its own collapsed update form, available
+	// without needing a duplicate connect.
+	resp, err = client.Get(base + "/sources")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ = io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if got := strings.Count(string(body), `class="updateForm"`); got != 1 {
+		t.Fatalf("expected exactly 1 per-source update form, got %d, body=%q", got, body)
+	}
+	wantUpdate := fmt.Sprintf("/sources/%s/update", srcID)
+	if !bytes.Contains(body, []byte(wantUpdate)) {
+		t.Fatalf("per-source update form missing action %q, body=%q", wantUpdate, body)
+	}
+	if bytes.Contains(body, []byte(fmt.Sprintf(`data-source-id="%s" open`, srcID))) {
+		t.Fatal("per-source update section should render collapsed by default")
+	}
+
 	// Duplicate: connecting the same server again renders the duplicate panel.
 	resp = postForm(t, client, base+"/sources/connect", url.Values{
 		"connector_id": {"jellyfin"},
@@ -198,10 +226,21 @@ func TestNoJSSourcesConnect(t *testing.T) {
 	if resp.StatusCode != http.StatusOK || resp.Request.URL.Path != "/sources/connect" {
 		t.Fatalf("duplicate POST = %d path=%q, want 200 at /sources/connect", resp.StatusCode, resp.Request.URL.Path)
 	}
+	if !bytes.Contains(body, []byte("<h1>Sources</h1>")) {
+		t.Fatalf("duplicate body is not the sources page (stayed on sources), body=%q", body)
+	}
 	if !bytes.Contains(body, []byte("This server is already connected")) {
 		t.Fatalf("duplicate body missing panel, body=%q", body)
 	}
-	wantUpdate := fmt.Sprintf("/sources/%s/update", srcID)
+	// Duplicate-from-connect opens that source's update section in the list,
+	// and the duplicate notice itself carries no form of its own.
+	if !bytes.Contains(body, []byte(fmt.Sprintf(`data-source-id="%s" open`, srcID))) {
+		t.Fatal("duplicate re-render should open the duplicate source's update section")
+	}
+	if got := strings.Count(string(body), `class="updateForm"`); got != 1 {
+		t.Fatalf("duplicate body should have exactly 1 per-source update form, got %d", got)
+	}
+	wantUpdate = fmt.Sprintf("/sources/%s/update", srcID)
 	if !bytes.Contains(body, []byte(wantUpdate)) {
 		t.Fatalf("duplicate body missing update action %q", wantUpdate)
 	}
@@ -220,6 +259,36 @@ func TestNoJSSourcesConnect(t *testing.T) {
 		t.Fatalf("sources after update missing new name, body=%q", body)
 	}
 
+	// Failing update re-renders the sources page with the update section
+	// expanded so the error and preserved values are visible.
+	resp = postForm(t, client, base+"/sources/"+srcID+"/update", url.Values{
+		"endpoint":     {"http://127.0.0.1:1"},
+		"display_name": {"Updated Name"},
+		"cred_type":    {"password"},
+		"username":     {"admin"},
+		"password":     {"jellyfin-pass"},
+	})
+	body, _ = io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || resp.Request.URL.Path != "/sources/"+srcID+"/update" {
+		t.Fatalf("failed update = %d path=%q, want 200 at /sources/%s/update", resp.StatusCode, resp.Request.URL.Path, srcID)
+	}
+	if !bytes.Contains(body, []byte(fmt.Sprintf(`data-source-id="%s" open`, srcID))) {
+		t.Fatal("failed update should re-render with that source's update section expanded")
+	}
+	if !bytes.Contains(body, []byte(`<div id="duplicatePanel" hidden`)) {
+		t.Fatal("failed update should not show the duplicate notice")
+	}
+	if !bytes.Contains(body, []byte("http://127.0.0.1:1")) {
+		t.Fatalf("failed update did not preserve endpoint, body=%q", body)
+	}
+	if !bytes.Contains(body, []byte("could not reach the server")) && !bytes.Contains(body, []byte("Could not update")) {
+		t.Fatalf("failed update body missing error, body=%q", body)
+	}
+	if bytes.Contains(body, []byte("jellyfin-pass")) {
+		t.Fatal("failed update echoed password")
+	}
+
 	// Failing connect (unreachable) re-renders with an error and preserves endpoint.
 	resp = postForm(t, client, base+"/sources/connect", url.Values{
 		"connector_id": {"jellyfin"},
@@ -235,6 +304,9 @@ func TestNoJSSourcesConnect(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("could not reach the server")) && !bytes.Contains(body, []byte("Could not connect")) {
 		t.Fatalf("failed connect body missing error, body=%q", body)
+	}
+	if !bytes.Contains(body, []byte("http://127.0.0.1:1")) {
+		t.Fatalf("failed connect did not preserve endpoint, body=%q", body)
 	}
 
 	// Unauthenticated connect redirects to login.
