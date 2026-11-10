@@ -37,17 +37,21 @@ type SourceService struct {
 
 	store      *store.Store
 	connectors map[string]sourceVerifier
+	session    *SessionState
 }
 
 // NewSourceService returns a SourceService backed by the jellyfin connector.
-func NewSourceService(s *store.Store) *SourceService {
-	return NewSourceServiceWithVerifier(s, jellyfin.NewClient())
+// sv is the shared in-memory session state (core wires one instance for all
+// services).
+func NewSourceService(s *store.Store, sv *SessionState) *SourceService {
+	return NewSourceServiceWithVerifier(s, jellyfin.NewClient(), sv)
 }
 
 // NewSourceServiceWithVerifier returns a SourceService with a chosen verifier
-// for the "jellyfin" connector. Tests pass a fake here.
-func NewSourceServiceWithVerifier(s *store.Store, v sourceVerifier) *SourceService {
-	return &SourceService{store: s, connectors: map[string]sourceVerifier{"jellyfin": v}}
+// for the "jellyfin" connector. Tests pass a fake here. sv is the shared
+// in-memory session state.
+func NewSourceServiceWithVerifier(s *store.Store, v sourceVerifier, sv *SessionState) *SourceService {
+	return &SourceService{store: s, connectors: map[string]sourceVerifier{"jellyfin": v}, session: sv}
 }
 
 // registerConnector binds an id to a verifier. Supports custom connectors in

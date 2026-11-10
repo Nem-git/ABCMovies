@@ -29,8 +29,7 @@ type LibraryService struct {
 	store      *store.Store
 	fetcher    libraryFetcher
 	authorizer playbackAuthorizer
-	creds      *sessionCredStore
-	tickets    *ticketStore
+	session    *SessionState
 }
 
 // libraryFetcher is the dependency used to pull a library snapshot from a
@@ -41,20 +40,21 @@ type libraryFetcher interface {
 }
 
 // NewLibraryService returns a LibraryService backed by the store and the
-// Jellyfin connector.
-func NewLibraryService(s *store.Store) *LibraryService {
-	return NewLibraryServiceWithFetcher(s, jellyfin.NewClient())
+// Jellyfin connector. sv is the shared in-memory session state (core wires
+// one instance for all services).
+func NewLibraryService(s *store.Store, sv *SessionState) *LibraryService {
+	return NewLibraryServiceWithFetcher(s, jellyfin.NewClient(), sv)
 }
 
 // NewLibraryServiceWithFetcher returns a LibraryService with a chosen library
-// fetcher. Tests use it to substitute a fake.
-func NewLibraryServiceWithFetcher(s *store.Store, fetcher libraryFetcher) *LibraryService {
+// fetcher. Tests use it to substitute a fake. sv is the shared in-memory
+// session state.
+func NewLibraryServiceWithFetcher(s *store.Store, fetcher libraryFetcher, sv *SessionState) *LibraryService {
 	return &LibraryService{
 		store:      s,
 		fetcher:    fetcher,
 		authorizer: jellyfin.NewClient(),
-		creds:      newSessionCredStore(),
-		tickets:    newTicketStore(),
+		session:    sv,
 	}
 }
 
@@ -99,7 +99,7 @@ func (l *LibraryService) SyncSource(ctx context.Context, req *libraryv1.SyncSour
 	}
 
 	// Auth/fetch succeeded: cache the credentials for this session.
-	l.creds.Put(actor, creds)
+	l.session.creds.Put(actor, creds)
 
 	items := make([]store.LibraryTitleInput, 0, len(snapshot.Items))
 	for _, item := range snapshot.Items {

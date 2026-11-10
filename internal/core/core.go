@@ -61,8 +61,9 @@ func StartCore(cfg CoreConfig) (*Core, error) {
 	}
 	grpcSrv := grpc.NewServer()
 	identityv1.RegisterIdentityServiceServer(grpcSrv, service.NewIdentityService(st))
-	sourcev1.RegisterSourceServiceServer(grpcSrv, service.NewSourceService(st))
-	libraryv1.RegisterLibraryServiceServer(grpcSrv, service.NewLibraryService(st))
+	sv := service.NewSessionState()
+	sourcev1.RegisterSourceServiceServer(grpcSrv, service.NewSourceService(st, sv))
+	libraryv1.RegisterLibraryServiceServer(grpcSrv, service.NewLibraryService(st, sv))
 	go func() { _ = grpcSrv.Serve(lis) }()
 	return &Core{GRPCAddr: addr, store: st, grpcSrv: grpcSrv, listener: lis}, nil
 }

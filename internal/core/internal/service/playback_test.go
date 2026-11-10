@@ -101,7 +101,7 @@ func TestCreatePlayTicketColdCacheFails(t *testing.T) {
 		t.Fatalf("SyncSource: %v", err)
 	}
 	// Simulate a fresh core process: the store persists, the credential cache does not.
-	svc.creds = newSessionCredStore()
+	svc.session.creds = newSessionCredStore()
 
 	list, err := svc.ListTitles(ctx, &libraryv1.ListTitlesRequest{ActorUserId: "usr_admin"})
 	if err != nil {
@@ -172,10 +172,10 @@ func TestResolvePlayTicketSlidesExpiry(t *testing.T) {
 	svc, _ := newTestLibraryService(t)
 	base := time.Now()
 	fake := base
-	svc.tickets.now = func() time.Time { return fake }
+	svc.session.tickets.now = func() time.Time { return fake }
 
 	p := playTicket{actorUserID: "usr_admin", titleID: "ttl_1", sourceID: "src_1", streamURL: "u", authorization: "a", expiresAt: fake.Add(ticketIdleTTL)}
-	id, err := svc.tickets.mint(p)
+	id, err := svc.session.tickets.mint(p)
 	if err != nil {
 		t.Fatalf("mint: %v", err)
 	}
@@ -189,7 +189,7 @@ func TestResolvePlayTicketSlidesExpiry(t *testing.T) {
 	if err := resolve(); err != nil {
 		t.Fatalf("resolve at +25m: %v", err)
 	}
-	if got := svc.tickets.m[id].expiresAt; !got.Equal(fake.Add(ticketIdleTTL)) {
+	if got := svc.session.tickets.m[id].expiresAt; !got.Equal(fake.Add(ticketIdleTTL)) {
 		t.Fatalf("expiry after resolve = %v, want %v (sliding)", got, fake.Add(ticketIdleTTL))
 	}
 
@@ -216,7 +216,7 @@ func TestResolvePlayTicketRejectsForeignActorAndExpired(t *testing.T) {
 		authorization: testAuthHeader,
 		expiresAt:     time.Now().Add(time.Minute),
 	}
-	id, err := svc.tickets.mint(p)
+	id, err := svc.session.tickets.mint(p)
 	if err != nil {
 		t.Fatalf("mint: %v", err)
 	}
@@ -228,7 +228,7 @@ func TestResolvePlayTicketRejectsForeignActorAndExpired(t *testing.T) {
 	}
 
 	// Expired ticket: NotFound.
-	expiredID, err := svc.tickets.mint(playTicket{actorUserID: "usr_admin", titleID: "ttl_1", sourceID: "src_1", streamURL: "u", authorization: "a", expiresAt: time.Now().Add(-time.Minute)})
+	expiredID, err := svc.session.tickets.mint(playTicket{actorUserID: "usr_admin", titleID: "ttl_1", sourceID: "src_1", streamURL: "u", authorization: "a", expiresAt: time.Now().Add(-time.Minute)})
 	if err != nil {
 		t.Fatalf("mint expired: %v", err)
 	}

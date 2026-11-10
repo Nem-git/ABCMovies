@@ -32,7 +32,7 @@ func newTestLibraryService(t *testing.T) (*LibraryService, *store.Store) {
 		t.Fatalf("store.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	return NewLibraryServiceWithFetcher(st, fakeFetcher{}), st
+	return NewLibraryServiceWithFetcher(st, fakeFetcher{}, NewSessionState()), st
 }
 
 func mustCreateSource(t *testing.T, st *store.Store, verifiedID string) *store.Source {

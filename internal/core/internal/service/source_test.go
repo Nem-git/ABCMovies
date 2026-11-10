@@ -62,7 +62,7 @@ func newSourceTestService(t *testing.T, v sourceVerifier) (*SourceService, *stor
 		t.Fatalf("store.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	return NewSourceServiceWithVerifier(st, v), st
+	return NewSourceServiceWithVerifier(st, v, NewSessionState()), st
 }
 
 func connectPassword(t *testing.T, svc *SourceService, ctx context.Context, endpoint, displayName string) *sourcev1.ConnectSourceResponse {
