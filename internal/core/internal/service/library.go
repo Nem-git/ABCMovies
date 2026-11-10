@@ -205,8 +205,6 @@ func clampOffset(offset int32) int32 {
 	return offset
 }
 
-
-
 func titleKindFromString(kind string) int32 {
 	switch strings.ToLower(strings.TrimSpace(kind)) {
 	case "movie":
