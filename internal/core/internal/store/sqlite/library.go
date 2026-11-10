@@ -236,15 +236,20 @@ func (s *Store) getSourceSyncState(ctx context.Context, sourceID string) (*Libra
 	return st, nil
 }
 
-// ListSyncStates returns one freshness state for every connected source,
-// defaulting to a never-synced state for sources that have not synced yet.
+// ListSyncStates returns one freshness state for every non-disconnected
+// source, defaulting to a never-synced state for sources that have not
+// synced yet. Disconnected sources are hidden: their titles are all retained
+// as tombstones and their last known outcome is honest history, not a
+// presentable freshness signal.
 func (s *Store) ListSyncStates(ctx context.Context) ([]*LibrarySyncState, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT r.source_id, r.display_name,
 		        COALESCE(s.last_outcome, 0), s.last_synced_at, COALESCE(s.detail, ''), COALESCE(s.title_count, 0)
 		   FROM sources r
 		   LEFT JOIN source_library_sync_states s ON s.source_id = r.source_id
-		  ORDER BY r.created DESC, r.source_id DESC`)
+		  WHERE r.status != ?
+		  ORDER BY r.created DESC, r.source_id DESC`,
+		SourceStatusDisconnected)
 	if err != nil {
 		return nil, fmt.Errorf("list sync states: %w", err)
 	}
@@ -318,14 +323,14 @@ func (s *Store) queryTitles(ctx context.Context, query string, limit, offset int
 	lmt := clampLimit(limit)
 	off := clampOffset(offset)
 
-	where := ""
-	args := []any{}
-	countWhere := ""
+	// Titles of disconnected sources stay in the store (tombstones) but are
+	// hidden from browse/search; they still resolve by id (detail pages).
+	where := ` WHERE r.status != ?`
+	args := []any{SourceStatusDisconnected}
 	if query != "" {
 		escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(query)
-		where = ` WHERE LOWER(t.name) LIKE LOWER(?) ESCAPE '\'`
+		where += ` AND LOWER(t.name) LIKE LOWER(?) ESCAPE '\'`
 		args = append(args, `%`+escaped+`%`)
-		countWhere = ` WHERE LOWER(name) LIKE LOWER(?) ESCAPE '\'`
 	}
 
 	rows, err := s.db.QueryContext(ctx,
@@ -351,10 +356,9 @@ func (s *Store) queryTitles(ctx context.Context, query string, limit, offset int
 		return nil, fmt.Errorf("list titles: %w", err)
 	}
 
+	countWhere := `SELECT COUNT(*) FROM library_titles t JOIN sources r ON r.source_id = t.source_id` + where
 	var total int32
-	countArgs := args
-	if err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM library_titles`+countWhere, countArgs...).Scan(&total); err != nil {
+	if err := s.db.QueryRowContext(ctx, countWhere, args...).Scan(&total); err != nil {
 		return nil, fmt.Errorf("count titles: %w", err)
 	}
 

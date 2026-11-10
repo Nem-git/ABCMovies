@@ -231,3 +231,100 @@ func TestSyncSourceEmptyActor(t *testing.T) {
 		t.Fatalf("code = %v, want InvalidArgument", status.Code(err))
 	}
 }
+
+func TestLibraryHidesDisconnectedSourceTitles(t *testing.T) {
+	svc, st := newTestLibraryService(t)
+	ctx := context.Background()
+	a := mustCreateSource(t, st, "jf-lib-a")
+	b := mustCreateSource(t, st, "jf-lib-b")
+
+	// Distinct snapshots per source (fakeFetcher is a single snapshot).
+	svc.fetcher = fakeFetcher{snapshot: &jellyfin.LibrarySnapshot{
+		Items: []jellyfin.LibraryItem{{ExternalID: "a-1", Name: "A Movie", Kind: "movie"}},
+	}}
+	if _, err := svc.SyncSource(ctx, &libraryv1.SyncSourceRequest{
+		ActorUserId: "usr_admin",
+		SourceId:    a.SourceID,
+		Credentials: &libraryv1.SyncSourceRequest_Password{
+			Password: &libraryv1.PasswordCredentials{Username: "admin", Password: "correct horse"},
+		},
+	}); err != nil {
+		t.Fatalf("SyncSource a: %v", err)
+	}
+	svc.fetcher = fakeFetcher{snapshot: &jellyfin.LibrarySnapshot{
+		Items: []jellyfin.LibraryItem{{ExternalID: "b-1", Name: "B Movie", Kind: "movie"}},
+	}}
+	if _, err := svc.SyncSource(ctx, &libraryv1.SyncSourceRequest{
+		ActorUserId: "usr_admin",
+		SourceId:    b.SourceID,
+		Credentials: &libraryv1.SyncSourceRequest_Password{
+			Password: &libraryv1.PasswordCredentials{Username: "admin", Password: "correct horse"},
+		},
+	}); err != nil {
+		t.Fatalf("SyncSource b: %v", err)
+	}
+
+	// Tombstone A at the store layer (the RPC does this; here we exercise
+	// the library's respect for it).
+	if _, err := st.RemoveSource(ctx, a.SourceID); err != nil {
+		t.Fatalf("RemoveSource: %v", err)
+	}
+
+	// A's titles are hidden from browse, B's are not; total count follows.
+	list, err := svc.ListTitles(ctx, &libraryv1.ListTitlesRequest{ActorUserId: "usr_admin"})
+	if err != nil {
+		t.Fatalf("ListTitles: %v", err)
+	}
+	if list.GetTotalCount() != 1 || len(list.GetTitles()) != 1 || list.GetTitles()[0].GetName() != "B Movie" {
+		t.Fatalf("list after disconnect = (count %d, titles %+v), want only B Movie", list.GetTotalCount(), list.GetTitles())
+	}
+
+	// A's titles are hidden from search, too.
+	search, err := svc.SearchTitles(ctx, &libraryv1.SearchTitlesRequest{ActorUserId: "usr_admin", Query: "A Movie"})
+	if err != nil {
+		t.Fatalf("SearchTitles: %v", err)
+	}
+	if search.GetTotalCount() != 0 || len(search.GetTitles()) != 0 {
+		t.Fatalf("search after disconnect = (count %d, titles %+v), want 0", search.GetTotalCount(), search.GetTitles())
+	}
+
+	// A disconnected source's freshness state is hidden as well.
+	for _, s := range list.GetSyncStates() {
+		if s.GetSourceId() == a.SourceID {
+			t.Fatalf("sync states after disconnect include the tombstone: %+v", s)
+		}
+	}
+
+	// Detail pages still resolve for a tombstoned title (unavailable).
+	titleA := findTitleByExternalID(t, st, a.SourceID, "a-1")
+	got, err := svc.GetTitle(ctx, &libraryv1.GetTitleRequest{ActorUserId: "usr_admin", TitleId: titleA.TitleID})
+	if err != nil {
+		t.Fatalf("GetTitle after disconnect: %v", err)
+	}
+	if got.GetTitle().GetAvailability() != libraryv1.AvailabilityState_AVAILABILITY_STATE_UNAVAILABLE {
+		t.Fatalf("availability = %v, want AVAILABILITY_STATE_UNAVAILABLE", got.GetTitle().GetAvailability())
+	}
+	if !strings.Contains(got.GetTitle().GetAvailabilityDetail(), "source was disconnected") {
+		t.Fatalf("availability_detail = %q, want the tombstone detail", got.GetTitle().GetAvailabilityDetail())
+	}
+
+	// Sync on a disconnected source fails honestly (422-class).
+	if _, err := svc.SyncSource(ctx, &libraryv1.SyncSourceRequest{
+		ActorUserId: "usr_admin",
+		SourceId:    a.SourceID,
+		Credentials: &libraryv1.SyncSourceRequest_Password{
+			Password: &libraryv1.PasswordCredentials{Username: "admin", Password: "correct horse"},
+		},
+	}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("sync on disconnected source code = %v, want FailedPrecondition", status.Code(err))
+	}
+}
+
+func findTitleByExternalID(t *testing.T, st *store.Store, sourceID, externalID string) *store.LibraryTitle {
+	t.Helper()
+	ttl, err := st.GetTitleByExternal(context.Background(), sourceID, externalID)
+	if err != nil {
+		t.Fatalf("GetTitleByExternal %s/%s: %v", sourceID, externalID, err)
+	}
+	return ttl
+}

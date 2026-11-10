@@ -78,6 +78,9 @@ func (l *LibraryService) SyncSource(ctx context.Context, req *libraryv1.SyncSour
 	if strings.TrimSpace(src.ConnectorID) == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "source has no connector")
 	}
+	if src.Status == store.SourceStatusDisconnected {
+		return nil, status.Errorf(codes.FailedPrecondition, "source disconnected — reconnect it to sync")
+	}
 
 	// Credentials: supplied in the request (then cached in memory for the
 	// session), or omitted to reuse this session's cache. Nothing is

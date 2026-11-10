@@ -347,29 +347,29 @@ func TestRemoveSourceTombstones(t *testing.T) {
 		t.Fatal("removed source missing the tombstone detail")
 	}
 
-	// Titles are kept, flipped to unavailable with the tombstone detail;
-	// the other source's titles are untouched.
+	// A's titles are hidden from browse; B's are not.
 	all, err := s.ListTitles(ctx, 100, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	availableBySource := map[string]int{}
-	detailBySource := map[string]string{}
 	for _, title := range all.Titles {
-		if title.Availability == LibraryAvailabilityAvailable {
-			availableBySource[title.SourceID]++
-		} else {
-			detailBySource[title.SourceID] = title.AvailabilityDetail
+		if title.SourceID == a.SourceID {
+			t.Fatalf("A title visible after disconnect: %+v", title)
 		}
 	}
-	if availableBySource[a.SourceID] != 0 {
-		t.Fatalf("A available titles = %d, want 0", availableBySource[a.SourceID])
-	}
-	if availableBySource[b.SourceID] != 1 {
-		t.Fatalf("B available titles = %d, want 1", availableBySource[b.SourceID])
-	}
-	if detailBySource[a.SourceID] != SourceDisconnectedDetail {
-		t.Fatalf("A unavailable detail = %q, want %q", detailBySource[a.SourceID], SourceDisconnectedDetail)
+
+	// A's titles remain in the store, flipped to unavailable.
+	for _, ext := range []string{"mv-1", "sr-1"} {
+		title, err := s.GetTitleByExternal(ctx, a.SourceID, ext)
+		if err != nil {
+			t.Fatalf("GetTitleByExternal %s: %v", ext, err)
+		}
+		if title.Availability != LibraryAvailabilityUnavailable {
+			t.Fatalf("A title %s availability = %d, want unavailable", ext, title.Availability)
+		}
+		if title.AvailabilityDetail != SourceDisconnectedDetail {
+			t.Fatalf("A title %s detail = %q, want %q", ext, title.AvailabilityDetail, SourceDisconnectedDetail)
+		}
 	}
 
 	// The tombstone hides from the active list, stays in the full list.
@@ -388,21 +388,22 @@ func TestRemoveSourceTombstones(t *testing.T) {
 		t.Fatalf("ListSources = %d sources, want 2 (tombstone kept)", len(allSources))
 	}
 
-	// Sync state is preserved (honest history), including for the tombstone.
+	// Sync state is preserved in the store but hidden from the active list
+	// (freshness for a source you removed is not a presentable signal).
 	states, err := s.ListSyncStates(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	foundA := false
 	for _, st := range states {
 		if st.SourceID == a.SourceID {
-			foundA = true
-			if st.LastOutcome != LibraryOutcomeSuccess {
-				t.Fatalf("A sync outcome = %d, want success preserved", st.LastOutcome)
-			}
+			t.Fatalf("A's sync state is listed after disconnect: %+v", st)
 		}
 	}
-	if !foundA {
-		t.Fatal("A's sync state was deleted; want it preserved")
+	preserved, err := s.getSourceSyncState(ctx, a.SourceID)
+	if err != nil {
+		t.Fatalf("A's sync state was deleted; want it preserved: %v", err)
+	}
+	if preserved.LastOutcome != LibraryOutcomeSuccess {
+		t.Fatalf("A sync outcome = %d, want success preserved", preserved.LastOutcome)
 	}
 }
