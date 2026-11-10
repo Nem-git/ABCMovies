@@ -2,6 +2,7 @@
 <p><a href="/">Home</a></p>
 <section>
   <h2>Connected sources</h2>
+  <p class="error" id="removeErr" role="alert">{{if .RemoveError}}{{.RemoveError}}{{end}}</p>
   {{if .Sources}}
   <ul>
     {{range .Sources}}
@@ -38,7 +39,6 @@
           <label><input type="checkbox" name="confirm" value="yes" required> Yes, remove this source</label>
           <button type="submit" class="removeBtn">Remove source</button>
         </form>
-        <p class="error removeErr" role="alert">{{if eq .SourceID $.RemoveSourceID}}{{$.RemoveError}}{{end}}</p>
       </details>
     </li>
     {{end}}
@@ -157,8 +157,7 @@
   removeForms.forEach((removeForm) => {
     removeForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const details = removeForm.closest('.removeDetails');
-      const removeErr = details ? details.querySelector('.removeErr') : null;
+      const removeErr = document.getElementById('removeErr');
       if (removeErr) removeErr.textContent = '';
       const sourceId = removeForm.dataset.sourceId;
       if (!sourceId) { if (removeErr) removeErr.textContent = 'No source selected.'; return; }
@@ -168,7 +167,6 @@
       }
       const res = await fetch('/api/source/' + encodeURIComponent(sourceId) + '/remove', { method: 'POST' });
       if (res.ok) { location.reload(); return; }
-      if (details) details.open = true;
       const body = await res.json().catch(() => ({}));
       if (removeErr) removeErr.textContent = body.error || 'Could not remove the source.';
     });
