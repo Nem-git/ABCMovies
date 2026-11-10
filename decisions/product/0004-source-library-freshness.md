@@ -42,4 +42,4 @@ Build 1 syncs a connected Jellyfin source and presents its library. REQ-LIB-05 r
 
 ## Outcome
 
-**Accepted** — indexed Jellyfin snapshot with disclosed freshness and explicit re-sync credentials for Build 1. Affected issues/docs: #25, DEC-004 area. Date: 2026-11-10. Owners: TBD (to be filled in implementation).
+**Accepted** — indexed Jellyfin snapshot with disclosed freshness and explicit re-sync credentials for Build 1. Affected issues/docs: #25, DEC-003 (#18). Date: 2026-11-10. Owners: TBD (to be filled in implementation).
