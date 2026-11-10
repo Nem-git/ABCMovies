@@ -1,9 +1,9 @@
-// Package api implements the ABCMovies HTTP API: the single HTTP session and
-// cookie edge for the system. Browser pages (usually via the SSR web
+// Package server implements the ABCMovies HTTP API: the single HTTP session
+// and cookie edge for the system. Browser pages (usually via the SSR web
 // frontend's same-origin proxy) and external frontends call these JSON
 // endpoints; the API talks to the gRPC core. The core never sees HTTP or
 // cookies, and HTTP callers never hold core credentials.
-package api
+package server
 
 import (
 	"encoding/json"

@@ -13,16 +13,22 @@ The reset removed the old layout. The rewrite needs a simple structure that can 
 
 ## Decision
 
-Keep one repository and one Go module for Build 1. The three deployable entrypoints are `cmd/abcmovies-core`, `cmd/abcmovies-api`, and `cmd/abcmovies-web`. Keep their implementation packages under `internal/core`, `internal/api`, and `internal/web`, with generated contracts under `gen/go`, schemas under `proto`, and shared runtime helpers under `internal/...` only when they are genuinely cross-unit.
+Keep one repository and one Go module for Build 1. The three deployable entrypoints are `cmd/abcmovies-core`, `cmd/abcmovies-api`, and `cmd/abcmovies-web`. Keep each unit's implementation behind its own `internal` package so sibling units cannot import it:
+
+- `core/` — public composition wrapper; `core/internal/` holds services, store, auth, audit, and connectors.
+- `api/` — public composition wrapper; `api/internal/` holds the HTTP API and session edge.
+- `web/` — public composition wrapper; `web/internal/` holds the SSR server and templates.
+
+Generated contracts stay under `gen/go`, schemas under `proto`, and genuinely cross-unit helpers under `internal/` (for example `internal/platform` and `internal/config`). `internal/app` remains the thin composition root that re-exports the units' public constructors for binaries and end-to-end tests; it does not contain domain logic.
 
 Do not split `core`, `api`, and `web` into separate repositories or projects yet. They are separate deployable units with a strict dependency direction, not independent codebases:
 
 - `web` may call the HTTP API only; it must not import core or store internals.
 - `api` may use generated core clients and HTTP/session code; it must not import core implementation or store internals.
 - `core` owns the store, auth, audit, and connector internals; it must not import HTTP or web packages.
-- `internal/app` remains the thin composition root that wires each unit's exported constructor into its binary and supports end-to-end tests; it does not contain domain logic.
+- `core/cmd/abcmovies-admin` is the operator-side core tool and may import `core/internal` directly.
 
-The boundary is enforced by review for now. Add a mechanical import check only if drift appears.
+The nested `internal` packages make the boundary compiler-enforced between units. Shared helpers remain importable only where genuinely cross-unit.
 
 ## Options considered
 
@@ -40,5 +46,4 @@ The boundary is enforced by review for now. Add a mechanical import check only i
 
 ## Follow-up
 
-- Add an import-boundary check if boundary violations appear.
 - Revisit separate modules/repositories when independent release cadence or ownership boundaries exist.

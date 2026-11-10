@@ -1,11 +1,11 @@
-// Package web implements the SSR web frontend: server-rendered HTML pages
+// Package server implements the SSR web frontend: server-rendered HTML pages
 // (html/template with embedded template files) plus a same-origin /api/*
 // proxy to the ABCMovies HTTP API frontend. It never talks to the gRPC core
 // directly and owns no session semantics — the HTTP API is the session edge.
 // Form posts (setup, login, logout, sources) let users without JS use the
 // app: the web layer translates the form to a JSON call to the HTTP API and
 // forwards cookies. JavaScript is a progressive enhancement only.
-package web
+package server
 
 import (
 	"bytes"

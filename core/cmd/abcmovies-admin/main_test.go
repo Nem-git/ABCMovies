@@ -11,9 +11,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/Nem-git/ABCMovies/core/internal/service"
+	"github.com/Nem-git/ABCMovies/core/internal/store"
 	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
-	"github.com/Nem-git/ABCMovies/internal/core"
-	"github.com/Nem-git/ABCMovies/internal/store"
 )
 
 func runAdmin(args, stdin string) (string, error) {
@@ -43,7 +43,7 @@ func TestResetAdminRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = st.Close() }()
-	svc := core.NewIdentityService(st)
+	svc := service.NewIdentityService(st)
 	setup, err := svc.SetupAdmin(ctx, &identityv1.SetupAdminRequest{Username: "admin", Password: "correct horse battery staple"})
 	if err != nil {
 		t.Fatal(err)
