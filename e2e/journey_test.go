@@ -111,6 +111,30 @@ func getWithSession(t *testing.T, url, sessionID string) *http.Response {
 	return resp
 }
 
+type libraryTitleResponse struct {
+	TitleID            string `json:"title_id"`
+	Name               string `json:"name"`
+	Kind               string `json:"kind"`
+	Year               int    `json:"year"`
+	Availability       string `json:"availability"`
+	AvailabilityDetail string `json:"availability_detail"`
+	ExternalID         string `json:"external_id"`
+	SourceDisplayName  string `json:"source_display_name"`
+}
+
+type librarySyncStateResponse struct {
+	SourceDisplayName string `json:"source_display_name"`
+	Detail            string `json:"detail,omitempty"`
+}
+
+type libraryListResponse struct {
+	Titles     []libraryTitleResponse     `json:"titles"`
+	SyncStates []librarySyncStateResponse `json:"sync_states"`
+	TotalCount int32                      `json:"total_count"`
+}
+
+type librarySearchResponse = libraryListResponse
+
 func TestBuild1Journey(t *testing.T) {
 	t.Run("first-run-admin-and-login", func(t *testing.T) {
 		s := startStack(t)
@@ -475,7 +499,115 @@ func TestBuild1Journey(t *testing.T) {
 		}
 	})
 	t.Run("sync-browse-search-detail", func(t *testing.T) {
-		t.Skip("requires REQ-LIB-01/02/03 implementation (#25)")
+		s := startStack(t)
+		client := httpClient(t)
+		base := "http://" + s.Web.HTTPAddr
+
+		mock := newMockJellyfin(t, "jf-sync-id", "Sync Server", "10.10.7")
+		mock.SetItems(movieItem("jf-item-1", "Blade Runner", "1982"), seriesItem("jf-item-2", "Severance", "2022"), movieItem("jf-item-3", "The Matrix", "1999"))
+
+		// Set up the admin and stay signed in.
+		resp := postJSON(t, client, base+"/api/setup", map[string]string{
+			"username": "admin",
+			"password": "testpass1234",
+		})
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("POST /api/setup status = %d, want 201", resp.StatusCode)
+		}
+
+		// Connect via password and confirm the outcome.
+		resp = postJSON(t, client, base+"/api/source/connect", map[string]any{
+			"connector_id": "jellyfin",
+			"endpoint":     mock.URL,
+			"credentials":  map[string]string{"username": "admin", "password": "correct horse"},
+		})
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("connect status = %d, want 201, body=%s", resp.StatusCode, body)
+		}
+		var connectResp map[string]any
+		if err := json.Unmarshal(body, &connectResp); err != nil {
+			t.Fatalf("decode connect response: %v", err)
+		}
+		src, _ := connectResp["source"].(map[string]any)
+		sourceID, _ := src["source_id"].(string)
+		if sourceID == "" {
+			t.Fatal("no source_id in connect response")
+		}
+
+		// Trigger sync explicitly (connect does not sync; REQ-LIB-05 ties
+		// credentials to each sync until a custody decision lands).
+		resp = postJSON(t, client, base+"/api/library/source/"+sourceID+"/sync", map[string]any{
+			"credentials": map[string]string{"username": "admin", "password": "correct horse"},
+		})
+		body, _ = io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("sync status = %d, want 200, body=%s", resp.StatusCode, body)
+		}
+
+		// The library now lists the items.
+		resp, err := client.Get(base + "/api/library")
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ = io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET /api/library status = %d, want 200, body=%s", resp.StatusCode, body)
+		}
+		var list libraryListResponse
+		if err := json.Unmarshal(body, &list); err != nil {
+			t.Fatalf("decode library list: %v", err)
+		}
+		if list.TotalCount != 3 {
+			t.Fatalf("library TotalCount = %d, want 3", list.TotalCount)
+		}
+		if len(list.Titles) != 3 {
+			t.Fatalf("library len = %d, want 3", len(list.Titles))
+		}
+
+		// Search
+		resp, err = client.Get(base + "/api/library/search?q=matrix")
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ = io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET /api/library/search status = %d, body=%s", resp.StatusCode, body)
+		}
+		var search librarySearchResponse
+		if err := json.Unmarshal(body, &search); err != nil {
+			t.Fatalf("decode search: %v", err)
+		}
+		if search.TotalCount != 1 {
+			t.Fatalf("search TotalCount = %d, want 1", search.TotalCount)
+		}
+
+		// Title detail for the non-DRM movie.
+		if len(list.Titles) == 0 || list.Titles[0].TitleID == "" {
+			t.Fatal("expected titles in library")
+		}
+		titleID := list.Titles[0].TitleID
+		resp, err = client.Get(base + "/api/library/title/" + titleID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ = io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET /api/library/title status = %d, body=%s", resp.StatusCode, body)
+		}
+		var detail libraryTitleResponse
+		if err := json.Unmarshal(body, &detail); err != nil {
+			t.Fatalf("decode title detail: %v", err)
+		}
+		if detail.Name == "" {
+			t.Fatal("title detail missing name")
+		}
 	})
 	t.Run("play-reachable-non-drm-title", func(t *testing.T) {
 		t.Skip("requires REQ-PLY-01 implementation (#26, DEC-008)")
@@ -487,10 +619,15 @@ func TestBuild1Journey(t *testing.T) {
 type mockJellyfin struct {
 	URL    string
 	server *httptest.Server
+
+	items []string
 }
 
 func newMockJellyfin(t *testing.T, systemID, serverName, version string) *mockJellyfin {
 	t.Helper()
+	quit := false
+	var m *mockJellyfin
+	m = &mockJellyfin{}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /Users/AuthenticateByName", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
@@ -506,7 +643,7 @@ func newMockJellyfin(t *testing.T, systemID, serverName, version string) *mockJe
 			fmt.Fprint(w, `{"Message":"Authentication failed"}`)
 			return
 		}
-		fmt.Fprint(w, `{"AccessToken":"tok-e2e-access"}`)
+		fmt.Fprint(w, `{"AccessToken":"tok-e2e-access","User":{"Id":"user-e2e-1"}}`)
 	})
 	mux.HandleFunc("GET /System/Info", func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
@@ -517,9 +654,37 @@ func newMockJellyfin(t *testing.T, systemID, serverName, version string) *mockJe
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"ServerName":%q,"Id":%q,"Version":%q}`, serverName, systemID, version)
 	})
-	m := &mockJellyfin{}
+	mux.HandleFunc("GET /Items", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if q.Get("includeItemTypes") != "Movie,Series" || q.Get("fields") != "Overview" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"Items":[%s],"TotalRecordCount":%d}`, strings.Join(m.items, ","), len(m.items))
+	})
+	mux.HandleFunc("DELETE /Items", func(w http.ResponseWriter, r *http.Request) {
+		// no-op for mock reset support
+		q := r.URL.Query()
+		_ = q
+		m.items = nil
+		w.WriteHeader(http.StatusNoContent)
+	})
+	_ = quit
 	m.server = httptest.NewServer(mux)
 	m.URL = m.server.URL
 	t.Cleanup(m.server.Close)
 	return m
+}
+
+func movieItem(id, name, year string) string {
+	return fmt.Sprintf(`{"Id":%q,"Name":%q,"ProductionYear":%s,"Type":"Movie","Overview":"A test movie."}`, id, name, year)
+}
+
+func seriesItem(id, name, year string) string {
+	return fmt.Sprintf(`{"Id":%q,"Name":%q,"ProductionYear":%s,"Type":"Series","Overview":"A test series."}`, id, name, year)
+}
+
+func (m *mockJellyfin) SetItems(items ...string) {
+	m.items = items
 }
