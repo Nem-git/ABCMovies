@@ -29,6 +29,21 @@ type pageData struct {
 	Title    string
 	Username string
 	Sources  []sourceSummary
+	// Library page (browse/search) context.
+	LibraryTitles     []libraryTitle
+	LibrarySyncStates []sourceSyncState
+	LibraryQuery      string
+	LibraryTotalCount int32
+	LibraryLimit      int32
+	LibraryOffset     int32
+	LibraryError      string
+	// Per-source sync panel expansion/error for no-JS re-render.
+	SyncSourceID string
+	SyncError    string
+	SyncCredType string
+	SyncUsername string
+	// Title detail page context.
+	TitleDetail *libraryTitle
 	// Error is the setup/login form error text (server-rendered, no-JS).
 	Error        string
 	FormUsername string
@@ -73,7 +88,7 @@ func NewServer(apiAddr string) (*Server, error) {
 	}
 
 	pages := map[string]*template.Template{}
-	for _, page := range []string{"setup", "login", "home", "sources"} {
+	for _, page := range []string{"setup", "login", "home", "sources", "library", "title"} {
 		tmpl, err := template.ParseFS(templates, "templates/layout.html", "templates/"+page+".html")
 		if err != nil {
 			return nil, fmt.Errorf("parse template %q: %w", page, err)
@@ -101,6 +116,9 @@ func NewServer(apiAddr string) (*Server, error) {
 	s.mux.HandleFunc("GET /login", s.loginPage)
 	s.mux.HandleFunc("GET /{$}", s.home)
 	s.mux.HandleFunc("GET /sources", s.sourcesPage)
+	s.mux.HandleFunc("GET /library", s.libraryPage)
+	s.mux.HandleFunc("POST /library/source/{source_id}/sync", s.syncPost)
+	s.mux.HandleFunc("GET /library/title/{title_id}", s.titleDetail)
 	s.mux.HandleFunc("POST /setup", s.setupPost)
 	s.mux.HandleFunc("POST /login", s.loginPost)
 	s.mux.HandleFunc("POST /logout", s.logoutPost)
@@ -140,6 +158,34 @@ type sourceSummary struct {
 
 type listResponse struct {
 	Sources []sourceSummary `json:"sources"`
+}
+
+type libraryTitle struct {
+	TitleID            string `json:"title_id"`
+	SourceID           string `json:"source_id"`
+	SourceDisplayName  string `json:"source_display_name"`
+	ExternalID         string `json:"external_id"`
+	Name               string `json:"name"`
+	Kind               string `json:"kind"`
+	Year               int    `json:"year"`
+	Overview           string `json:"overview"`
+	Availability       string `json:"availability"`
+	AvailabilityDetail string `json:"availability_detail"`
+}
+
+type sourceSyncState struct {
+	SourceID          string `json:"source_id"`
+	SourceDisplayName string `json:"source_display_name"`
+	LastOutcome       string `json:"last_outcome"`
+	LastSyncedAt      string `json:"last_synced_at,omitempty"`
+	Detail            string `json:"detail,omitempty"`
+	TitleCount        int    `json:"title_count"`
+}
+
+type listLibraryResponse struct {
+	Titles     []libraryTitle    `json:"titles"`
+	SyncStates []sourceSyncState `json:"sync_states"`
+	TotalCount int32             `json:"total_count"`
 }
 
 // apiGet performs a server-side GET against the HTTP API, forwarding the

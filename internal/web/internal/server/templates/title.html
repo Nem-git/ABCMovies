@@ -1,0 +1,22 @@
+{{define "content"}}<h1>{{.TitleDetail.Name}}</h1>
+<p><a href="/library">Library</a></p>
+<section>
+  <dl>
+    <dt>Kind</dt><dd>{{.TitleDetail.Kind}}</dd>
+    {{if .TitleDetail.Year}}<dt>Year</dt><dd>{{.TitleDetail.Year}}</dd>{{end}}
+    {{if .TitleDetail.ExternalId}}<dt>Source item</dt><dd>{{.TitleDetail.ExternalID}}</dd>{{end}}
+    <dt>Source</dt><dd>{{.TitleDetail.SourceDisplayName}}</dd>
+  </dl>
+  {{if .TitleDetail.Overview}}<p>{{.TitleDetail.Overview}}</p>{{end}}
+  <hr>
+  <p>
+    <strong>Availability:</strong> {{.TitleDetail.Availability}}
+    {{if .TitleDetail.AvailabilityDetail}}<br><span>{{.TitleDetail.AvailabilityDetail}}</span>{{end}}
+  </p>
+  {{if eq .TitleDetail.Availability "available"}}
+  <p>This title is reachable in the last known sync. Playing it will be added in REQ-PLY-01 (#26).</p>
+  {{else}}
+  <p>This title is not currently presented as playable from your connected sources. Try syncing again on <a href="/library">Library</a> or check <a href="/sources">Sources</a>.</p>
+  {{end}}
+</section>
+{{end}}
