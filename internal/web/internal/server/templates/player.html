@@ -1,0 +1,13 @@
+{{define "content"}}<h1>Playing: {{.Playback.Name}}</h1>
+<p><a href="/library/title/{{.Playback.TitleID}}">← Back to title</a> · <a href="/library">Library</a></p>
+<video controls autoplay playsinline style="max-width: 100%; width: 100%; background: #000" src="{{.Playback.StreamHref}}"></video>
+<p>If playback does not start, the source may be unreachable, the title may be protected or in a format your browser cannot play, or the link may have expired (links are short-lived). Go back, re-enter credentials if asked, and try again — ABCMovies cannot play DRM-protected content.</p>
+<script>
+  document.querySelector('video').addEventListener('error', function () {
+    var p = document.createElement('p');
+    p.setAttribute('role', 'alert');
+    p.textContent = 'Playback failed: the browser could not play this stream. It may be protected (DRM), unsupported, or the source may have changed. Try syncing again or a different title.';
+    this.after(p);
+  });
+</script>
+{{end}}

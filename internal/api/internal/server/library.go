@@ -77,11 +77,16 @@ func (s *Server) registerLibraryRoutes() {
 }
 
 func buildSyncRequest(actor, sourceID string, c *libraryCredentials) (*libraryv1.SyncSourceRequest, error) {
+	req := &libraryv1.SyncSourceRequest{ActorUserId: actor, SourceId: sourceID}
 	if c == nil {
-		return nil, errors.New("credentials are required")
+		return req, nil // no credentials: core reuses the session cache
 	}
 	hasPassword := strings.TrimSpace(c.Password) != ""
 	hasAPIKey := strings.TrimSpace(c.APIKey) != ""
+	if !hasPassword && !hasAPIKey {
+		// An empty credentials object also means "use this session's cache".
+		return req, nil
+	}
 	switch {
 	case hasPassword && hasAPIKey:
 		return nil, errors.New("provide either username/password or an API key, not both")
@@ -100,7 +105,7 @@ func buildSyncRequest(actor, sourceID string, c *libraryCredentials) (*libraryv1
 			Credentials: &libraryv1.SyncSourceRequest_ApiKey{ApiKey: strings.TrimSpace(c.APIKey)},
 		}, nil
 	default:
-		return nil, errors.New("credentials are required")
+		return req, nil
 	}
 }
 

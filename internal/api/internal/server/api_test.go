@@ -102,10 +102,12 @@ func (f *fakeSourceClient) GetSource(ctx context.Context, in *sourcev1.GetSource
 }
 
 type fakeLibraryClient struct {
-	syncSource   func(context.Context, *libraryv1.SyncSourceRequest, ...grpc.CallOption) (*libraryv1.SyncSourceResponse, error)
-	listTitles   func(context.Context, *libraryv1.ListTitlesRequest, ...grpc.CallOption) (*libraryv1.ListTitlesResponse, error)
-	searchTitles func(context.Context, *libraryv1.SearchTitlesRequest, ...grpc.CallOption) (*libraryv1.SearchTitlesResponse, error)
-	getTitle     func(context.Context, *libraryv1.GetTitleRequest, ...grpc.CallOption) (*libraryv1.GetTitleResponse, error)
+	syncSource       func(context.Context, *libraryv1.SyncSourceRequest, ...grpc.CallOption) (*libraryv1.SyncSourceResponse, error)
+	listTitles       func(context.Context, *libraryv1.ListTitlesRequest, ...grpc.CallOption) (*libraryv1.ListTitlesResponse, error)
+	searchTitles     func(context.Context, *libraryv1.SearchTitlesRequest, ...grpc.CallOption) (*libraryv1.SearchTitlesResponse, error)
+	getTitle         func(context.Context, *libraryv1.GetTitleRequest, ...grpc.CallOption) (*libraryv1.GetTitleResponse, error)
+	createPlayTicket func(context.Context, *libraryv1.CreatePlayTicketRequest, ...grpc.CallOption) (*libraryv1.CreatePlayTicketResponse, error)
+	resolvePlayTicket func(context.Context, *libraryv1.ResolvePlayTicketRequest, ...grpc.CallOption) (*libraryv1.ResolvePlayTicketResponse, error)
 }
 
 func (f *fakeLibraryClient) SyncSource(ctx context.Context, in *libraryv1.SyncSourceRequest, opts ...grpc.CallOption) (*libraryv1.SyncSourceResponse, error) {
@@ -135,6 +137,19 @@ func (f *fakeLibraryClient) GetTitle(ctx context.Context, in *libraryv1.GetTitle
 		return f.getTitle(ctx, in, opts...)
 	}
 	return &libraryv1.GetTitleResponse{Title: &libraryv1.Title{TitleId: in.GetTitleId(), Availability: libraryv1.AvailabilityState_AVAILABILITY_STATE_AVAILABLE}}, nil
+}
+
+func (f *fakeLibraryClient) CreatePlayTicket(ctx context.Context, in *libraryv1.CreatePlayTicketRequest, opts ...grpc.CallOption) (*libraryv1.CreatePlayTicketResponse, error) {
+	if f.createPlayTicket != nil {
+		return f.createPlayTicket(ctx, in, opts...)
+	}
+	return &libraryv1.CreatePlayTicketResponse{Ticket: "tick_test"}, nil
+}
+func (f *fakeLibraryClient) ResolvePlayTicket(ctx context.Context, in *libraryv1.ResolvePlayTicketRequest, opts ...grpc.CallOption) (*libraryv1.ResolvePlayTicketResponse, error) {
+	if f.resolvePlayTicket != nil {
+		return f.resolvePlayTicket(ctx, in, opts...)
+	}
+	return &libraryv1.ResolvePlayTicketResponse{TitleId: "ttl_1", SourceId: "src_1", StreamUrl: "http://example.test/videoticket.bin", Authorization: "MediaBrowser Client=\"abcmovies\", Device=\"abcmovies-server\", DeviceId=\"abcmovies-source\", Version=\"0.0.0\""}, nil
 }
 
 func doJSON(handler http.Handler, method, target, body string, headers map[string]string) *httptest.ResponseRecorder {

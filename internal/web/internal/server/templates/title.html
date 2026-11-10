@@ -14,7 +14,22 @@
     {{if .TitleDetail.AvailabilityDetail}}<br><span>{{.TitleDetail.AvailabilityDetail}}</span>{{end}}
   </p>
   {{if eq .TitleDetail.Availability "available"}}
-  <p>This title was available in the last known sync — if the source has changed or failed to sync since, this may be out of date. Check <a href="/library">Library</a> for the last sync status. Playing it will be added in REQ-PLY-01 (#26).</p>
+    {{if eq .TitleDetail.Kind "series"}}
+    <p>Series playback is not supported in Build 1 yet — only movies can be played. The episodes are the playable items, and episode-level library sync is not part of Build 1.</p>
+    {{else}}
+    {{if .PlayError}}<p class="error" role="alert">{{.PlayError}}</p>{{end}}
+    <form method="post" action="/library/title/{{.TitleDetail.TitleID}}/play">
+      <fieldset>
+        <legend>Play</legend>
+        <p>This streams from <strong>{{.TitleDetail.SourceDisplayName}}</strong> through ABCMovies. Credentials are used only to reach the source and are held in memory for this session (never stored), so you only enter them once. Leave the fields blank to reuse credentials cached for this session.</p>
+        <label>Username<br><input name="username" autocomplete="username"></label>
+        <label>Password<br><input name="password" type="password" autocomplete="current-password"></label>
+        <label>…or API key<br><input name="api_key" type="password" autocomplete="off"></label>
+      </fieldset>
+      <button type="submit">Play</button>
+    </form>
+    <p><em>Note: this title was available in the last known sync — if the source has changed since, playback may fail. Protected/DRM-encoded content cannot be played (see limits).</em></p>
+    {{end}}
   {{else}}
   <p>This title is not currently presented as playable from your connected sources (availability comes from the last known sync and may be out of date — check <a href="/library">Library</a>). Try syncing again on <a href="/library">Library</a> or check <a href="/sources">Sources</a>.</p>
   {{end}}
