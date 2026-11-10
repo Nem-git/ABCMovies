@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -124,12 +125,28 @@ func TestPlayRejectsSeriesAndUnavailable(t *testing.T) {
 	if len(search.Titles) != 1 || search.Titles[0].Kind != "series" {
 		t.Fatalf("search for series returned %+v", search.Titles)
 	}
+	seriesID := search.Titles[0].TitleID
 	code, body := playTitle(t, client, base, search.Titles[0].TitleID, map[string]any{})
 	if code != http.StatusUnprocessableEntity {
 		t.Fatalf("play series status = %d, want 422; body=%s", code, body)
 	}
 	if !strings.Contains(string(body), "series") {
 		t.Fatalf("play series body = %s, want a series explanation", body)
+	}
+
+	// The series title page never grows a play form; it explains the limit
+	// instead (the title is still available here, before the re-sync below).
+	resp = getWithSession(t, base+"/library/title/"+seriesID, sessionCookieValue(t, client, base))
+	seriesPage, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("series title page status = %d, want 200; body=%s", resp.StatusCode, seriesPage)
+	}
+	if !strings.Contains(string(seriesPage), "Series playback is not supported in Build 1 yet") {
+		t.Fatalf("series title page missing the series notice: %s", seriesPage)
+	}
+	if bytes.Contains(seriesPage, []byte(`action="/library/title/`+seriesID+`/play"`)) {
+		t.Fatal("series title page offered a play form")
 	}
 
 	// Unavailable title: removed from the source, re-sync reusing the
@@ -156,6 +173,23 @@ func TestPlayRejectsSeriesAndUnavailable(t *testing.T) {
 	if code != http.StatusUnprocessableEntity {
 		t.Fatalf("play unavailable status = %d, want 422; body=%s", code, body)
 	}
+
+	// The title page for the unavailable title shows the honest notice and
+	// offers no play form (no dead-end action).
+	unavailableID := search.Titles[0].TitleID
+	resp = getWithSession(t, base+"/library/title/"+unavailableID, sessionCookieValue(t, client, base))
+	gonePage, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unavailable title page status = %d, want 200; body=%s", resp.StatusCode, gonePage)
+	}
+	if !strings.Contains(string(gonePage), "not currently presented as playable") {
+		t.Fatalf("unavailable title page missing the honest notice: %s", gonePage)
+	}
+	if bytes.Contains(gonePage, []byte(`action="/library/title/`+unavailableID+`/play"`)) {
+		t.Fatal("unavailable title page offered a play form")
+	}
+
 }
 
 func TestStreamTicketBoundaries(t *testing.T) {
