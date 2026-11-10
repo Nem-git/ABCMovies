@@ -22,7 +22,7 @@ Durable decision records for ABCMovies.
 | tech/0003 | API and browser transport | Technical | Proposed (migration draft) | #22 |
 | tech/0004 | Storage baseline | Technical | Accepted | #22 |
 | tech/0005 | First integrations | Technical | Accepted | #22 |
-| tech/0006 | Repository layout | Technical | Proposed (migration draft) | #22 |
+| tech/0006 | Repository layout | Technical | Accepted | #22 |
 | tech/0007 | CI and dependency updates | Technical | Accepted | #22 |
 | tech/0008 | Config and secrets | Technical | Accepted | #22 |
 | tech/0009 | Frontend packaging | Technical | Proposed (migration draft) | #22 |

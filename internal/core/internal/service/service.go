@@ -1,5 +1,5 @@
-// Package core implements the identity gRPC service.
-package core
+// Package service implements the identity gRPC service.
+package service
 
 import (
 	"context"
@@ -11,8 +11,8 @@ import (
 	"google.golang.org/grpc/status"
 
 	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
-	"github.com/Nem-git/ABCMovies/internal/auth"
-	"github.com/Nem-git/ABCMovies/internal/store"
+	"github.com/Nem-git/ABCMovies/internal/core/internal/auth"
+	"github.com/Nem-git/ABCMovies/internal/core/internal/store"
 )
 
 // sessionTTL is how long a login session lasts.

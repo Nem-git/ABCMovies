@@ -16,10 +16,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Nem-git/ABCMovies/internal/audit"
-	"github.com/Nem-git/ABCMovies/internal/auth"
 	"github.com/Nem-git/ABCMovies/internal/config"
-	"github.com/Nem-git/ABCMovies/internal/store"
+	"github.com/Nem-git/ABCMovies/internal/core/internal/audit"
+	"github.com/Nem-git/ABCMovies/internal/core/internal/auth"
+	"github.com/Nem-git/ABCMovies/internal/core/internal/store"
 )
 
 func auditPath(dbPath string) string {

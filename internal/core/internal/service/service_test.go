@@ -1,4 +1,4 @@
-package core
+package service
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
-	"github.com/Nem-git/ABCMovies/internal/store"
+	"github.com/Nem-git/ABCMovies/internal/core/internal/store"
 )
 
 func newTestService(t *testing.T) (*IdentityService, *store.Store) {

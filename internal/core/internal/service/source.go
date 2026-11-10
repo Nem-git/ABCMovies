@@ -1,4 +1,4 @@
-package core
+package service
 
 import (
 	"context"
@@ -9,8 +9,8 @@ import (
 	"google.golang.org/grpc/status"
 
 	sourcev1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1"
-	"github.com/Nem-git/ABCMovies/internal/connector/source/jellyfin"
-	"github.com/Nem-git/ABCMovies/internal/store"
+	"github.com/Nem-git/ABCMovies/internal/core/internal/connector/source/jellyfin"
+	"github.com/Nem-git/ABCMovies/internal/core/internal/store"
 )
 
 // maxDisplayNameLength bounds user-supplied display names; values in this

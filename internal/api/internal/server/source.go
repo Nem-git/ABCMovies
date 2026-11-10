@@ -3,7 +3,7 @@
 // input-only: they are forwarded to the core and never echoed, logged, or
 // stored by the API. Responses are always Cache-Control: no-store (via
 // writeJSON).
-package api
+package server
 
 import (
 	"encoding/json"
