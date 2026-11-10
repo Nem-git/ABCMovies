@@ -8,22 +8,7 @@
     {{range .LibrarySyncStates}}
     <li>
       <strong>{{.SourceDisplayName}}</strong>
-      — outcome: {{if eq .LastOutcome "success"}}up to date{{else if eq .LastOutcome "partial"}}partial{{else if eq .LastOutcome "failed"}}failed{{else}}not synced<script>
-(function () {
-  document.querySelectorAll('.syncDetails .syncForm, .syncDetails form').forEach((form) => {
-    form.querySelectorAll('input[name="cred_type"]').forEach((radio) => {
-      radio.addEventListener('change', () => {
-        const pw = form.querySelector('[data-cred-panel="password"]');
-        const key = form.querySelector('[data-cred-panel="api_key"]');
-        const isPassword = radio.value === 'password';
-        if (pw) pw.hidden = !isPassword;
-        if (key) key.hidden = isPassword;
-      });
-    });
-  });
-})();
-</script>
-{{end}}
+      — outcome: {{if eq .LastOutcome "success"}}up to date{{else if eq .LastOutcome "partial"}}partial{{else if eq .LastOutcome "failed"}}failed{{else}}not synced{{end}}
       {{if .LastSyncedAt}}· last synced {{.LastSyncedAt}}{{end}}
       · titles: {{.TitleCount}}
       {{if .Detail}}<br>{{.Detail}}{{end}}
@@ -52,14 +37,14 @@
     <li>
       <a href="/library/title/{{.TitleID}}"><strong>{{.Name}}</strong></a>
       — {{.Kind}}{{if .Year}} · {{.Year}}{{end}}
-      — {{.Availability}}{{if .AvailabilityDetail}} ({{.AvailabilityDetail}}){{end}}
+      — {{if eq .Availability "available"}}available{{else}}unavailable{{end}}{{if .AvailabilityDetail}} ({{.AvailabilityDetail}}){{end}}
       — from {{.SourceDisplayName}}
     </li>
     {{end}}
   </ul>
   {{if gt .LibraryTotalCount (len .LibraryTitles)}}
   <p>
-    Pagination is not implemented yet ({{len .LibraryTitles}} of {{.LibraryTotalCount}} shown). Try a more specific search for now.
+    Showing one page. {{len .LibraryTitles}} of {{.LibraryTotalCount}} titles shown; use a more specific search to narrow results.
   </p>
   {{end}}
   {{else}}
@@ -74,13 +59,13 @@
   {{range .Sources}}
   <details class="syncDetails" data-source-id="{{.SourceID}}" {{if eq .SourceID $.SyncSourceID}}open{{end}}>
     <summary>Sync {{.DisplayName}}</summary>
-    <form method="post" action="/library/source/{{.SourceID}}/sync">
+    <form class="syncForm" data-source-id="{{.SourceID}}" method="post" action="/library/source/{{.SourceID}}/sync">
       <fieldset>
         <legend>Sync credentials for {{.DisplayName}}</legend>
         <label><input type="radio" name="cred_type" value="password" {{if ne $.SyncCredType "api_key"}}checked{{end}}> Username / password</label>
         <label><input type="radio" name="cred_type" value="api_key" {{if eq $.SyncCredType "api_key"}}checked{{end}}> API key</label>
         <div data-cred-panel="password">
-          <label>Username<br><input name="username" autocomplete="username" value="{{if eq $.SyncSourceID $.SourceID}}{{$.SyncUsername}}{{end}}"></label>
+          <label>Username<br><input name="username" autocomplete="username" value="{{if eq $.SyncSourceID .SourceID}}{{$.SyncUsername}}{{end}}"></label>
           <label>Password<br><input name="password" type="password" autocomplete="current-password"></label>
         </div>
         <div data-cred-panel="api_key">
@@ -96,4 +81,21 @@
   <p>No sources connected yet. Connect one on <a href="/sources">Sources</a> first, then sync it here.</p>
   {{end}}
 </section>
+<script>
+(function () {
+  document.querySelectorAll('.syncForm').forEach((form) => {
+    const panels = form.querySelectorAll('[data-cred-panel]');
+    function show(type) {
+      panels.forEach((panel) => {
+        panel.hidden = panel.getAttribute('data-cred-panel') !== type;
+      });
+    }
+    form.querySelectorAll('input[name="cred_type"]').forEach((radio) => {
+      radio.addEventListener('change', () => show(radio.value));
+    });
+    const checked = form.querySelector('input[name="cred_type"]:checked');
+    show((checked && checked.value) || 'password');
+  });
+})();
+</script>
 {{end}}
