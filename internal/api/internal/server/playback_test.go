@@ -76,17 +76,17 @@ func TestStreamProxyRedirectsAndUpstreamServerError(t *testing.T) {
 
 	srv := NewServer(validSessionIdentity(), &fakeSourceClient{}, &fakeLibraryClient{
 		resolvePlayTicket: func(_ context.Context, in *libraryv1.ResolvePlayTicketRequest, _ ...grpc.CallOption) (*libraryv1.ResolvePlayTicketResponse, error) {
-		url := source.URL
-		switch in.GetTicket() {
-		case "foreign":
-			url += "/redirect-foreign"
-		case "self":
-			url += "/redirect-self"
-		case "boom":
-			url += "/boom"
-		}
-		return &libraryv1.ResolvePlayTicketResponse{TitleId: "ttl_1", SourceId: "src_1", StreamUrl: url, Authorization: `MediaBrowser Token="t"`}, nil
-	},
+			url := source.URL
+			switch in.GetTicket() {
+			case "foreign":
+				url += "/redirect-foreign"
+			case "self":
+				url += "/redirect-self"
+			case "boom":
+				url += "/boom"
+			}
+			return &libraryv1.ResolvePlayTicketResponse{TitleId: "ttl_1", SourceId: "src_1", StreamUrl: url, Authorization: `MediaBrowser Token="t"`}, nil
+		},
 	})
 	do := func(ticket string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(http.MethodGet, "/api/library/title/ttl_1/stream?ticket="+ticket, nil)
@@ -211,5 +211,11 @@ func TestStreamProxyRangeAndNotFound(t *testing.T) {
 	rr = do(http.MethodGet, "/api/library/title/ttl_1/stream?ticket=good", "", "")
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("anonymous stream = %d, want 401", rr.Code)
+	}
+
+	// Every proxied stream started through streamInFlight.Add(1) exits
+	// through the deferred decrement.
+	if got := streamInFlight.Load(); got != 0 {
+		t.Fatalf("streamInFlight = %d after proxied responses, want 0", got)
 	}
 }

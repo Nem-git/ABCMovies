@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -175,7 +176,18 @@ func (s *Server) apiLibraryStream(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(upstream.StatusCode)
-	_, _ = io.Copy(w, upstream.Body)
+	streamInFlight.Add(1)
+	// Decrement on the way out; one line per stream carrying the active
+	// count so concurrent play sessions are visible without any cap.
+	defer func() {
+		n := streamInFlight.Add(-1)
+		slog.Info("upstream stream proxy finished", "title_id", titleID, "active", n)
+	}()
+	slog.Info("upstream stream proxy started", "title_id", titleID, "active", streamInFlight.Load())
+	_, copyErr := io.Copy(w, upstream.Body)
+	if copyErr != nil {
+		slog.Info("upstream stream copy ended early", "title_id", titleID, "err", copyErr)
+	}
 }
 
 // logValidatorDropOnce records, at most once per minted ticket, that the
@@ -183,6 +195,11 @@ func (s *Server) apiLibraryStream(w http.ResponseWriter, r *http.Request) {
 // deliberately not supported: no-store stands, see the runbook). Names only,
 // never values.
 var droppedValidators sync.Map // ticket (string) -> struct{}
+
+// streamInFlight counts concurrent upstream media streams proxied by this
+// process; logged on start/end, never capped (Build 1 is single-instance).
+var streamInFlight atomic.Int64
+
 func logValidatorDropOnce(ticket, titleID string, names []string) {
 	if _, loaded := droppedValidators.LoadOrStore(ticket, struct{}{}); loaded {
 		return
