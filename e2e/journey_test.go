@@ -125,6 +125,8 @@ type libraryTitleResponse struct {
 type librarySyncStateResponse struct {
 	SourceDisplayName string `json:"source_display_name"`
 	Detail            string `json:"detail,omitempty"`
+	LastOutcome       string `json:"last_outcome"`
+	TitleCount        int    `json:"title_count"`
 }
 
 type libraryListResponse struct {
@@ -620,7 +622,8 @@ type mockJellyfin struct {
 	URL    string
 	server *httptest.Server
 
-	items []string
+	items     []string
+	failItems bool
 }
 
 func newMockJellyfin(t *testing.T, systemID, serverName, version string) *mockJellyfin {
@@ -655,6 +658,11 @@ func newMockJellyfin(t *testing.T, systemID, serverName, version string) *mockJe
 		fmt.Fprintf(w, `{"ServerName":%q,"Id":%q,"Version":%q}`, serverName, systemID, version)
 	})
 	mux.HandleFunc("GET /Items", func(w http.ResponseWriter, r *http.Request) {
+		if m.failItems {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			fmt.Fprint(w, `{"Message":"upstream unavailable"}`)
+			return
+		}
 		q := r.URL.Query()
 		if q.Get("includeItemTypes") != "Movie,Series" || q.Get("fields") != "Overview" {
 			w.WriteHeader(http.StatusBadRequest)
@@ -687,4 +695,11 @@ func seriesItem(id, name, year string) string {
 
 func (m *mockJellyfin) SetItems(items ...string) {
 	m.items = items
+}
+
+// FailItems toggles the mock's /Items endpoint to return 503, simulating a
+// source that becomes unreachable mid-life. Successful prior syncs remain
+// in the snapshot.
+func (m *mockJellyfin) FailItems(fail bool) {
+	m.failItems = fail
 }
