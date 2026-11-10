@@ -115,6 +115,35 @@ func (s *Server) libraryPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
 		return
 	}
+	const pageSize int32 = 50
+	libraryHref := func(off int32) string {
+		v := url.Values{}
+		if q != "" {
+			v.Set("q", q)
+		}
+		if off > 0 {
+			v.Set("offset", fmt.Sprintf("%d", off))
+		}
+		if enc := v.Encode(); enc != "" {
+			return "/library?" + enc
+		}
+		return "/library"
+	}
+	showing := ""
+	if len(list.Titles) > 0 {
+		showing = fmt.Sprintf("%d–%d of %d", offset+1, offset+int32(len(list.Titles)), list.TotalCount)
+	}
+	prevHref, nextHref := "", ""
+	if offset > 0 {
+		prev := offset - pageSize
+		if prev < 0 {
+			prev = 0
+		}
+		prevHref = libraryHref(prev)
+	}
+	if int64(offset)+int64(len(list.Titles)) < int64(list.TotalCount) {
+		nextHref = libraryHref(offset + pageSize)
+	}
 	s.render(w, "library", pageData{
 		Title:               "Library",
 		Username:            username,
@@ -124,8 +153,11 @@ func (s *Server) libraryPage(w http.ResponseWriter, r *http.Request) {
 		SyncStateBySourceID: indexSyncStates(list.SyncStates),
 		LibraryQuery:        q,
 		LibraryTotalCount:   list.TotalCount,
-		LibraryLimit:        50,
+		LibraryLimit:        pageSize,
 		LibraryOffset:       offset,
+		LibraryShowing:      showing,
+		LibraryPrevHref:     prevHref,
+		LibraryNextHref:     nextHref,
 	})
 }
 

@@ -14,9 +14,9 @@
     {{if .TitleDetail.AvailabilityDetail}}<br><span>{{.TitleDetail.AvailabilityDetail}}</span>{{end}}
   </p>
   {{if eq .TitleDetail.Availability "available"}}
-  <p>This title is reachable in the last known sync. Playing it will be added in REQ-PLY-01 (#26).</p>
+  <p>This title was available in the last known sync — if the source has changed or failed to sync since, this may be out of date. Check <a href="/library">Library</a> for the last sync status. Playing it will be added in REQ-PLY-01 (#26).</p>
   {{else}}
-  <p>This title is not currently presented as playable from your connected sources. Try syncing again on <a href="/library">Library</a> or check <a href="/sources">Sources</a>.</p>
+  <p>This title is not currently presented as playable from your connected sources (availability comes from the last known sync and may be out of date — check <a href="/library">Library</a>). Try syncing again on <a href="/library">Library</a> or check <a href="/sources">Sources</a>.</p>
   {{end}}
 </section>
 {{end}}

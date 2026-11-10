@@ -52,6 +52,8 @@
 
 <section aria-labelledby="titlesHeading">
   <h2 id="titlesHeading">Titles</h2>
+  {{$stale := false}}{{range .LibrarySyncStates}}{{if or (eq .LastOutcome "failed") (eq .LastOutcome "partial")}}{{$stale = true}}{{end}}{{end}}
+  {{if $stale}}<p class="error" role="alert">Some sources have not synced successfully. Titles and availability below may be out of date — sync again to refresh (you must supply credentials again).</p>{{end}}
   {{if .LibraryTitles}}
   <ul>
     {{range .LibraryTitles}}
@@ -63,9 +65,11 @@
     </li>
     {{end}}
   </ul>
-  {{if gt .LibraryTotalCount (len .LibraryTitles)}}
+  {{if .LibraryShowing}}
   <p>
-    Showing one page. {{len .LibraryTitles}} of {{.LibraryTotalCount}} titles shown; use a more specific search to narrow results.
+    Showing {{.LibraryShowing}} titles.
+    {{if .LibraryPrevHref}}<a href="{{.LibraryPrevHref}}">← Previous page</a>{{end}}
+    {{if .LibraryNextHref}}<a href="{{.LibraryNextHref}}">Next page →</a>{{end}}
   </p>
   {{end}}
   {{else}}
