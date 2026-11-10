@@ -737,6 +737,9 @@ func TestBuild1Journey(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("play form status = %d, body=%s", resp.StatusCode, playerPage)
 		}
+		if cc := resp.Header.Get("Cache-Control"); cc != "no-store" {
+			t.Fatalf("player page Cache-Control = %q, want no-store (page embeds the ticket URL)", cc)
+		}
 		if !bytes.Contains(playerPage, []byte("<video")) {
 			t.Fatalf("player page missing <video>, body=%s", playerPage)
 		}

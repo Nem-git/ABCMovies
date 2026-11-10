@@ -71,6 +71,10 @@ func (s *Server) playTitle(w http.ResponseWriter, r *http.Request) {
 	if code, err := s.apiGet(r, "/api/library/title/"+url.PathEscape(titleID), &title); err != nil || code != http.StatusOK {
 		title = libraryTitle{Name: titleID}
 	}
+	// The player page embeds the ticket-carrying stream URL: never let it be
+	// stored by a browser or proxy cache (all other HTML pages are cached the
+	// same way today; this one carries a short-lived capability).
+	w.Header().Set("Cache-Control", "no-store")
 	s.render(w, "player", pageData{
 		Title:    "Play · " + title.Name,
 		Username: username,
