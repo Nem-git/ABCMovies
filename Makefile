@@ -12,10 +12,10 @@ BUF_ASSET   = buf-$(shell uname -s)-$(shell uname -m)
 .PHONY: check test build proto proto-check proto-lint proto-generate \
         run-core run-api run-web run-all
 
-# Standard recipe (CI runs this; do not change its behavior).
+# Standard recipe (CI runs this; any change here changes CI too).
 check:
 	go vet ./...
-	go test ./...
+	go test -race ./...
 
 # Convenience alias for test-only iteration.
 test:

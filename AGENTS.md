@@ -92,7 +92,7 @@ vague "go ahead".
   verify it is not done.
 - When a standard check recipe exists (CI, task runner, test command), run the
   same recipe locally before claiming work is done. For this repository, the
-  standard local check is `make check` (it runs `go vet ./...` and `go test ./...`).
+  standard local check is `make check` (it runs `go vet ./...` and `go test -race ./...`).
   Never invent a substitute that hides failures. If a check cannot be run, say
   exactly what was skipped and why.
 - Reject, never downgrade: do not work around a failing check or silently reduce
