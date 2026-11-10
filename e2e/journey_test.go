@@ -743,6 +743,20 @@ func TestBuild1Journey(t *testing.T) {
 		if !bytes.Contains(playerPage, []byte("<video")) {
 			t.Fatalf("player page missing <video>, body=%s", playerPage)
 		}
+		// The player ships the honest-failure copy and the JS hooks that
+		// render it. This asserts the UI is in the page; whether a browser
+		// fires the error event is outside this harness's reach.
+		if !bytes.Contains(playerPage, []byte("If playback does not start")) {
+			t.Fatal("player page missing the honest failure notice")
+		}
+		if !bytes.Contains(playerPage, []byte("DRM")) {
+			t.Fatal("player page missing the protected-content limit")
+		}
+		if !bytes.Contains(playerPage, []byte("showPlaybackNote")) ||
+			!bytes.Contains(playerPage, []byte("addEventListener('error'")) ||
+			!bytes.Contains(playerPage, []byte("addEventListener('stalled'")) {
+			t.Fatal("player page missing the playback-failure note hooks")
+		}
 		if bytes.Contains(playerPage, []byte("correct horse")) || bytes.Contains(playerPage, []byte("api_key")) {
 			t.Fatal("player page leaked credential material")
 		}
