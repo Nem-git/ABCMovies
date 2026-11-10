@@ -38,10 +38,10 @@ type pageData struct {
 	LibraryOffset     int32
 	// Precomputed "Showing N–M of T titles." and prev/next page hrefs
 	// (computed server-side so the query stays properly encoded).
-	LibraryShowing string
+	LibraryShowing  string
 	LibraryPrevHref string
 	LibraryNextHref string
-	LibraryError      string
+	LibraryError    string
 	// Per-source sync panel expansion/error for no-JS re-render.
 	SyncSourceID string
 	SyncError    string
