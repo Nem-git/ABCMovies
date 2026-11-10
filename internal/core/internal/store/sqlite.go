@@ -71,6 +71,29 @@ CREATE TABLE IF NOT EXISTS sessions (
     created   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     expires   TIMESTAMP NOT NULL
 );
+CREATE TABLE IF NOT EXISTS library_titles (
+    title_id            TEXT PRIMARY KEY,
+    source_id           TEXT NOT NULL REFERENCES sources(source_id) ON DELETE CASCADE,
+    external_id         TEXT NOT NULL,
+    name                TEXT NOT NULL,
+    kind                INTEGER NOT NULL,
+    year                INTEGER NOT NULL DEFAULT 0,
+    overview            TEXT NOT NULL DEFAULT '',
+    availability        INTEGER NOT NULL,
+    availability_detail TEXT NOT NULL DEFAULT '',
+    created             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(source_id, external_id)
+);
+CREATE INDEX IF NOT EXISTS library_titles_name ON library_titles(name);
+CREATE INDEX IF NOT EXISTS library_titles_source_name ON library_titles(source_id, name);
+CREATE TABLE IF NOT EXISTS source_library_sync_states (
+    source_id      TEXT PRIMARY KEY REFERENCES sources(source_id) ON DELETE CASCADE,
+    last_outcome   INTEGER NOT NULL,
+    last_synced_at TIMESTAMP,
+    detail         TEXT NOT NULL DEFAULT '',
+    title_count    INTEGER NOT NULL DEFAULT 0
+);
 CREATE INDEX IF NOT EXISTS sessions_expires ON sessions(expires);
 CREATE TABLE IF NOT EXISTS sources (
     source_id            TEXT PRIMARY KEY,
