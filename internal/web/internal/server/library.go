@@ -171,6 +171,10 @@ func (s *Server) titleDetail(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "title_id is required", http.StatusBadRequest)
 		return
 	}
+	s.renderTitleDetail(w, r, username, titleID, "")
+}
+
+func (s *Server) renderTitleDetail(w http.ResponseWriter, r *http.Request, username, titleID, playError string) {
 	var title libraryTitle
 	code, err := s.apiGet(r, "/api/library/title/"+url.PathEscape(titleID), &title)
 	if err != nil {
@@ -186,7 +190,7 @@ func (s *Server) titleDetail(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "title not found", http.StatusNotFound)
 		return
 	}
-	s.render(w, "title", pageData{Title: title.Name, Username: username, TitleDetail: &title})
+	s.render(w, "title", pageData{Title: title.Name, Username: username, TitleDetail: &title, PlayError: playError})
 }
 
 func (s *Server) syncPost(w http.ResponseWriter, r *http.Request) {

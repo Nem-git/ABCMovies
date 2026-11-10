@@ -77,15 +77,27 @@ func (s *Server) registerLibraryRoutes() {
 }
 
 func buildSyncRequest(actor, sourceID string, c *libraryCredentials) (*libraryv1.SyncSourceRequest, error) {
+	req := &libraryv1.SyncSourceRequest{ActorUserId: actor, SourceId: sourceID}
 	if c == nil {
-		return nil, errors.New("credentials are required")
+		return req, nil // omitted entirely: core reuses the session cache
 	}
-	hasPassword := strings.TrimSpace(c.Password) != ""
-	hasAPIKey := strings.TrimSpace(c.APIKey) != ""
+	userSet := strings.TrimSpace(c.Username) != ""
+	passSet := strings.TrimSpace(c.Password) != ""
+	keySet := strings.TrimSpace(c.APIKey) != ""
 	switch {
-	case hasPassword && hasAPIKey:
+	case keySet && (userSet || passSet):
 		return nil, errors.New("provide either username/password or an API key, not both")
-	case hasPassword:
+	case keySet:
+		return &libraryv1.SyncSourceRequest{
+			ActorUserId: actor,
+			SourceId:    sourceID,
+			Credentials: &libraryv1.SyncSourceRequest_ApiKey{ApiKey: strings.TrimSpace(c.APIKey)},
+		}, nil
+	case userSet != passSet:
+		// A half-filled password pair is an error, not a silent fall-back to
+		// the session cache (the play endpoint already rejects this).
+		return nil, errors.New("username and password are required together")
+	case userSet && passSet:
 		return &libraryv1.SyncSourceRequest{
 			ActorUserId: actor,
 			SourceId:    sourceID,
@@ -93,14 +105,9 @@ func buildSyncRequest(actor, sourceID string, c *libraryCredentials) (*libraryv1
 				Username: strings.TrimSpace(c.Username), Password: c.Password,
 			}},
 		}, nil
-	case hasAPIKey:
-		return &libraryv1.SyncSourceRequest{
-			ActorUserId: actor,
-			SourceId:    sourceID,
-			Credentials: &libraryv1.SyncSourceRequest_ApiKey{ApiKey: strings.TrimSpace(c.APIKey)},
-		}, nil
 	default:
-		return nil, errors.New("credentials are required")
+		// All-blank credentials object: use this session's cached credentials.
+		return req, nil
 	}
 }
 

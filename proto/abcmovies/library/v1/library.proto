@@ -1,7 +1,18 @@
 // Library service: sync a connected source's library and present titles for
 // browsing, search, and detail. Build 1: Jellyfin-first, single-source,
-// instance-scope. Credentials are input-only and never stored, returned, or
-// logged.
+// instance-scope. Credentials are input-only and never persisted, returned,
+// or logged.
+//
+// Session credential cache (Build 1): when a request that needs source
+// credentials carries none, the core reuses the credentials this user entered
+// earlier (held in memory only — never written to the store, never logged,
+// cleared on restart; sliding 12h expiry, refreshed on use). Note this
+// cache is keyed by user_id: it is per-user, per-process, and shared by all
+// sessions of that user. If none are cached, the call fails with
+// FailedPrecondition and the UI asks for credentials. This is deliberately
+// in-memory only; DEC-003 (Build 2) decides encrypted at-rest custody later.
+// The credential-resolution point is the single place that changes when
+// DEC-003 lands.
 syntax = "proto3";
 
 package abcmovies.library.v1;
@@ -11,11 +22,10 @@ import "google/protobuf/timestamp.proto";
 option go_package = "github.com/Nem-git/ABCMovies/gen/go/abcmovies/library/v1;libraryv1";
 
 service LibraryService {
-  // SyncSource refreshes the library snapshot for a connected source using
-  // transient credentials. Credentials are required on every sync; none are
-  // stored (Build 1). Connecting does not sync: both the initial sync and
-  // any manual re-sync require the user to supply credentials again, until
-  // the credential-custody decision (DEC-003) changes this.
+  // SyncSource refreshes the library snapshot for a connected source.
+  // Credentials: if present they are used for this call and cached in memory
+  // for the session; if absent the session cache is reused. If neither is
+  // available, the call fails with FailedPrecondition. Nothing is persisted.
   rpc SyncSource(SyncSourceRequest) returns (SyncSourceResponse);
 
   // ListTitles returns titles from the reachable library (browse).
@@ -26,6 +36,22 @@ service LibraryService {
 
   // GetTitle returns one title with detail and availability.
   rpc GetTitle(GetTitleRequest) returns (GetTitleResponse);
+
+  // CreatePlayTicket mints a short-lived, item-scoped, opaque ticket for
+  // streaming a title to an HTTP client. Credentials behave exactly as in
+  // SyncSource: supplied credentials are cached in memory for the session;
+  // omitted credentials reuse the session cache; if neither is available the
+  // call fails with FailedPrecondition. The ticket binds the actor and title
+  // and expires quickly (see ResolvePlayTicket). Series are refused in
+  // Build 1 (only movies are playable).
+  rpc CreatePlayTicket(CreatePlayTicketRequest) returns (CreatePlayTicketResponse);
+
+  // ResolvePlayTicket validates a ticket and returns what the HTTP edge
+  // needs to proxy the upstream stream. It is a server-to-server call: the
+  // response carries a source access token and must never reach a browser.
+  // Returns NotFound for unknown, expired, or foreign-actor tickets (the
+  // error is deliberately uniform).
+  rpc ResolvePlayTicket(ResolvePlayTicketRequest) returns (ResolvePlayTicketResponse);
 }
 
 enum SyncOutcome {
@@ -82,7 +108,7 @@ message Title {
 message SyncSourceRequest {
   string actor_user_id = 1;
   string source_id = 2;
-  oneof credentials {            // input only; required
+  oneof credentials {            // input only; omit to reuse the session cache
     PasswordCredentials password = 3;
     string api_key = 4;
   }
@@ -126,4 +152,30 @@ message GetTitleRequest {
 
 message GetTitleResponse {
   Title title = 1;
+}
+
+message CreatePlayTicketRequest {
+  string actor_user_id = 1;
+  string title_id = 2;
+  oneof credentials {            // input only; omit to reuse the session cache
+    PasswordCredentials password = 3;
+    string api_key = 4;
+  }
+}
+
+message CreatePlayTicketResponse {
+  string ticket = 1;             // opaque; carries no credentials
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+message ResolvePlayTicketRequest {
+  string actor_user_id = 1;
+  string ticket = 2;
+}
+
+message ResolvePlayTicketResponse {
+  string title_id = 1;
+  string source_id = 2;
+  string stream_url = 3;         // upstream stream URL; safe to fetch server-side only
+  string authorization = 4;      // upstream Authorization header — server-to-server only, never a browser
 }

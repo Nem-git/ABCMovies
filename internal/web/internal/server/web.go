@@ -38,10 +38,10 @@ type pageData struct {
 	LibraryOffset     int32
 	// Precomputed "Showing N–M of T titles." and prev/next page hrefs
 	// (computed server-side so the query stays properly encoded).
-	LibraryShowing string
+	LibraryShowing  string
 	LibraryPrevHref string
 	LibraryNextHref string
-	LibraryError      string
+	LibraryError    string
 	// Per-source sync panel expansion/error for no-JS re-render.
 	SyncSourceID string
 	SyncError    string
@@ -51,6 +51,9 @@ type pageData struct {
 	SyncStateBySourceID map[string]sourceSyncState
 	// Title detail page context.
 	TitleDetail *libraryTitle
+	PlayError   string // inline playback error on the title page
+	// Player page context.
+	Playback *playbackView
 	// Error is the setup/login form error text (server-rendered, no-JS).
 	Error        string
 	FormUsername string
@@ -95,7 +98,7 @@ func NewServer(apiAddr string) (*Server, error) {
 	}
 
 	pages := map[string]*template.Template{}
-	for _, page := range []string{"setup", "login", "home", "sources", "library", "title"} {
+	for _, page := range []string{"setup", "login", "home", "sources", "library", "title", "player"} {
 		tmpl, err := template.ParseFS(templates, "templates/layout.html", "templates/"+page+".html")
 		if err != nil {
 			return nil, fmt.Errorf("parse template %q: %w", page, err)
@@ -126,6 +129,7 @@ func NewServer(apiAddr string) (*Server, error) {
 	s.mux.HandleFunc("GET /library", s.libraryPage)
 	s.mux.HandleFunc("POST /library/source/{source_id}/sync", s.syncPost)
 	s.mux.HandleFunc("GET /library/title/{title_id}", s.titleDetail)
+	s.mux.HandleFunc("POST /library/title/{title_id}/play", s.playTitle)
 	s.mux.HandleFunc("POST /setup", s.setupPost)
 	s.mux.HandleFunc("POST /login", s.loginPost)
 	s.mux.HandleFunc("POST /logout", s.logoutPost)

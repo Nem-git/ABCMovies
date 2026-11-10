@@ -5,6 +5,7 @@
 - Date: 2026-11-10
 - Owners: TBD
 - GitHub: #25
+- Superseded by: ADR 0005 (the re-sync-requires-credentials clause of the Decision section only)
 - Affects: REQ-LIB-04, REQ-LIB-05, #25
 
 ## Context
@@ -42,4 +43,4 @@ Build 1 syncs a connected Jellyfin source and presents its library. REQ-LIB-05 r
 
 ## Outcome
 
-**Accepted** — indexed Jellyfin snapshot with disclosed freshness and explicit re-sync credentials for Build 1. Affected issues/docs: #25, DEC-003 (#18). Date: 2026-11-10. Owners: TBD (to be filled in implementation).
+**Accepted** — indexed Jellyfin snapshot with disclosed freshness for Build 1. Affected issues/docs: #25, DEC-003 (#18). Date: 2026-11-10. (The “manual re-sync requires the user to provide credentials again” clause is superseded by ADR 0005.) Owners: TBD (to be filled in implementation).

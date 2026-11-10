@@ -26,8 +26,11 @@ const maxSyncDetailLength = 256
 type LibraryService struct {
 	libraryv1.UnimplementedLibraryServiceServer
 
-	store   *store.Store
-	fetcher libraryFetcher
+	store      *store.Store
+	fetcher    libraryFetcher
+	authorizer playbackAuthorizer
+	creds      *sessionCredStore
+	tickets    *ticketStore
 }
 
 // libraryFetcher is the dependency used to pull a library snapshot from a
@@ -46,7 +49,13 @@ func NewLibraryService(s *store.Store) *LibraryService {
 // NewLibraryServiceWithFetcher returns a LibraryService with a chosen library
 // fetcher. Tests use it to substitute a fake.
 func NewLibraryServiceWithFetcher(s *store.Store, fetcher libraryFetcher) *LibraryService {
-	return &LibraryService{store: s, fetcher: fetcher}
+	return &LibraryService{
+		store:      s,
+		fetcher:    fetcher,
+		authorizer: jellyfin.NewClient(),
+		creds:      newSessionCredStore(),
+		tickets:    newTicketStore(),
+	}
 }
 
 // SyncSource refreshes a source's library snapshot using transient credentials.
@@ -70,7 +79,11 @@ func (l *LibraryService) SyncSource(ctx context.Context, req *libraryv1.SyncSour
 		return nil, status.Errorf(codes.InvalidArgument, "source has no connector")
 	}
 
-	creds, err := credentialsFromLibraryRequest(req)
+	// Credentials: supplied in the request (then cached in memory for the
+	// session), or omitted to reuse this session's cache. Nothing is
+	// persisted; if neither is available the call fails with
+	// FailedPrecondition.
+	creds, err := l.resolveCredsFromOneof(actor, req.GetPassword(), req.GetApiKey())
 	if err != nil {
 		return nil, err
 	}
@@ -84,6 +97,9 @@ func (l *LibraryService) SyncSource(ctx context.Context, req *libraryv1.SyncSour
 		}
 		return nil, mapVerifyError(fetchErr)
 	}
+
+	// Auth/fetch succeeded: cache the credentials for this session.
+	l.creds.Put(actor, creds)
 
 	items := make([]store.LibraryTitleInput, 0, len(snapshot.Items))
 	for _, item := range snapshot.Items {
@@ -189,27 +205,7 @@ func clampOffset(offset int32) int32 {
 	return offset
 }
 
-func credentialsFromLibraryRequest(req *libraryv1.SyncSourceRequest) (jellyfin.Credentials, error) {
-	hasPassword := req.GetPassword() != nil
-	hasAPIKey := strings.TrimSpace(req.GetApiKey()) != ""
-	var creds jellyfin.Credentials
-	switch {
-	case hasPassword && hasAPIKey:
-		return jellyfin.Credentials{}, status.Errorf(codes.InvalidArgument, "provide either username/password or an API key, not both")
-	case hasPassword:
-		p := req.GetPassword()
-		username := strings.TrimSpace(p.GetUsername())
-		if username == "" || p.GetPassword() == "" {
-			return jellyfin.Credentials{}, status.Errorf(codes.InvalidArgument, "username and password are required together")
-		}
-		creds.Password = &jellyfin.PasswordCredentials{Username: username, Password: p.GetPassword()}
-	case hasAPIKey:
-		creds.APIKey = strings.TrimSpace(req.GetApiKey())
-	default:
-		return jellyfin.Credentials{}, status.Errorf(codes.InvalidArgument, "credentials are required")
-	}
-	return creds, nil
-}
+
 
 func titleKindFromString(kind string) int32 {
 	switch strings.ToLower(strings.TrimSpace(kind)) {

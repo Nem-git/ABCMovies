@@ -32,3 +32,4 @@ Durable decision records for ABCMovies.
 | product/0002 | Source/server identity (Jellyfin-first) | Product | Accepted | #15 |
 | product/0003 | DRM/protected-content stance | Product | Accepted (expected to be superseded later) | #17 |
 | product/0004 | Source library freshness | Product | Accepted | #25 |
+| product/0005 | Session credential cache (Build 1) | Product | Accepted | #26 |

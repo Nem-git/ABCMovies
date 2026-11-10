@@ -42,6 +42,7 @@ func NewServer(identityClient identityv1.IdentityServiceClient, sourceClient sou
 	s.mux.HandleFunc("GET /api/me", s.apiMe)
 	s.registerSourceRoutes()
 	s.registerLibraryRoutes()
+	s.registerLibraryPlaybackRoutes()
 	return s
 }
 

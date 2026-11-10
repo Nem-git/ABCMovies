@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -612,12 +613,165 @@ func TestBuild1Journey(t *testing.T) {
 		}
 	})
 	t.Run("play-reachable-non-drm-title", func(t *testing.T) {
-		t.Skip("requires REQ-PLY-01 implementation (#26, DEC-008)")
+		s := startStack(t)
+		client := httpClient(t)
+		base := "http://" + s.Web.HTTPAddr
+
+		mock := newMockJellyfin(t, "jf-e2e-play-id", "E2E Play Server", "10.10.7")
+		mock.SetItems(movieItem("mv-play-1", "E2E Playable", "2001"))
+
+		resp := postJSON(t, client, base+"/api/setup", map[string]string{
+			"username": "admin",
+			"password": "testpass1234",
+		})
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("setup status = %d", resp.StatusCode)
+		}
+
+		resp = postJSON(t, client, base+"/api/source/connect", map[string]any{
+			"connector_id": "jellyfin",
+			"endpoint":     mock.URL,
+			"credentials":  map[string]string{"username": "admin", "password": "correct horse"},
+		})
+		connBody, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("connect status = %d", resp.StatusCode)
+		}
+		var conn struct {
+			Source struct {
+				SourceID string `json:"source_id"`
+			} `json:"source"`
+		}
+		if err := json.Unmarshal(connBody, &conn); err != nil {
+			t.Fatalf("decode connect response: %v", err)
+		}
+		if conn.Source.SourceID == "" {
+			t.Fatalf("connect response missing source_id: %s", connBody)
+		}
+
+		// Sync: supplies credentials once for the session and primes the cache.
+		resp = postJSON(t, client, base+"/api/library/source/"+conn.Source.SourceID+"/sync", map[string]any{
+			"credentials": map[string]string{"username": "admin", "password": "correct horse"},
+		})
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("sync status = %d", resp.StatusCode)
+		}
+
+		// Find the title id from the list.
+		resp = getWithSession(t, base+"/api/library", sessionCookieValue(t, client, base))
+		listBody, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		var list struct {
+			Titles []struct {
+				TitleID string `json:"title_id"`
+				Name    string `json:"name"`
+				Kind    string `json:"kind"`
+			} `json:"titles"`
+		}
+		if err := json.Unmarshal(listBody, &list); err != nil {
+			t.Fatalf("decode list response: %v", err)
+		}
+		if len(list.Titles) != 1 {
+			t.Fatalf("expected 1 synced title, got %d", len(list.Titles))
+		}
+		titleID := list.Titles[0].TitleID
+
+		// Play with no credentials in the body: the session cache (primed by
+		// sync) kicks in.
+		resp = postJSON(t, client, base+"/api/library/title/"+titleID+"/play", map[string]any{})
+		playBody, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("play status = %d, body=%s", resp.StatusCode, playBody)
+		}
+		var play struct {
+			Ticket     string `json:"ticket"`
+			StreamHref string `json:"stream_href"`
+		}
+		if err := json.Unmarshal(playBody, &play); err != nil {
+			t.Fatalf("decode play response: %v", err)
+		}
+		if play.Ticket == "" || play.StreamHref == "" {
+			t.Fatalf("play response missing ticket/stream_href: %s", playBody)
+		}
+
+		// The video element fetches the stream; the browser carries the session cookie.
+		req, err := http.NewRequest(http.MethodGet, base+play.StreamHref, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err = client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		streamBody, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("stream status = %d, body=%s", resp.StatusCode, streamBody)
+		}
+		if string(streamBody) != fakeVideoBytes {
+			t.Fatalf("stream body = %q, want %q", streamBody, fakeVideoBytes)
+		}
+
+		// The title detail page renders the play form (no-JS path).
+		resp, err = client.Get(base + "/library/title/" + titleID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		titlePage, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("title page status = %d", resp.StatusCode)
+		}
+		if !bytes.Contains(titlePage, []byte("<video")) && !bytes.Contains(titlePage, []byte(`name="api_key"`)) {
+			t.Fatalf("title page missing the play form, body=%s", titlePage)
+		}
+
+		// Posting the play form renders the player page with a video element.
+		resp = postForm(t, client, base+"/library/title/"+titleID+"/play", url.Values{})
+		playerPage, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("play form status = %d, body=%s", resp.StatusCode, playerPage)
+		}
+		if cc := resp.Header.Get("Cache-Control"); cc != "no-store" {
+			t.Fatalf("player page Cache-Control = %q, want no-store (page embeds the ticket URL)", cc)
+		}
+		if !bytes.Contains(playerPage, []byte("<video")) {
+			t.Fatalf("player page missing <video>, body=%s", playerPage)
+		}
+		if bytes.Contains(playerPage, []byte("correct horse")) || bytes.Contains(playerPage, []byte("api_key")) {
+			t.Fatal("player page leaked credential material")
+		}
+
+		// Range request for seeking: expect 206 and the subrange bytes.
+		req, err = http.NewRequest(http.MethodGet, base+play.StreamHref, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Range", "bytes=0-3")
+		resp, err = client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rangeBody, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusPartialContent {
+			t.Fatalf("range stream status = %d, want 206; body=%s", resp.StatusCode, rangeBody)
+		}
+		if string(rangeBody) != fakeVideoBytes[:4] {
+			t.Fatalf("range body = %q, want first 4 bytes of fake video", rangeBody)
+		}
 	})
 }
 
 // mockJellyfin is a minimal Jellyfin HTTP API for e2e tests. It never
 // requires a real server and holds no real credentials.
+const fakeVideoBytes = "FAKE-MP4-STREAM-PAYLOAD-FOR-E2E-TESTS"
+
 type mockJellyfin struct {
 	URL    string
 	server *httptest.Server
@@ -670,6 +824,44 @@ func newMockJellyfin(t *testing.T, systemID, serverName, version string) *mockJe
 		}
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"Items":[%s],"TotalRecordCount":%d}`, strings.Join(m.items, ","), len(m.items))
+	})
+	mux.HandleFunc("GET /Videos/{itemID}/stream", func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		if !strings.Contains(auth, `Token="`) {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		data := []byte(fakeVideoBytes)
+		w.Header().Set("Content-Type", "video/mp4")
+		w.Header().Set("Accept-Ranges", "bytes")
+		if rng := r.Header.Get("Range"); strings.HasPrefix(rng, "bytes=") {
+			spec := strings.TrimPrefix(rng, "bytes=")
+			var start, end int64
+			end = int64(len(data)) - 1
+			part := strings.SplitN(spec, "-", 2)
+			if s, err := strconv.ParseInt(strings.TrimSpace(part[0]), 10, 64); err == nil {
+				start = s
+			} else {
+				start = 0
+			}
+			if len(part) == 2 {
+				if e, err := strconv.ParseInt(strings.TrimSpace(part[1]), 10, 64); err == nil {
+					end = e
+				}
+			}
+			if start > end || end >= int64(len(data)) {
+				w.Header().Set("Content-Range", fmt.Sprintf("bytes */%d", len(data)))
+				w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+				return
+			}
+			w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, len(data)))
+			w.Header().Set("Content-Length", strconv.FormatInt(end-start+1, 10))
+			w.WriteHeader(http.StatusPartialContent)
+			_, _ = w.Write(data[start : end+1])
+			return
+		}
+		w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+		_, _ = w.Write(data)
 	})
 	mux.HandleFunc("DELETE /Items", func(w http.ResponseWriter, r *http.Request) {
 		// no-op for mock reset support

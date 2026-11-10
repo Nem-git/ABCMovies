@@ -227,11 +227,43 @@ func TestLibraryGetTitleNotFound(t *testing.T) {
 }
 
 func TestLibrarySyncValidationAndErrors(t *testing.T) {
-	// Missing credentials -> 400.
-	srv := NewServer(validSessionIdentity(), &fakeSourceClient{}, &fakeLibraryClient{})
+	// Empty credentials object: forwarded to the core with no oneof set ("reuse
+	// the session cache"). The core decides; the API does not require creds.
+	var got *libraryv1.SyncSourceRequest
+	srv := NewServer(validSessionIdentity(), &fakeSourceClient{}, &fakeLibraryClient{
+		syncSource: func(_ context.Context, in *libraryv1.SyncSourceRequest, _ ...grpc.CallOption) (*libraryv1.SyncSourceResponse, error) {
+			got = in
+			return &libraryv1.SyncSourceResponse{SourceId: in.GetSourceId(), Outcome: libraryv1.SyncOutcome_SYNC_OUTCOME_SUCCESS}, nil
+		},
+	})
 	rr := doJSON(srv.Handler(), http.MethodPost, "/api/library/source/src_1/sync", `{"credentials":{}}`, sessionCookieHeader("sess_1"))
-	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("missing credentials status = %d, want 400", rr.Code)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("empty-credentials sync status = %d, want 200; body=%s", rr.Code, rr.Body)
+	}
+	if got == nil {
+		t.Fatal("core never called")
+	}
+	if got.GetPassword() != nil || got.GetApiKey() != "" {
+		t.Fatalf("expected no credentials oneof set (session cache path), got password=%v api_key=%v", got.GetPassword() != nil, got.GetApiKey())
+	}
+	// Half-filled credentials: 400, not a silent session-cache fallback (the
+	// play endpoint already rejects these the same way).
+	for _, tc := range []struct {
+		name string
+		body string
+	}{
+		{"username only", `{"credentials":{"username":"admin"}}`},
+		{"password only", `{"credentials":{"password":"hunter2"}}`},
+		{"username with api_key", `{"credentials":{"username":"admin","api_key":"some-key"}}`},
+	} {
+		got = nil // reset the capture: the core must not be called
+		rr = doJSON(srv.Handler(), http.MethodPost, "/api/library/source/src_1/sync", tc.body, sessionCookieHeader("sess_1"))
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("%s: status = %d, want 400; body=%s", tc.name, rr.Code, rr.Body)
+		}
+		if got != nil {
+			t.Fatalf("%s: core was called; want a local 400 rejection", tc.name)
+		}
 	}
 	// Bad content type -> 415.
 	rr = doJSON(srv.Handler(), http.MethodPost, "/api/library/source/src_1/sync", `{}`, map[string]string{"Content-Type": "text/plain", "Cookie": "abcmovies_session=sess_1"})
