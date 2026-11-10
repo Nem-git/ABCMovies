@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/Nem-git/ABCMovies/internal/config"
@@ -21,17 +20,6 @@ import (
 	"github.com/Nem-git/ABCMovies/internal/core/internal/auth"
 	"github.com/Nem-git/ABCMovies/internal/core/internal/store"
 )
-
-func auditPath(dbPath string) string {
-	if p := os.Getenv("ABCMOVIES_AUDIT_LOG"); p != "" {
-		return p
-	}
-	dir := filepath.Dir(dbPath)
-	if dir == "." || dir == "" {
-		return "abcmovies-audit.log"
-	}
-	return filepath.Join(dir, "abcmovies-audit.log")
-}
 
 func readLine(r *bufio.Reader, prompt string) (string, error) {
 	fmt.Fprint(os.Stderr, prompt)
@@ -48,7 +36,7 @@ func run(ctx context.Context, args []string, stdin *bufio.Reader, stderr io.Writ
 	}
 
 	dbPath := config.Env("ABCMOVIES_DB", "data/abcmovies.db")
-	logPath := auditPath(dbPath)
+	logPath := audit.DefaultPath(dbPath)
 
 	aud, err := audit.Open(logPath)
 	if err != nil {

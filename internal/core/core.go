@@ -14,6 +14,7 @@ import (
 	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
 	libraryv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/library/v1"
 	sourcev1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1"
+	"github.com/Nem-git/ABCMovies/internal/core/internal/audit"
 	"github.com/Nem-git/ABCMovies/internal/core/internal/service"
 	"github.com/Nem-git/ABCMovies/internal/core/internal/store"
 	"github.com/Nem-git/ABCMovies/internal/platform"
@@ -31,6 +32,7 @@ type Core struct {
 	GRPCAddr string
 
 	store    *store.Store
+	audit    *audit.Logger
 	grpcSrv  *grpc.Server
 	listener net.Listener
 }
@@ -54,18 +56,24 @@ func StartCore(cfg CoreConfig) (*Core, error) {
 	if err != nil {
 		return nil, err
 	}
+	aud, err := audit.Open(audit.DefaultPath(cfg.DB))
+	if err != nil {
+		_ = st.Close()
+		return nil, fmt.Errorf("open audit log: %w", err)
+	}
 	lis, addr, err := platform.Listen(bind, cfg.Port)
 	if err != nil {
 		_ = st.Close()
+		_ = aud.Close()
 		return nil, fmt.Errorf("listen grpc: %w", err)
 	}
 	grpcSrv := grpc.NewServer()
 	identityv1.RegisterIdentityServiceServer(grpcSrv, service.NewIdentityService(st))
 	sv := service.NewSessionState()
-	sourcev1.RegisterSourceServiceServer(grpcSrv, service.NewSourceService(st, sv))
+	sourcev1.RegisterSourceServiceServer(grpcSrv, service.NewSourceService(st, sv, aud))
 	libraryv1.RegisterLibraryServiceServer(grpcSrv, service.NewLibraryService(st, sv))
 	go func() { _ = grpcSrv.Serve(lis) }()
-	return &Core{GRPCAddr: addr, store: st, grpcSrv: grpcSrv, listener: lis}, nil
+	return &Core{GRPCAddr: addr, store: st, audit: aud, grpcSrv: grpcSrv, listener: lis}, nil
 }
 
 // Close shuts down the core.
@@ -78,5 +86,8 @@ func (c *Core) Close() {
 	}
 	if c.store != nil {
 		_ = c.store.Close()
+	}
+	if c.audit != nil {
+		_ = c.audit.Close()
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	sourcev1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1"
+	"github.com/Nem-git/ABCMovies/internal/core/internal/audit"
 	"github.com/Nem-git/ABCMovies/internal/core/internal/connector/source/jellyfin"
 	"github.com/Nem-git/ABCMovies/internal/core/internal/store"
 )
@@ -56,13 +57,19 @@ func (f *fakeVerifier) Verify(_ context.Context, endpoint string, creds jellyfin
 
 func newSourceTestService(t *testing.T, v sourceVerifier) (*SourceService, *store.Store) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "test.db")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.db")
 	st, err := store.Open(path)
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	return NewSourceServiceWithVerifier(st, v, NewSessionState()), st
+	aud, err := audit.Open(filepath.Join(dir, "audit.log"))
+	if err != nil {
+		t.Fatalf("audit.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = aud.Close() })
+	return NewSourceServiceWithVerifier(st, v, NewSessionState(), aud), st
 }
 
 func connectPassword(t *testing.T, svc *SourceService, ctx context.Context, endpoint, displayName string) *sourcev1.ConnectSourceResponse {

@@ -9,9 +9,14 @@ import (
 	"google.golang.org/grpc/status"
 
 	sourcev1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1"
+	"github.com/Nem-git/ABCMovies/internal/core/internal/audit"
 	"github.com/Nem-git/ABCMovies/internal/core/internal/connector/source/jellyfin"
 	"github.com/Nem-git/ABCMovies/internal/core/internal/store"
 )
+
+// sourceRestoredDetail is the safe detail written to a tombstoned source when
+// it is revived by re-connect.
+const sourceRestoredDetail = "source restored — sync to refresh availability"
 
 // maxDisplayNameLength bounds user-supplied display names; values in this
 // range are shown in the UI and stored in the database.
@@ -38,20 +43,21 @@ type SourceService struct {
 	store      *store.Store
 	connectors map[string]sourceVerifier
 	session    *SessionState
+	audit      *audit.Logger
 }
 
 // NewSourceService returns a SourceService backed by the jellyfin connector.
-// sv is the shared in-memory session state (core wires one instance for all
-// services).
-func NewSourceService(s *store.Store, sv *SessionState) *SourceService {
-	return NewSourceServiceWithVerifier(s, jellyfin.NewClient(), sv)
+// sv is the shared in-memory session state and aud the shared audit log
+// (core wires both once for all services).
+func NewSourceService(s *store.Store, sv *SessionState, aud *audit.Logger) *SourceService {
+	return NewSourceServiceWithVerifier(s, jellyfin.NewClient(), sv, aud)
 }
 
 // NewSourceServiceWithVerifier returns a SourceService with a chosen verifier
 // for the "jellyfin" connector. Tests pass a fake here. sv is the shared
-// in-memory session state.
-func NewSourceServiceWithVerifier(s *store.Store, v sourceVerifier, sv *SessionState) *SourceService {
-	return &SourceService{store: s, connectors: map[string]sourceVerifier{"jellyfin": v}, session: sv}
+// in-memory session state; aud the shared audit log (may be nil in tests).
+func NewSourceServiceWithVerifier(s *store.Store, v sourceVerifier, sv *SessionState, aud *audit.Logger) *SourceService {
+	return &SourceService{store: s, connectors: map[string]sourceVerifier{"jellyfin": v}, session: sv, audit: aud}
 }
 
 // registerConnector binds an id to a verifier. Supports custom connectors in
@@ -104,7 +110,7 @@ func (s *SourceService) ConnectSource(ctx context.Context, req *sourcev1.Connect
 	// against races (e.g. two simultaneous connects) — if insertion fails as a
 	// duplicate, fall back to returning the existing row.
 	if existing, err := s.store.GetSourceByVerifiedIdentity(ctx, connectorID, verified.VerifiedID); err == nil {
-		return duplicateConnectSourceResponse(existing), nil
+		return s.connectDuplicateOrRevive(ctx, existing, verified)
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return nil, status.Errorf(codes.Internal, "read sources: %v", err)
 	}
@@ -120,7 +126,7 @@ func (s *SourceService) ConnectSource(ctx context.Context, req *sourcev1.Connect
 	if errors.Is(err, store.ErrDuplicateVerifiedIdentity) {
 		existing, lerr := s.store.GetSourceByVerifiedIdentity(ctx, connectorID, verified.VerifiedID)
 		if lerr == nil {
-			return duplicateConnectSourceResponse(existing), nil
+			return s.connectDuplicateOrRevive(ctx, existing, verified)
 		}
 		return nil, status.Errorf(codes.Internal, "read source after duplicate insert: %v", lerr)
 	}
@@ -216,7 +222,7 @@ func (s *SourceService) ListSources(ctx context.Context, req *sourcev1.ListSourc
 	if actor == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "actor_user_id is required")
 	}
-	rows, err := s.store.ListSources(ctx)
+	rows, err := s.store.ListActiveSources(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list sources: %v", err)
 	}
@@ -247,12 +253,65 @@ func (s *SourceService) GetSource(ctx context.Context, req *sourcev1.GetSourceRe
 	return &sourcev1.GetSourceResponse{Source: sourceToProto(src)}, nil
 }
 
+// RemoveSource disconnects a source. It is a local action: no upstream call,
+// no credentials, idempotent. The source row and its titles are retained as
+// tombstones; the titles are marked unavailable. The caller's cached
+// credentials are evicted and the source's play tickets are revoked, so no
+// new use of the source is possible and active fetches end on the next
+// request. An audit event records the removal (no secrets).
+func (s *SourceService) RemoveSource(ctx context.Context, req *sourcev1.RemoveSourceRequest) (*sourcev1.RemoveSourceResponse, error) {
+	actor := strings.TrimSpace(req.GetActorUserId())
+	if actor == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "actor_user_id is required")
+	}
+	sourceID := strings.TrimSpace(req.GetSourceId())
+	if sourceID == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "source_id is required")
+	}
+	removed, err := s.store.RemoveSource(ctx, sourceID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return nil, status.Errorf(codes.NotFound, "source not found")
+		}
+		return nil, status.Errorf(codes.Internal, "remove source: %v", err)
+	}
+	// Evict this user's cached credentials; the cache is per user (ADR 0005),
+	// so disconnecting one source flushes the lot — the simple, honest rule.
+	s.session.flushUserCreds(actor)
+	// Revoke the source's tickets; in-flight responses cannot be recalled,
+	// but every subsequent request (including seeks) is refused.
+	s.session.purgeTicketsForSource(removed.SourceID)
+	if s.audit != nil {
+		_ = s.audit.Log(audit.Event{Event: "source_removed", UserID: actor, Detail: removed.SourceID})
+	}
+	return &sourcev1.RemoveSourceResponse{}, nil
+}
+
 func duplicateConnectSourceResponse(existing *store.Source) *sourcev1.ConnectSourceResponse {
 	return &sourcev1.ConnectSourceResponse{
 		Outcome: sourcev1.ConnectSourceOutcome_CONNECT_SOURCE_OUTCOME_DUPLICATE,
 		Source:  sourceToProto(existing),
 		Detail:  "this server is already connected",
 	}
+}
+
+// connectDuplicateOrRevive applies the DEC-001 rule to an existing source that
+// matched a re-connect: an ACTIVE source stays a DUPLICATE; a DISCONNECTED
+// tombstone with the same verified identity is restored (same source_id,
+// status ACTIVE). Titles stay unavailable until the next sync.
+func (s *SourceService) connectDuplicateOrRevive(ctx context.Context, existing *store.Source, verified *jellyfin.ServerInfo) (*sourcev1.ConnectSourceResponse, error) {
+	if existing.Status != store.SourceStatusDisconnected {
+		return duplicateConnectSourceResponse(existing), nil
+	}
+	revived, uerr := s.store.UpdateSource(ctx, existing.SourceID, verified.Endpoint, existing.DisplayName, int32(sourcev1.SourceStatus_SOURCE_STATUS_ACTIVE), sourceRestoredDetail)
+	if uerr != nil {
+		return nil, status.Errorf(codes.Internal, "revive source: %v", uerr)
+	}
+	return &sourcev1.ConnectSourceResponse{
+		Outcome: sourcev1.ConnectSourceOutcome_CONNECT_SOURCE_OUTCOME_CONNECTED,
+		Source:  sourceToProto(revived),
+		Detail:  "source restored — titles will reappear after sync",
+	}, nil
 }
 
 // credentialsFromSourceRequest builds connector credentials from a
@@ -350,6 +409,8 @@ func sourceStatusToProto(v int32) sourcev1.SourceStatus {
 		return sourcev1.SourceStatus_SOURCE_STATUS_NEEDS_REVERIFICATION
 	case int32(sourcev1.SourceStatus_SOURCE_STATUS_ERROR):
 		return sourcev1.SourceStatus_SOURCE_STATUS_ERROR
+	case int32(sourcev1.SourceStatus_SOURCE_STATUS_DISCONNECTED):
+		return sourcev1.SourceStatus_SOURCE_STATUS_DISCONNECTED
 	default:
 		return sourcev1.SourceStatus_SOURCE_STATUS_UNSPECIFIED
 	}
