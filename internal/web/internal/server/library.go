@@ -49,6 +49,35 @@ func (s *Server) fetchLibrary(r *http.Request, query string, offset int32) (list
 	return out, code, err
 }
 
+// renderLibraryInlineError re-renders the library page with an inline error and
+// the preserved sync panel state. Used when the API reports the source rejected
+// the credentials (the session itself is still valid), so the user sees what to
+// do next instead of being bounced to /login and then home.
+func (s *Server) renderLibraryInlineError(w http.ResponseWriter, r *http.Request, username, sourceID, message string) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	sources, ok := s.listSources(r)
+	list, code, err := s.fetchLibrary(r, q, 0)
+	if !ok {
+		sources = listResponse{}
+	}
+	if err != nil || code != http.StatusOK {
+		data := pageData{Title: "Library", Username: username, SyncSourceID: "", SyncError: message}
+		data.Sources = sources.Sources
+		s.render(w, "library", data)
+		return
+	}
+	data := pageData{
+		Title:         "Library",
+		Username:      username,
+		Sources:       sources.Sources,
+		LibraryTitles: list.Titles,
+		SyncSourceID:  sourceID,
+		SyncError:     message,
+	}
+	_ = ok
+	s.render(w, "library", data)
+}
+
 func (s *Server) libraryPage(w http.ResponseWriter, r *http.Request) {
 	username, ok := s.requireLibraryContext(w, r)
 	if !ok {
@@ -65,16 +94,19 @@ func (s *Server) libraryPage(w http.ResponseWriter, r *http.Request) {
 	list, code, err := s.fetchLibrary(r, q, offset)
 	if err != nil {
 		slog.Error("api library unavailable", "err", err)
-		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+		s.renderLibraryInlineError(w, r, username, "", "The library could not be loaded right now. Try again later.")
 		return
 	}
 	if code == http.StatusUnauthorized {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		// The session is still valid; the source rejected the credentials or
+		// requested re-auth. Re-render the page with an inline error instead of
+		// discarding it by redirecting to /login.
+		s.renderLibraryInlineError(w, r, username, "", "The source rejected the credentials. Sync again with valid credentials.")
 		return
 	}
 	if code != http.StatusOK {
 		slog.Error("api library failed", "code", code)
-		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+		s.renderLibraryInlineError(w, r, username, "", "The library could not be loaded right now. Try again later.")
 		return
 	}
 	// Gather sources for the sync controls.
@@ -84,15 +116,16 @@ func (s *Server) libraryPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.render(w, "library", pageData{
-		Title:             "Library",
-		Username:          username,
-		Sources:           sources.Sources,
-		LibraryTitles:     list.Titles,
-		LibrarySyncStates: list.SyncStates,
-		LibraryQuery:      q,
-		LibraryTotalCount: list.TotalCount,
-		LibraryLimit:      50,
-		LibraryOffset:     offset,
+		Title:               "Library",
+		Username:            username,
+		Sources:             sources.Sources,
+		LibraryTitles:       list.Titles,
+		LibrarySyncStates:   list.SyncStates,
+		SyncStateBySourceID: indexSyncStates(list.SyncStates),
+		LibraryQuery:        q,
+		LibraryTotalCount:   list.TotalCount,
+		LibraryLimit:        50,
+		LibraryOffset:       offset,
 	})
 }
 
@@ -114,7 +147,7 @@ func (s *Server) titleDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if code == http.StatusUnauthorized {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		s.renderLibraryInlineError(w, r, username, "", "The source rejected the credentials. Sync again with valid credentials.")
 		return
 	}
 	if code != http.StatusOK {
@@ -160,10 +193,6 @@ func (s *Server) syncPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	forwardCookies(w, cookies)
-	if code == http.StatusUnauthorized {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
 	if code == http.StatusOK {
 		http.Redirect(w, r, "/library", http.StatusSeeOther)
 		return
@@ -181,26 +210,23 @@ func (s *Server) syncPost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	if code == http.StatusUnauthorized {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
 	if code != http.StatusOK {
 		slog.Error("api library failed", "code", code)
 		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
 		return
 	}
 	data := pageData{
-		Title:             "Library",
-		Username:          username,
-		Sources:           sources.Sources,
-		LibraryTitles:     list.Titles,
-		LibrarySyncStates: list.SyncStates,
-		LibraryQuery:      q,
-		LibraryTotalCount: list.TotalCount,
-		SyncSourceID:      sourceID,
-		SyncError:         apiErrorMessage(body, "Could not sync. Check the endpoint and credentials and try again."),
-		SyncCredType:      credType,
+		Title:               "Library",
+		Username:            username,
+		Sources:             sources.Sources,
+		LibraryTitles:       list.Titles,
+		LibrarySyncStates:   list.SyncStates,
+		SyncStateBySourceID: indexSyncStates(list.SyncStates),
+		LibraryQuery:        q,
+		LibraryTotalCount:   list.TotalCount,
+		SyncSourceID:        sourceID,
+		SyncError:           apiErrorMessage(body, "The source rejected the credentials or is unreachable. Check the details and try again."),
+		SyncCredType:        credType,
 	}
 	if credType != "api_key" {
 		data.SyncUsername = strings.TrimSpace(r.FormValue("username"))
@@ -220,4 +246,12 @@ func fmtSscanI32(out *int, s string) (int, error) {
 	}
 	*out = n
 	return n, nil
+}
+
+func indexSyncStates(states []sourceSyncState) map[string]sourceSyncState {
+	out := make(map[string]sourceSyncState, len(states))
+	for _, st := range states {
+		out[st.SourceID] = st
+	}
+	return out
 }

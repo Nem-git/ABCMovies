@@ -1,22 +1,43 @@
 {{define "content"}}<h1>Library</h1>
 <p><a href="/">Home</a> · <a href="/sources">Sources</a></p>
 
-<section aria-labelledby="freshnessHeading">
-  <h2 id="freshnessHeading">Freshness</h2>
-  {{if .LibrarySyncStates}}
+<section aria-labelledby="sourcesHeading">
+  <h2 id="sourcesHeading">Sources &amp; sync</h2>
+  {{if .Sources}}
   <ul>
-    {{range .LibrarySyncStates}}
+    {{range .Sources}}
+    {{$st := index $.SyncStateBySourceID .SourceID}}
     <li>
-      <strong>{{.SourceDisplayName}}</strong>
-      — outcome: {{if eq .LastOutcome "success"}}up to date{{else if eq .LastOutcome "partial"}}partial{{else if eq .LastOutcome "failed"}}failed{{else}}not synced{{end}}
-      {{if .LastSyncedAt}}· last synced {{.LastSyncedAt}}{{end}}
-      · titles: {{.TitleCount}}
-      {{if .Detail}}<br>{{.Detail}}{{end}}
+      <strong>{{.DisplayName}}</strong> · {{.ConnectorID}} · {{.Endpoint}} · status: {{.Status}}{{if .StatusDetail}} ({{.StatusDetail}}){{end}}
+      <details class="syncDetails" data-source-id="{{.SourceID}}" {{if eq $.SyncSourceID .SourceID}}open{{end}}>
+        <summary>Sync {{.DisplayName}}{{if $st}} ({{if eq $st.LastOutcome "success"}}up to date{{else if eq $st.LastOutcome "partial"}}partial{{else if eq $st.LastOutcome "failed"}}failed{{else}}not synced{{end}}){{end}}</summary>
+        <p>
+          {{if $st}}Outcome: {{if eq $st.LastOutcome "success"}}up to date{{else if eq $st.LastOutcome "partial"}}partial{{else if eq $st.LastOutcome "failed"}}failed{{else}}not synced{{end}}
+          {{if $st.LastSyncedAt}}· last synced {{$st.LastSyncedAt}}{{end}}
+          · titles: {{$st.TitleCount}}.{{if $st.Detail}}<br>Last result: {{$st.Detail}}{{end}}{{else}}Not synced yet.{{end}}
+        </p>
+        <form class="syncForm" data-source-id="{{.SourceID}}" method="post" action="/library/source/{{.SourceID}}/sync">
+          <fieldset>
+            <legend>Sync credentials for {{.DisplayName}}</legend>
+            <label><input type="radio" name="cred_type" value="password" {{if ne $.SyncCredType "api_key"}}checked{{end}}> Username / password</label>
+            <label><input type="radio" name="cred_type" value="api_key" {{if eq $.SyncCredType "api_key"}}checked{{end}}> API key</label>
+            <div data-cred-panel="password">
+              <label>Username<br><input name="username" autocomplete="username" value="{{if eq $.SyncSourceID .SourceID}}{{$.SyncUsername}}{{end}}"></label>
+              <label>Password<br><input name="password" type="password" autocomplete="current-password"></label>
+            </div>
+            <div data-cred-panel="api_key">
+              <label>API key<br><input name="api_key" type="password" autocomplete="off"></label>
+            </div>
+          </fieldset>
+          <button type="submit">Sync now</button>
+        </form>
+        {{if eq .SourceID $.SyncSourceID}}<p class="error" role="alert">{{$.SyncError}}</p>{{end}}
+      </details>
     </li>
     {{end}}
   </ul>
   {{else}}
-  <p>Not synced yet. Use “Sync now” below on a connected source.</p>
+  <p>No sources connected yet. Connect one on <a href="/sources">Sources</a> first, then sync it here.</p>
   {{end}}
 </section>
 
@@ -51,35 +72,6 @@
   <p>No titles{{if .LibraryQuery}} matching “{{.LibraryQuery}}”{{end}} yet.</p>
   {{end}}
   {{if .LibraryError}}<p class="error" role="alert">{{.LibraryError}}</p>{{end}}
-</section>
-
-<section aria-labelledby="syncHeading">
-  <h2 id="syncHeading">Sync sources</h2>
-  {{if .Sources}}
-  {{range .Sources}}
-  <details class="syncDetails" data-source-id="{{.SourceID}}" {{if eq .SourceID $.SyncSourceID}}open{{end}}>
-    <summary>Sync {{.DisplayName}}</summary>
-    <form class="syncForm" data-source-id="{{.SourceID}}" method="post" action="/library/source/{{.SourceID}}/sync">
-      <fieldset>
-        <legend>Sync credentials for {{.DisplayName}}</legend>
-        <label><input type="radio" name="cred_type" value="password" {{if ne $.SyncCredType "api_key"}}checked{{end}}> Username / password</label>
-        <label><input type="radio" name="cred_type" value="api_key" {{if eq $.SyncCredType "api_key"}}checked{{end}}> API key</label>
-        <div data-cred-panel="password">
-          <label>Username<br><input name="username" autocomplete="username" value="{{if eq $.SyncSourceID .SourceID}}{{$.SyncUsername}}{{end}}"></label>
-          <label>Password<br><input name="password" type="password" autocomplete="current-password"></label>
-        </div>
-        <div data-cred-panel="api_key">
-          <label>API key<br><input name="api_key" type="password" autocomplete="off"></label>
-        </div>
-      </fieldset>
-      <button type="submit">Sync now</button>
-    </form>
-    {{if eq .SourceID $.SyncSourceID}}<p class="error" role="alert">{{$.SyncError}}</p>{{end}}
-  </details>
-  {{end}}
-  {{else}}
-  <p>No sources connected yet. Connect one on <a href="/sources">Sources</a> first, then sync it here.</p>
-  {{end}}
 </section>
 <script>
 (function () {

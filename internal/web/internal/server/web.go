@@ -42,6 +42,8 @@ type pageData struct {
 	SyncError    string
 	SyncCredType string
 	SyncUsername string
+	// Source detail map (source_id -> sync state) for the per-source panel.
+	SyncStateBySourceID map[string]sourceSyncState
 	// Title detail page context.
 	TitleDetail *libraryTitle
 	// Error is the setup/login form error text (server-rendered, no-JS).
@@ -420,7 +422,8 @@ func (s *Server) sourcesPage(w http.ResponseWriter, r *http.Request) {
 	}
 	if code != http.StatusOK {
 		if code == http.StatusUnauthorized {
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			slog.Error("api list sources: unauthorized (session still validated here)")
+			http.Error(w, "service unavailable", http.StatusServiceUnavailable)
 			return
 		}
 		slog.Error("api list sources failed", "code", code)
@@ -596,10 +599,6 @@ func (s *Server) connectPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	forwardCookies(w, cookies)
-	if code == http.StatusUnauthorized {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
 	if code == http.StatusCreated {
 		http.Redirect(w, r, "/sources", http.StatusSeeOther)
 		return
@@ -685,10 +684,6 @@ func (s *Server) updatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	forwardCookies(w, cookies)
-	if code == http.StatusUnauthorized {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
 	if code == http.StatusOK {
 		http.Redirect(w, r, "/sources", http.StatusSeeOther)
 		return
