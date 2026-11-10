@@ -35,9 +35,10 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type LibraryServiceClient interface {
 	// SyncSource refreshes the library snapshot for a connected source using
-	// transient credentials. Credentials are required (no stored credentials in
-	// Build 1). The connect flow may trigger a sync after connect; manual
-	// re-sync requires the user to supply credentials again.
+	// transient credentials. Credentials are required on every sync; none are
+	// stored (Build 1). Connecting does not sync: both the initial sync and
+	// any manual re-sync require the user to supply credentials again, until
+	// the credential-custody decision (DEC-003) changes this.
 	SyncSource(ctx context.Context, in *SyncSourceRequest, opts ...grpc.CallOption) (*SyncSourceResponse, error)
 	// ListTitles returns titles from the reachable library (browse).
 	ListTitles(ctx context.Context, in *ListTitlesRequest, opts ...grpc.CallOption) (*ListTitlesResponse, error)
@@ -100,9 +101,10 @@ func (c *libraryServiceClient) GetTitle(ctx context.Context, in *GetTitleRequest
 // for forward compatibility.
 type LibraryServiceServer interface {
 	// SyncSource refreshes the library snapshot for a connected source using
-	// transient credentials. Credentials are required (no stored credentials in
-	// Build 1). The connect flow may trigger a sync after connect; manual
-	// re-sync requires the user to supply credentials again.
+	// transient credentials. Credentials are required on every sync; none are
+	// stored (Build 1). Connecting does not sync: both the initial sync and
+	// any manual re-sync require the user to supply credentials again, until
+	// the credential-custody decision (DEC-003) changes this.
 	SyncSource(context.Context, *SyncSourceRequest) (*SyncSourceResponse, error)
 	// ListTitles returns titles from the reachable library (browse).
 	ListTitles(context.Context, *ListTitlesRequest) (*ListTitlesResponse, error)
