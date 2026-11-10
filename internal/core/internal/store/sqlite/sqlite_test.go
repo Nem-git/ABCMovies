@@ -311,3 +311,98 @@ func TestSourceNotFound(t *testing.T) {
 		t.Fatalf("UpdateSource err = %v, want ErrNotFound", err)
 	}
 }
+
+func TestRemoveSourceTombstones(t *testing.T) {
+	s := openTest(t)
+	ctx := context.Background()
+	a := mustCreateSource(t, s, "jf-remove-a")
+	b := mustCreateSource(t, s, "jf-remove-b")
+
+	now := time.Now().UTC()
+	if _, err := s.ReplaceSourceSnapshot(ctx, a.SourceID, LibraryOutcomeSuccess, &now, "synced", []LibraryTitleInput{
+		{ExternalID: "mv-1", Name: "A Movie", Kind: LibraryTitleKindMovie, Year: 2001},
+		{ExternalID: "sr-1", Name: "A Series", Kind: LibraryTitleKindSeries, Year: 2002},
+	}); err != nil {
+		t.Fatalf("snapshot A: %v", err)
+	}
+	if _, err := s.ReplaceSourceSnapshot(ctx, b.SourceID, LibraryOutcomeSuccess, &now, "synced", []LibraryTitleInput{
+		{ExternalID: "mv-2", Name: "B Movie", Kind: LibraryTitleKindMovie, Year: 2003},
+	}); err != nil {
+		t.Fatalf("snapshot B: %v", err)
+	}
+
+	// Unknown source -> ErrNotFound, nothing else touched.
+	if _, err := s.RemoveSource(ctx, "src_missing"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("RemoveSource err = %v, want ErrNotFound", err)
+	}
+
+	removed, err := s.RemoveSource(ctx, a.SourceID)
+	if err != nil {
+		t.Fatalf("RemoveSource: %v", err)
+	}
+	if removed.Status != SourceStatusDisconnected {
+		t.Fatalf("removed source status = %d, want %d (disconnected)", removed.Status, SourceStatusDisconnected)
+	}
+	if removed.StatusDetail == "" {
+		t.Fatal("removed source missing the tombstone detail")
+	}
+
+	// Titles are kept, flipped to unavailable with the tombstone detail;
+	// the other source's titles are untouched.
+	all, err := s.ListTitles(ctx, 100, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	availableBySource := map[string]int{}
+	detailBySource := map[string]string{}
+	for _, title := range all.Titles {
+		if title.Availability == LibraryAvailabilityAvailable {
+			availableBySource[title.SourceID]++
+		} else {
+			detailBySource[title.SourceID] = title.AvailabilityDetail
+		}
+	}
+	if availableBySource[a.SourceID] != 0 {
+		t.Fatalf("A available titles = %d, want 0", availableBySource[a.SourceID])
+	}
+	if availableBySource[b.SourceID] != 1 {
+		t.Fatalf("B available titles = %d, want 1", availableBySource[b.SourceID])
+	}
+	if detailBySource[a.SourceID] != SourceDisconnectedDetail {
+		t.Fatalf("A unavailable detail = %q, want %q", detailBySource[a.SourceID], SourceDisconnectedDetail)
+	}
+
+	// The tombstone hides from the active list, stays in the full list.
+	active, err := s.ListActiveSources(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(active) != 1 || active[0].SourceID != b.SourceID {
+		t.Fatalf("ListActiveSources = %+v, want only B", active)
+	}
+	allSources, err := s.ListSources(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(allSources) != 2 {
+		t.Fatalf("ListSources = %d sources, want 2 (tombstone kept)", len(allSources))
+	}
+
+	// Sync state is preserved (honest history), including for the tombstone.
+	states, err := s.ListSyncStates(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundA := false
+	for _, st := range states {
+		if st.SourceID == a.SourceID {
+			foundA = true
+			if st.LastOutcome != LibraryOutcomeSuccess {
+				t.Fatalf("A sync outcome = %d, want success preserved", st.LastOutcome)
+			}
+		}
+	}
+	if !foundA {
+		t.Fatal("A's sync state was deleted; want it preserved")
+	}
+}
