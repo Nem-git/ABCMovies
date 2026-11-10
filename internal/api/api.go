@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
+	sourcev1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1"
 )
 
 // SessionCookieName is the HttpOnly cookie holding the session ID.
@@ -22,20 +23,22 @@ const SessionCookieName = "abcmovies_session"
 
 const maxCredentialsBody = int64(4 << 10)
 
-// Server wires HTTP routes to the core identity gRPC service.
+// Server wires HTTP routes to the core gRPC services.
 type Server struct {
-	client identityv1.IdentityServiceClient
-	mux    *http.ServeMux
+	identityClient identityv1.IdentityServiceClient
+	sourceClient   sourcev1.SourceServiceClient
+	mux            *http.ServeMux
 }
 
-// NewServer returns a Server using client for core calls.
-func NewServer(client identityv1.IdentityServiceClient) *Server {
-	s := &Server{client: client, mux: http.NewServeMux()}
+// NewServer returns a Server using the given clients for core calls.
+func NewServer(identityClient identityv1.IdentityServiceClient, sourceClient sourcev1.SourceServiceClient) *Server {
+	s := &Server{identityClient: identityClient, sourceClient: sourceClient, mux: http.NewServeMux()}
 	s.mux.HandleFunc("GET /api/status", s.apiStatus)
 	s.mux.HandleFunc("POST /api/setup", s.apiSetup)
 	s.mux.HandleFunc("POST /api/login", s.apiLogin)
 	s.mux.HandleFunc("POST /api/logout", s.apiLogout)
 	s.mux.HandleFunc("GET /api/me", s.apiMe)
+	s.registerSourceRoutes()
 	return s
 }
 
@@ -112,7 +115,7 @@ func decodeCredentials(w http.ResponseWriter, r *http.Request) (credentials, boo
 
 // apiStatus reports whether the instance has been initialized.
 func (s *Server) apiStatus(w http.ResponseWriter, r *http.Request) {
-	st, err := s.client.GetStatus(r.Context(), &identityv1.GetStatusRequest{})
+	st, err := s.identityClient.GetStatus(r.Context(), &identityv1.GetStatusRequest{})
 	if err != nil {
 		slog.Error("core status failed", "err", err)
 		writeError(w, http.StatusServiceUnavailable, "service unavailable")
@@ -128,7 +131,7 @@ func (s *Server) apiSetup(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	resp, err := s.client.SetupAdmin(r.Context(), &identityv1.SetupAdminRequest{Username: c.Username, Password: c.Password})
+	resp, err := s.identityClient.SetupAdmin(r.Context(), &identityv1.SetupAdminRequest{Username: c.Username, Password: c.Password})
 	if err != nil {
 		switch status.Code(err) {
 		case codes.InvalidArgument:
@@ -142,7 +145,7 @@ func (s *Server) apiSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	username := ""
-	if profile, err := s.client.GetUser(r.Context(), &identityv1.GetUserRequest{UserId: resp.GetUserId()}); err != nil {
+	if profile, err := s.identityClient.GetUser(r.Context(), &identityv1.GetUserRequest{UserId: resp.GetUserId()}); err != nil {
 		// Setup already succeeded and a session was created; keep the client signed
 		// in rather than returning a failure they cannot recover from cleanly.
 		slog.Warn("core get user failed after setup", "err", err, "user_id", resp.GetUserId())
@@ -159,7 +162,7 @@ func (s *Server) apiLogin(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	resp, err := s.client.Login(r.Context(), &identityv1.LoginRequest{Username: c.Username, Password: c.Password})
+	resp, err := s.identityClient.Login(r.Context(), &identityv1.LoginRequest{Username: c.Username, Password: c.Password})
 	if err != nil {
 		switch status.Code(err) {
 		case codes.Unauthenticated, codes.InvalidArgument:
@@ -171,7 +174,7 @@ func (s *Server) apiLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	username := ""
-	if profile, err := s.client.GetUser(r.Context(), &identityv1.GetUserRequest{UserId: resp.GetUserId()}); err != nil {
+	if profile, err := s.identityClient.GetUser(r.Context(), &identityv1.GetUserRequest{UserId: resp.GetUserId()}); err != nil {
 		// Login already succeeded and a session was created; keep the client signed
 		// in rather than returning a failure they cannot recover from cleanly.
 		slog.Warn("core get user failed after login", "err", err, "user_id", resp.GetUserId())
@@ -185,7 +188,7 @@ func (s *Server) apiLogin(w http.ResponseWriter, r *http.Request) {
 // apiLogout ends the current session and clears the cookie.
 func (s *Server) apiLogout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(SessionCookieName); err == nil {
-		if _, err := s.client.Logout(r.Context(), &identityv1.LogoutRequest{SessionId: c.Value}); err != nil {
+		if _, err := s.identityClient.Logout(r.Context(), &identityv1.LogoutRequest{SessionId: c.Value}); err != nil {
 			slog.Warn("core logout failed", "err", err)
 		}
 	}
@@ -197,22 +200,11 @@ func (s *Server) apiLogout(w http.ResponseWriter, r *http.Request) {
 
 // apiMe returns the current session's user, or 401.
 func (s *Server) apiMe(w http.ResponseWriter, r *http.Request) {
-	c, err := r.Cookie(SessionCookieName)
-	if err != nil || c.Value == "" {
-		writeError(w, http.StatusUnauthorized, "not signed in")
+	userID, ok := s.requireSession(w, r)
+	if !ok {
 		return
 	}
-	sess, err := s.client.ValidateSession(r.Context(), &identityv1.ValidateSessionRequest{SessionId: c.Value})
-	if err != nil {
-		slog.Error("core validate session failed", "err", err)
-		writeError(w, http.StatusServiceUnavailable, "service unavailable")
-		return
-	}
-	if !sess.GetValid() {
-		writeError(w, http.StatusUnauthorized, "not signed in")
-		return
-	}
-	profile, err := s.client.GetUser(r.Context(), &identityv1.GetUserRequest{UserId: sess.GetUserId()})
+	profile, err := s.identityClient.GetUser(r.Context(), &identityv1.GetUserRequest{UserId: userID})
 	if err != nil {
 		slog.Error("core get user failed", "err", err)
 		writeError(w, http.StatusServiceUnavailable, "service unavailable")

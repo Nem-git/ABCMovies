@@ -3,11 +3,15 @@ package e2e
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Nem-git/ABCMovies/internal/app"
@@ -290,7 +294,185 @@ func TestBuild1Journey(t *testing.T) {
 	})
 
 	t.Run("connect-and-verify-jellyfin", func(t *testing.T) {
-		t.Skip("requires REQ-SRC-01 implementation (#24, DEC-001)")
+		s := startStack(t)
+		client := httpClient(t)
+		base := "http://" + s.Web.HTTPAddr
+
+		// Mock Jellyfin server: password auth + system info with a fixed identity.
+		mock := newMockJellyfin(t, "jf-e2e-id-1", "E2E Media", "10.10.7")
+
+		// Set up the admin and stay signed in.
+		resp := postJSON(t, client, base+"/api/setup", map[string]string{
+			"username": "admin",
+			"password": "testpass1234",
+		})
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("POST /api/setup status = %d, want 201", resp.StatusCode)
+		}
+
+		// Connect with username/password -> 201 connected.
+		resp = postJSON(t, client, base+"/api/source/connect", map[string]any{
+			"connector_id": "jellyfin",
+			"endpoint":     mock.URL,
+			"credentials":  map[string]string{"username": "admin", "password": "correct horse"},
+		})
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("connect status = %d, want 201, body=%s", resp.StatusCode, body)
+		}
+		var connectResp map[string]any
+		if err := json.Unmarshal(body, &connectResp); err != nil {
+			t.Fatalf("decode connect response: %v", err)
+		}
+		if connectResp["outcome"] != "connected" {
+			t.Fatalf("outcome = %v, want connected", connectResp["outcome"])
+		}
+		src, _ := connectResp["source"].(map[string]any)
+		sourceID, _ := src["source_id"].(string)
+		if sourceID == "" {
+			t.Fatalf("source_id missing in %v", connectResp)
+		}
+		if src["verified_external_id"] != "jf-e2e-id-1" {
+			t.Fatalf("verified_external_id = %v, want jf-e2e-id-1", src["verified_external_id"])
+		}
+
+		// The password must not appear anywhere in the response.
+		if bytes.Contains(body, []byte("correct horse")) {
+			t.Fatal("password echoed in connect response")
+		}
+
+		// List shows the connected source.
+		resp = getWithSession(t, base+"/api/source", sessionCookieValue(t, client, base))
+		body, _ = io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET /api/source status = %d, want 200", resp.StatusCode)
+		}
+		var listResp struct {
+			Sources []struct {
+				SourceID string `json:"source_id"`
+				Status   string `json:"status"`
+			} `json:"sources"`
+		}
+		if err := json.Unmarshal(body, &listResp); err != nil {
+			t.Fatalf("decode list response: %v", err)
+		}
+		if len(listResp.Sources) != 1 || listResp.Sources[0].SourceID != sourceID {
+			t.Fatalf("sources = %+v, want one source %q", listResp.Sources, sourceID)
+		}
+		if listResp.Sources[0].Status != "active" {
+			t.Fatalf("status = %q, want active", listResp.Sources[0].Status)
+		}
+
+		// Duplicate: same verified server, different URL spelling (trailing slash)
+		// -> 200 duplicate with the same source_id, no second row.
+		resp = postJSON(t, client, base+"/api/source/connect", map[string]any{
+			"connector_id": "jellyfin",
+			"endpoint":     mock.URL + "/",
+			"credentials":  map[string]string{"username": "admin", "password": "correct horse"},
+		})
+		body, _ = io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("duplicate connect status = %d, want 200, body=%s", resp.StatusCode, body)
+		}
+		var dupResp map[string]any
+		if err := json.Unmarshal(body, &dupResp); err != nil {
+			t.Fatalf("decode duplicate response: %v", err)
+		}
+		if dupResp["outcome"] != "duplicate" {
+			t.Fatalf("outcome = %v, want duplicate", dupResp["outcome"])
+		}
+		dupSrc, _ := dupResp["source"].(map[string]any)
+		if dupSrc["source_id"] != sourceID {
+			t.Fatalf("duplicate source_id = %v, want %q", dupSrc["source_id"], sourceID)
+		}
+
+		// Bad credentials -> 401, no leak.
+		resp = postJSON(t, client, base+"/api/source/connect", map[string]any{
+			"connector_id": "jellyfin",
+			"endpoint":     mock.URL,
+			"credentials":  map[string]string{"username": "admin", "password": "wrong-horse"},
+		})
+		body, _ = io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("bad credentials status = %d, want 401, body=%s", resp.StatusCode, body)
+		}
+		if bytes.Contains(body, []byte("wrong-horse")) {
+			t.Fatal("password echoed in error response")
+		}
+
+		// Unreachable endpoint -> 503.
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		addr := l.Addr().String()
+		_ = l.Close()
+		resp = postJSON(t, client, base+"/api/source/connect", map[string]any{
+			"connector_id": "jellyfin",
+			"endpoint":     "http://" + addr,
+			"credentials":  map[string]string{"username": "admin", "password": "correct horse"},
+		})
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusServiceUnavailable {
+			t.Fatalf("unreachable status = %d, want 503", resp.StatusCode)
+		}
+
+		// Update with a different verified server -> 422, no silent reassociation.
+		other := newMockJellyfin(t, "jf-e2e-id-2", "Other Server", "10.10.7")
+		resp = postJSON(t, client, base+"/api/source/"+sourceID+"/update", map[string]any{
+			"endpoint":    other.URL,
+			"credentials": map[string]string{"username": "admin", "password": "correct horse"},
+		})
+		body, _ = io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("mismatched update status = %d, want 422, body=%s", resp.StatusCode, body)
+		}
+
+		// The source is unchanged after the rejected update.
+		resp = getWithSession(t, base+"/api/source/"+sourceID, sessionCookieValue(t, client, base))
+		body, _ = io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET source after rejected update status = %d, want 200", resp.StatusCode)
+		}
+		if bytes.Contains(body, []byte(other.URL)) {
+			t.Fatalf("source endpoint changed after rejected update: %s", body)
+		}
+
+		// API-key connect on a second server -> 201.
+		resp = postJSON(t, client, base+"/api/source/connect", map[string]any{
+			"connector_id": "jellyfin",
+			"endpoint":     other.URL,
+			"credentials":  map[string]string{"api_key": "very-secret-api-key"},
+		})
+		body, _ = io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("api-key connect status = %d, want 201, body=%s", resp.StatusCode, body)
+		}
+		if bytes.Contains(body, []byte("very-secret-api-key")) {
+			t.Fatal("API key echoed in connect response")
+		}
+
+		// The /sources page renders the connected source for a signed-in user.
+		resp, err = client.Get(base + "/sources")
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ = io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET /sources status = %d, want 200", resp.StatusCode)
+		}
+		if !bytes.Contains(body, []byte("E2E Media")) || !bytes.Contains(body, []byte("Other Server")) {
+			t.Fatalf("GET /sources body missing connected sources: %s", body)
+		}
 	})
 	t.Run("sync-browse-search-detail", func(t *testing.T) {
 		t.Skip("requires REQ-LIB-01/02/03 implementation (#25)")
@@ -298,4 +480,46 @@ func TestBuild1Journey(t *testing.T) {
 	t.Run("play-reachable-non-drm-title", func(t *testing.T) {
 		t.Skip("requires REQ-PLY-01 implementation (#26, DEC-008)")
 	})
+}
+
+// mockJellyfin is a minimal Jellyfin HTTP API for e2e tests. It never
+// requires a real server and holds no real credentials.
+type mockJellyfin struct {
+	URL    string
+	server *httptest.Server
+}
+
+func newMockJellyfin(t *testing.T, systemID, serverName, version string) *mockJellyfin {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /Users/AuthenticateByName", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Username string
+			Pw       string
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if body.Username != "admin" || body.Pw != "correct horse" {
+			w.WriteHeader(http.StatusUnauthorized)
+			fmt.Fprint(w, `{"Message":"Authentication failed"}`)
+			return
+		}
+		fmt.Fprint(w, `{"AccessToken":"tok-e2e-access"}`)
+	})
+	mux.HandleFunc("GET /System/Info", func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		if auth == "" || !strings.Contains(auth, `Token="`) {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"ServerName":%q,"Id":%q,"Version":%q}`, serverName, systemID, version)
+	})
+	m := &mockJellyfin{}
+	m.server = httptest.NewServer(mux)
+	m.URL = m.server.URL
+	t.Cleanup(m.server.Close)
+	return m
 }

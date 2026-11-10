@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
+	sourcev1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1"
 )
 
 type fakeIdentityClient struct {
@@ -66,6 +67,39 @@ func (f *fakeIdentityClient) Logout(ctx context.Context, in *identityv1.LogoutRe
 	return &identityv1.LogoutResponse{}, nil
 }
 
+type fakeSourceClient struct {
+	connect     func(context.Context, *sourcev1.ConnectSourceRequest, ...grpc.CallOption) (*sourcev1.ConnectSourceResponse, error)
+	update      func(context.Context, *sourcev1.UpdateSourceRequest, ...grpc.CallOption) (*sourcev1.UpdateSourceResponse, error)
+	listSources func(context.Context, *sourcev1.ListSourcesRequest, ...grpc.CallOption) (*sourcev1.ListSourcesResponse, error)
+	getSource   func(context.Context, *sourcev1.GetSourceRequest, ...grpc.CallOption) (*sourcev1.GetSourceResponse, error)
+}
+
+func (f *fakeSourceClient) ConnectSource(ctx context.Context, in *sourcev1.ConnectSourceRequest, opts ...grpc.CallOption) (*sourcev1.ConnectSourceResponse, error) {
+	if f.connect != nil {
+		return f.connect(ctx, in, opts...)
+	}
+	return &sourcev1.ConnectSourceResponse{Outcome: sourcev1.ConnectSourceOutcome_CONNECT_SOURCE_OUTCOME_CONNECTED,
+		Source: &sourcev1.Source{SourceId: "src_test", ConnectorId: in.GetConnectorId(), VerifiedExternalId: "jf-test-id", Endpoint: "https://example.test", DisplayName: "Test", Status: sourcev1.SourceStatus_SOURCE_STATUS_ACTIVE}}, nil
+}
+func (f *fakeSourceClient) UpdateSource(ctx context.Context, in *sourcev1.UpdateSourceRequest, opts ...grpc.CallOption) (*sourcev1.UpdateSourceResponse, error) {
+	if f.update != nil {
+		return f.update(ctx, in, opts...)
+	}
+	return &sourcev1.UpdateSourceResponse{Source: &sourcev1.Source{SourceId: in.GetSourceId(), Status: sourcev1.SourceStatus_SOURCE_STATUS_ACTIVE}}, nil
+}
+func (f *fakeSourceClient) ListSources(ctx context.Context, in *sourcev1.ListSourcesRequest, opts ...grpc.CallOption) (*sourcev1.ListSourcesResponse, error) {
+	if f.listSources != nil {
+		return f.listSources(ctx, in, opts...)
+	}
+	return &sourcev1.ListSourcesResponse{}, nil
+}
+func (f *fakeSourceClient) GetSource(ctx context.Context, in *sourcev1.GetSourceRequest, opts ...grpc.CallOption) (*sourcev1.GetSourceResponse, error) {
+	if f.getSource != nil {
+		return f.getSource(ctx, in, opts...)
+	}
+	return &sourcev1.GetSourceResponse{Source: &sourcev1.Source{SourceId: in.GetSourceId(), Status: sourcev1.SourceStatus_SOURCE_STATUS_ACTIVE}}, nil
+}
+
 func doJSON(handler http.Handler, method, target, body string, headers map[string]string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, target, strings.NewReader(body))
 	if body != "" {
@@ -93,7 +127,7 @@ func TestStatus(t *testing.T) {
 		getStatus: func(_ context.Context, _ *identityv1.GetStatusRequest) (*identityv1.GetStatusResponse, error) {
 			return &identityv1.GetStatusResponse{Initialized: true}, nil
 		},
-	})
+	}, &fakeSourceClient{})
 	rr := doJSON(srv.Handler(), http.MethodGet, "/api/status", "", nil)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rr.Code)
@@ -112,7 +146,7 @@ func TestSetupConflictAndValidation(t *testing.T) {
 		setupAdmin: func(_ context.Context, _ *identityv1.SetupAdminRequest) (*identityv1.SetupAdminResponse, error) {
 			return nil, status.Error(codes.FailedPrecondition, "instance already initialized")
 		},
-	})
+	}, &fakeSourceClient{})
 	rr := doJSON(srv.Handler(), http.MethodPost, "/api/setup", `{"username":"a","password":"testpass1234"}`, nil)
 	if rr.Code != http.StatusConflict {
 		t.Fatalf("status = %d, want 409", rr.Code)
@@ -137,7 +171,7 @@ func TestLoginSetsSessionCookie(t *testing.T) {
 		getUser: func(_ context.Context, _ *identityv1.GetUserRequest) (*identityv1.GetUserResponse, error) {
 			return &identityv1.GetUserResponse{UserId: "usr_test", Username: "admin"}, nil
 		},
-	})
+	}, &fakeSourceClient{})
 	rr := doJSON(srv.Handler(), http.MethodPost, "/api/login", `{"username":"admin","password":"testpass1234"}`, nil)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rr.Code)
@@ -166,7 +200,7 @@ func TestLoginSetsSecureCookieWithForwardedProto(t *testing.T) {
 		getUser: func(_ context.Context, _ *identityv1.GetUserRequest) (*identityv1.GetUserResponse, error) {
 			return &identityv1.GetUserResponse{UserId: "usr_test", Username: "admin"}, nil
 		},
-	})
+	}, &fakeSourceClient{})
 	rr := doJSON(srv.Handler(), http.MethodPost, "/api/login", `{"username":"admin","password":"testpass1234"}`, map[string]string{"X-Forwarded-Proto": "https"})
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rr.Code)
@@ -179,7 +213,7 @@ func TestLoginSetsSecureCookieWithForwardedProto(t *testing.T) {
 }
 
 func TestMeUnauthorized(t *testing.T) {
-	srv := NewServer(&fakeIdentityClient{})
+	srv := NewServer(&fakeIdentityClient{}, &fakeSourceClient{})
 	rr := doJSON(srv.Handler(), http.MethodGet, "/api/me", "", nil)
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", rr.Code)
@@ -189,7 +223,7 @@ func TestMeUnauthorized(t *testing.T) {
 		validateSession: func(_ context.Context, _ *identityv1.ValidateSessionRequest) (*identityv1.ValidateSessionResponse, error) {
 			return &identityv1.ValidateSessionResponse{Valid: false}, nil
 		},
-	})
+	}, &fakeSourceClient{})
 	rr = doJSON(srv.Handler(), http.MethodGet, "/api/me", "", map[string]string{"Cookie": SessionCookieName + "=bad"})
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("invalid session status = %d, want 401", rr.Code)
@@ -197,7 +231,7 @@ func TestMeUnauthorized(t *testing.T) {
 }
 
 func TestLogoutClearsCookie(t *testing.T) {
-	srv := NewServer(&fakeIdentityClient{})
+	srv := NewServer(&fakeIdentityClient{}, &fakeSourceClient{})
 	rr := doJSON(srv.Handler(), http.MethodPost, "/api/logout", "{}", map[string]string{"Cookie": SessionCookieName + "=sess_test"})
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rr.Code)

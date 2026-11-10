@@ -18,7 +18,7 @@ func main() {
 	cfg := app.WebConfig{
 		Bind:       config.Env("WEB_BIND_ADDRESS", "127.0.0.1"),
 		Port:       config.EnvPort("WEB_HTTP_PORT", 8097),
-		APIBaseURL: config.Env("API_HTTP_ADDR", "http://127.0.0.1:8096"),
+		APIBaseURL: config.Env("API_HTTP_ADDR", "http://127.0.0.1:8098"),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
