@@ -12,9 +12,10 @@ option go_package = "github.com/Nem-git/ABCMovies/gen/go/abcmovies/library/v1;li
 
 service LibraryService {
   // SyncSource refreshes the library snapshot for a connected source using
-  // transient credentials. Credentials are required (no stored credentials in
-  // Build 1). The connect flow may trigger a sync after connect; manual
-  // re-sync requires the user to supply credentials again.
+  // transient credentials. Credentials are required on every sync; none are
+  // stored (Build 1). Connecting does not sync: both the initial sync and
+  // any manual re-sync require the user to supply credentials again, until
+  // the credential-custody decision (DEC-003) changes this.
   rpc SyncSource(SyncSourceRequest) returns (SyncSourceResponse);
 
   // ListTitles returns titles from the reachable library (browse).
