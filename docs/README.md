@@ -12,6 +12,5 @@ Product specification for the ABCMovies rewrite. These docs describe *what* the 
 6. [QUALITY.md](QUALITY.md) — how work is verified and when it is done.
 7. [SECURITY.md](SECURITY.md) — security/privacy baseline.
 8. [OPERATIONS.md](OPERATIONS.md) — install/upgrade/backup/health expectations (product level).
-9. [BACKLOG.md](BACKLOG.md) — temporary import draft; delete after issues are filed.
 
 Concrete technical choices live in `decisions/tech/`, not in product docs.
