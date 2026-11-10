@@ -10,9 +10,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/Nem-git/ABCMovies/core/internal/auth"
-	"github.com/Nem-git/ABCMovies/core/internal/store"
 	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
+	"github.com/Nem-git/ABCMovies/internal/core/internal/auth"
+	"github.com/Nem-git/ABCMovies/internal/core/internal/store"
 )
 
 // sessionTTL is how long a login session lasts.

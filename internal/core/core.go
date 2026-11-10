@@ -1,5 +1,5 @@
 // Package core is the public composition wrapper for the gRPC-only ABCMovies
-// core. The implementation lives in core/internal.
+// core. The implementation lives in internal/core/internal.
 package core
 
 import (
@@ -11,10 +11,10 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/Nem-git/ABCMovies/core/internal/service"
-	"github.com/Nem-git/ABCMovies/core/internal/store"
 	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
 	sourcev1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1"
+	"github.com/Nem-git/ABCMovies/internal/core/internal/service"
+	"github.com/Nem-git/ABCMovies/internal/core/internal/store"
 	"github.com/Nem-git/ABCMovies/internal/platform"
 )
 

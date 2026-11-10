@@ -1,6 +1,6 @@
 package app
 
-import "github.com/Nem-git/ABCMovies/web"
+import "github.com/Nem-git/ABCMovies/internal/web"
 
 // WebConfig holds configuration for the SSR web frontend.
 type WebConfig = web.WebConfig

@@ -1,6 +1,6 @@
 package app
 
-import "github.com/Nem-git/ABCMovies/api"
+import "github.com/Nem-git/ABCMovies/internal/api"
 
 // APIConfig holds configuration for the HTTP API frontend.
 type APIConfig = api.APIConfig

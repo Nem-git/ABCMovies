@@ -1,5 +1,5 @@
 // Package api is the public composition wrapper for the ABCMovies HTTP API
-// frontend. The implementation lives in api/internal.
+// frontend. The implementation lives in internal/api/internal.
 package api
 
 import (
@@ -13,9 +13,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/Nem-git/ABCMovies/api/internal/server"
 	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
 	sourcev1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1"
+	"github.com/Nem-git/ABCMovies/internal/api/internal/server"
 	"github.com/Nem-git/ABCMovies/internal/platform"
 )
 

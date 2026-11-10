@@ -10,9 +10,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/Nem-git/ABCMovies/core/internal/connector/source/jellyfin"
-	"github.com/Nem-git/ABCMovies/core/internal/store"
 	sourcev1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1"
+	"github.com/Nem-git/ABCMovies/internal/core/internal/connector/source/jellyfin"
+	"github.com/Nem-git/ABCMovies/internal/core/internal/store"
 )
 
 // fakeVerifier is a deterministic stand-in for the jellyfin connector in

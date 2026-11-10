@@ -1,5 +1,5 @@
 // Package web is the public composition wrapper for the ABCMovies SSR web
-// frontend. The implementation lives in web/internal.
+// frontend. The implementation lives in internal/web/internal.
 package web
 
 import (
@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Nem-git/ABCMovies/internal/platform"
-	"github.com/Nem-git/ABCMovies/web/internal/server"
+	"github.com/Nem-git/ABCMovies/internal/web/internal/server"
 )
 
 // WebConfig holds configuration for the SSR web frontend.

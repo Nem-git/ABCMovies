@@ -1,6 +1,6 @@
 package app
 
-import "github.com/Nem-git/ABCMovies/core"
+import "github.com/Nem-git/ABCMovies/internal/core"
 
 // CoreConfig holds configuration for the gRPC core.
 type CoreConfig = core.CoreConfig
