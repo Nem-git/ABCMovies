@@ -14,8 +14,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
-	sourcev1  "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1"
 	libraryv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/library/v1"
+	sourcev1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1"
 	"github.com/Nem-git/ABCMovies/internal/api/internal/server"
 	"github.com/Nem-git/ABCMovies/internal/platform"
 )
