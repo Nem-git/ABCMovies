@@ -25,6 +25,10 @@ func StreamURL(endpoint, itemID string) (string, *Error) {
 // embeds a source access token; it must be used server-to-server only and
 // never returned to browsers. Password-derived tokens are held in memory for
 // the duration of the caller's use and are never persisted or logged.
+// An API key is verified against the server (GET /System/Info) on every
+// call, cached credentials included, so an invalid or revoked key fails
+// here with an honest error instead of surfacing later as an unplayable
+// stream.
 func (c *Client) Authorize(ctx context.Context, endpoint string, creds Credentials) (string, *Error) {
 	endpoint, nerr := normalizeEndpoint(endpoint)
 	if nerr != nil {
@@ -40,6 +44,10 @@ func (c *Client) Authorize(ctx context.Context, endpoint string, creds Credentia
 			return "", err
 		}
 		return c.authHeader(auth.Token), nil
+	}
+	// API key: verify it before handing out a header for it.
+	if _, err := c.fetchSystemInfo(ctx, endpoint, creds.APIKey); err != nil {
+		return "", err
 	}
 	return c.authHeader(creds.APIKey), nil
 }
