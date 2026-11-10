@@ -1,6 +1,7 @@
-// Package jellyfin verifies and describes a Jellyfin server without storing
-// its credentials. It is used by core to implement connect/verify/update for
-// REQ-SRC-01 (DEC-001).
+// Package jellyfin verifies and describes a Jellyfin server and fetches its
+// library without storing its credentials. It is used by core to implement
+// connect/verify/update for REQ-SRC-01 (DEC-001) and library sync for
+// REQ-LIB-01/02/03/05 (ADR 0004).
 //
 // Credentials travel only in requests (Authorization header) and are never
 // persisted, returned, or logged. Errors returned by this package are safe to
@@ -44,6 +45,14 @@ type Credentials struct {
 type PasswordCredentials struct {
 	Username string
 	Password string
+}
+
+// AuthResult carries the token and (when Jellyfin returns it) the authenticated
+// user's ID. Both are held only in memory for the duration of the call and are
+// never returned to callers; they are not logged or persisted.
+type authResult struct {
+	Token  string
+	UserID string
 }
 
 // ServerInfo is a non-sensitive description of a verified Jellyfin server.
@@ -105,6 +114,28 @@ func NewClient() *Client {
 // URL with no credentials, query, or fragment.
 func NormalizeEndpoint(raw string) (string, *Error) { return normalizeEndpoint(raw) }
 
+// credentialsForRequest validates a Credentials value the same way Verify does.
+// Shared by Verify and FetchLibrary so the library path behaves identically
+// for invalid inputs. Endpoint normalization happens in the callers before
+// credentials are checked.
+func credentialsForRequest(creds Credentials) (Credentials, *Error) {
+	if creds.APIKey != "" && creds.Password != nil {
+		return Credentials{}, &Error{Kind: ErrKindInvalidEndpoint, Message: "provide either username/password or an API key, not both"}
+	}
+	if creds.APIKey == "" && creds.Password == nil {
+		return Credentials{}, &Error{Kind: ErrKindUnauthorized, Message: "credentials are required"}
+	}
+	switch p := creds.Password; {
+	case p != nil && strings.TrimSpace(p.Username) == "" && p.Password != "":
+		return Credentials{}, &Error{Kind: ErrKindUnauthorized, Message: "a username is required when a password is provided"}
+	case p != nil && p.Password == "" && strings.TrimSpace(p.Username) != "":
+		return Credentials{}, &Error{Kind: ErrKindUnauthorized, Message: "a password is required when a username is provided"}
+	case p != nil && strings.TrimSpace(p.Username) == "" && p.Password == "":
+		return Credentials{}, &Error{Kind: ErrKindUnauthorized, Message: "username and password are required"}
+	}
+	return creds, nil
+}
+
 // Verify checks that the supplied credentials grant access to the Jellyfin
 // server and returns its identity. It is used to implement connect and
 // update verification (DEC-001).
@@ -116,28 +147,18 @@ func (c *Client) Verify(ctx context.Context, endpoint string, creds Credentials)
 	if nerr != nil {
 		return nil, nerr
 	}
-	if creds.APIKey != "" && creds.Password != nil {
-		return nil, &Error{Kind: ErrKindInvalidEndpoint, Message: "provide either username/password or an API key, not both"}
-	}
-	if creds.APIKey == "" && creds.Password == nil {
-		return nil, &Error{Kind: ErrKindUnauthorized, Message: "credentials are required"}
-	}
-	switch p := creds.Password; {
-	case p != nil && strings.TrimSpace(p.Username) == "" && p.Password != "":
-		return nil, &Error{Kind: ErrKindUnauthorized, Message: "a username is required when a password is provided"}
-	case p != nil && p.Password == "" && strings.TrimSpace(p.Username) != "":
-		return nil, &Error{Kind: ErrKindUnauthorized, Message: "a password is required when a username is provided"}
-	case p != nil && strings.TrimSpace(p.Username) == "" && p.Password == "":
-		return nil, &Error{Kind: ErrKindUnauthorized, Message: "username and password are required"}
+	creds, credErr := credentialsForRequest(creds)
+	if credErr != nil {
+		return nil, credErr
 	}
 
 	var token string
 	if creds.Password != nil {
-		t, err := c.authorize(ctx, endpoint, creds.Password.Username, creds.Password.Password)
+		auth, err := c.authorize(ctx, endpoint, creds.Password.Username, creds.Password.Password)
 		if err != nil {
 			return nil, err
 		}
-		token = t
+		token = auth.Token
 	} else {
 		token = creds.APIKey
 	}
@@ -158,27 +179,35 @@ func (c *Client) Verify(ctx context.Context, endpoint string, creds Credentials)
 	return info, nil
 }
 
-// authorize exchanges username/password for a user access token.
-func (c *Client) authorize(ctx context.Context, endpoint, username, password string) (string, *Error) {
+// authorize exchanges username/password for a user access token. The returned
+// result is for internal use only; it is never returned to callers.
+func (c *Client) authorize(ctx context.Context, endpoint, username, password string) (*authResult, *Error) {
 	body, err := json.Marshal(map[string]string{"Username": username, "Pw": password})
 	if err != nil {
-		return "", &Error{Kind: ErrKindMisconfig, Message: "could not encode the authentication request"}
+		return nil, &Error{Kind: ErrKindMisconfig, Message: "could not encode the authentication request"}
 	}
 	type authResponse struct {
 		AccessToken string `json:"AccessToken"`
+		User        *struct {
+			Id string `json:"Id"`
+		} `json:"User"`
 	}
 	payload, doErr := c.doJSON(ctx, http.MethodPost, joinURL(endpoint, "/Users/AuthenticateByName"), body, c.authHeader(""))
 	if doErr != nil {
-		return "", doErr
+		return nil, doErr
 	}
 	var ar authResponse
 	if uerr := json.Unmarshal(payload, &ar); uerr != nil {
-		return "", &Error{Kind: ErrKindMisconfig, Message: "the server returned an unexpected response while authenticating"}
+		return nil, &Error{Kind: ErrKindMisconfig, Message: "the server returned an unexpected response while authenticating"}
 	}
 	if ar.AccessToken == "" {
-		return "", &Error{Kind: ErrKindUnauthorized, Message: "invalid username or password"}
+		return nil, &Error{Kind: ErrKindUnauthorized, Message: "invalid username or password"}
 	}
-	return ar.AccessToken, nil
+	res := &authResult{Token: ar.AccessToken}
+	if ar.User != nil {
+		res.UserID = strings.TrimSpace(ar.User.Id)
+	}
+	return res, nil
 }
 
 // fetchSystemInfo reads the server's identity using the token.
