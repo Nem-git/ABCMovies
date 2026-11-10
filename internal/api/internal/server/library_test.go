@@ -246,6 +246,25 @@ func TestLibrarySyncValidationAndErrors(t *testing.T) {
 	if got.GetPassword() != nil || got.GetApiKey() != "" {
 		t.Fatalf("expected no credentials oneof set (session cache path), got password=%v api_key=%v", got.GetPassword() != nil, got.GetApiKey())
 	}
+	// Half-filled credentials: 400, not a silent session-cache fallback (the
+	// play endpoint already rejects these the same way).
+	for _, tc := range []struct {
+		name string
+		body string
+	}{
+		{"username only", `{"credentials":{"username":"admin"}}`},
+		{"password only", `{"credentials":{"password":"hunter2"}}`},
+		{"username with api_key", `{"credentials":{"username":"admin","api_key":"some-key"}}`},
+	} {
+		got = nil // reset the capture: the core must not be called
+		rr = doJSON(srv.Handler(), http.MethodPost, "/api/library/source/src_1/sync", tc.body, sessionCookieHeader("sess_1"))
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("%s: status = %d, want 400; body=%s", tc.name, rr.Code, rr.Body)
+		}
+		if got != nil {
+			t.Fatalf("%s: core was called; want a local 400 rejection", tc.name)
+		}
+	}
 	// Bad content type -> 415.
 	rr = doJSON(srv.Handler(), http.MethodPost, "/api/library/source/src_1/sync", `{}`, map[string]string{"Content-Type": "text/plain", "Cookie": "abcmovies_session=sess_1"})
 	if rr.Code != http.StatusUnsupportedMediaType {
