@@ -23,6 +23,12 @@ service SourceService {
 
   // GetSource returns one non-sensitive source summary.
   rpc GetSource(GetSourceRequest) returns (GetSourceResponse);
+
+  // RemoveSource disconnects a source locally (no upstream call, no credentials).
+  // The source row and its library titles are retained as tombstones; the
+  // source's titles become and remain unavailable until the source is
+  // reconnected and re-synced (Build 1: single admin, instance-scope).
+  rpc RemoveSource(RemoveSourceRequest) returns (RemoveSourceResponse);
 }
 
 enum SourceStatus {
@@ -30,6 +36,7 @@ enum SourceStatus {
   SOURCE_STATUS_ACTIVE = 1;
   SOURCE_STATUS_NEEDS_REVERIFICATION = 2;
   SOURCE_STATUS_ERROR = 3;
+  SOURCE_STATUS_DISCONNECTED = 4; // user-removed; source row and titles retained (tombstone)
 }
 
 enum ConnectSourceOutcome {
@@ -105,3 +112,10 @@ message GetSourceRequest {
 message GetSourceResponse {
   Source source = 1;
 }
+
+message RemoveSourceRequest {
+  string actor_user_id = 1; // authenticated ABCMovies user (resolved by API/session edge)
+  string source_id = 2;
+}
+
+message RemoveSourceResponse {}
