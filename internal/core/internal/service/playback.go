@@ -29,10 +29,12 @@ const (
 	// sessionCredTTL bounds how long source credentials linger in memory
 	// without a successful use. Sliding: refreshed on every read.
 	sessionCredTTL = 12 * time.Hour
-	// ticketTTL bounds how long a minted playback ticket stays valid.
-	// The video element re-requests (including Range) during playback; the
-	// ticket must outlive the session's viewing but nothing longer.
-	ticketTTL = 10 * time.Minute
+	// ticketIdleTTL bounds how long a minted playback ticket stays valid
+	// without a successful resolve. Sliding: every resolve refreshes it, so
+	// the ticket lives as long as the video is actively being fetched (the
+	// browser re-issues Range requests throughout playback) but dies
+	// ticketIdleTTL after the last fetch.
+	ticketIdleTTL = 30 * time.Minute
 )
 
 type cachedCreds struct {
@@ -82,9 +84,13 @@ type playTicket struct {
 type ticketStore struct {
 	mu sync.Mutex
 	m  map[string]playTicket
+	// now supplies the current time; tests override it to exercise expiry.
+	now func() time.Time
 }
 
-func newTicketStore() *ticketStore { return &ticketStore{m: map[string]playTicket{}} }
+func newTicketStore() *ticketStore {
+	return &ticketStore{m: map[string]playTicket{}, now: time.Now}
+}
 
 var errTicketNotFound = errors.New("ticket not found or expired")
 
@@ -96,7 +102,7 @@ func (s *ticketStore) mint(t playTicket) (string, error) {
 	id := hex.EncodeToString(buf)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.purgeLocked(time.Now())
+	s.purgeLocked(s.now())
 	s.m[id] = t
 	return id, nil
 }
@@ -104,12 +110,15 @@ func (s *ticketStore) mint(t playTicket) (string, error) {
 func (s *ticketStore) resolve(actorUserID, ticket string) (playTicket, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.purgeLocked(time.Now())
+	s.purgeLocked(s.now())
 	t, ok := s.m[ticket]
 	if !ok || t.actorUserID != actorUserID {
 		// Uniform error: do not reveal whether the ticket exists.
 		return playTicket{}, errTicketNotFound
 	}
+	// Sliding expiry: each successful resolve refreshes the idle lifetime.
+	t.expiresAt = s.now().Add(ticketIdleTTL)
+	s.m[ticket] = t
 	return t, nil
 }
 
@@ -177,7 +186,7 @@ func (l *LibraryService) CreatePlayTicket(ctx context.Context, req *libraryv1.Cr
 		return nil, status.Errorf(codes.Internal, "build stream URL: %v", urlErr.Message)
 	}
 
-	expiresAt := time.Now().Add(ticketTTL)
+	expiresAt := l.tickets.now().Add(ticketIdleTTL)
 	id, err := l.tickets.mint(playTicket{
 		actorUserID:   actor,
 		titleID:       titleID,

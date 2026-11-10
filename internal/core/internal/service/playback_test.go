@@ -168,6 +168,44 @@ func TestCreatePlayTicketRejectsSeriesAndUnavailable(t *testing.T) {
 	}
 }
 
+func TestResolvePlayTicketSlidesExpiry(t *testing.T) {
+	svc, _ := newTestLibraryService(t)
+	base := time.Now()
+	fake := base
+	svc.tickets.now = func() time.Time { return fake }
+
+	p := playTicket{actorUserID: "usr_admin", titleID: "ttl_1", sourceID: "src_1", streamURL: "u", authorization: "a", expiresAt: fake.Add(ticketIdleTTL)}
+	id, err := svc.tickets.mint(p)
+	if err != nil {
+		t.Fatalf("mint: %v", err)
+	}
+	resolve := func() error {
+		_, err := svc.ResolvePlayTicket(context.Background(), &libraryv1.ResolvePlayTicketRequest{ActorUserId: "usr_admin", Ticket: id})
+		return err
+	}
+
+	// 25 minutes in with an active fetch: resolve refreshes the idle lifetime.
+	fake = fake.Add(25 * time.Minute)
+	if err := resolve(); err != nil {
+		t.Fatalf("resolve at +25m: %v", err)
+	}
+	if got := svc.tickets.m[id].expiresAt; !got.Equal(fake.Add(ticketIdleTTL)) {
+		t.Fatalf("expiry after resolve = %v, want %v (sliding)", got, fake.Add(ticketIdleTTL))
+	}
+
+	// +54m: still valid (would have died at +30m without sliding).
+	fake = fake.Add(29 * time.Minute)
+	if err := resolve(); err != nil {
+		t.Fatalf("resolve at +54m: %v (sliding refresh lost)", err)
+	}
+
+	// 31 minutes without a fetch: the ticket expires.
+	fake = fake.Add(31 * time.Minute)
+	if err := resolve(); status.Code(err) != codes.NotFound {
+		t.Fatalf("resolve after idle %v, want NotFound", err)
+	}
+}
+
 func TestResolvePlayTicketRejectsForeignActorAndExpired(t *testing.T) {
 	svc, _ := newTestLibraryService(t)
 	p := playTicket{
