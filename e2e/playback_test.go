@@ -77,8 +77,8 @@ func TestPlayCredentialHandling(t *testing.T) {
 	code, body := playTitle(t, client, base, titleID, map[string]any{
 		"credentials": map[string]string{"username": "admin", "password": "wrong password"},
 	})
-	if code != http.StatusUnauthorized && code != http.StatusUnprocessableEntity {
-		t.Fatalf("play with wrong creds status = %d, want 401 or 422; body=%s", code, body)
+	if code != http.StatusUnauthorized {
+		t.Fatalf("play with wrong creds status = %d, want 401; body=%s", code, body)
 	}
 
 	// A blank play request reuses the sync-primed session cache.
