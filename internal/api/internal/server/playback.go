@@ -7,10 +7,13 @@
 package server
 
 import (
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
+	"sync"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -133,13 +136,39 @@ func (s *Server) apiLibraryStream(w http.ResponseWriter, r *http.Request) {
 	// upstream fetch.
 	upstream, err := streamClient.Do(upstreamReq)
 	if err != nil {
-		slog.Error("upstream stream failed", "err", err)
+		// A redirect is only followed toward the configured source; any other
+		// origin is refused here. The error carries no headers or bodies.
+		slog.Error("upstream stream failed", "err", err, "title_id", titleID)
 		writeError(w, http.StatusServiceUnavailable, "could not reach the source — try again")
 		return
 	}
 	defer upstream.Body.Close()
 
-	for _, h := range []string{"Content-Type", "Content-Length", "Content-Range", "Accept-Ranges", "ETag", "Last-Modified"} {
+	// Upstream 5xx never reaches the browser verbatim: the body may be an
+	// HTML error page, useless to the player and untrusted. 4xx passes
+	// through (the Range/416 semantics the player depends on stay intact).
+	if upstream.StatusCode >= 500 {
+		slog.Warn("upstream stream returned a server error", "status", upstream.StatusCode, "title_id", titleID)
+		writeError(w, http.StatusBadGateway, "the source could not prepare the stream — try again later")
+		return
+	}
+	if upstream.StatusCode >= 400 {
+		slog.Info("upstream stream returned a client error", "status", upstream.StatusCode, "title_id", titleID)
+	}
+
+	dropped := []string{}
+	for _, h := range []string{"ETag", "Last-Modified"} {
+		if v := upstream.Header.Get(h); v != "" {
+			dropped = append(dropped, h)
+		}
+	}
+	// Note the header names only, never the values (a tag can be a content
+	// hash). One line per stream session (per ticket), not per Range request.
+	if len(dropped) > 0 {
+		logValidatorDropOnce(ticket, titleID, dropped)
+	}
+
+	for _, h := range []string{"Content-Type", "Content-Length", "Content-Range", "Accept-Ranges"} {
 		if v := upstream.Header.Get(h); v != "" {
 			w.Header().Set(h, v)
 		}
@@ -149,4 +178,32 @@ func (s *Server) apiLibraryStream(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, upstream.Body)
 }
 
-var streamClient = &http.Client{}
+// logValidatorDropOnce records, at most once per minted ticket, that the
+// upstream sent cache validators that this proxy drops (revalidation is
+// deliberately not supported: no-store stands, see the runbook). Names only,
+// never values.
+var droppedValidators sync.Map // ticket (string) -> struct{}
+func logValidatorDropOnce(ticket, titleID string, names []string) {
+	if _, loaded := droppedValidators.LoadOrStore(ticket, struct{}{}); loaded {
+		return
+	}
+	sort.Strings(names)
+	slog.Info("upstream sent cache validators; dropped", "headers", names, "title_id", titleID)
+}
+
+// streamClient fetches the source's media. Redirects are followed only
+// toward the same origin that was requested (a configured source may
+// normalize paths, but a compromised source must not redirect the server
+// elsewhere); more than 5 hops is refused as well.
+var streamClient = &http.Client{
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 5 {
+			return fmt.Errorf("too many redirects fetching the upstream stream")
+		}
+		origin := via[0].URL
+		if req.URL.Scheme != origin.Scheme || req.URL.Host != origin.Host {
+			return fmt.Errorf("upstream stream redirected to a different origin")
+		}
+		return nil
+	},
+}

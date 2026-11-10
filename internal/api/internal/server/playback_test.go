@@ -48,6 +48,79 @@ func TestPlayTicketHappyPath(t *testing.T) {
 	}
 }
 
+func TestStreamProxyRedirectsAndUpstreamServerError(t *testing.T) {
+	// secret stands in for anything the source might try to make the server
+	// fetch elsewhere on the network (SSRF).
+	secret := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("internal-secret-bytes"))
+	}))
+	defer secret.Close()
+
+	source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/redirect-foreign":
+			w.Header().Set("Location", secret.URL+"/")
+			w.WriteHeader(http.StatusFound)
+		case "/redirect-self":
+			w.Header().Set("Location", "/file")
+			w.WriteHeader(http.StatusFound)
+		case "/boom":
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("upstream-oops-html-body"))
+		default:
+			w.Header().Set("Content-Type", "video/mp4")
+			_, _ = w.Write([]byte("media-bytes"))
+		}
+	}))
+	defer source.Close()
+
+	srv := NewServer(validSessionIdentity(), &fakeSourceClient{}, &fakeLibraryClient{
+		resolvePlayTicket: func(_ context.Context, in *libraryv1.ResolvePlayTicketRequest, _ ...grpc.CallOption) (*libraryv1.ResolvePlayTicketResponse, error) {
+		url := source.URL
+		switch in.GetTicket() {
+		case "foreign":
+			url += "/redirect-foreign"
+		case "self":
+			url += "/redirect-self"
+		case "boom":
+			url += "/boom"
+		}
+		return &libraryv1.ResolvePlayTicketResponse{TitleId: "ttl_1", SourceId: "src_1", StreamUrl: url, Authorization: `MediaBrowser Token="t"`}, nil
+	},
+	})
+	do := func(ticket string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/api/library/title/ttl_1/stream?ticket="+ticket, nil)
+		req.Header.Set("Cookie", "abcmovies_session=sess_1")
+		rr := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rr, req)
+		return rr
+	}
+
+	// Cross-origin redirect: refused, 503, secret bytes never relayed.
+	rr := do("foreign")
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("foreign redirect status = %d, want 503", rr.Code)
+	}
+	if strings.Contains(rr.Body.String(), "internal-secret-bytes") {
+		t.Fatal("the proxy relayed bytes from a cross-origin redirect")
+	}
+
+	// Same-origin redirect: followed.
+	rr = do("self")
+	if rr.Code != http.StatusOK || rr.Body.String() != "media-bytes" {
+		t.Fatalf("self redirect = %d %q, want 200 media-bytes", rr.Code, rr.Body.String())
+	}
+
+	// Upstream 5xx: 502, and the upstream body is not relayed verbatim.
+	rr = do("boom")
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("upstream 500 passthrough status = %d, want 502", rr.Code)
+	}
+	if strings.Contains(rr.Body.String(), "upstream-oops-html-body") {
+		t.Fatal("upstream error body was relayed to the browser")
+	}
+}
+
 func TestStreamProxyRangeAndNotFound(t *testing.T) {
 	payload := []byte("0123456789")
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -57,6 +130,8 @@ func TestStreamProxyRangeAndNotFound(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Accept-Ranges", "bytes")
+		w.Header().Set("ETag", `"upstream-etag"`)
+		w.Header().Set("Last-Modified", "Mon, 01 Jan 2024 00:00:00 GMT")
 		if rng := r.Header.Get("Range"); strings.HasPrefix(rng, "bytes=") {
 			spec := strings.TrimPrefix(rng, "bytes=")
 			var start, end int
@@ -109,6 +184,15 @@ func TestStreamProxyRangeAndNotFound(t *testing.T) {
 	rr := do(http.MethodGet, "/api/library/title/ttl_1/stream?ticket=good", "abcmovies_session=sess_1", "")
 	if rr.Code != http.StatusOK || rr.Body.String() != string(payload) {
 		t.Fatalf("stream = %d %q", rr.Code, rr.Body.String())
+	}
+	if got := rr.Header().Get("ETag"); got != "" {
+		t.Fatalf("ETag forwarded from upstream = %q; want it dropped (no-store)", got)
+	}
+	if got := rr.Header().Get("Last-Modified"); got != "" {
+		t.Fatalf("Last-Modified forwarded from upstream = %q; want it dropped (no-store)", got)
+	}
+	if got := rr.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control = %q, want no-store", got)
 	}
 
 	// Range passthrough.
