@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
+	libraryv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/library/v1"
 	sourcev1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1"
 )
 
@@ -100,6 +101,42 @@ func (f *fakeSourceClient) GetSource(ctx context.Context, in *sourcev1.GetSource
 	return &sourcev1.GetSourceResponse{Source: &sourcev1.Source{SourceId: in.GetSourceId(), Status: sourcev1.SourceStatus_SOURCE_STATUS_ACTIVE}}, nil
 }
 
+type fakeLibraryClient struct {
+	syncSource   func(context.Context, *libraryv1.SyncSourceRequest, ...grpc.CallOption) (*libraryv1.SyncSourceResponse, error)
+	listTitles   func(context.Context, *libraryv1.ListTitlesRequest, ...grpc.CallOption) (*libraryv1.ListTitlesResponse, error)
+	searchTitles func(context.Context, *libraryv1.SearchTitlesRequest, ...grpc.CallOption) (*libraryv1.SearchTitlesResponse, error)
+	getTitle     func(context.Context, *libraryv1.GetTitleRequest, ...grpc.CallOption) (*libraryv1.GetTitleResponse, error)
+}
+
+func (f *fakeLibraryClient) SyncSource(ctx context.Context, in *libraryv1.SyncSourceRequest, opts ...grpc.CallOption) (*libraryv1.SyncSourceResponse, error) {
+	if f.syncSource != nil {
+		return f.syncSource(ctx, in, opts...)
+	}
+	return &libraryv1.SyncSourceResponse{
+		SourceId: in.GetSourceId(),
+		Outcome:  libraryv1.SyncOutcome_SYNC_OUTCOME_SUCCESS,
+		State:    &libraryv1.SourceSyncState{SourceId: in.GetSourceId(), SourceDisplayName: "Test Server", LastOutcome: libraryv1.SyncOutcome_SYNC_OUTCOME_SUCCESS, TitleCount: 0},
+	}, nil
+}
+func (f *fakeLibraryClient) ListTitles(ctx context.Context, in *libraryv1.ListTitlesRequest, opts ...grpc.CallOption) (*libraryv1.ListTitlesResponse, error) {
+	if f.listTitles != nil {
+		return f.listTitles(ctx, in, opts...)
+	}
+	return &libraryv1.ListTitlesResponse{}, nil
+}
+func (f *fakeLibraryClient) SearchTitles(ctx context.Context, in *libraryv1.SearchTitlesRequest, opts ...grpc.CallOption) (*libraryv1.SearchTitlesResponse, error) {
+	if f.searchTitles != nil {
+		return f.searchTitles(ctx, in, opts...)
+	}
+	return &libraryv1.SearchTitlesResponse{}, nil
+}
+func (f *fakeLibraryClient) GetTitle(ctx context.Context, in *libraryv1.GetTitleRequest, opts ...grpc.CallOption) (*libraryv1.GetTitleResponse, error) {
+	if f.getTitle != nil {
+		return f.getTitle(ctx, in, opts...)
+	}
+	return &libraryv1.GetTitleResponse{Title: &libraryv1.Title{TitleId: in.GetTitleId(), Availability: libraryv1.AvailabilityState_AVAILABILITY_STATE_AVAILABLE}}, nil
+}
+
 func doJSON(handler http.Handler, method, target, body string, headers map[string]string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, target, strings.NewReader(body))
 	if body != "" {
@@ -127,7 +164,7 @@ func TestStatus(t *testing.T) {
 		getStatus: func(_ context.Context, _ *identityv1.GetStatusRequest) (*identityv1.GetStatusResponse, error) {
 			return &identityv1.GetStatusResponse{Initialized: true}, nil
 		},
-	}, &fakeSourceClient{})
+	}, &fakeSourceClient{}, &fakeLibraryClient{})
 	rr := doJSON(srv.Handler(), http.MethodGet, "/api/status", "", nil)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rr.Code)
@@ -146,7 +183,7 @@ func TestSetupConflictAndValidation(t *testing.T) {
 		setupAdmin: func(_ context.Context, _ *identityv1.SetupAdminRequest) (*identityv1.SetupAdminResponse, error) {
 			return nil, status.Error(codes.FailedPrecondition, "instance already initialized")
 		},
-	}, &fakeSourceClient{})
+	}, &fakeSourceClient{}, &fakeLibraryClient{})
 	rr := doJSON(srv.Handler(), http.MethodPost, "/api/setup", `{"username":"a","password":"testpass1234"}`, nil)
 	if rr.Code != http.StatusConflict {
 		t.Fatalf("status = %d, want 409", rr.Code)
@@ -171,7 +208,7 @@ func TestLoginSetsSessionCookie(t *testing.T) {
 		getUser: func(_ context.Context, _ *identityv1.GetUserRequest) (*identityv1.GetUserResponse, error) {
 			return &identityv1.GetUserResponse{UserId: "usr_test", Username: "admin"}, nil
 		},
-	}, &fakeSourceClient{})
+	}, &fakeSourceClient{}, &fakeLibraryClient{})
 	rr := doJSON(srv.Handler(), http.MethodPost, "/api/login", `{"username":"admin","password":"testpass1234"}`, nil)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rr.Code)
@@ -200,7 +237,7 @@ func TestLoginSetsSecureCookieWithForwardedProto(t *testing.T) {
 		getUser: func(_ context.Context, _ *identityv1.GetUserRequest) (*identityv1.GetUserResponse, error) {
 			return &identityv1.GetUserResponse{UserId: "usr_test", Username: "admin"}, nil
 		},
-	}, &fakeSourceClient{})
+	}, &fakeSourceClient{}, &fakeLibraryClient{})
 	rr := doJSON(srv.Handler(), http.MethodPost, "/api/login", `{"username":"admin","password":"testpass1234"}`, map[string]string{"X-Forwarded-Proto": "https"})
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rr.Code)
@@ -213,7 +250,7 @@ func TestLoginSetsSecureCookieWithForwardedProto(t *testing.T) {
 }
 
 func TestMeUnauthorized(t *testing.T) {
-	srv := NewServer(&fakeIdentityClient{}, &fakeSourceClient{})
+	srv := NewServer(&fakeIdentityClient{}, &fakeSourceClient{}, &fakeLibraryClient{})
 	rr := doJSON(srv.Handler(), http.MethodGet, "/api/me", "", nil)
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", rr.Code)
@@ -223,7 +260,7 @@ func TestMeUnauthorized(t *testing.T) {
 		validateSession: func(_ context.Context, _ *identityv1.ValidateSessionRequest) (*identityv1.ValidateSessionResponse, error) {
 			return &identityv1.ValidateSessionResponse{Valid: false}, nil
 		},
-	}, &fakeSourceClient{})
+	}, &fakeSourceClient{}, &fakeLibraryClient{})
 	rr = doJSON(srv.Handler(), http.MethodGet, "/api/me", "", map[string]string{"Cookie": SessionCookieName + "=bad"})
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("invalid session status = %d, want 401", rr.Code)
@@ -231,7 +268,7 @@ func TestMeUnauthorized(t *testing.T) {
 }
 
 func TestLogoutClearsCookie(t *testing.T) {
-	srv := NewServer(&fakeIdentityClient{}, &fakeSourceClient{})
+	srv := NewServer(&fakeIdentityClient{}, &fakeSourceClient{}, &fakeLibraryClient{})
 	rr := doJSON(srv.Handler(), http.MethodPost, "/api/logout", "{}", map[string]string{"Cookie": SessionCookieName + "=sess_test"})
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rr.Code)

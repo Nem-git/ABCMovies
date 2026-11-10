@@ -14,7 +14,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
-	sourcev1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1"
+	sourcev1  "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1"
+	libraryv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/library/v1"
 	"github.com/Nem-git/ABCMovies/internal/api/internal/server"
 	"github.com/Nem-git/ABCMovies/internal/platform"
 )
@@ -50,7 +51,7 @@ func StartAPI(cfg APIConfig) (*API, error) {
 	if err != nil {
 		return nil, fmt.Errorf("dial core: %w", err)
 	}
-	handler := server.NewServer(identityv1.NewIdentityServiceClient(conn), sourcev1.NewSourceServiceClient(conn)).Handler()
+	handler := server.NewServer(identityv1.NewIdentityServiceClient(conn), sourcev1.NewSourceServiceClient(conn), libraryv1.NewLibraryServiceClient(conn)).Handler()
 	lis, addr, err := platform.Listen(bind, cfg.Port)
 	if err != nil {
 		_ = conn.Close()

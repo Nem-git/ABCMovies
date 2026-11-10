@@ -28,7 +28,7 @@ func validSessionIdentity() *fakeIdentityClient {
 }
 
 func TestSourceEndpointsRequireSession(t *testing.T) {
-	srv := NewServer(&fakeIdentityClient{}, &fakeSourceClient{})
+	srv := NewServer(&fakeIdentityClient{}, &fakeSourceClient{}, &fakeLibraryClient{})
 	tests := []struct {
 		method string
 		path   string
@@ -52,7 +52,7 @@ func TestSourceEndpointsRejectInvalidSession(t *testing.T) {
 		validateSession: func(_ context.Context, _ *identityv1.ValidateSessionRequest) (*identityv1.ValidateSessionResponse, error) {
 			return &identityv1.ValidateSessionResponse{Valid: false}, nil
 		},
-	}, &fakeSourceClient{})
+	}, &fakeSourceClient{}, &fakeLibraryClient{})
 	rr := doJSON(srv.Handler(), http.MethodGet, "/api/source", "", sessionCookieHeader("bad"))
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", rr.Code)
@@ -81,7 +81,7 @@ func TestSourceConnectHappyPath(t *testing.T) {
 				},
 			}, nil
 		},
-	})
+	}, &fakeLibraryClient{})
 	rr := doJSON(srv.Handler(), http.MethodPost, "/api/source/connect",
 		`{"connector_id":"jellyfin","endpoint":"https://media.example.test","credentials":{"username":"admin","password":"correct horse"}}`,
 		sessionCookieHeader("sess_1"))
@@ -116,7 +116,7 @@ func TestSourceConnectDuplicate(t *testing.T) {
 				},
 			}, nil
 		},
-	})
+	}, &fakeLibraryClient{})
 	rr := doJSON(srv.Handler(), http.MethodPost, "/api/source/connect",
 		`{"connector_id":"jellyfin","endpoint":"https://media.example.test","credentials":{"api_key":"k"}}`,
 		sessionCookieHeader("sess_1"))
@@ -134,7 +134,7 @@ func TestSourceConnectDuplicate(t *testing.T) {
 
 func TestSourceConnectValidationAndErrors(t *testing.T) {
 	// Missing credentials -> 400 (from applyConnectCredentials).
-	srv := NewServer(validSessionIdentity(), &fakeSourceClient{})
+	srv := NewServer(validSessionIdentity(), &fakeSourceClient{}, &fakeLibraryClient{})
 	rr := doJSON(srv.Handler(), http.MethodPost, "/api/source/connect",
 		`{"connector_id":"jellyfin","endpoint":"https://media.example.test"}`, sessionCookieHeader("sess_1"))
 	if rr.Code != http.StatusBadRequest {
@@ -152,7 +152,7 @@ func TestSourceConnectValidationAndErrors(t *testing.T) {
 		connect: func(_ context.Context, _ *sourcev1.ConnectSourceRequest, _ ...grpc.CallOption) (*sourcev1.ConnectSourceResponse, error) {
 			return nil, status.Error(codes.Unavailable, "down")
 		},
-	})
+	}, &fakeLibraryClient{})
 	rr = doJSON(srv2.Handler(), http.MethodPost, "/api/source/connect",
 		`{"connector_id":"jellyfin","endpoint":"https://media.example.test","credentials":{"api_key":"k"}}`, sessionCookieHeader("sess_1"))
 	if rr.Code != http.StatusServiceUnavailable {
@@ -164,7 +164,7 @@ func TestSourceConnectValidationAndErrors(t *testing.T) {
 		connect: func(_ context.Context, _ *sourcev1.ConnectSourceRequest, _ ...grpc.CallOption) (*sourcev1.ConnectSourceResponse, error) {
 			return nil, status.Error(codes.Unauthenticated, "invalid")
 		},
-	})
+	}, &fakeLibraryClient{})
 	rr = doJSON(srv3.Handler(), http.MethodPost, "/api/source/connect",
 		`{"connector_id":"jellyfin","endpoint":"https://media.example.test","credentials":{"password":"wrong","username":"admin"}}`, sessionCookieHeader("sess_1"))
 	if rr.Code != http.StatusUnauthorized {
@@ -186,7 +186,7 @@ func TestSourceListAndGet(t *testing.T) {
 		getSource: func(_ context.Context, in *sourcev1.GetSourceRequest, _ ...grpc.CallOption) (*sourcev1.GetSourceResponse, error) {
 			return &sourcev1.GetSourceResponse{Source: listResp.Sources[0]}, nil
 		},
-	})
+	}, &fakeLibraryClient{})
 	rr := doJSON(srv.Handler(), http.MethodGet, "/api/source", "", sessionCookieHeader("sess_1"))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("list status = %d", rr.Code)
@@ -209,7 +209,7 @@ func TestSourceListAndGet(t *testing.T) {
 		getSource: func(_ context.Context, _ *sourcev1.GetSourceRequest, _ ...grpc.CallOption) (*sourcev1.GetSourceResponse, error) {
 			return nil, status.Error(codes.NotFound, "not found")
 		},
-	})
+	}, &fakeLibraryClient{})
 	rr = doJSON(srv2.Handler(), http.MethodGet, "/api/source/src_nope", "", sessionCookieHeader("sess_1"))
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("get missing status = %d, want 404", rr.Code)
@@ -221,7 +221,7 @@ func TestSourceUpdateFailedPreconditionMapsTo422(t *testing.T) {
 		update: func(_ context.Context, _ *sourcev1.UpdateSourceRequest, _ ...grpc.CallOption) (*sourcev1.UpdateSourceResponse, error) {
 			return nil, status.Error(codes.FailedPrecondition, "endpoint resolves to a different upstream server")
 		},
-	})
+	}, &fakeLibraryClient{})
 	rr := doJSON(srv.Handler(), http.MethodPost, "/api/source/src_1/update",
 		`{"endpoint":"https://other","credentials":{"api_key":"k"}}`, sessionCookieHeader("sess_1"))
 	if rr.Code != http.StatusUnprocessableEntity {

@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	identityv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/identity/v1"
+	libraryv1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/library/v1"
 	sourcev1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1"
 )
 
@@ -27,18 +28,20 @@ const maxCredentialsBody = int64(4 << 10)
 type Server struct {
 	identityClient identityv1.IdentityServiceClient
 	sourceClient   sourcev1.SourceServiceClient
+	libraryClient  libraryv1.LibraryServiceClient
 	mux            *http.ServeMux
 }
 
 // NewServer returns a Server using the given clients for core calls.
-func NewServer(identityClient identityv1.IdentityServiceClient, sourceClient sourcev1.SourceServiceClient) *Server {
-	s := &Server{identityClient: identityClient, sourceClient: sourceClient, mux: http.NewServeMux()}
+func NewServer(identityClient identityv1.IdentityServiceClient, sourceClient sourcev1.SourceServiceClient, libraryClient libraryv1.LibraryServiceClient) *Server {
+	s := &Server{identityClient: identityClient, sourceClient: sourceClient, libraryClient: libraryClient, mux: http.NewServeMux()}
 	s.mux.HandleFunc("GET /api/status", s.apiStatus)
 	s.mux.HandleFunc("POST /api/setup", s.apiSetup)
 	s.mux.HandleFunc("POST /api/login", s.apiLogin)
 	s.mux.HandleFunc("POST /api/logout", s.apiLogout)
 	s.mux.HandleFunc("GET /api/me", s.apiMe)
 	s.registerSourceRoutes()
+	s.registerLibraryRoutes()
 	return s
 }
 
