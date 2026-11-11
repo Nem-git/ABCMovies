@@ -16,6 +16,9 @@ const (
 	LibraryOutcomeSuccess int32 = 1
 	LibraryOutcomePartial int32 = 2
 	LibraryOutcomeFailed  int32 = 3
+	// LibraryOutcomeInterrupted is written only by the startup sweep (a sync
+	// died with the process); never produced by ReplaceSourceSnapshot.
+	LibraryOutcomeInterrupted int32 = 4
 
 	LibraryTitleKindMovie  int32 = 1
 	LibraryTitleKindSeries int32 = 2
@@ -65,6 +68,8 @@ type LibrarySyncState struct {
 	LastSyncedAt      *time.Time
 	Detail            string
 	TitleCount        int32
+	// InFlight is true while a sync job for this source is running.
+	InFlight bool
 }
 
 // LibraryListResult is a page of titles plus the per-source freshness states.
@@ -233,6 +238,13 @@ func (s *Store) getSourceSyncState(ctx context.Context, sourceID string) (*Libra
 		t := syncedAt.Time.UTC()
 		st.LastSyncedAt = &t
 	}
+	var inFlight bool
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM jobs WHERE source_id = ? AND kind = ? AND state = ?)`,
+		sourceID, JobKindSync, JobStateRunning).Scan(&inFlight); err != nil {
+		return nil, fmt.Errorf("check in-flight sync job: %w", err)
+	}
+	st.InFlight = inFlight
 	return st, nil
 }
 
@@ -244,12 +256,13 @@ func (s *Store) getSourceSyncState(ctx context.Context, sourceID string) (*Libra
 func (s *Store) ListSyncStates(ctx context.Context) ([]*LibrarySyncState, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT r.source_id, r.display_name,
-		        COALESCE(s.last_outcome, 0), s.last_synced_at, COALESCE(s.detail, ''), COALESCE(s.title_count, 0)
+		        COALESCE(s.last_outcome, 0), s.last_synced_at, COALESCE(s.detail, ''), COALESCE(s.title_count, 0),
+		        EXISTS(SELECT 1 FROM jobs j WHERE j.source_id = r.source_id AND j.kind = ? AND j.state = ?)
 		   FROM sources r
 		   LEFT JOIN source_library_sync_states s ON s.source_id = r.source_id
 		  WHERE r.status != ?
 		  ORDER BY r.created DESC, r.source_id DESC`,
-		SourceStatusDisconnected)
+		JobKindSync, JobStateRunning, SourceStatusDisconnected)
 	if err != nil {
 		return nil, fmt.Errorf("list sync states: %w", err)
 	}
@@ -258,7 +271,7 @@ func (s *Store) ListSyncStates(ctx context.Context) ([]*LibrarySyncState, error)
 	for rows.Next() {
 		st := &LibrarySyncState{}
 		var syncedAt sql.NullTime
-		if err := rows.Scan(&st.SourceID, &st.SourceDisplayName, &st.LastOutcome, &syncedAt, &st.Detail, &st.TitleCount); err != nil {
+		if err := rows.Scan(&st.SourceID, &st.SourceDisplayName, &st.LastOutcome, &syncedAt, &st.Detail, &st.TitleCount, &st.InFlight); err != nil {
 			return nil, fmt.Errorf("scan sync state: %w", err)
 		}
 		if syncedAt.Valid {

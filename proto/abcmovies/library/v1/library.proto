@@ -59,6 +59,7 @@ enum SyncOutcome {
   SYNC_OUTCOME_SUCCESS = 1;
   SYNC_OUTCOME_PARTIAL = 2; // some titles synced; prior snapshot retained where needed
   SYNC_OUTCOME_FAILED = 3;  // sync could not complete; prior snapshot retained
+  SYNC_OUTCOME_INTERRUPTED = 4; // the instance restarted mid-sync; freshness state was swept to interrupted at startup; prior snapshot retained
 }
 
 enum TitleKind {
@@ -88,6 +89,7 @@ message SourceSyncState {
   google.protobuf.Timestamp last_synced_at = 4; // unset if never synced
   string detail = 5;         // safe, actionable
   int32 title_count = 6;     // titles in the current snapshot for this source
+  bool in_flight = 7;        // true while a sync job for this source is running
 }
 
 // Title is a non-sensitive library title (summary or detail fields populated as

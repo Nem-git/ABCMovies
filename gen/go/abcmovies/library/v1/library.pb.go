@@ -45,6 +45,7 @@ const (
 	SyncOutcome_SYNC_OUTCOME_SUCCESS     SyncOutcome = 1
 	SyncOutcome_SYNC_OUTCOME_PARTIAL     SyncOutcome = 2 // some titles synced; prior snapshot retained where needed
 	SyncOutcome_SYNC_OUTCOME_FAILED      SyncOutcome = 3 // sync could not complete; prior snapshot retained
+	SyncOutcome_SYNC_OUTCOME_INTERRUPTED SyncOutcome = 4 // the instance restarted mid-sync; freshness state was swept to interrupted at startup; prior snapshot retained
 )
 
 // Enum value maps for SyncOutcome.
@@ -54,12 +55,14 @@ var (
 		1: "SYNC_OUTCOME_SUCCESS",
 		2: "SYNC_OUTCOME_PARTIAL",
 		3: "SYNC_OUTCOME_FAILED",
+		4: "SYNC_OUTCOME_INTERRUPTED",
 	}
 	SyncOutcome_value = map[string]int32{
 		"SYNC_OUTCOME_UNSPECIFIED": 0,
 		"SYNC_OUTCOME_SUCCESS":     1,
 		"SYNC_OUTCOME_PARTIAL":     2,
 		"SYNC_OUTCOME_FAILED":      3,
+		"SYNC_OUTCOME_INTERRUPTED": 4,
 	}
 )
 
@@ -253,6 +256,7 @@ type SourceSyncState struct {
 	LastSyncedAt      *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=last_synced_at,json=lastSyncedAt,proto3" json:"last_synced_at,omitempty"` // unset if never synced
 	Detail            string                 `protobuf:"bytes,5,opt,name=detail,proto3" json:"detail,omitempty"`                                   // safe, actionable
 	TitleCount        int32                  `protobuf:"varint,6,opt,name=title_count,json=titleCount,proto3" json:"title_count,omitempty"`        // titles in the current snapshot for this source
+	InFlight          bool                   `protobuf:"varint,7,opt,name=in_flight,json=inFlight,proto3" json:"in_flight,omitempty"`              // true while a sync job for this source is running
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -327,6 +331,13 @@ func (x *SourceSyncState) GetTitleCount() int32 {
 		return x.TitleCount
 	}
 	return 0
+}
+
+func (x *SourceSyncState) GetInFlight() bool {
+	if x != nil {
+		return x.InFlight
+	}
+	return false
 }
 
 // Title is a non-sensitive library title (summary or detail fields populated as
@@ -1226,7 +1237,7 @@ const file_abcmovies_library_v1_library_proto_rawDesc = "" +
 	"\"abcmovies/library/v1/library.proto\x12\x14abcmovies.library.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"M\n" +
 	"\x13PasswordCredentials\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
-	"\bpassword\x18\x02 \x01(\tR\bpassword\"\x9f\x02\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\"\xbc\x02\n" +
 	"\x0fSourceSyncState\x12\x1b\n" +
 	"\tsource_id\x18\x01 \x01(\tR\bsourceId\x12.\n" +
 	"\x13source_display_name\x18\x02 \x01(\tR\x11sourceDisplayName\x12D\n" +
@@ -1234,7 +1245,8 @@ const file_abcmovies_library_v1_library_proto_rawDesc = "" +
 	"\x0elast_synced_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncedAt\x12\x16\n" +
 	"\x06detail\x18\x05 \x01(\tR\x06detail\x12\x1f\n" +
 	"\vtitle_count\x18\x06 \x01(\x05R\n" +
-	"titleCount\"\x87\x03\n" +
+	"titleCount\x12\x1b\n" +
+	"\tin_flight\x18\a \x01(\bR\binFlight\"\x87\x03\n" +
 	"\x05Title\x12\x19\n" +
 	"\btitle_id\x18\x01 \x01(\tR\atitleId\x12\x1b\n" +
 	"\tsource_id\x18\x02 \x01(\tR\bsourceId\x12.\n" +
@@ -1302,12 +1314,13 @@ const file_abcmovies_library_v1_library_proto_rawDesc = "" +
 	"\tsource_id\x18\x02 \x01(\tR\bsourceId\x12\x1d\n" +
 	"\n" +
 	"stream_url\x18\x03 \x01(\tR\tstreamUrl\x12$\n" +
-	"\rauthorization\x18\x04 \x01(\tR\rauthorization*x\n" +
+	"\rauthorization\x18\x04 \x01(\tR\rauthorization*\x96\x01\n" +
 	"\vSyncOutcome\x12\x1c\n" +
 	"\x18SYNC_OUTCOME_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14SYNC_OUTCOME_SUCCESS\x10\x01\x12\x18\n" +
 	"\x14SYNC_OUTCOME_PARTIAL\x10\x02\x12\x17\n" +
-	"\x13SYNC_OUTCOME_FAILED\x10\x03*j\n" +
+	"\x13SYNC_OUTCOME_FAILED\x10\x03\x12\x1c\n" +
+	"\x18SYNC_OUTCOME_INTERRUPTED\x10\x04*j\n" +
 	"\tTitleKind\x12\x1a\n" +
 	"\x16TITLE_KIND_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10TITLE_KIND_MOVIE\x10\x01\x12\x15\n" +

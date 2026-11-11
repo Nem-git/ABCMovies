@@ -196,6 +196,7 @@ type sourceSyncState struct {
 	LastSyncedAt      string `json:"last_synced_at,omitempty"`
 	Detail            string `json:"detail,omitempty"`
 	TitleCount        int    `json:"title_count"`
+	InFlight          bool   `json:"in_flight,omitempty"`
 }
 
 type listLibraryResponse struct {

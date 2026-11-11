@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -91,12 +92,23 @@ func (l *LibraryService) SyncSource(ctx context.Context, req *libraryv1.SyncSour
 		return nil, err
 	}
 
+	// Record the job before starting any work: an untracked long-running
+	// operation is worse than a rejected one. CompleteJob failures below never
+	// fail the response — the startup sweep reconciles orphans to interrupted.
+	job, err := l.store.CreateJob(ctx, store.JobKindSync, actor, sourceID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "record sync job: %v", err)
+	}
+
 	now := time.Now().UTC()
 	snapshot, fetchErr := l.fetcher.FetchLibrary(ctx, src.Endpoint, creds)
 	if fetchErr != nil {
 		detail := safeSyncDetail(fetchErr.Message)
 		if _, e := l.store.ReplaceSourceSnapshot(ctx, sourceID, store.LibraryOutcomeFailed, &now, detail, nil); e != nil {
-			return nil, status.Errorf(codes.Internal, "record sync state: %v", e)
+			slog.Error("record failed snapshot", "source_id", sourceID, "err", e)
+		}
+		if e := l.store.CompleteJob(ctx, job.JobID, store.JobStateFailed, detail); e != nil {
+			slog.Error("complete sync job (failed)", "source_id", sourceID, "job_id", job.JobID, "err", e)
 		}
 		return nil, mapVerifyError(fetchErr)
 	}
@@ -123,8 +135,22 @@ func (l *LibraryService) SyncSource(ctx context.Context, req *libraryv1.SyncSour
 	}
 	syncState, err := l.store.ReplaceSourceSnapshot(ctx, sourceID, outcome, &now, detail, items)
 	if err != nil {
+		slog.Error("apply snapshot", "source_id", sourceID, "err", err)
+		if e := l.store.CompleteJob(ctx, job.JobID, store.JobStateFailed, "saving the synced snapshot failed"); e != nil {
+			slog.Error("complete sync job (failed)", "source_id", sourceID, "job_id", job.JobID, "err", e)
+		}
 		return nil, status.Errorf(codes.Internal, "apply snapshot: %v", err)
 	}
+	// The job is complete by this point; the snapshot's in_flight was computed
+	// before the job closed, so report it as false in the response.
+	jobState := store.JobStateSucceeded
+	if outcome == store.LibraryOutcomePartial {
+		jobState = store.JobStatePartial
+	}
+	if e := l.store.CompleteJob(ctx, job.JobID, jobState, detail); e != nil {
+		slog.Error("complete sync job", "source_id", sourceID, "job_id", job.JobID, "err", e)
+	}
+	syncState.InFlight = false
 	return &libraryv1.SyncSourceResponse{
 		SourceId: sourceID,
 		Outcome:  syncOutcomeToProto(outcome),
@@ -227,6 +253,8 @@ func syncOutcomeToProto(outcome int32) libraryv1.SyncOutcome {
 		return libraryv1.SyncOutcome_SYNC_OUTCOME_PARTIAL
 	case store.LibraryOutcomeFailed:
 		return libraryv1.SyncOutcome_SYNC_OUTCOME_FAILED
+	case store.LibraryOutcomeInterrupted:
+		return libraryv1.SyncOutcome_SYNC_OUTCOME_INTERRUPTED
 	default:
 		return libraryv1.SyncOutcome_SYNC_OUTCOME_UNSPECIFIED
 	}
@@ -266,6 +294,7 @@ func syncStateToProto(src *store.LibrarySyncState) *libraryv1.SourceSyncState {
 		LastOutcome:       syncOutcomeToProto(src.LastOutcome),
 		Detail:            src.Detail,
 		TitleCount:        src.TitleCount,
+		InFlight:          src.InFlight,
 	}
 	if src.LastSyncedAt != nil {
 		out.LastSyncedAt = timestamppb.New(*src.LastSyncedAt)
