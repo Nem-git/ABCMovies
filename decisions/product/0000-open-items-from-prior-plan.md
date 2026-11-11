@@ -1,6 +1,6 @@
 # ADR 0000: Open items carried from prior plan
 
-- Status: Proposed
+- Status: Superseded
 - Type: Product
 - Date: 2026-11-08
 - Owners: TBD
@@ -20,9 +20,15 @@ These questions were noted before the rewrite reset. They are carried forward so
 
 ## Decision
 
-No decision yet. Split into focused ADRs/issues (DEC-001, DEC-005, DEC-006, DEC-007).
+No decision taken in this draft; the items were distributed instead — see Outcome.
 
-## Follow-up
+## Outcome
 
-- File/link DEC-001, DEC-005, DEC-006, DEC-007.
-- Supersede or close this draft when items are distributed.
+**Superseded** — every item distributed (2026-11-11):
+
+1. Provider/source IDs → `product/0002-source-identity.md` (DEC-001, #15): verified Jellyfin identity + opaque internal ID + normalized endpoint mapping for Build 1.
+2. Connector/extension IDs → still open; tracked in `docs/OPEN-QUESTIONS.md` ("How are extensions/integrations identified and trusted?"). Not scheduled.
+3. Enrichment scope → still open; tracked in `docs/OPEN-QUESTIONS.md` ("How is enrichment configured and scoped?"). Enrichment itself is Later unless scheduled.
+4. Frontend shipping → `tech/0010-frontend-core-split.md` (#34): gRPC core + HTTP session edge; SSR web UI bundled with the core's HTTP edge. `tech/0009` records the superseded draft.
+
+Further items surfaced by the rewrite to wait in `docs/OPEN-QUESTIONS.md`. This draft is closed.

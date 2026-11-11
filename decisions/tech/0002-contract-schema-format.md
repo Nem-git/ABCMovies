@@ -1,6 +1,6 @@
 # ADR 0002: Contract/schema format
 
-- Status: Proposed (migration draft)
+- Status: Accepted
 - Type: Technical
 - Date: 2026-11-08
 - Owners: TBD

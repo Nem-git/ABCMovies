@@ -1,6 +1,6 @@
 # ADR 0009: Frontend packaging
 
-- Status: Proposed (migration draft)
+- Status: Superseded by tech/0010
 - Type: Technical
 - Date: 2026-11-08
 - Owners: TBD
