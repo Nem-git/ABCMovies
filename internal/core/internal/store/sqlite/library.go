@@ -306,14 +306,15 @@ func (s *Store) GetTitleByExternal(ctx context.Context, sourceID, externalID str
 	return t, nil
 }
 
-// ListTitles returns a page of titles ordered by name. Available and older
-// unavailable titles are both returned so honesty signals stay visible to the
-// interface; the availability state is carried on each title.
+// ListTitles returns a page of available titles ordered by name, along with
+// the sync states. Unavailable titles (absent after a successful sync) stay
+// in the store but are hidden from browse/search per ADR 0006; they remain
+// resolvable by id (detail pages).
 func (s *Store) ListTitles(ctx context.Context, limit, offset int32) (*LibraryListResult, error) {
 	return s.queryTitles(ctx, "", limit, offset)
 }
 
-// SearchTitles returns a page of titles whose names contain query
+// SearchTitles returns a page of available titles whose names contain query
 // (case-insensitive, with LIKE metacharacters escaped).
 func (s *Store) SearchTitles(ctx context.Context, query string, limit, offset int32) (*LibraryListResult, error) {
 	return s.queryTitles(ctx, strings.TrimSpace(query), limit, offset)
@@ -325,8 +326,10 @@ func (s *Store) queryTitles(ctx context.Context, query string, limit, offset int
 
 	// Titles of disconnected sources stay in the store (tombstones) but are
 	// hidden from browse/search; they still resolve by id (detail pages).
-	where := ` WHERE r.status != ?`
-	args := []any{SourceStatusDisconnected}
+	// Titles marked unavailable (absent after a successful sync) are hidden
+	// the same way (ADR 0006); by-id resolution is unchanged.
+	where := ` WHERE r.status != ? AND t.availability = ?`
+	args := []any{SourceStatusDisconnected, LibraryAvailabilityAvailable}
 	if query != "" {
 		escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(query)
 		where += ` AND LOWER(t.name) LIKE LOWER(?) ESCAPE '\'`

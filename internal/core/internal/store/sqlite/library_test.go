@@ -72,6 +72,29 @@ func TestReplaceSourceSnapshotUpsertsAndRemovesByUnavailable(t *testing.T) {
 	if removed.AvailabilityDetail == "" {
 		t.Fatal("removed title availability_detail must tell the user why")
 	}
+
+	// Gone titles stay out of browse/search; by-id resolution is unchanged.
+	list, err = s.ListTitles(ctx, 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list.Titles) != 1 || list.TotalCount != 1 || list.Titles[0].Name != "Blade Runner" {
+		t.Fatalf("list after re-sync = %+v, want only Blade Runner", list)
+	}
+	gone, err := s.SearchTitles(ctx, "Severance", 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(gone.Titles) != 0 || gone.TotalCount != 0 {
+		t.Fatalf("search for gone title = %+v, want no results", gone)
+	}
+	byID, err := s.GetTitle(ctx, removed.TitleID)
+	if err != nil {
+		t.Fatalf("GetTitle by id after sync: %v", err)
+	}
+	if byID.Availability != LibraryAvailabilityUnavailable {
+		t.Fatalf("GetTitle by id availability = %d, want unavailable", byID.Availability)
+	}
 }
 
 func TestReplaceSourceSnapshotPartialAndFailedRetainSnapshot(t *testing.T) {

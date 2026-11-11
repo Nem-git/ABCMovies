@@ -188,13 +188,14 @@ func TestConnectRevivesDisconnectedSource(t *testing.T) {
 		t.Fatalf("reconnect status = %v, want ACTIVE", conn.GetSource().GetStatus())
 	}
 
-	// Until the next sync, titles stay unavailable (tombstone semantics)...
+	// Until the next sync, the titles stay unavailable and are hidden from
+	// browse/search (ADR 0006); the sync below restores them.
 	list, err := lib.ListTitles(ctx, &libraryv1.ListTitlesRequest{ActorUserId: "usr_admin"})
 	if err != nil {
 		t.Fatalf("ListTitles: %v", err)
 	}
-	if list.GetTitles()[0].GetAvailability() != libraryv1.AvailabilityState_AVAILABILITY_STATE_UNAVAILABLE {
-		t.Fatalf("availability before sync = %v, want unavailable", list.GetTitles()[0].GetAvailability())
+	if len(list.GetTitles()) != 0 {
+		t.Fatalf("list before re-sync = %+v, want no titles listed (all unavailable)", list.GetTitles())
 	}
 
 	// ...and sync restores them (the tombstone never needed re-creating).
@@ -211,8 +212,9 @@ func TestConnectRevivesDisconnectedSource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTitles after sync: %v", err)
 	}
-	if list.GetTitles()[0].GetAvailability() != libraryv1.AvailabilityState_AVAILABILITY_STATE_AVAILABLE {
-		t.Fatalf("availability after re-sync = %v, want available", list.GetTitles()[0].GetAvailability())
+	after := list.GetTitles()
+	if len(after) != 1 || after[0].GetAvailability() != libraryv1.AvailabilityState_AVAILABILITY_STATE_AVAILABLE {
+		t.Fatalf("list after re-sync = %+v, want the title available again", after)
 	}
 
 	_ = st // store kept for symmetry with sibling tests
