@@ -10,11 +10,11 @@
     <li>
       <strong>{{.DisplayName}}</strong> · {{.ConnectorID}} · {{.Endpoint}} · status: {{.Status}}{{if .StatusDetail}} ({{.StatusDetail}}){{end}}
       <details class="syncDetails" data-source-id="{{.SourceID}}" {{if eq $.SyncSourceID .SourceID}}open{{end}}>
-        <summary>Sync {{.DisplayName}}{{if $st}} ({{if eq $st.LastOutcome "success"}}up to date{{else if eq $st.LastOutcome "partial"}}partial{{else if eq $st.LastOutcome "failed"}}failed{{else}}not synced{{end}}){{end}}</summary>
+        <summary>Sync {{.DisplayName}}{{if $st}} ({{if $st.InFlight}}syncing{{else if eq $st.LastOutcome "success"}}up to date{{else if eq $st.LastOutcome "partial"}}partial{{else if eq $st.LastOutcome "failed"}}failed{{else if eq $st.LastOutcome "interrupted"}}interrupted{{else}}not synced{{end}}){{end}}</summary>
         <p>
-          {{if $st}}Outcome: {{if eq $st.LastOutcome "success"}}up to date{{else if eq $st.LastOutcome "partial"}}partial{{else if eq $st.LastOutcome "failed"}}failed{{else}}not synced{{end}}
+          {{if $st}}Outcome: {{if $st.InFlight}}syncing{{else if eq $st.LastOutcome "success"}}up to date{{else if eq $st.LastOutcome "partial"}}partial{{else if eq $st.LastOutcome "failed"}}failed{{else if eq $st.LastOutcome "interrupted"}}interrupted{{else}}not synced{{end}}
           {{if $st.LastSyncedAt}}· last synced {{$st.LastSyncedAt}}{{end}}
-          · titles: {{$st.TitleCount}}.{{if $st.Detail}}<br>Last result: {{$st.Detail}}{{end}}{{else}}Not synced yet.{{end}}
+          · titles: {{$st.TitleCount}}.{{if $st.InFlight}}<br>A sync is running; titles and availability below may change when it finishes.{{end}}{{if $st.Detail}}<br>Last result: {{$st.Detail}}{{end}}{{else}}Not synced yet.{{end}}
         </p>
         <form class="syncForm" data-source-id="{{.SourceID}}" method="post" action="/library/source/{{.SourceID}}/sync">
           <fieldset>
@@ -53,7 +53,7 @@
 
 <section aria-labelledby="titlesHeading">
   <h2 id="titlesHeading">Titles</h2>
-  {{$stale := false}}{{range .LibrarySyncStates}}{{if or (eq .LastOutcome "failed") (eq .LastOutcome "partial")}}{{$stale = true}}{{end}}{{end}}
+  {{$stale := false}}{{range .LibrarySyncStates}}{{if or (eq .LastOutcome "failed") (eq .LastOutcome "partial") (eq .LastOutcome "interrupted")}}{{$stale = true}}{{end}}{{end}}
   {{if $stale}}<p class="error" role="alert">Some sources have not synced successfully. Titles and availability below may be out of date — sync again to refresh (credentials are reused from this session if you left the form blank).</p>{{end}}
   {{if .LibraryTitles}}
   <ul>
@@ -92,6 +92,14 @@
     });
     const checked = form.querySelector('input[name="cred_type"]:checked');
     show((checked && checked.value) || 'password');
+    form.addEventListener('submit', () => {
+      // Sync blocks the form POST; prevent a double submit and say so.
+      const btn = form.querySelector('button[type="submit"]');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Syncing…';
+      }
+    });
   });
 })();
 </script>

@@ -54,6 +54,7 @@ type syncStateResponse struct {
 	LastSyncedAt      string `json:"last_synced_at,omitempty"` // RFC3339 UTC; empty if never synced
 	Detail            string `json:"detail,omitempty"`
 	TitleCount        int    `json:"title_count"`
+	InFlight          bool   `json:"in_flight,omitempty"`
 }
 
 type listTitlesResponse struct {
@@ -119,6 +120,8 @@ func syncOutcomeString(o libraryv1.SyncOutcome) string {
 		return "partial"
 	case libraryv1.SyncOutcome_SYNC_OUTCOME_FAILED:
 		return "failed"
+	case libraryv1.SyncOutcome_SYNC_OUTCOME_INTERRUPTED:
+		return "interrupted"
 	default:
 		return "unknown"
 	}
@@ -182,6 +185,7 @@ func syncStateToJSON(s *libraryv1.SourceSyncState) syncStateResponse {
 		LastOutcome:       syncOutcomeString(s.GetLastOutcome()),
 		Detail:            s.GetDetail(),
 		TitleCount:        int(s.GetTitleCount()),
+		InFlight:          s.GetInFlight(),
 	}
 	if s.GetLastSyncedAt() != nil && s.GetLastSyncedAt().IsValid() {
 		out.LastSyncedAt = s.GetLastSyncedAt().AsTime().UTC().Format(time.RFC3339Nano)
