@@ -23,12 +23,20 @@ type LibraryTitle = sqlite.LibraryTitle
 type LibraryTitleInput = sqlite.LibraryTitleInput
 type LibrarySyncState = sqlite.LibrarySyncState
 type LibraryListResult = sqlite.LibraryListResult
+type Job = sqlite.Job
 
 // Library proto-free mapped values re-exported for core.
 const (
-	LibraryOutcomeSuccess = sqlite.LibraryOutcomeSuccess
-	LibraryOutcomePartial = sqlite.LibraryOutcomePartial
-	LibraryOutcomeFailed  = sqlite.LibraryOutcomeFailed
+	LibraryOutcomeSuccess     = sqlite.LibraryOutcomeSuccess
+	LibraryOutcomePartial     = sqlite.LibraryOutcomePartial
+	LibraryOutcomeFailed      = sqlite.LibraryOutcomeFailed
+	LibraryOutcomeInterrupted = sqlite.LibraryOutcomeInterrupted
+	JobKindSync               = sqlite.JobKindSync
+	JobStateRunning           = sqlite.JobStateRunning
+	JobStateSucceeded         = sqlite.JobStateSucceeded
+	JobStatePartial           = sqlite.JobStatePartial
+	JobStateFailed            = sqlite.JobStateFailed
+	JobStateInterrupted       = sqlite.JobStateInterrupted
 
 	LibraryTitleKindMovie  = sqlite.LibraryTitleKindMovie
 	LibraryTitleKindSeries = sqlite.LibraryTitleKindSeries

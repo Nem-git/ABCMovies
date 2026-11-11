@@ -96,6 +96,17 @@ CREATE TABLE IF NOT EXISTS source_library_sync_states (
     title_count    INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS sessions_expires ON sessions(expires);
+CREATE TABLE IF NOT EXISTS jobs (
+    job_id     TEXT PRIMARY KEY,
+    kind       TEXT NOT NULL,
+    user_id    TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    source_id  TEXT NOT NULL REFERENCES sources(source_id) ON DELETE CASCADE,
+    state      INTEGER NOT NULL,
+    started_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    detail     TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS jobs_source_started ON jobs(source_id, started_at DESC);
 CREATE TABLE IF NOT EXISTS sources (
     source_id            TEXT PRIMARY KEY,
     connector_id         TEXT NOT NULL,
@@ -137,6 +148,10 @@ func Open(path string) (*Store, error) {
 	s := &Store{db: db}
 	// Best-effort cleanup of expired sessions on startup.
 	_, _ = s.DeleteExpiredSessions(context.Background())
+	// Best-effort sweep of jobs orphaned by the previous process: jobs run
+	// in-process, so every running job at startup is an orphan by definition.
+	// Also moves affected sync sources' freshness to interrupted (same tx).
+	_, _ = s.InterruptOrphanedJobs(context.Background(), "")
 	return s, nil
 }
 
