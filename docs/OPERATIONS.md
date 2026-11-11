@@ -59,4 +59,9 @@ ABCMovies can reset the local admin password from the machine that runs the inst
 - **Re-adding the same server brings the source back.** Reconnect the same Jellyfin server; after a sync, its titles return as they were.
 - **Removing a source is recorded in the instance's audit log**, with no credentials.
 
+## Syncing (Build 1)
+
+- **If the instance restarts mid-sync, restart afterwards notices.** Any sync that was running is marked "interrupted" — not "up to date". Your library keeps the last successful snapshot; sync again to refresh.
+- **A sync in progress shows as "syncing"** if you reload the library while it runs, and the Sync button disables itself so one click can't start two syncs.
+
 Build 1 release hygiene (install/upgrade/backup/restore, broader admin controls) is deferred (see REQ-OPS-01). Follow `decisions/product/0001-first-run-admin-and-recovery.md` for the recovery decision and trust boundary.
