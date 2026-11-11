@@ -149,6 +149,19 @@ func TestPlayRejectsSeriesAndUnavailable(t *testing.T) {
 		t.Fatal("series title page offered a play form")
 	}
 
+	// Capture the gone title's id before the re-sync (after it, the title is
+	// hidden from browse/search per ADR 0006).
+	searchResp = getWithSession(t, base+"/api/library/search?q=Gone+Movie", sessionCookieValue(t, client, base))
+	searchBody, _ = io.ReadAll(searchResp.Body)
+	_ = searchResp.Body.Close()
+	if err := json.Unmarshal(searchBody, &search); err != nil {
+		t.Fatalf("decode search before re-sync: %v", err)
+	}
+	if len(search.Titles) != 1 {
+		t.Fatalf("expected to find the gone title before re-sync, got %+v", search.Titles)
+	}
+	unavailableID := search.Titles[0].TitleID
+
 	// Unavailable title: removed from the source, re-sync reusing the
 	// session cache (empty credentials), then play must fail honestly.
 	mock.SetItems() // nothing left upstream
@@ -160,23 +173,26 @@ func TestPlayRejectsSeriesAndUnavailable(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("re-sync status = %d (empty creds reuse session cache), body=%s", resp.StatusCode, syncBody)
 	}
+	// After a successful sync that omits it, the gone title is hidden from
+	// browse and search (ADR 0006).
 	searchResp = getWithSession(t, base+"/api/library/search?q=Gone+Movie", sessionCookieValue(t, client, base))
 	searchBody, _ = io.ReadAll(searchResp.Body)
 	_ = searchResp.Body.Close()
 	if err := json.Unmarshal(searchBody, &search); err != nil {
 		t.Fatalf("decode search after re-sync: %v", err)
 	}
-	if len(search.Titles) != 1 {
-		t.Fatalf("expected the gone title to remain visible but unavailable, got %+v", search.Titles)
+	if len(search.Titles) != 0 {
+		t.Fatalf("expected the gone title to be hidden from search, got %+v", search.Titles)
 	}
-	code, body = playTitle(t, client, base, search.Titles[0].TitleID, map[string]any{})
-	if code != http.StatusUnprocessableEntity {
-		t.Fatalf("play unavailable status = %d, want 422; body=%s", code, body)
+	resp = getWithSession(t, base+"/library", sessionCookieValue(t, client, base))
+	libraryPage, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if bytes.Contains(libraryPage, []byte("Gone Movie")) {
+		t.Fatal("library still lists the gone title after a successful sync")
 	}
 
-	// The title page for the unavailable title shows the honest notice and
-	// offers no play form (no dead-end action).
-	unavailableID := search.Titles[0].TitleID
+	// ...but direct id access still resolves with the honest notice, and
+	// play stays rejected honestly.
 	resp = getWithSession(t, base+"/library/title/"+unavailableID, sessionCookieValue(t, client, base))
 	gonePage, _ := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
@@ -188,6 +204,10 @@ func TestPlayRejectsSeriesAndUnavailable(t *testing.T) {
 	}
 	if bytes.Contains(gonePage, []byte(`action="/library/title/`+unavailableID+`/play"`)) {
 		t.Fatal("unavailable title page offered a play form")
+	}
+	code, body = playTitle(t, client, base, unavailableID, map[string]any{})
+	if code != http.StatusUnprocessableEntity {
+		t.Fatalf("play unavailable status = %d, want 422; body=%s", code, body)
 	}
 
 }
