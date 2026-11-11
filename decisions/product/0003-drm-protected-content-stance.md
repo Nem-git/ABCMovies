@@ -1,6 +1,6 @@
 # ADR 0003: DRM/protected-content stance
 
-- Status: Proposed (accepted for now; expected to be superseded later)
+- Status: Accepted (expected to be superseded later)
 - Type: Product
 - Date: 2026-11-08
 - Owners: TBD

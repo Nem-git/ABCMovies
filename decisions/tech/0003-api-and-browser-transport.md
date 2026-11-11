@@ -1,6 +1,6 @@
 # ADR 0003: API and browser transport
 
-- Status: Proposed (migration draft)
+- Status: Accepted
 - Type: Technical
 - Date: 2026-11-08
 - Owners: TBD

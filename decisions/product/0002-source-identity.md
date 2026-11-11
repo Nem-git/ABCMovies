@@ -1,11 +1,11 @@
 # ADR 0002: Source/server identity (Jellyfin-first)
 
-- Status: Proposed
+- Status: Accepted
 - Type: Product
 - Date: 2026-11-08
 - Owners: TBD
 - GitHub: #15
-- Affects: REQ-SRC-01, REQ-LIB-01/03/04, future multi-source/merge behavior
+- Affects: REQ-ACS-01, REQ-LIB-01/03/04, future multi-source/merge behavior
 
 ## Context
 
