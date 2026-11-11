@@ -217,7 +217,7 @@ func TestNoJSSourcesConnect(t *testing.T) {
 	resp = postForm(t, client, base+"/sources/connect", url.Values{
 		"connector_id": {"jellyfin"},
 		"endpoint":     {jf.URL},
-		"display_name": {"Living Room"},
+		"display_name": {"Upstairs Copy"},
 		"cred_type":    {"api_key"},
 		"api_key":      {"any-key"},
 	})
@@ -243,6 +243,23 @@ func TestNoJSSourcesConnect(t *testing.T) {
 	wantUpdate = fmt.Sprintf("/sources/%s/update", srcID)
 	if !bytes.Contains(body, []byte(wantUpdate)) {
 		t.Fatalf("duplicate body missing update action %q", wantUpdate)
+	}
+	// The update form is prefilled with the name typed at connect, not the
+	// stored one ("Living Room").
+	formStart := bytes.Index(body, []byte(`class="updateForm"`))
+	if formStart < 0 {
+		t.Fatal("duplicate body missing update form")
+	}
+	formEnd := bytes.Index(body[formStart:], []byte("</form>"))
+	if formEnd < 0 {
+		t.Fatal("duplicate body update form not closed")
+	}
+	updateForm := body[formStart : formStart+formEnd]
+	if !bytes.Contains(updateForm, []byte(`value="Upstairs Copy"`)) {
+		t.Fatalf("update form prefill missing the typed display name, form=%q", updateForm)
+	}
+	if bytes.Contains(updateForm, []byte(`value="Living Room"`)) {
+		t.Fatalf("update form prefill shows the stored name, want the typed one, form=%q", updateForm)
 	}
 
 	// Update display name only (no credentials needed) via native form.

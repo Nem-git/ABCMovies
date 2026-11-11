@@ -36,4 +36,13 @@ const (
 
 	LibraryAvailabilityAvailable   = sqlite.LibraryAvailabilityAvailable
 	LibraryAvailabilityUnavailable = sqlite.LibraryAvailabilityUnavailable
+
+	SourceStatusActive              = sqlite.SourceStatusActive
+	SourceStatusNeedsReverification = sqlite.SourceStatusNeedsReverification
+	SourceStatusError               = sqlite.SourceStatusError
+	SourceStatusDisconnected        = sqlite.SourceStatusDisconnected
 )
+
+// SourceDisconnectedDetail is the safe detail string written for a
+// source's titles when the source is removed (tombstone).
+const SourceDisconnectedDetail = sqlite.SourceDisconnectedDetail

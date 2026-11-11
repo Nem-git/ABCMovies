@@ -39,4 +39,11 @@ ABCMovies can reset the local admin password from the machine that runs the inst
 - **Originals are big files.** Because nothing is converted, every watch streams the full original file — rebuffering means your connection is slower than the file, not that anything is broken. There is no limit yet on how many watches can run at once; ABCMovies logs the count instead.
 - **When it doesn't work.** The three things that fix almost everything: reload the page, try a different browser, and re-enter your source credentials. If it still fails, send the service owner the title and the exact message you see — and never share the watch link itself anywhere.
 
+## Removing a source (Build 1)
+
+- **Disconnecting a source hides its titles; it does not delete them.** The source and its library entries are kept, so watch history and future features stay meaningful. Titles from a disconnected source stop appearing in your library and cannot be played or synced.
+- **Removal takes effect for new use immediately.** Playing or syncing against a disconnected source fails with a clear message, and any play links you had for it stop working on the next request (a stream already mid-download finishes, but seeking or reloading will not).
+- **Re-adding the same server brings the source back.** Reconnect the same Jellyfin server; after a sync, its titles return as they were.
+- **Removing a source is recorded in the instance's audit log**, with no credentials.
+
 Build 1 release hygiene (install/upgrade/backup/restore, broader admin controls) is deferred (see REQ-OPS-01). Follow `decisions/product/0001-first-run-admin-and-recovery.md` for the recovery decision and trust boundary.

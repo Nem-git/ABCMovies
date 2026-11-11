@@ -9,6 +9,20 @@ import (
 	"time"
 )
 
+// SourceStatus values aligned to abcmovies.source.v1.SourceStatus; mapped in core.
+const (
+	SourceStatusActive              int32 = 1
+	SourceStatusNeedsReverification int32 = 2
+	SourceStatusError               int32 = 3
+	SourceStatusDisconnected        int32 = 4 // user-removed; row and titles retained (tombstone)
+)
+
+// SourceDisconnectedDetail is the safe, actionable status detail written when
+// a source is removed; the same string is used for its titles' availability detail.
+const SourceDisconnectedDetail = "the source was disconnected"
+
+// GetSourceByVerifiedIdentity returns the source with the given verified identity, or ErrNotFound.
+
 func (s *Store) GetSourceByVerifiedIdentity(ctx context.Context, connectorID, verifiedExternalID string) (*Source, error) {
 	src := &Source{}
 	err := s.db.QueryRowContext(ctx,
@@ -71,13 +85,30 @@ func (s *Store) GetSource(ctx context.Context, sourceID string) (*Source, error)
 	return src, nil
 }
 
-// ListSources returns all connected sources (non-sensitive summaries), newest first.
-// Build 1 is household/operator-managed; actor scoping is enforced in core.
+// ListSources returns all connected sources (non-sensitive summaries), newest first,
+// including DISCONNECTED tombstones. Build 1 is household/operator-managed; actor
+// scoping is enforced in core.
 
 func (s *Store) ListSources(ctx context.Context) ([]*Source, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT source_id, connector_id, verified_external_id, endpoint, display_name, status, status_detail, created_by, created, updated
-		   FROM sources ORDER BY created DESC, source_id DESC`)
+	return s.querySources(ctx, "")
+}
+
+// ListActiveSources returns all connected sources except DISCONNECTED tombstones,
+// newest first. Reconnecting the same verified server revives a tombstone via
+// ConnectSource, so tombstones never need to appear in the UI.
+
+func (s *Store) ListActiveSources(ctx context.Context) ([]*Source, error) {
+	return s.querySources(ctx, `WHERE status != ?`, SourceStatusDisconnected)
+}
+
+func (s *Store) querySources(ctx context.Context, where string, args ...any) ([]*Source, error) {
+	q := `SELECT source_id, connector_id, verified_external_id, endpoint, display_name, status, status_detail, created_by, created, updated
+	       FROM sources`
+	if where != "" {
+		q += " " + where
+	}
+	q += ` ORDER BY created DESC, source_id DESC`
+	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list sources: %w", err)
 	}
@@ -91,6 +122,49 @@ func (s *Store) ListSources(ctx context.Context) ([]*Source, error) {
 		out = append(out, src)
 	}
 	return out, rows.Err()
+}
+
+// RemoveSource tombstones a source: it is marked DISCONNECTED and its titles
+// are marked unavailable; nothing is deleted (REQ-LIB-04 keeps references
+// resumable). The sync state row is left as-is (the source's last known
+// outcome is honest history). Returns ErrNotFound if the source does not exist.
+
+func (s *Store) RemoveSource(ctx context.Context, sourceID string) (*Source, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("remove source: begin: %w", err)
+	}
+
+	now := time.Now().UTC()
+	res, err := tx.ExecContext(ctx,
+		`UPDATE sources SET status = ?, status_detail = ?, updated = ? WHERE source_id = ?`,
+		SourceStatusDisconnected, SourceDisconnectedDetail, now, sourceID)
+	if err != nil {
+		_ = tx.Rollback()
+		return nil, fmt.Errorf("remove source: update: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		_ = tx.Rollback()
+		return nil, fmt.Errorf("remove source: rows affected: %w", err)
+	}
+	if n == 0 {
+		_ = tx.Rollback()
+		return nil, ErrNotFound
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE library_titles
+		   SET availability = ?, availability_detail = ?, updated = ?
+		 WHERE source_id = ?`,
+		LibraryAvailabilityUnavailable, SourceDisconnectedDetail, now, sourceID); err != nil {
+		_ = tx.Rollback()
+		return nil, fmt.Errorf("remove source: mark titles unavailable: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("remove source: commit: %w", err)
+	}
+	return s.GetSource(ctx, sourceID)
 }
 
 // UpdateSource applies allowed, already-verified changes to an existing source.

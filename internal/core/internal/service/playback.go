@@ -2,12 +2,8 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"strings"
-	"sync"
-	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -17,118 +13,6 @@ import (
 	"github.com/Nem-git/ABCMovies/internal/core/internal/connector/source/jellyfin"
 	"github.com/Nem-git/ABCMovies/internal/core/internal/store"
 )
-
-// Session credential cache and playback tickets.
-//
-// Both live in process memory only. Nothing here is ever written to the
-// store, logged, or returned to browsers. This is the single place that
-// changes when DEC-003 (Build 2) decides encrypted at-rest credential
-// custody: the cache's storage moves behind this seam, the rest of the code
-// does not.
-const (
-	// sessionCredTTL bounds how long source credentials linger in memory
-	// without a successful use. Sliding: refreshed on every read.
-	sessionCredTTL = 12 * time.Hour
-	// ticketIdleTTL bounds how long a minted playback ticket stays valid
-	// without a successful resolve. Sliding: every resolve refreshes it, so
-	// the ticket lives as long as the video is actively being fetched (the
-	// browser re-issues Range requests throughout playback) but dies
-	// ticketIdleTTL after the last fetch.
-	ticketIdleTTL = 30 * time.Minute
-)
-
-type cachedCreds struct {
-	creds     jellyfin.Credentials
-	expiresAt time.Time
-}
-
-type sessionCredStore struct {
-	mu sync.Mutex
-	m  map[string]cachedCreds
-}
-
-func newSessionCredStore() *sessionCredStore { return &sessionCredStore{m: map[string]cachedCreds{}} }
-
-func (s *sessionCredStore) Get(userID string) (jellyfin.Credentials, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	c, ok := s.m[userID]
-	if !ok {
-		return jellyfin.Credentials{}, false
-	}
-	now := time.Now()
-	if now.After(c.expiresAt) {
-		delete(s.m, userID)
-		return jellyfin.Credentials{}, false
-	}
-	c.expiresAt = now.Add(sessionCredTTL) // sliding expiry
-	s.m[userID] = c
-	return c.creds, true
-}
-
-func (s *sessionCredStore) Put(userID string, creds jellyfin.Credentials) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.m[userID] = cachedCreds{creds: creds, expiresAt: time.Now().Add(sessionCredTTL)}
-}
-
-type playTicket struct {
-	actorUserID   string
-	titleID       string
-	sourceID      string
-	streamURL     string
-	authorization string
-	expiresAt     time.Time
-}
-
-type ticketStore struct {
-	mu sync.Mutex
-	m  map[string]playTicket
-	// now supplies the current time; tests override it to exercise expiry.
-	now func() time.Time
-}
-
-func newTicketStore() *ticketStore {
-	return &ticketStore{m: map[string]playTicket{}, now: time.Now}
-}
-
-var errTicketNotFound = errors.New("ticket not found or expired")
-
-func (s *ticketStore) mint(t playTicket) (string, error) {
-	buf := make([]byte, 16)
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
-	id := hex.EncodeToString(buf)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.purgeLocked(s.now())
-	s.m[id] = t
-	return id, nil
-}
-
-func (s *ticketStore) resolve(actorUserID, ticket string) (playTicket, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.purgeLocked(s.now())
-	t, ok := s.m[ticket]
-	if !ok || t.actorUserID != actorUserID {
-		// Uniform error: do not reveal whether the ticket exists.
-		return playTicket{}, errTicketNotFound
-	}
-	// Sliding expiry: each successful resolve refreshes the idle lifetime.
-	t.expiresAt = s.now().Add(ticketIdleTTL)
-	s.m[ticket] = t
-	return t, nil
-}
-
-func (s *ticketStore) purgeLocked(now time.Time) {
-	for k, v := range s.m {
-		if now.After(v.expiresAt) {
-			delete(s.m, k)
-		}
-	}
-}
 
 // playbackAuthorizer is the dependency used to authenticate against a source
 // at ticket-mint time. Tests inject a fake; production uses the Jellyfin
@@ -179,15 +63,15 @@ func (l *LibraryService) CreatePlayTicket(ctx context.Context, req *libraryv1.Cr
 		return nil, mapVerifyError(authErr)
 	}
 	// Auth succeeded: cache the credentials for this session.
-	l.creds.Put(actor, creds)
+	l.session.creds.Put(actor, creds)
 
 	streamURL, urlErr := jellyfin.StreamURL(src.Endpoint, t.ExternalID)
 	if urlErr != nil {
 		return nil, status.Errorf(codes.Internal, "build stream URL: %v", urlErr.Message)
 	}
 
-	expiresAt := l.tickets.now().Add(ticketIdleTTL)
-	id, err := l.tickets.mint(playTicket{
+	expiresAt := l.session.tickets.now().Add(ticketIdleTTL)
+	id, err := l.session.tickets.mint(playTicket{
 		actorUserID:   actor,
 		titleID:       titleID,
 		sourceID:      src.SourceID,
@@ -212,7 +96,7 @@ func (l *LibraryService) ResolvePlayTicket(ctx context.Context, req *libraryv1.R
 	if ticket == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "ticket is required")
 	}
-	pt, err := l.tickets.resolve(actor, ticket)
+	pt, err := l.session.tickets.resolve(actor, ticket)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "stream link expired or is invalid")
 	}
@@ -241,7 +125,7 @@ func (l *LibraryService) resolveCredsFromOneof(actor string, password *libraryv1
 	case hasAPIKey:
 		return jellyfin.Credentials{APIKey: strings.TrimSpace(apiKey)}, nil
 	default:
-		cached, ok := l.creds.Get(actor)
+		cached, ok := l.session.creds.Get(actor)
 		if !ok {
 			return jellyfin.Credentials{}, status.Errorf(codes.FailedPrecondition, "source credentials are required — enter them once for this session")
 		}

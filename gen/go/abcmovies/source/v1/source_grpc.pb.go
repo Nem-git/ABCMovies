@@ -27,6 +27,7 @@ const (
 	SourceService_UpdateSource_FullMethodName  = "/abcmovies.source.v1.SourceService/UpdateSource"
 	SourceService_ListSources_FullMethodName   = "/abcmovies.source.v1.SourceService/ListSources"
 	SourceService_GetSource_FullMethodName     = "/abcmovies.source.v1.SourceService/GetSource"
+	SourceService_RemoveSource_FullMethodName  = "/abcmovies.source.v1.SourceService/RemoveSource"
 )
 
 // SourceServiceClient is the client API for SourceService service.
@@ -45,6 +46,11 @@ type SourceServiceClient interface {
 	ListSources(ctx context.Context, in *ListSourcesRequest, opts ...grpc.CallOption) (*ListSourcesResponse, error)
 	// GetSource returns one non-sensitive source summary.
 	GetSource(ctx context.Context, in *GetSourceRequest, opts ...grpc.CallOption) (*GetSourceResponse, error)
+	// RemoveSource disconnects a source locally (no upstream call, no credentials).
+	// The source row and its library titles are retained as tombstones; the
+	// source's titles become and remain unavailable until the source is
+	// reconnected and re-synced (Build 1: single admin, instance-scope).
+	RemoveSource(ctx context.Context, in *RemoveSourceRequest, opts ...grpc.CallOption) (*RemoveSourceResponse, error)
 }
 
 type sourceServiceClient struct {
@@ -95,6 +101,16 @@ func (c *sourceServiceClient) GetSource(ctx context.Context, in *GetSourceReques
 	return out, nil
 }
 
+func (c *sourceServiceClient) RemoveSource(ctx context.Context, in *RemoveSourceRequest, opts ...grpc.CallOption) (*RemoveSourceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveSourceResponse)
+	err := c.cc.Invoke(ctx, SourceService_RemoveSource_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SourceServiceServer is the server API for SourceService service.
 // All implementations should embed UnimplementedSourceServiceServer
 // for forward compatibility.
@@ -111,6 +127,11 @@ type SourceServiceServer interface {
 	ListSources(context.Context, *ListSourcesRequest) (*ListSourcesResponse, error)
 	// GetSource returns one non-sensitive source summary.
 	GetSource(context.Context, *GetSourceRequest) (*GetSourceResponse, error)
+	// RemoveSource disconnects a source locally (no upstream call, no credentials).
+	// The source row and its library titles are retained as tombstones; the
+	// source's titles become and remain unavailable until the source is
+	// reconnected and re-synced (Build 1: single admin, instance-scope).
+	RemoveSource(context.Context, *RemoveSourceRequest) (*RemoveSourceResponse, error)
 }
 
 // UnimplementedSourceServiceServer should be embedded to have
@@ -131,6 +152,9 @@ func (UnimplementedSourceServiceServer) ListSources(context.Context, *ListSource
 }
 func (UnimplementedSourceServiceServer) GetSource(context.Context, *GetSourceRequest) (*GetSourceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSource not implemented")
+}
+func (UnimplementedSourceServiceServer) RemoveSource(context.Context, *RemoveSourceRequest) (*RemoveSourceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveSource not implemented")
 }
 func (UnimplementedSourceServiceServer) testEmbeddedByValue() {}
 
@@ -224,6 +248,24 @@ func _SourceService_GetSource_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SourceService_RemoveSource_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveSourceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SourceServiceServer).RemoveSource(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SourceService_RemoveSource_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SourceServiceServer).RemoveSource(ctx, req.(*RemoveSourceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SourceService_ServiceDesc is the grpc.ServiceDesc for SourceService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -246,6 +288,10 @@ var SourceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSource",
 			Handler:    _SourceService_GetSource_Handler,
+		},
+		{
+			MethodName: "RemoveSource",
+			Handler:    _SourceService_RemoveSource_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

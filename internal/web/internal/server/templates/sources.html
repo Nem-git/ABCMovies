@@ -2,6 +2,7 @@
 <p><a href="/">Home</a></p>
 <section>
   <h2>Connected sources</h2>
+  <p class="error" id="removeErr" role="alert">{{if .RemoveError}}{{.RemoveError}}{{end}}</p>
   {{if .Sources}}
   <ul>
     {{range .Sources}}
@@ -30,6 +31,14 @@
           <button type="submit">Update source</button>
         </form>
         <p class="error updateErr" role="alert">{{if eq .SourceID $.UpdateSourceID}}{{$.UpdateError}}{{end}}</p>
+      </details>
+      <details class="removeDetails" data-source-id="{{.SourceID}}" {{if eq .SourceID $.RemoveSourceID}}open{{end}}>
+        <summary>Remove this source</summary>
+        <p class="error">Titles from this source become unavailable and are hidden. Re-adding the same server restores the source and its titles after a sync.</p>
+        <form class="removeForm" data-source-id="{{.SourceID}}" method="post" action="/sources/{{.SourceID}}/remove">
+          <label><input type="checkbox" name="confirm" value="yes" required> Yes, remove this source</label>
+          <button type="submit" class="removeBtn">Remove source</button>
+        </form>
       </details>
     </li>
     {{end}}
@@ -76,6 +85,7 @@
   const duplicatePanel = document.getElementById('duplicatePanel');
   const duplicateInfo = document.getElementById('duplicateInfo');
   const updateForms = document.querySelectorAll('.updateForm');
+  const removeForms = document.querySelectorAll('.removeForm');
 
   // Credential panels are looked up inside each form (scoped, no global
   // ids), so the two forms can share the same markup without colliding.
@@ -133,15 +143,38 @@
         'This server is already connected as "' + (body.source.display_name || body.source.source_id) + '" (' + body.source.endpoint + ').';
       duplicatePanel.hidden = false;
       // Open that source's own update section in the list above.
+      const typedName = data.get('display_name').trim();
       document.querySelectorAll('.updateDetails').forEach((details) => {
         if (details.dataset.sourceId === body.source.source_id) {
           details.open = true;
+          if (typedName) {
+            const nameInput = details.querySelector('input[name="display_name"]');
+            if (nameInput) nameInput.value = typedName;
+          }
           details.scrollIntoView({ block: 'center' });
         }
       });
       return;
     }
     connectErr.textContent = body.error || 'Could not connect. Check the endpoint and credentials and try again.';
+  });
+
+  removeForms.forEach((removeForm) => {
+    removeForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const removeErr = document.getElementById('removeErr');
+      if (removeErr) removeErr.textContent = '';
+      const sourceId = removeForm.dataset.sourceId;
+      if (!sourceId) { if (removeErr) removeErr.textContent = 'No source selected.'; return; }
+      if (!removeForm.elements.namedItem('confirm').checked) {
+        if (removeErr) removeErr.textContent = 'Please confirm by ticking the removal checkbox.';
+        return;
+      }
+      const res = await fetch('/api/source/' + encodeURIComponent(sourceId) + '/remove', { method: 'POST' });
+      if (res.ok) { location.reload(); return; }
+      const body = await res.json().catch(() => ({}));
+      if (removeErr) removeErr.textContent = body.error || 'Could not remove the source.';
+    });
   });
 
   document.getElementById('useExistingBtn').addEventListener('click', (e) => { e.preventDefault(); location.href = '/sources'; });

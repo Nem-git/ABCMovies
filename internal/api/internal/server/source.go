@@ -56,6 +56,10 @@ type connectResponse struct {
 	Detail  string         `json:"detail,omitempty"`
 }
 
+type removeResponse struct {
+	Outcome string `json:"outcome"` // "removed"
+}
+
 type listResponse struct {
 	Sources []sourceResponse `json:"sources"`
 }
@@ -66,6 +70,7 @@ func (s *Server) registerSourceRoutes() {
 	s.mux.HandleFunc("GET /api/source", s.apiSourceList)
 	s.mux.HandleFunc("GET /api/source/{source_id}", s.apiSourceGet)
 	s.mux.HandleFunc("POST /api/source/{source_id}/update", s.apiSourceUpdate)
+	s.mux.HandleFunc("POST /api/source/{source_id}/remove", s.apiSourceRemove)
 }
 
 // requireSession resolves the session cookie to a valid actor user_id. If the
@@ -192,6 +197,8 @@ func sourceStatusString(s sourcev1.SourceStatus) string {
 		return "needs_reverification"
 	case sourcev1.SourceStatus_SOURCE_STATUS_ERROR:
 		return "error"
+	case sourcev1.SourceStatus_SOURCE_STATUS_DISCONNECTED:
+		return "disconnected"
 	default:
 		return "unknown"
 	}
@@ -302,6 +309,27 @@ func (s *Server) apiSourceGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, sourceToJSON(resp.GetSource()))
+}
+
+// apiSourceRemove disconnects a source. It takes no credentials (a local
+// action) and is idempotent from the caller's point of view: an unknown
+// source reports 404.
+func (s *Server) apiSourceRemove(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.requireSession(w, r)
+	if !ok {
+		return
+	}
+	id := strings.TrimSpace(r.PathValue("source_id"))
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "source_id is required")
+		return
+	}
+	_, err := s.sourceClient.RemoveSource(r.Context(), &sourcev1.RemoveSourceRequest{ActorUserId: actor, SourceId: id})
+	if err != nil {
+		s.mapSourceError(w, err, "core remove source failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, removeResponse{Outcome: "removed"})
 }
 
 func (s *Server) apiSourceUpdate(w http.ResponseWriter, r *http.Request) {

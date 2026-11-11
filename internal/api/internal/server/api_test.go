@@ -69,10 +69,11 @@ func (f *fakeIdentityClient) Logout(ctx context.Context, in *identityv1.LogoutRe
 }
 
 type fakeSourceClient struct {
-	connect     func(context.Context, *sourcev1.ConnectSourceRequest, ...grpc.CallOption) (*sourcev1.ConnectSourceResponse, error)
-	update      func(context.Context, *sourcev1.UpdateSourceRequest, ...grpc.CallOption) (*sourcev1.UpdateSourceResponse, error)
-	listSources func(context.Context, *sourcev1.ListSourcesRequest, ...grpc.CallOption) (*sourcev1.ListSourcesResponse, error)
-	getSource   func(context.Context, *sourcev1.GetSourceRequest, ...grpc.CallOption) (*sourcev1.GetSourceResponse, error)
+	connect      func(context.Context, *sourcev1.ConnectSourceRequest, ...grpc.CallOption) (*sourcev1.ConnectSourceResponse, error)
+	update       func(context.Context, *sourcev1.UpdateSourceRequest, ...grpc.CallOption) (*sourcev1.UpdateSourceResponse, error)
+	listSources  func(context.Context, *sourcev1.ListSourcesRequest, ...grpc.CallOption) (*sourcev1.ListSourcesResponse, error)
+	getSource    func(context.Context, *sourcev1.GetSourceRequest, ...grpc.CallOption) (*sourcev1.GetSourceResponse, error)
+	removeSource func(context.Context, *sourcev1.RemoveSourceRequest, ...grpc.CallOption) (*sourcev1.RemoveSourceResponse, error)
 }
 
 func (f *fakeSourceClient) ConnectSource(ctx context.Context, in *sourcev1.ConnectSourceRequest, opts ...grpc.CallOption) (*sourcev1.ConnectSourceResponse, error) {
@@ -100,13 +101,19 @@ func (f *fakeSourceClient) GetSource(ctx context.Context, in *sourcev1.GetSource
 	}
 	return &sourcev1.GetSourceResponse{Source: &sourcev1.Source{SourceId: in.GetSourceId(), Status: sourcev1.SourceStatus_SOURCE_STATUS_ACTIVE}}, nil
 }
+func (f *fakeSourceClient) RemoveSource(ctx context.Context, in *sourcev1.RemoveSourceRequest, opts ...grpc.CallOption) (*sourcev1.RemoveSourceResponse, error) {
+	if f.removeSource != nil {
+		return f.removeSource(ctx, in, opts...)
+	}
+	return &sourcev1.RemoveSourceResponse{}, nil
+}
 
 type fakeLibraryClient struct {
-	syncSource       func(context.Context, *libraryv1.SyncSourceRequest, ...grpc.CallOption) (*libraryv1.SyncSourceResponse, error)
-	listTitles       func(context.Context, *libraryv1.ListTitlesRequest, ...grpc.CallOption) (*libraryv1.ListTitlesResponse, error)
-	searchTitles     func(context.Context, *libraryv1.SearchTitlesRequest, ...grpc.CallOption) (*libraryv1.SearchTitlesResponse, error)
-	getTitle         func(context.Context, *libraryv1.GetTitleRequest, ...grpc.CallOption) (*libraryv1.GetTitleResponse, error)
-	createPlayTicket func(context.Context, *libraryv1.CreatePlayTicketRequest, ...grpc.CallOption) (*libraryv1.CreatePlayTicketResponse, error)
+	syncSource        func(context.Context, *libraryv1.SyncSourceRequest, ...grpc.CallOption) (*libraryv1.SyncSourceResponse, error)
+	listTitles        func(context.Context, *libraryv1.ListTitlesRequest, ...grpc.CallOption) (*libraryv1.ListTitlesResponse, error)
+	searchTitles      func(context.Context, *libraryv1.SearchTitlesRequest, ...grpc.CallOption) (*libraryv1.SearchTitlesResponse, error)
+	getTitle          func(context.Context, *libraryv1.GetTitleRequest, ...grpc.CallOption) (*libraryv1.GetTitleResponse, error)
+	createPlayTicket  func(context.Context, *libraryv1.CreatePlayTicketRequest, ...grpc.CallOption) (*libraryv1.CreatePlayTicketResponse, error)
 	resolvePlayTicket func(context.Context, *libraryv1.ResolvePlayTicketRequest, ...grpc.CallOption) (*libraryv1.ResolvePlayTicketResponse, error)
 }
 

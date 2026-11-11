@@ -60,6 +60,10 @@ type pageData struct {
 	// ConnectError and UpdateError are the sources form errors.
 	ConnectError string
 	UpdateError  string
+	// RemoveSourceID is the source whose remove section should expand with
+	// RemoveError after a failed no-JS remove (mirrors UpdateSourceID).
+	RemoveSourceID string
+	RemoveError    string
 	// Duplicate is the already-connected source, when the duplicate panel
 	// should be visible without JS. Nil hides the panel.
 	Duplicate *sourceSummary
@@ -135,6 +139,7 @@ func NewServer(apiAddr string) (*Server, error) {
 	s.mux.HandleFunc("POST /logout", s.logoutPost)
 	s.mux.HandleFunc("POST /sources/connect", s.connectPost)
 	s.mux.HandleFunc("POST /sources/{source_id}/update", s.updatePost)
+	s.mux.HandleFunc("POST /sources/{source_id}/remove", s.removePost)
 	return s, nil
 }
 
@@ -637,10 +642,16 @@ func (s *Server) connectPost(w http.ResponseWriter, r *http.Request) {
 			dupe := cresp.Source
 			data.Duplicate = &dupe
 			// Expand that source's update section in the list so the no-JS
-			// flow can complete without re-typing the endpoint.
+			// flow can complete without re-typing the endpoint. Prefill the
+			// display name with the one typed at connect when there is one;
+			// the stored value is only a fallback.
+			updateName := displayName
+			if updateName == "" {
+				updateName = dupe.DisplayName
+			}
 			data.UpdateSourceID = dupe.SourceID
 			data.UpdateEndpoint = dupe.Endpoint
-			data.UpdateDisplayName = dupe.DisplayName
+			data.UpdateDisplayName = updateName
 			data.UpdateCredType = "password"
 			data.UpdateUsername = ""
 			s.render(w, "sources", data)
@@ -649,6 +660,56 @@ func (s *Server) connectPost(w http.ResponseWriter, r *http.Request) {
 	}
 	data.ConnectError = apiErrorMessage(body, "Could not connect. Check the endpoint and credentials and try again.")
 	s.render(w, "sources", data)
+}
+
+// removePost disconnects a source via a no-JS form: an explicit "yes, remove"
+// checkbox is required, the API call carries no credentials, and on success
+// the page redirects to /sources (which re-renders without the source).
+// On failure the sources page re-renders with the remove section expanded
+// and the honest error.
+func (s *Server) removePost(w http.ResponseWriter, r *http.Request) {
+	username, ok := s.requireSourcesContext(w, r)
+	if !ok {
+		return
+	}
+	sourceID := strings.TrimSpace(r.PathValue("source_id"))
+	if sourceID == "" {
+		http.Error(w, "source_id is required", http.StatusBadRequest)
+		return
+	}
+	if !parseForm(w, r) {
+		return
+	}
+	renderErr := func(msg string) {
+		list, ok := s.listSources(r)
+		if !ok {
+			http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		s.render(w, "sources", pageData{
+			Title:          "Sources",
+			Username:       username,
+			Sources:        list.Sources,
+			RemoveSourceID: sourceID,
+			RemoveError:    msg,
+		})
+	}
+	if strings.TrimSpace(r.FormValue("confirm")) != "yes" {
+		renderErr("Please confirm by ticking the removal checkbox.")
+		return
+	}
+	code, body, cookies, err := s.apiPost(r, "/api/source/"+url.PathEscape(sourceID)+"/remove", nil)
+	if err != nil {
+		slog.Error("api remove unavailable", "err", err)
+		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	forwardCookies(w, cookies)
+	if code == http.StatusOK {
+		http.Redirect(w, r, "/sources", http.StatusSeeOther)
+		return
+	}
+	renderErr(apiErrorMessage(body, "Could not remove the source."))
 }
 
 func (s *Server) updatePost(w http.ResponseWriter, r *http.Request) {

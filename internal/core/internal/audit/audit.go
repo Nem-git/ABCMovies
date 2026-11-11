@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -27,6 +28,20 @@ type Logger struct {
 	mu   sync.Mutex
 	path string
 	file *os.File
+}
+
+// DefaultPath resolves the audit log path for a database: the
+// ABCMOVIES_AUDIT_LOG override wins, otherwise the log lives next to the
+// database. The admin recovery tool and the core use the same convention.
+func DefaultPath(dbPath string) string {
+	if p := os.Getenv("ABCMOVIES_AUDIT_LOG"); p != "" {
+		return p
+	}
+	dir := filepath.Dir(dbPath)
+	if dir == "." || dir == "" {
+		return "abcmovies-audit.log"
+	}
+	return filepath.Join(dir, "abcmovies-audit.log")
 }
 
 // Open opens (appending to) the audit log at path with owner-only permissions.

@@ -32,6 +32,7 @@ const (
 	SourceStatus_SOURCE_STATUS_ACTIVE               SourceStatus = 1
 	SourceStatus_SOURCE_STATUS_NEEDS_REVERIFICATION SourceStatus = 2
 	SourceStatus_SOURCE_STATUS_ERROR                SourceStatus = 3
+	SourceStatus_SOURCE_STATUS_DISCONNECTED         SourceStatus = 4 // user-removed; source row and titles retained (tombstone)
 )
 
 // Enum value maps for SourceStatus.
@@ -41,12 +42,14 @@ var (
 		1: "SOURCE_STATUS_ACTIVE",
 		2: "SOURCE_STATUS_NEEDS_REVERIFICATION",
 		3: "SOURCE_STATUS_ERROR",
+		4: "SOURCE_STATUS_DISCONNECTED",
 	}
 	SourceStatus_value = map[string]int32{
 		"SOURCE_STATUS_UNSPECIFIED":          0,
 		"SOURCE_STATUS_ACTIVE":               1,
 		"SOURCE_STATUS_NEEDS_REVERIFICATION": 2,
 		"SOURCE_STATUS_ERROR":                3,
+		"SOURCE_STATUS_DISCONNECTED":         4,
 	}
 )
 
@@ -790,6 +793,94 @@ func (x *GetSourceResponse) GetSource() *Source {
 	return nil
 }
 
+type RemoveSourceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ActorUserId   string                 `protobuf:"bytes,1,opt,name=actor_user_id,json=actorUserId,proto3" json:"actor_user_id,omitempty"` // authenticated ABCMovies user (resolved by API/session edge)
+	SourceId      string                 `protobuf:"bytes,2,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveSourceRequest) Reset() {
+	*x = RemoveSourceRequest{}
+	mi := &file_abcmovies_source_v1_source_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveSourceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveSourceRequest) ProtoMessage() {}
+
+func (x *RemoveSourceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_abcmovies_source_v1_source_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveSourceRequest.ProtoReflect.Descriptor instead.
+func (*RemoveSourceRequest) Descriptor() ([]byte, []int) {
+	return file_abcmovies_source_v1_source_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *RemoveSourceRequest) GetActorUserId() string {
+	if x != nil {
+		return x.ActorUserId
+	}
+	return ""
+}
+
+func (x *RemoveSourceRequest) GetSourceId() string {
+	if x != nil {
+		return x.SourceId
+	}
+	return ""
+}
+
+type RemoveSourceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveSourceResponse) Reset() {
+	*x = RemoveSourceResponse{}
+	mi := &file_abcmovies_source_v1_source_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveSourceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveSourceResponse) ProtoMessage() {}
+
+func (x *RemoveSourceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_abcmovies_source_v1_source_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveSourceResponse.ProtoReflect.Descriptor instead.
+func (*RemoveSourceResponse) Descriptor() ([]byte, []int) {
+	return file_abcmovies_source_v1_source_proto_rawDescGZIP(), []int{11}
+}
+
 var File_abcmovies_source_v1_source_proto protoreflect.FileDescriptor
 
 const file_abcmovies_source_v1_source_proto_rawDesc = "" +
@@ -836,21 +927,27 @@ const file_abcmovies_source_v1_source_proto_rawDesc = "" +
 	"\ractor_user_id\x18\x01 \x01(\tR\vactorUserId\x12\x1b\n" +
 	"\tsource_id\x18\x02 \x01(\tR\bsourceId\"H\n" +
 	"\x11GetSourceResponse\x123\n" +
-	"\x06source\x18\x01 \x01(\v2\x1b.abcmovies.source.v1.SourceR\x06source*\x88\x01\n" +
+	"\x06source\x18\x01 \x01(\v2\x1b.abcmovies.source.v1.SourceR\x06source\"V\n" +
+	"\x13RemoveSourceRequest\x12\"\n" +
+	"\ractor_user_id\x18\x01 \x01(\tR\vactorUserId\x12\x1b\n" +
+	"\tsource_id\x18\x02 \x01(\tR\bsourceId\"\x16\n" +
+	"\x14RemoveSourceResponse*\xa8\x01\n" +
 	"\fSourceStatus\x12\x1d\n" +
 	"\x19SOURCE_STATUS_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14SOURCE_STATUS_ACTIVE\x10\x01\x12&\n" +
 	"\"SOURCE_STATUS_NEEDS_REVERIFICATION\x10\x02\x12\x17\n" +
-	"\x13SOURCE_STATUS_ERROR\x10\x03*\x8a\x01\n" +
+	"\x13SOURCE_STATUS_ERROR\x10\x03\x12\x1e\n" +
+	"\x1aSOURCE_STATUS_DISCONNECTED\x10\x04*\x8a\x01\n" +
 	"\x14ConnectSourceOutcome\x12&\n" +
 	"\"CONNECT_SOURCE_OUTCOME_UNSPECIFIED\x10\x00\x12$\n" +
 	" CONNECT_SOURCE_OUTCOME_CONNECTED\x10\x01\x12$\n" +
-	" CONNECT_SOURCE_OUTCOME_DUPLICATE\x10\x022\x9a\x03\n" +
+	" CONNECT_SOURCE_OUTCOME_DUPLICATE\x10\x022\xff\x03\n" +
 	"\rSourceService\x12f\n" +
 	"\rConnectSource\x12).abcmovies.source.v1.ConnectSourceRequest\x1a*.abcmovies.source.v1.ConnectSourceResponse\x12c\n" +
 	"\fUpdateSource\x12(.abcmovies.source.v1.UpdateSourceRequest\x1a).abcmovies.source.v1.UpdateSourceResponse\x12`\n" +
 	"\vListSources\x12'.abcmovies.source.v1.ListSourcesRequest\x1a(.abcmovies.source.v1.ListSourcesResponse\x12Z\n" +
-	"\tGetSource\x12%.abcmovies.source.v1.GetSourceRequest\x1a&.abcmovies.source.v1.GetSourceResponseBBZ@github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1;sourcev1b\x06proto3"
+	"\tGetSource\x12%.abcmovies.source.v1.GetSourceRequest\x1a&.abcmovies.source.v1.GetSourceResponse\x12c\n" +
+	"\fRemoveSource\x12(.abcmovies.source.v1.RemoveSourceRequest\x1a).abcmovies.source.v1.RemoveSourceResponseBBZ@github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1;sourcev1b\x06proto3"
 
 var (
 	file_abcmovies_source_v1_source_proto_rawDescOnce sync.Once
@@ -865,7 +962,7 @@ func file_abcmovies_source_v1_source_proto_rawDescGZIP() []byte {
 }
 
 var file_abcmovies_source_v1_source_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_abcmovies_source_v1_source_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_abcmovies_source_v1_source_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_abcmovies_source_v1_source_proto_goTypes = []any{
 	(SourceStatus)(0),             // 0: abcmovies.source.v1.SourceStatus
 	(ConnectSourceOutcome)(0),     // 1: abcmovies.source.v1.ConnectSourceOutcome
@@ -879,6 +976,8 @@ var file_abcmovies_source_v1_source_proto_goTypes = []any{
 	(*ListSourcesResponse)(nil),   // 9: abcmovies.source.v1.ListSourcesResponse
 	(*GetSourceRequest)(nil),      // 10: abcmovies.source.v1.GetSourceRequest
 	(*GetSourceResponse)(nil),     // 11: abcmovies.source.v1.GetSourceResponse
+	(*RemoveSourceRequest)(nil),   // 12: abcmovies.source.v1.RemoveSourceRequest
+	(*RemoveSourceResponse)(nil),  // 13: abcmovies.source.v1.RemoveSourceResponse
 }
 var file_abcmovies_source_v1_source_proto_depIdxs = []int32{
 	0,  // 0: abcmovies.source.v1.Source.status:type_name -> abcmovies.source.v1.SourceStatus
@@ -893,12 +992,14 @@ var file_abcmovies_source_v1_source_proto_depIdxs = []int32{
 	6,  // 9: abcmovies.source.v1.SourceService.UpdateSource:input_type -> abcmovies.source.v1.UpdateSourceRequest
 	8,  // 10: abcmovies.source.v1.SourceService.ListSources:input_type -> abcmovies.source.v1.ListSourcesRequest
 	10, // 11: abcmovies.source.v1.SourceService.GetSource:input_type -> abcmovies.source.v1.GetSourceRequest
-	5,  // 12: abcmovies.source.v1.SourceService.ConnectSource:output_type -> abcmovies.source.v1.ConnectSourceResponse
-	7,  // 13: abcmovies.source.v1.SourceService.UpdateSource:output_type -> abcmovies.source.v1.UpdateSourceResponse
-	9,  // 14: abcmovies.source.v1.SourceService.ListSources:output_type -> abcmovies.source.v1.ListSourcesResponse
-	11, // 15: abcmovies.source.v1.SourceService.GetSource:output_type -> abcmovies.source.v1.GetSourceResponse
-	12, // [12:16] is the sub-list for method output_type
-	8,  // [8:12] is the sub-list for method input_type
+	12, // 12: abcmovies.source.v1.SourceService.RemoveSource:input_type -> abcmovies.source.v1.RemoveSourceRequest
+	5,  // 13: abcmovies.source.v1.SourceService.ConnectSource:output_type -> abcmovies.source.v1.ConnectSourceResponse
+	7,  // 14: abcmovies.source.v1.SourceService.UpdateSource:output_type -> abcmovies.source.v1.UpdateSourceResponse
+	9,  // 15: abcmovies.source.v1.SourceService.ListSources:output_type -> abcmovies.source.v1.ListSourcesResponse
+	11, // 16: abcmovies.source.v1.SourceService.GetSource:output_type -> abcmovies.source.v1.GetSourceResponse
+	13, // 17: abcmovies.source.v1.SourceService.RemoveSource:output_type -> abcmovies.source.v1.RemoveSourceResponse
+	13, // [13:18] is the sub-list for method output_type
+	8,  // [8:13] is the sub-list for method input_type
 	8,  // [8:8] is the sub-list for extension type_name
 	8,  // [8:8] is the sub-list for extension extendee
 	0,  // [0:8] is the sub-list for field type_name
@@ -923,7 +1024,7 @@ func file_abcmovies_source_v1_source_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_abcmovies_source_v1_source_proto_rawDesc), len(file_abcmovies_source_v1_source_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   10,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

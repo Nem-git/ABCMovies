@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	sourcev1 "github.com/Nem-git/ABCMovies/gen/go/abcmovies/source/v1"
+	"github.com/Nem-git/ABCMovies/internal/core/internal/audit"
 	"github.com/Nem-git/ABCMovies/internal/core/internal/connector/source/jellyfin"
 	"github.com/Nem-git/ABCMovies/internal/core/internal/store"
 )
@@ -56,13 +57,19 @@ func (f *fakeVerifier) Verify(_ context.Context, endpoint string, creds jellyfin
 
 func newSourceTestService(t *testing.T, v sourceVerifier) (*SourceService, *store.Store) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "test.db")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.db")
 	st, err := store.Open(path)
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	return NewSourceServiceWithVerifier(st, v), st
+	aud, err := audit.Open(filepath.Join(dir, "audit.log"))
+	if err != nil {
+		t.Fatalf("audit.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = aud.Close() })
+	return NewSourceServiceWithVerifier(st, v, NewSessionState(), aud), st
 }
 
 func connectPassword(t *testing.T, svc *SourceService, ctx context.Context, endpoint, displayName string) *sourcev1.ConnectSourceResponse {
@@ -424,5 +431,40 @@ func TestUpdateSourceDisplayNameTooLong(t *testing.T) {
 	})
 	if status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("code = %v, want InvalidArgument", status.Code(err))
+	}
+}
+
+func TestConnectSourceReAddAfterRemoveAppliesTypedDisplayName(t *testing.T) {
+	svc, _ := newSourceTestService(t, &fakeVerifier{})
+	ctx := context.Background()
+
+	first := connectPassword(t, svc, ctx, "https://media.example.test", "Old Name")
+	srcID := first.GetSource().GetSourceId()
+	if _, err := svc.RemoveSource(ctx, &sourcev1.RemoveSourceRequest{ActorUserId: "usr_admin", SourceId: srcID}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Re-adding with a typed name applies it (not the stored one).
+	second := connectPassword(t, svc, ctx, "https://media.example.test", "New Name")
+	if second.GetOutcome() != sourcev1.ConnectSourceOutcome_CONNECT_SOURCE_OUTCOME_CONNECTED {
+		t.Fatalf("outcome = %v, want CONNECTED", second.GetOutcome())
+	}
+	if got := second.GetSource().GetSourceId(); got != srcID {
+		t.Fatalf("re-add returned %q, want the tombstoned source %q revived", got, srcID)
+	}
+	if got := second.GetSource().GetDisplayName(); got != "New Name" {
+		t.Fatalf("display_name = %q, want the name typed at re-add", got)
+	}
+
+	// A blank re-add keeps the stored (now New Name) name.
+	if _, err := svc.RemoveSource(ctx, &sourcev1.RemoveSourceRequest{ActorUserId: "usr_admin", SourceId: srcID}); err != nil {
+		t.Fatal(err)
+	}
+	third := connectPassword(t, svc, ctx, "https://media.example.test", "")
+	if third.GetOutcome() != sourcev1.ConnectSourceOutcome_CONNECT_SOURCE_OUTCOME_CONNECTED {
+		t.Fatalf("outcome = %v, want CONNECTED", third.GetOutcome())
+	}
+	if got := third.GetSource().GetDisplayName(); got != "New Name" {
+		t.Fatalf("display_name = %q, want stored name kept on blank re-add", got)
 	}
 }
