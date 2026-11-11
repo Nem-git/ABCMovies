@@ -110,7 +110,7 @@ func (s *SourceService) ConnectSource(ctx context.Context, req *sourcev1.Connect
 	// against races (e.g. two simultaneous connects) — if insertion fails as a
 	// duplicate, fall back to returning the existing row.
 	if existing, err := s.store.GetSourceByVerifiedIdentity(ctx, connectorID, verified.VerifiedID); err == nil {
-		return s.connectDuplicateOrRevive(ctx, existing, verified)
+		return s.connectDuplicateOrRevive(ctx, existing, verified, displayNameRaw)
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return nil, status.Errorf(codes.Internal, "read sources: %v", err)
 	}
@@ -126,7 +126,7 @@ func (s *SourceService) ConnectSource(ctx context.Context, req *sourcev1.Connect
 	if errors.Is(err, store.ErrDuplicateVerifiedIdentity) {
 		existing, lerr := s.store.GetSourceByVerifiedIdentity(ctx, connectorID, verified.VerifiedID)
 		if lerr == nil {
-			return s.connectDuplicateOrRevive(ctx, existing, verified)
+			return s.connectDuplicateOrRevive(ctx, existing, verified, displayNameRaw)
 		}
 		return nil, status.Errorf(codes.Internal, "read source after duplicate insert: %v", lerr)
 	}
@@ -298,12 +298,18 @@ func duplicateConnectSourceResponse(existing *store.Source) *sourcev1.ConnectSou
 // connectDuplicateOrRevive applies the DEC-001 rule to an existing source that
 // matched a re-connect: an ACTIVE source stays a DUPLICATE; a DISCONNECTED
 // tombstone with the same verified identity is restored (same source_id,
-// status ACTIVE). Titles stay unavailable until the next sync.
-func (s *SourceService) connectDuplicateOrRevive(ctx context.Context, existing *store.Source, verified *jellyfin.ServerInfo) (*sourcev1.ConnectSourceResponse, error) {
+// status ACTIVE). Titles stay unavailable until the next sync. Re-adding is
+// treated as an add for the human label too: a display name typed at
+// re-connect replaces the stored one; leaving it blank keeps the stored name.
+func (s *SourceService) connectDuplicateOrRevive(ctx context.Context, existing *store.Source, verified *jellyfin.ServerInfo, displayNameRaw string) (*sourcev1.ConnectSourceResponse, error) {
 	if existing.Status != store.SourceStatusDisconnected {
 		return duplicateConnectSourceResponse(existing), nil
 	}
-	revived, uerr := s.store.UpdateSource(ctx, existing.SourceID, verified.Endpoint, existing.DisplayName, int32(sourcev1.SourceStatus_SOURCE_STATUS_ACTIVE), sourceRestoredDetail)
+	displayName := existing.DisplayName
+	if n := displayNameRaw; n != "" {
+		displayName = safeDisplayName(n, maxDisplayNameLength, existing.DisplayName)
+	}
+	revived, uerr := s.store.UpdateSource(ctx, existing.SourceID, verified.Endpoint, displayName, int32(sourcev1.SourceStatus_SOURCE_STATUS_ACTIVE), sourceRestoredDetail)
 	if uerr != nil {
 		return nil, status.Errorf(codes.Internal, "revive source: %v", uerr)
 	}

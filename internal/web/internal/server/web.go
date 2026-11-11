@@ -642,10 +642,16 @@ func (s *Server) connectPost(w http.ResponseWriter, r *http.Request) {
 			dupe := cresp.Source
 			data.Duplicate = &dupe
 			// Expand that source's update section in the list so the no-JS
-			// flow can complete without re-typing the endpoint.
+			// flow can complete without re-typing the endpoint. Prefill the
+			// display name with the one typed at connect when there is one;
+			// the stored value is only a fallback.
+			updateName := displayName
+			if updateName == "" {
+				updateName = dupe.DisplayName
+			}
 			data.UpdateSourceID = dupe.SourceID
 			data.UpdateEndpoint = dupe.Endpoint
-			data.UpdateDisplayName = dupe.DisplayName
+			data.UpdateDisplayName = updateName
 			data.UpdateCredType = "password"
 			data.UpdateUsername = ""
 			s.render(w, "sources", data)

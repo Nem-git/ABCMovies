@@ -198,12 +198,13 @@ func TestDisconnectRemoveAndRevive(t *testing.T) {
 	}
 
 	// Reconnecting the same server revives the tombstone: 303 redirects to
-	// /sources (outcome connected, not duplicate), the source is listed,
-	// and after a sync the title is playable again.
+	// /sources (outcome connected, not duplicate), the source is listed
+	// under the name typed at re-add, and after a sync the title is
+	// playable again.
 	resp = postForm(t, client, base+"/sources/connect", url.Values{
 		"connector_id": {"jellyfin"},
 		"endpoint":     {mock.URL},
-		"display_name": {"Remove Server"},
+		"display_name": {"Remove Server Redux"},
 		"cred_type":    {"password"},
 		"username":     {"admin"},
 		"password":     {"correct horse"},
@@ -217,6 +218,9 @@ func TestDisconnectRemoveAndRevive(t *testing.T) {
 	_ = resp.Body.Close()
 	if !bytes.Contains(listBody, []byte(sourceID)) {
 		t.Fatalf("reconnect did not revive the tombstoned source: %s", listBody)
+	}
+	if !bytes.Contains(listBody, []byte("Remove Server Redux")) {
+		t.Fatalf("reconnect did not apply the typed display name: %s", listBody)
 	}
 
 	resp = postForm(t, client, base+"/library/source/"+sourceID+"/sync", url.Values{

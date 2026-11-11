@@ -143,9 +143,14 @@
         'This server is already connected as "' + (body.source.display_name || body.source.source_id) + '" (' + body.source.endpoint + ').';
       duplicatePanel.hidden = false;
       // Open that source's own update section in the list above.
+      const typedName = data.get('display_name').trim();
       document.querySelectorAll('.updateDetails').forEach((details) => {
         if (details.dataset.sourceId === body.source.source_id) {
           details.open = true;
+          if (typedName) {
+            const nameInput = details.querySelector('input[name="display_name"]');
+            if (nameInput) nameInput.value = typedName;
+          }
           details.scrollIntoView({ block: 'center' });
         }
       });

@@ -433,3 +433,38 @@ func TestUpdateSourceDisplayNameTooLong(t *testing.T) {
 		t.Fatalf("code = %v, want InvalidArgument", status.Code(err))
 	}
 }
+
+func TestConnectSourceReAddAfterRemoveAppliesTypedDisplayName(t *testing.T) {
+	svc, _ := newSourceTestService(t, &fakeVerifier{})
+	ctx := context.Background()
+
+	first := connectPassword(t, svc, ctx, "https://media.example.test", "Old Name")
+	srcID := first.GetSource().GetSourceId()
+	if _, err := svc.RemoveSource(ctx, &sourcev1.RemoveSourceRequest{ActorUserId: "usr_admin", SourceId: srcID}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Re-adding with a typed name applies it (not the stored one).
+	second := connectPassword(t, svc, ctx, "https://media.example.test", "New Name")
+	if second.GetOutcome() != sourcev1.ConnectSourceOutcome_CONNECT_SOURCE_OUTCOME_CONNECTED {
+		t.Fatalf("outcome = %v, want CONNECTED", second.GetOutcome())
+	}
+	if got := second.GetSource().GetSourceId(); got != srcID {
+		t.Fatalf("re-add returned %q, want the tombstoned source %q revived", got, srcID)
+	}
+	if got := second.GetSource().GetDisplayName(); got != "New Name" {
+		t.Fatalf("display_name = %q, want the name typed at re-add", got)
+	}
+
+	// A blank re-add keeps the stored (now New Name) name.
+	if _, err := svc.RemoveSource(ctx, &sourcev1.RemoveSourceRequest{ActorUserId: "usr_admin", SourceId: srcID}); err != nil {
+		t.Fatal(err)
+	}
+	third := connectPassword(t, svc, ctx, "https://media.example.test", "")
+	if third.GetOutcome() != sourcev1.ConnectSourceOutcome_CONNECT_SOURCE_OUTCOME_CONNECTED {
+		t.Fatalf("outcome = %v, want CONNECTED", third.GetOutcome())
+	}
+	if got := third.GetSource().GetDisplayName(); got != "New Name" {
+		t.Fatalf("display_name = %q, want stored name kept on blank re-add", got)
+	}
+}
